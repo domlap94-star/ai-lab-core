@@ -14,6 +14,7 @@ from app.core.security import (
 )
 from app.database.session import get_db
 from app.models.user import User
+from app.services.user_service import UserService
 
 router = APIRouter(
     prefix="/auth",
@@ -29,6 +30,9 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
+    """
+    Returns currently authenticated user.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -46,11 +50,8 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    user = (
-        db.query(User)
-        .filter(User.username == username)
-        .first()
-    )
+    user_service = UserService(db)
+    user = user_service.get_by_username(username)
 
     if user is None:
         raise credentials_exception
@@ -63,11 +64,12 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    user = (
-        db.query(User)
-        .filter(User.username == form_data.username)
-        .first()
-    )
+    """
+    Authenticate user and return JWT access token.
+    """
+
+    user_service = UserService(db)
+    user = user_service.get_by_username(form_data.username)
 
     if user is None:
         raise HTTPException(
@@ -105,6 +107,9 @@ def login(
 def me(
     current_user: User = Depends(get_current_user),
 ):
+    """
+    Returns information about currently authenticated user.
+    """
     return {
         "id": current_user.id,
         "username": current_user.username,
