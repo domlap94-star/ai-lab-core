@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -10,6 +11,9 @@ pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
 )
+
+TOKEN_TYPE_ACCESS = "access"
+TOKEN_TYPE_REFRESH = "refresh"
 
 
 # ==========================================================
@@ -31,46 +35,41 @@ def verify_password(
 
 
 # ==========================================================
-# JWT Tokens
+# JWT helpers
 # ==========================================================
+
+def _build_token_payload(
+    data: dict[str, Any],
+    expires_delta: timedelta,
+    token_type: str,
+) -> dict[str, Any]:
+    payload = data.copy()
+    payload.setdefault("jti", str(uuid4()))
+    payload["iat"] = datetime.now(timezone.utc)
+    payload["nbf"] = datetime.now(timezone.utc)
+    payload["exp"] = datetime.now(timezone.utc) + expires_delta
+    payload["type"] = token_type
+    payload.setdefault("iss", settings.app_name)
+    return payload
+
 
 def create_access_token(
     data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
-    """
-    Creates JWT access token.
-
-    Required:
-        data["sub"]
-
-    Example:
-        create_access_token(
-            data={
-                "sub": user.username,
-                "role": "admin",
-            }
-        )
-    """
-
-    to_encode = data.copy()
-
     if expires_delta is None:
         expires_delta = timedelta(
             minutes=settings.access_token_expire_minutes,
         )
 
-    expire = datetime.now(timezone.utc) + expires_delta
-
-    to_encode.update(
-        {
-            "exp": expire,
-            "type": "access",
-        }
+    payload = _build_token_payload(
+        data=data,
+        expires_delta=expires_delta,
+        token_type=TOKEN_TYPE_ACCESS,
     )
 
     return jwt.encode(
-        to_encode,
+        payload,
         settings.secret_key,
         algorithm=settings.algorithm,
     )
@@ -80,26 +79,19 @@ def create_refresh_token(
     data: dict[str, Any],
     expires_delta: timedelta | None = None,
 ) -> str:
-    """
-    Creates JWT refresh token.
-    """
-
-    to_encode = data.copy()
-
     if expires_delta is None:
-        expires_delta = timedelta(days=30)
+        expires_delta = timedelta(
+            days=settings.refresh_token_expire_days,
+        )
 
-    expire = datetime.now(timezone.utc) + expires_delta
-
-    to_encode.update(
-        {
-            "exp": expire,
-            "type": "refresh",
-        }
+    payload = _build_token_payload(
+        data=data,
+        expires_delta=expires_delta,
+        token_type=TOKEN_TYPE_REFRESH,
     )
 
     return jwt.encode(
-        to_encode,
+        payload,
         settings.secret_key,
         algorithm=settings.algorithm,
     )
@@ -108,10 +100,6 @@ def create_refresh_token(
 def decode_token(
     token: str,
 ) -> dict[str, Any]:
-    """
-    Decode JWT token.
-    """
-
     return jwt.decode(
         token,
         settings.secret_key,
@@ -119,46 +107,29 @@ def decode_token(
     )
 
 
-def get_subject_from_token(
-    token: str,
-) -> str | None:
-    """
-    Returns username (sub) from token.
-    """
-
-    try:
-        payload = decode_token(token)
-        return payload.get("sub")
-
-    except JWTError:
-        return None
-
-
 def verify_access_token(
     token: str,
 ) -> dict[str, Any]:
-    """
-    Verify access token.
-    """
-
     payload = decode_token(token)
-
-    if payload.get("type") != "access":
+    if payload.get("type") != TOKEN_TYPE_ACCESS:
         raise JWTError("Invalid token type")
-
     return payload
 
 
 def verify_refresh_token(
     token: str,
 ) -> dict[str, Any]:
-    """
-    Verify refresh token.
-    """
-
     payload = decode_token(token)
-
-    if payload.get("type") != "refresh":
+    if payload.get("type") != TOKEN_TYPE_REFRESH:
         raise JWTError("Invalid token type")
-
     return payload
+
+
+def get_subject_from_token(
+    token: str,
+) -> str | None:
+    try:
+        payload = decode_token(token)
+        return payload.get("sub")
+    except JWTError:
+        return None
