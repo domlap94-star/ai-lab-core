@@ -15,9 +15,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # ==========================================================
+    # Application
+    # ==========================================================
+
     app_name: str = "AI-Lab"
     environment: str = "development"
     debug: bool = False
+
+    # ==========================================================
+    # Database
+    # ==========================================================
 
     postgres_db: str
     postgres_user: str
@@ -25,20 +33,39 @@ class Settings(BaseSettings):
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
+    # ==========================================================
+    # JWT
+    # ==========================================================
+
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 30
 
+    # ==========================================================
+    # Administrator
+    # ==========================================================
+
     admin_username: str
     admin_email: str
     admin_password: str
 
+    # ==========================================================
+    # AI Providers
+    # ==========================================================
+
     ollama_url: str = "http://ollama:11434"
+
     openwebui_url: str = "http://open-webui:8080"
+
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
+
     n8n_url: str = "http://n8n:5678"
+
+    # ==========================================================
+    # Paths
+    # ==========================================================
 
     data_dir: str = "/data"
 
@@ -46,6 +73,11 @@ class Settings(BaseSettings):
     @property
     def project_dir(self) -> Path:
         return Path(__file__).resolve().parents[3]
+
+    @computed_field
+    @property
+    def backend_dir(self) -> Path:
+        return self.project_dir / "backend"
 
     @computed_field
     @property
