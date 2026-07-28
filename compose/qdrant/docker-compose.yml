@@ -1,0 +1,20 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+
+    restart: unless-stopped
+
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+    volumes:
+      - ../../data/qdrant:/qdrant/storage
+
+    networks:
+      - ai-lab-network
+
+networks:
+  ai-lab-network:
+    external: true

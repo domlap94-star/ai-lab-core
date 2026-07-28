@@ -1,0 +1,19 @@
+project:
+  name: ai-lab
+
+paths:
+  inbox: d:/ai-lab-data/inbox
+  knowledge: d:/ai-lab-data/knowledge
+  backups: d:/ai-lab-data/backups
+  projects: d:/ai-lab-data/projects
+
+models:
+  chat: gemma3:4b
+  reasoning: qwen3:4b
+  embedding: nomic-embed-text
+
+services:
+  ollama: http://ollama:11434
+  qdrant: http://qdrant:6333
+  openwebui: http://open-webui:8080
+  n8n: http://n8n:5678

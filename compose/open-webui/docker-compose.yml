@@ -1,0 +1,22 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    restart: unless-stopped
+
+    ports:
+      - "3000:8080"
+
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+
+    volumes:
+      - ../../data/openwebui:/app/backend/data
+
+    networks:
+      - ai-lab-network
+
+networks:
+  ai-lab-network:
+    external: true
+

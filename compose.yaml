@@ -1,0 +1,7 @@
+include:
+  - compose/backend/docker-compose.yml
+  - compose/postgres/docker-compose.yml
+  - compose/ollama/docker-compose.yml
+  - compose/open-webui/docker-compose.yml
+  - compose/qdrant/docker-compose.yml
+  - compose/n8n/docker-compose.yml

@@ -1,0 +1,29 @@
+services:
+  backend:
+    container_name: ai-lab-backend
+
+    build:
+      context: ../../backend
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    env_file:
+      - ../../.env
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ../../backend:/app
+      - ../../data:/data
+
+    restart: unless-stopped
+
+    networks:
+      - ai-lab-network
+
+networks:
+  ai-lab-network:
+    external: true

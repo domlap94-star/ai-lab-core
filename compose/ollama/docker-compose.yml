@@ -1,0 +1,22 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+
+    ports:
+      - "11434:11434"
+
+    volumes:
+      - ../../data/ollama:/root/.ollama
+
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+
+    networks:
+      - ai-lab-network
+
+
+networks:
+  ai-lab-network:
+    external: true

@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:17
+
+    container_name: postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ai_lab
+      POSTGRES_USER: ai_lab
+      POSTGRES_PASSWORD: ai_lab_password
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - ../../data/postgres:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_lab"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - ai-lab-network
+
+networks:
+  ai-lab-network:
+    external: true
