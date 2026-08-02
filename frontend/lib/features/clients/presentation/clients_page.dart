@@ -1,8 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'client_form_dialog.dart';
 
 import '../application/clients_controller.dart';
+import '../application/clients_providers.dart';
 import '../domain/client.dart';
 
 class ClientsPage extends ConsumerStatefulWidget {
@@ -53,11 +55,38 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
       appBar: AppBar(
         title: const Text('Klienci'),
         actions: <Widget>[
+          FilledButton.icon(
+            onPressed: () async {
+              final Client? created = await showDialog<Client>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => const ClientFormDialog(),
+              );
+
+              if (!context.mounted || created == null) {
+                return;
+              }
+
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text('Dodano klienta: ${created.displayName}'),
+                  ),
+                );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Dodaj klienta'),
+          ),
+
+          const SizedBox(width: 12),
+
           IconButton(
             tooltip: 'Odśwież listę klientów',
             onPressed: clientsValue.isLoading ? null : _refresh,
             icon: const Icon(Icons.refresh),
           ),
+
           const SizedBox(width: 8),
         ],
       ),

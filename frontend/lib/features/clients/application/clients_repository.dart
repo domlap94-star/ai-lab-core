@@ -1,4 +1,5 @@
 import '../../auth/domain/auth_session.dart';
+import '../data/client_create_request.dart';
 import '../data/clients_api.dart';
 import '../domain/client.dart';
 import '../domain/industry.dart';
@@ -49,5 +50,18 @@ class ClientsRepository {
     return responses
         .map<Industry>((response) => response.toDomain())
         .toList(growable: false);
+  }
+
+  Future<Client> createClient({
+    required AuthSession session,
+    required ClientCreateRequest request,
+  }) async {
+    final response = await _api.createClient(
+      request: request,
+      accessToken: session.accessToken,
+      tokenType: session.tokenType,
+    );
+
+    return response.toDomain();
   }
 }

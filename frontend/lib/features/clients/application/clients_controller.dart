@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/application/auth_state.dart';
 import '../../auth/domain/auth_session.dart';
+import '../data/client_create_request.dart';
 import '../domain/client.dart';
 import 'clients_providers.dart';
 import 'clients_repository.dart';
@@ -58,6 +59,19 @@ class ClientsController extends AsyncNotifier<List<Client>> {
     state = await AsyncValue.guard<List<Client>>(_loadClients);
   }
 
+  Future<Client> createClient(ClientCreateRequest request) async {
+    final AuthSession session = _requireSession();
+
+    final Client createdClient = await _repository.createClient(
+      session: session,
+      request: request,
+    );
+
+    await refresh();
+
+    return createdClient;
+  }
+
   AuthSession _requireSession() {
     final AsyncValue<AuthState> authValue = ref.read(authControllerProvider);
 
@@ -71,13 +85,4 @@ class ClientsController extends AsyncNotifier<List<Client>> {
 
     return session;
   }
-}
-
-class ClientsAuthenticationException implements Exception {
-  const ClientsAuthenticationException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
 }
