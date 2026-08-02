@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class AppShell extends StatelessWidget {
+import '../../features/auth/application/auth_controller.dart';
+import '../../features/auth/application/auth_state.dart';
+
+class AppShell extends ConsumerWidget {
   const AppShell({
     required this.currentLocation,
     required this.child,
@@ -11,7 +15,8 @@ class AppShell extends StatelessWidget {
   final String currentLocation;
   final Widget child;
 
-  static const double desktopBreakpoint = 900;
+  static const double desktopBreakpoint = 700;
+  static const double desktopSidebarWidth = 240;
 
   static const List<NavigationItem> navigationItems = <NavigationItem>[
     NavigationItem(
@@ -68,8 +73,50 @@ class AppShell extends StatelessWidget {
     }
   }
 
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Wylogowanie'),
+          content: const Text('Czy na pewno chcesz wylogować się z AI LAB?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Wyloguj się'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await ref.read(authControllerProvider.notifier).logout();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<AuthState> authValue = ref.watch(authControllerProvider);
+
+    final AuthState? authState = authValue.value;
+
+    final String username = authState?.user?.username.trim().isNotEmpty == true
+        ? authState!.user!.username
+        : 'Użytkownik';
+
+    final String role = authState?.user?.role ?? '';
+
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         final bool useDesktopLayout = constraints.maxWidth >= desktopBreakpoint;
@@ -77,14 +124,28 @@ class AppShell extends StatelessWidget {
         if (useDesktopLayout) {
           return _DesktopShell(
             selectedIndex: selectedIndex,
-            onDestinationSelected: (int index) => _navigate(context, index),
+            username: username,
+            role: role,
+            onDestinationSelected: (int index) {
+              _navigate(context, index);
+            },
+            onLogout: () {
+              _logout(context, ref);
+            },
             child: child,
           );
         }
 
         return _MobileShell(
           selectedIndex: selectedIndex,
-          onDestinationSelected: (int index) => _navigate(context, index),
+          username: username,
+          role: role,
+          onDestinationSelected: (int index) {
+            _navigate(context, index);
+          },
+          onLogout: () {
+            _logout(context, ref);
+          },
           child: child,
         );
       },
@@ -95,12 +156,18 @@ class AppShell extends StatelessWidget {
 class _DesktopShell extends StatelessWidget {
   const _DesktopShell({
     required this.selectedIndex,
+    required this.username,
+    required this.role,
     required this.onDestinationSelected,
+    required this.onLogout,
     required this.child,
   });
 
   final int selectedIndex;
+  final String username;
+  final String role;
   final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onLogout;
   final Widget child;
 
   @override
@@ -110,43 +177,46 @@ class _DesktopShell extends StatelessWidget {
     return Scaffold(
       body: Row(
         children: <Widget>[
-          NavigationRail(
-            selectedIndex: selectedIndex,
-            extended: true,
-            minExtendedWidth: 230,
-            onDestinationSelected: onDestinationSelected,
-            leading: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-              child: Row(
-                children: <Widget>[
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      borderRadius: BorderRadius.circular(12),
+          SizedBox(
+            width: AppShell.desktopSidebarWidth,
+            child: Material(
+              color:
+                  theme.navigationRailTheme.backgroundColor ??
+                  theme.colorScheme.surface,
+              child: SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const _ApplicationHeader(),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: AppShell.navigationItems.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final NavigationItem item =
+                              AppShell.navigationItems[index];
+
+                          return _DesktopNavigationTile(
+                            item: item,
+                            selected: selectedIndex == index,
+                            onTap: () {
+                              onDestinationSelected(index);
+                            },
+                          );
+                        },
+                      ),
                     ),
-                    child: Icon(Icons.hub, color: theme.colorScheme.onPrimary),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'AI LAB',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    const Divider(height: 1),
+                    _UserPanel(
+                      username: username,
+                      role: role,
+                      onLogout: onLogout,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            destinations: AppShell.navigationItems
-                .map(
-                  (NavigationItem item) => NavigationRailDestination(
-                    icon: Icon(item.icon),
-                    selectedIcon: Icon(item.selectedIcon),
-                    label: Text(item.label),
-                  ),
-                )
-                .toList(),
           ),
           VerticalDivider(
             width: 1,
@@ -160,21 +230,189 @@ class _DesktopShell extends StatelessWidget {
   }
 }
 
+class _ApplicationHeader extends StatelessWidget {
+  const _ApplicationHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.hub, color: theme.colorScheme.onPrimary),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'AI LAB',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopNavigationTile extends StatelessWidget {
+  const _DesktopNavigationTile({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final NavigationItem item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    final Color selectedBackground =
+        theme.navigationRailTheme.indicatorColor ??
+        theme.colorScheme.secondaryContainer;
+
+    final Color selectedForeground = theme.colorScheme.onSecondaryContainer;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Material(
+        color: selected ? selectedBackground : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: <Widget>[
+                Icon(
+                  selected ? item.selectedIcon : item.icon,
+                  color: selected
+                      ? selectedForeground
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: selected
+                          ? selectedForeground
+                          : theme.colorScheme.onSurface,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserPanel extends StatelessWidget {
+  const _UserPanel({
+    required this.username,
+    required this.role,
+    required this.onLogout,
+  });
+
+  final String username;
+  final String role;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: CircleAvatar(
+              child: Text(username.isEmpty ? '?' : username[0].toUpperCase()),
+            ),
+            title: Text(username, maxLines: 1, overflow: TextOverflow.ellipsis),
+            subtitle: role.isEmpty
+                ? null
+                : Text(role, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: const Icon(Icons.logout),
+            title: const Text('Wyloguj się'),
+            onTap: onLogout,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MobileShell extends StatelessWidget {
   const _MobileShell({
     required this.selectedIndex,
+    required this.username,
+    required this.role,
     required this.onDestinationSelected,
+    required this.onLogout,
     required this.child,
   });
 
   final int selectedIndex;
+  final String username;
+  final String role;
   final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onLogout;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: child,
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            children: <Widget>[
+              const _ApplicationHeader(),
+              const Divider(height: 1),
+              ListTile(
+                leading: CircleAvatar(
+                  child: Text(
+                    username.isEmpty ? '?' : username[0].toUpperCase(),
+                  ),
+                ),
+                title: Text(username),
+                subtitle: role.isEmpty ? null : Text(role),
+              ),
+              const Spacer(),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Wyloguj się'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  onLogout();
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: onDestinationSelected,
