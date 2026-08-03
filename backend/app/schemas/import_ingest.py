@@ -236,3 +236,28 @@ class ImportIngestResponse(BaseModel):
 
     matched_by: str | None = None
     matched_client_id: int | None = None
+
+
+class ImportBatchRequest(BaseModel):
+    records: list[ImportIngestRequest] = Field(
+        min_length=1,
+        max_length=1000,
+    )
+
+
+class ImportBatchItemError(BaseModel):
+    index: int
+    external_id: str | None = None
+    error: str
+
+
+class ImportBatchResponse(BaseModel):
+    received: int
+    processed: int
+    candidates_created: int
+    sources_created: int
+    existing_sources: int
+    duplicates_detected: int
+    failed: int
+    results: list[ImportIngestResponse]
+    errors: list[ImportBatchItemError]

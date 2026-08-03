@@ -7,10 +7,11 @@ from fastapi import (
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.auth import get_current_user
+from app.api.imports.dependencies import require_import_api_key
 from app.database.session import get_db
-from app.models.user import User
 from app.schemas.import_ingest import (
+    ImportBatchRequest,
+    ImportBatchResponse,
     ImportIngestRequest,
     ImportIngestResponse,
 )
@@ -25,6 +26,9 @@ from app.services.import_ingest_service import (
 router = APIRouter(
     prefix="/import",
     tags=["Import"],
+    dependencies=[
+        Depends(require_import_api_key),
+    ],
 )
 
 
@@ -36,10 +40,7 @@ router = APIRouter(
 def ingest_import_record(
     request: ImportIngestRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ) -> ImportIngestResponse:
-    del current_user
-
     service = ImportIngestService(db)
 
     try:
@@ -66,7 +67,10 @@ def ingest_import_record(
     except ImportRunSourceMismatchError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Import run does not belong to the selected source",
+            detail=(
+                "Import run does not belong to the selected "
+                "import source"
+            ),
         ) from error
 
     except IntegrityError as error:
@@ -76,3 +80,17 @@ def ingest_import_record(
             status_code=status.HTTP_409_CONFLICT,
             detail="The source record has already been imported",
         ) from error
+
+
+@router.post(
+    "/ingest/batch",
+    response_model=ImportBatchResponse,
+    status_code=status.HTTP_200_OK,
+)
+def ingest_import_batch(
+    request: ImportBatchRequest,
+    db: Session = Depends(get_db),
+) -> ImportBatchResponse:
+    service = ImportIngestService(db)
+
+    return service.ingest_batch(request)

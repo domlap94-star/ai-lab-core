@@ -51,11 +51,16 @@ class Settings(BaseSettings):
     admin_password: str
 
     # ==========================================================
-    # AI Providers
+    # Integration authentication
+    # ==========================================================
+
+    n8n_ingest_api_key: str
+
+    # ==========================================================
+    # AI providers and internal services
     # ==========================================================
 
     ollama_url: str = "http://ollama:11434"
-
     openwebui_url: str = "http://open-webui:8080"
 
     qdrant_host: str = "qdrant"

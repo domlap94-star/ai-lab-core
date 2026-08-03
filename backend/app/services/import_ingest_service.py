@@ -13,6 +13,9 @@ from app.repositories.import_repository import ImportRepository
 from app.schemas.import_ingest import (
     CandidateDataInput,
     CandidateSourceInput,
+    ImportBatchItemError,
+    ImportBatchRequest,
+    ImportBatchResponse,
     ImportIngestRequest,
     ImportIngestResponse,
 )
@@ -93,6 +96,11 @@ class ImportIngestService:
                     match.candidate,
                     request.candidate,
                 )
+
+                if match.matched_client is not None:
+                    candidate.status = "duplicate"
+                    candidate.matched_client_id = match.matched_client.id
+
                 self.repository.update_candidate(candidate)
 
             else:
@@ -142,6 +150,60 @@ class ImportIngestService:
             self.repository.rollback()
             raise
 
+    def ingest_batch(
+        self,
+        request: ImportBatchRequest,
+    ) -> ImportBatchResponse:
+        results: list[ImportIngestResponse] = []
+        errors: list[ImportBatchItemError] = []
+
+        candidates_created = 0
+        sources_created = 0
+        existing_sources = 0
+        duplicates_detected = 0
+
+        for index, record in enumerate(request.records):
+            try:
+                result = self.ingest(record)
+
+                results.append(result)
+
+                if result.created_candidate:
+                    candidates_created += 1
+
+                if result.created_source:
+                    sources_created += 1
+                else:
+                    existing_sources += 1
+
+                if result.matched_client_id is not None:
+                    duplicates_detected += 1
+
+            except Exception as error:
+                errors.append(
+                    ImportBatchItemError(
+                        index=index,
+                        external_id=record.source.external_id,
+                        error=(
+                            str(error)
+                            if str(error)
+                            else error.__class__.__name__
+                        ),
+                    )
+                )
+
+        return ImportBatchResponse(
+            received=len(request.records),
+            processed=len(results),
+            candidates_created=candidates_created,
+            sources_created=sources_created,
+            existing_sources=existing_sources,
+            duplicates_detected=duplicates_detected,
+            failed=len(errors),
+            results=results,
+            errors=errors,
+        )
+
     def _require_import_source(
         self,
         source_id: int,
@@ -149,10 +211,14 @@ class ImportIngestService:
         source = self.repository.get_import_source(source_id)
 
         if source is None:
-            raise ImportSourceNotFoundError
+            raise ImportSourceNotFoundError(
+                f"Import source {source_id} not found."
+            )
 
         if not source.is_enabled:
-            raise ImportSourceDisabledError
+            raise ImportSourceDisabledError(
+                f"Import source {source_id} is disabled."
+            )
 
         return source
 
@@ -168,10 +234,14 @@ class ImportIngestService:
         import_run = self.repository.get_import_run(run_id)
 
         if import_run is None:
-            raise ImportRunNotFoundError
+            raise ImportRunNotFoundError(
+                f"Import run {run_id} not found."
+            )
 
         if import_run.source_id != import_source.id:
-            raise ImportRunSourceMismatchError
+            raise ImportRunSourceMismatchError(
+                "Import run does not belong to the selected source."
+            )
 
         return import_run
 
@@ -308,60 +378,74 @@ class ImportIngestService:
             candidate.legal_name,
             data.legal_name,
         )
+
         candidate.tax_id = self._prefer_nullable(
             candidate.tax_id,
             data.tax_id,
         )
+
         candidate.registration_number = self._prefer_nullable(
             candidate.registration_number,
             data.registration_number,
         )
+
         candidate.industry_id = (
             candidate.industry_id
             if candidate.industry_id is not None
             else data.industry_id
         )
+
         candidate.website = self._prefer_nullable(
             candidate.website,
             data.website,
         )
+
         candidate.primary_email = self._prefer_nullable(
             candidate.primary_email,
             data.primary_email,
         )
+
         candidate.primary_phone = self._prefer_nullable(
             candidate.primary_phone,
             data.primary_phone,
         )
+
         candidate.street = self._prefer_nullable(
             candidate.street,
             data.street,
         )
+
         candidate.building_number = self._prefer_nullable(
             candidate.building_number,
             data.building_number,
         )
+
         candidate.unit_number = self._prefer_nullable(
             candidate.unit_number,
             data.unit_number,
         )
+
         candidate.postal_code = self._prefer_nullable(
             candidate.postal_code,
             data.postal_code,
         )
+
         candidate.city = self._prefer_nullable(
             candidate.city,
             data.city,
         )
+
         candidate.country_code = self._prefer_value(
             candidate.country_code,
             data.country_code,
             empty_values={"", "PL"},
         )
+
         candidate.notes = self._merge_notes(
             candidate.notes,
             data.notes,
         )
+
         candidate.confidence = max(
             candidate.confidence,
             data.confidence,
@@ -404,11 +488,17 @@ class ImportIngestService:
     ) -> str:
         candidate = (
             self.repository.db.query(ClientCandidate)
-            .filter(ClientCandidate.id == candidate_id)
+            .filter(
+                ClientCandidate.id == candidate_id,
+                ClientCandidate.deleted_at.is_(None),
+            )
             .first()
         )
 
-        return candidate.status if candidate is not None else "unknown"
+        if candidate is None:
+            return "unknown"
+
+        return candidate.status
 
     @staticmethod
     def _resolve_candidate_name(
