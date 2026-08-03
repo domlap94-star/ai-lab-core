@@ -12,6 +12,8 @@ class App extends StatelessWidget {
       title: 'AI LAB',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       routerConfig: appRouter,
     );
   }
