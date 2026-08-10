@@ -13,6 +13,20 @@ services:
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
 
+      # Maksymalny rozmiar requestu przyjmowanego przez n8n, w MB.
+      # 128 MB daje zapas dla załącznika 28,4 MB i narzutu multipart/JSON.
+      - N8N_PAYLOAD_SIZE_MAX=128
+
+      # Duże dane binarne zapisuj na dysku zamiast trzymać je w pamięci.
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      - N8N_AVAILABLE_BINARY_DATA_MODES=filesystem
+
+      # Usuwa niegroźne ostrzeżenie wynikające z montowania wolumenu z Windows.
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=false
+
+      # Zachowujemy obecny limit task runnera jawnie.
+      - N8N_RUNNERS_TASK_TIMEOUT=300
+
     volumes:
       - ../../data/n8n:/home/node/.n8n
 

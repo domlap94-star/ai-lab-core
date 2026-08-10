@@ -68,6 +68,14 @@ class ImportIngestService:
         )
 
         if existing_source is not None:
+            if request.source.source_type == "google_sheets_row":
+                return self._update_existing_google_sheets_source(
+                    existing_source=existing_source,
+                    request=request,
+                    import_source=import_source,
+                    import_run=import_run,
+                )
+
             return ImportIngestResponse(
                 candidate_id=existing_source.candidate_id,
                 candidate_status=self._get_candidate_status(
@@ -144,6 +152,98 @@ class ImportIngestService:
                     if match.matched_client is not None
                     else candidate.matched_client_id
                 ),
+            )
+
+        except Exception:
+            self.repository.rollback()
+            raise
+
+    def _update_existing_google_sheets_source(
+        self,
+        *,
+        existing_source: CandidateSource,
+        request: ImportIngestRequest,
+        import_source: ImportSource,
+        import_run: ImportRun | None,
+    ) -> ImportIngestResponse:
+        try:
+            if import_run is not None:
+                self.repository.increment_import_run_counters(
+                    import_run,
+                    received=1,
+                )
+
+            candidate = self.repository.get_candidate(
+                existing_source.candidate_id,
+            )
+
+            if candidate is None:
+                raise ValueError(
+                    "Candidate linked to the existing Google Sheets "
+                    f"source {existing_source.id} was not found."
+                )
+
+            source_changed = self._source_has_changed(
+                existing_source,
+                request.source,
+            )
+
+            candidate_changed = self._candidate_has_sheet_changes(
+                candidate,
+                request.candidate,
+            )
+
+            if source_changed:
+                self._apply_source_update(
+                    existing_source,
+                    request.source,
+                    import_run,
+                )
+
+                self.repository.update_candidate_source(
+                    existing_source,
+                )
+
+            if candidate_changed:
+                self._merge_google_sheets_candidate_data(
+                    candidate,
+                    request.candidate,
+                )
+
+                candidate.source_summary = self._build_source_summary(
+                    request.source,
+                )
+
+                candidate.raw_payload = {
+                    "candidate": request.candidate.model_dump(),
+                    "source": request.source.model_dump(),
+                }
+
+                self.repository.update_candidate(candidate)
+
+            if import_run is not None:
+                self.repository.increment_import_run_counters(
+                    import_run,
+                    processed=1,
+                )
+
+            import_source.status = "active"
+            import_source.last_error = None
+
+            self.repository.commit()
+
+            return ImportIngestResponse(
+                candidate_id=candidate.id,
+                candidate_status=candidate.status,
+                source_id=existing_source.id,
+                created_candidate=False,
+                created_source=False,
+                matched_by=(
+                    "existing_source_updated"
+                    if source_changed or candidate_changed
+                    else "existing_source"
+                ),
+                matched_client_id=candidate.matched_client_id,
             )
 
         except Exception:
@@ -453,6 +553,239 @@ class ImportIngestService:
 
         return candidate
 
+    def _merge_google_sheets_candidate_data(
+        self,
+        candidate: ClientCandidate,
+        data: CandidateDataInput,
+    ) -> ClientCandidate:
+        if data.client_type and data.client_type != "other":
+            candidate.client_type = data.client_type
+
+        resolved_name = self._resolve_candidate_name(data)
+
+        if resolved_name != "Nieznany klient":
+            candidate.name = resolved_name
+
+        self._set_if_present(
+            candidate,
+            "legal_name",
+            data.legal_name,
+        )
+        self._set_if_present(
+            candidate,
+            "tax_id",
+            data.tax_id,
+        )
+        self._set_if_present(
+            candidate,
+            "registration_number",
+            data.registration_number,
+        )
+
+        if data.industry_id is not None:
+            candidate.industry_id = data.industry_id
+
+        self._set_if_present(
+            candidate,
+            "website",
+            data.website,
+        )
+        self._set_if_present(
+            candidate,
+            "primary_email",
+            data.primary_email,
+        )
+        self._set_if_present(
+            candidate,
+            "primary_phone",
+            data.primary_phone,
+        )
+        self._set_if_present(
+            candidate,
+            "street",
+            data.street,
+        )
+        self._set_if_present(
+            candidate,
+            "building_number",
+            data.building_number,
+        )
+        self._set_if_present(
+            candidate,
+            "unit_number",
+            data.unit_number,
+        )
+        self._set_if_present(
+            candidate,
+            "postal_code",
+            data.postal_code,
+        )
+        self._set_if_present(
+            candidate,
+            "city",
+            data.city,
+        )
+
+        if data.country_code:
+            candidate.country_code = data.country_code
+
+        if data.notes:
+            candidate.notes = data.notes
+
+        candidate.confidence = max(
+            candidate.confidence,
+            data.confidence,
+        )
+
+        return candidate
+
+    def _candidate_has_sheet_changes(
+        self,
+        candidate: ClientCandidate,
+        data: CandidateDataInput,
+    ) -> bool:
+        comparisons = (
+            (
+                candidate.client_type,
+                data.client_type
+                if data.client_type != "other"
+                else None,
+            ),
+            (
+                candidate.name,
+                self._resolve_candidate_name(data),
+            ),
+            (
+                candidate.legal_name,
+                data.legal_name,
+            ),
+            (
+                candidate.tax_id,
+                data.tax_id,
+            ),
+            (
+                candidate.registration_number,
+                data.registration_number,
+            ),
+            (
+                candidate.industry_id,
+                data.industry_id,
+            ),
+            (
+                candidate.website,
+                data.website,
+            ),
+            (
+                candidate.primary_email,
+                data.primary_email,
+            ),
+            (
+                candidate.primary_phone,
+                data.primary_phone,
+            ),
+            (
+                candidate.street,
+                data.street,
+            ),
+            (
+                candidate.building_number,
+                data.building_number,
+            ),
+            (
+                candidate.unit_number,
+                data.unit_number,
+            ),
+            (
+                candidate.postal_code,
+                data.postal_code,
+            ),
+            (
+                candidate.city,
+                data.city,
+            ),
+            (
+                candidate.country_code,
+                data.country_code,
+            ),
+            (
+                candidate.notes,
+                data.notes,
+            ),
+        )
+
+        for current, incoming in comparisons:
+            if incoming is None:
+                continue
+
+            if incoming == "Nieznany klient":
+                continue
+
+            if current != incoming:
+                return True
+
+        return False
+
+    @staticmethod
+    def _source_has_changed(
+        existing_source: CandidateSource,
+        incoming_source: CandidateSourceInput,
+    ) -> bool:
+        return any(
+            (
+                existing_source.external_parent_id
+                != incoming_source.external_parent_id,
+                existing_source.source_label
+                != incoming_source.source_label,
+                existing_source.source_url
+                != incoming_source.source_url,
+                existing_source.extracted_text
+                != incoming_source.extracted_text,
+                existing_source.raw_payload
+                != incoming_source.raw_payload,
+            )
+        )
+
+    @staticmethod
+    def _apply_source_update(
+        existing_source: CandidateSource,
+        incoming_source: CandidateSourceInput,
+        import_run: ImportRun | None,
+    ) -> None:
+        existing_source.import_run_id = (
+            import_run.id
+            if import_run is not None
+            else existing_source.import_run_id
+        )
+
+        existing_source.external_parent_id = (
+            incoming_source.external_parent_id
+        )
+        existing_source.source_label = (
+            incoming_source.source_label
+        )
+        existing_source.source_url = (
+            incoming_source.source_url
+        )
+        existing_source.extracted_text = (
+            incoming_source.extracted_text
+        )
+        existing_source.raw_payload = (
+            incoming_source.raw_payload
+        )
+
+    @staticmethod
+    def _set_if_present(
+        candidate: ClientCandidate,
+        attribute: str,
+        value: object,
+    ) -> None:
+        if value is not None:
+            setattr(
+                candidate,
+                attribute,
+                value,
+            )
+
     def _create_candidate_source(
         self,
         *,
@@ -486,13 +819,8 @@ class ImportIngestService:
         self,
         candidate_id: int,
     ) -> str:
-        candidate = (
-            self.repository.db.query(ClientCandidate)
-            .filter(
-                ClientCandidate.id == candidate_id,
-                ClientCandidate.deleted_at.is_(None),
-            )
-            .first()
+        candidate = self.repository.get_candidate(
+            candidate_id,
         )
 
         if candidate is None:

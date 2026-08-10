@@ -58,6 +58,19 @@ class ImportRepository:
             .first()
         )
 
+    def get_candidate(
+        self,
+        candidate_id: int,
+    ) -> ClientCandidate | None:
+        return (
+            self.db.query(ClientCandidate)
+            .filter(
+                ClientCandidate.id == candidate_id,
+                ClientCandidate.deleted_at.is_(None),
+            )
+            .first()
+        )
+
     def find_client_by_tax_id(
         self,
         tax_id: str,
@@ -186,6 +199,15 @@ class ImportRepository:
         self.db.flush()
 
         return candidate
+
+    def update_candidate_source(
+        self,
+        source: CandidateSource,
+    ) -> CandidateSource:
+        self.db.add(source)
+        self.db.flush()
+
+        return source
 
     def increment_import_run_counters(
         self,
