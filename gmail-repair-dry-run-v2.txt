@@ -1,0 +1,1036 @@
+﻿
+===== GMAIL REPAIR DRY-RUN V2 =====
+Total gmail_message: 4185
+
+KEEP                   4014
+KEEP_MULTIPLE          45
+MOVE_EXISTING          63
+NEEDS_CANDIDATE        7
+AMBIGUOUS              1
+NO_COUNTERPART         55
+
+===== RESOLUTION METHODS =====
+envelope               4064
+forwarded_headers      66
+none                   55
+
+===== OWN EMAIL REPAIR =====
+OWN_RESOLVED           70
+OWN_UNRESOLVED         55
+
+===== OWN EMAIL CANDIDATES =====
+  2559 | podnoszenieposadzek@gmail.com            | gmail_messages=5
+  2569 | lapa35@gmail.com                         | gmail_messages=56
+  2595 | domlap94@gmail.com                       | gmail_messages=65
+
+===== EXAMPLES =====
+
+source_id: 2603
+gmail_message_id: 19fbe61cf47eff83
+subject: Re: Re: Re: Umowa PDF
+resolution_method: envelope
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  27 / danutabojarowicz@wp.pl
+ACTION:  MOVE
+
+source_id: 2605
+gmail_message_id: 19fad85ed9b56e18
+subject: Kontakt
+resolution_method: envelope
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  347 / wiolka323@gmail.com
+ACTION:  MOVE
+
+source_id: 2607
+gmail_message_id: 19faa0691e8d8d59
+subject: Fwd: Oferta
+resolution_method: envelope
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  428 / zbyszek_jurkiewicz@o2.pl
+ACTION:  MOVE
+
+source_id: 2609
+gmail_message_id: 19fa352ba81232ee
+subject: Umowa
+resolution_method: envelope
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  358 / alero099@wp.pl
+ACTION:  MOVE
+
+source_id: 2610
+gmail_message_id: 19fa2aa2c810855d
+subject: Fwd: Oferta
+resolution_method: envelope
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  NEW / zbyszek_jurkiewicz@02.pl
+ACTION:  MOVE
+
+source_id: 2623
+gmail_message_id: 17d9105f470a5922
+subject: A
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2641
+gmail_message_id: 17c5a3ff3db506ba
+subject: Fwd: Podbicie fundament├│w. Lublin ul. Nieca┼éa 7
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  NEW / kamilkecka@gmail.com
+ACTION:  MOVE
+
+source_id: 2667
+gmail_message_id: 17fb0c3fe683a646
+subject: Fwd: FW: Panattoni Radomsko ONTEX
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2647 / grochulski@mirbud.pl
+ACTION:  MOVE
+
+source_id: 2668
+gmail_message_id: 17fb0c32b715bb46
+subject: Fwd: FW: Panattoni Radomsko ONTEX
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2673
+gmail_message_id: 17fa114cc47532d3
+subject: Wiadomo┼Ť─ç Gmail 17fa114cc47532d3
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2746
+gmail_message_id: 18165f733125cae1
+subject: Test
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2756
+gmail_message_id: 181284fd6f811127
+subject: Fwd: Zam├│wienie
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  2636 / m.niedzwiadek@purinova.com
+ACTION:  MOVE
+
+source_id: 2884
+gmail_message_id: 182bfa3fa5d48785
+subject: Fwd: oferta
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2655 / marcin.dudzinski@op.pl
+ACTION:  MOVE
+
+source_id: 2886
+gmail_message_id: 18285fed2b35fc76
+subject: Umowa ┼üask-Pabianice
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2897
+gmail_message_id: 1825dfffbcec6091
+subject: Fwd:
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  2679 / natlap@onet.pl
+ACTION:  MOVE
+
+source_id: 2926
+gmail_message_id: 181ee22dbcbf034d
+subject: Fwd: Analiza strony podnoszenieposadzek.pl
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2651 / rafal.golebiewski@internet-plus.pl
+ACTION:  MOVE
+
+source_id: 2927
+gmail_message_id: 181ee228f122eebe
+subject: Fwd: Podsumowanie rozmowy: Kompleksowa opieka nad stron─ů podnoszenieposadzek.pl
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2651 / rafal.golebiewski@internet-plus.pl
+ACTION:  MOVE
+
+source_id: 2939
+gmail_message_id: 1853889aa8768ee0
+subject: Fwd: Pd: LASZCZKI LESZCZYNOWA 9 KARTY OTWOR├ôW
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2695 / em-fol@wp.pl
+ACTION:  MOVE
+
+source_id: 2940
+gmail_message_id: 1853641e53126758
+subject: Fwd: Pd: Fwd: Wzmocnienie gruntu i podbicie fundamentu / iniekcje geopolimerowe
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2695 / em-fol@wp.pl
+ACTION:  MOVE
+
+source_id: 2973
+gmail_message_id: 18494dc4492da502
+subject: Fwd: Nad Wis┼é─ů Bydgoszcz
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2656 / maciek32@wp.pl
+ACTION:  MOVE
+
+source_id: 3003
+gmail_message_id: 1842d4b62e31aced
+subject: Zawiercie Wcis┼éo
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3063
+gmail_message_id: 186230fee0cd5a09
+subject: link do opini
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3079
+gmail_message_id: 1872cfab1b20edfd
+subject: Mail
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3082
+gmail_message_id: 18608ac18d0ee43a
+subject: Fwd: Remmers szkolenie 01.02.23 ┼Üroda
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2742 / tglowacki@remmers.pl
+ACTION:  MOVE
+
+source_id: 3182
+gmail_message_id: 186b5e11647421f7
+subject: Udost─Öpniam Ci plik ÔÇ×EPSON002ÔÇŁ
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3183
+gmail_message_id: 186b0c6feb119430
+subject: Fwd:
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3184
+gmail_message_id: 186b0a595587403b
+subject: Wiadomo┼Ť─ç Gmail 186b0a595587403b
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3192
+gmail_message_id: 186a13c623530f25
+subject: Wiadomo┼Ť─ç Gmail 186a13c623530f25
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3229
+gmail_message_id: 188351296a3b45ce
+subject: DPL Bia┼éa Podlaska
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3248
+gmail_message_id: 188f8cc6009b41fd
+subject: Wiadomo┼Ť─ç Gmail 188f8cc6009b41fd
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3252
+gmail_message_id: 188f2828e253490f
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2409 / jawoplock@gmail.com
+ACTION:  MOVE
+
+source_id: 3301
+gmail_message_id: 188abcbf4e7abed6
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2794 / maczulisasia@gmail.com
+ACTION:  MOVE
+
+source_id: 3303
+gmail_message_id: 188abcaf73d8b3bc
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2403 / w.sieklucki@gmail.com
+ACTION:  MOVE
+
+source_id: 3318
+gmail_message_id: 1887d5c68972c5ae
+subject: Fwd: Dokker NEXT
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  2690 / reklama@mediafactory.pro
+ACTION:  MOVE
+
+source_id: 3347
+gmail_message_id: 188546c1acb4f091
+subject: Zdj─Öcie od Wojciech ┼üapi┼äski
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3348
+gmail_message_id: 1885466277f8dad7
+subject: Zdj─Öcie od Wojciech ┼üapi┼äski
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3361
+gmail_message_id: 188256d9a1558ced
+subject: Fwd: Certyfikaty
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  2636 / m.niedzwiadek@purinova.com
+ACTION:  MOVE
+
+source_id: 3477
+gmail_message_id: 18ada85618ff8dfe
+subject: Fwd: WEBAC IP2K-F2 - instrukcja
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  NEW / webac@webac.pl
+ACTION:  MOVE
+
+source_id: 3512
+gmail_message_id: 189ac852ef1dfc46
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2331 / j.gorzen@optex.pl
+ACTION:  MOVE
+
+source_id: 3537
+gmail_message_id: 189a793af9bb27ef
+subject: Fwd: Oferta
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2331 / j.gorzen@optex.pl
+ACTION:  MOVE
+
+source_id: 3549
+gmail_message_id: 1899b0e587a49445
+subject: Fwd: Skan ┼éajsk
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3579
+gmail_message_id: 189880b1104586bf
+subject: Wiadomo┼Ť─ç Gmail 189880b1104586bf
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3581
+gmail_message_id: 18987acdeb0f697b
+subject: Fwd:
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  NEW / paulina.soroczak@gmail.com
+ACTION:  MOVE
+
+source_id: 3582
+gmail_message_id: 18a4f051cc3b176e
+subject: Wiadomo┼Ť─ç Gmail 18a4f051cc3b176e
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3592
+gmail_message_id: 18982cadc68c91f8
+subject: Fwd: Oferta
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2322 / konrad@bwmdom.com
+ACTION:  MOVE
+
+source_id: 3596
+gmail_message_id: 1896d4b217a949f4
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2828 / ikabudjedruszczak@gmail.com
+ACTION:  MOVE
+
+source_id: 3639
+gmail_message_id: 18a370c882d315d1
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2802 / darek.redlich@gmail.com
+ACTION:  MOVE
+
+source_id: 3640
+gmail_message_id: 18a370c4168afc03
+subject: Fwd: Oferta
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2802 / darek.redlich@gmail.com
+ACTION:  MOVE
+
+source_id: 3651
+gmail_message_id: 18a12ff7df7d4456
+subject: Fwd: ul. Budrys├│w 3 Lublin
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2861 / l.jablonski@pollub.pl
+ACTION:  MOVE
+
+source_id: 3652
+gmail_message_id: 18a12fcaa47edfae
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2856 / cezary.stepniak3@wp.pl
+ACTION:  MOVE
+
+source_id: 3739
+gmail_message_id: 18c688fc94a623c9
+subject: Fwd: FV
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  2875 / biuro@pakery.pl
+ACTION:  MOVE
+
+source_id: 3740
+gmail_message_id: 18c684bb54c1a729
+subject: Fwd: faktura za nocleg
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  NEW / kontakt@noclegiumoniki.pl
+ACTION:  MOVE
+
+source_id: 3742
+gmail_message_id: 18c67b9952d9cfc2
+subject: Fwd: Pod Debem - faktura
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  NEW / kubaczuraj@gmail.com
+ACTION:  MOVE
+
+source_id: 3792
+gmail_message_id: 18b9e9966497f944
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2833 / aleksandra.nagraba@anprojekt.com
+ACTION:  MOVE
+
+source_id: 3796
+gmail_message_id: 18c45296199b9084
+subject: Faktura ┼╝arcie
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3815
+gmail_message_id: 18c24c78787edc49
+subject: Fwd: Podnoszenie posadzki Niepo┼éomice ul. Ogrodowa 69/1
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2891 / office@torreconstruction.eu
+ACTION:  MOVE
+
+source_id: 3817
+gmail_message_id: 18c24c72acee4d36
+subject: Fwd: Podnoszenie posadzki Niepo┼éomice ul. Ogrodowa 69/1
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2891 / office@torreconstruction.eu
+ACTION:  MOVE
+
+source_id: 3834
+gmail_message_id: 18b62ba7ab475a12
+subject: Fwd: ┼üysomice Opali┼äski Jacek
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2732 / aniaop@torun.home.pl
+ACTION:  MOVE
+
+source_id: 3844
+gmail_message_id: 18b62b8c5f4fb16e
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2843 / jacekop@icloud.com
+ACTION:  MOVE
+
+source_id: 3910
+gmail_message_id: 18e10186bdc95b88
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2958 / delco@wp.pl
+ACTION:  MOVE
+
+source_id: 3949
+gmail_message_id: 18e6fb94073d998d
+subject: rysunek Ko┼Ťcierzyna
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3954
+gmail_message_id: 18e0ad5b25dab803
+subject: Za┼Ťwiadczenia
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3987
+gmail_message_id: 18d357e912daa8d8
+subject: Za┼Ťwiadczenie_o_przychodach_ZASÔÇĹDFU_23-01-2024_09-12.pdf
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3992
+gmail_message_id: 18d326ec60948d20
+subject: Fwd: Pd: Badania geologiczne
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2887 / mtomek54@wp.pl
+ACTION:  MOVE
+
+source_id: 4027
+gmail_message_id: 18d0c764fae59733
+subject: Dokument od Wojciech
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4030
+gmail_message_id: 18d0c760c470f5a4
+subject: Dokument od Wojciech
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4065
+gmail_message_id: 18e5869a32966d2b
+subject: Fwd: Pd: Fwd: Oferta dla klienta
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2945 / piotr.silski@wp.pl
+ACTION:  MOVE
+
+source_id: 4070
+gmail_message_id: 18cf881a2793c99c
+subject: Fwd: FV nocleg
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  2974 / happydayapartaments@gmail.com
+ACTION:  MOVE
+
+source_id: 4071
+gmail_message_id: 18dd066b2b56a47e
+subject: Udost─Öpniam Ci plik ÔÇ×gwarancja10ÔÇŁ
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4072
+gmail_message_id: 18e57ffc239a7555
+subject: Wiadomo┼Ť─ç Gmail 18e57ffc239a7555
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4076
+gmail_message_id: 18cf7eb02266db6a
+subject: LED_2K_EURO_08_2023 (2).pdf
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4079
+gmail_message_id: 18cf7eab5fa0b11d
+subject: 2K_PROFILES_EURO_12_2023.pdf
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4115
+gmail_message_id: 18dcacadf31ea9d3
+subject: Fwd: Udost─Öpniam Ci plik ÔÇ×Umowa Posadzki OstaszewoÔÇŁ
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2899 / jacekc701@interia.pl
+ACTION:  MOVE
+
+source_id: 4122
+gmail_message_id: 18ce931811d11f9a
+subject: Fwd: CMS - dost─Öp
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  NEW / piotr@kodigo.pl
+ACTION:  MOVE
+
+source_id: 4136
+gmail_message_id: 18db76fcd4d2aad2
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  ekobud@ekobud.com, koordynator@ekobud.com
+ACTION:  AMBIGUOUS
+
+source_id: 4153
+gmail_message_id: 18e3210f3ee1bc1e
+subject: Fwd: Zapytanie ofertowe - UM Jaworzno  - wype┼énienie pustek pog├│rniczych
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2952 / mateusz.nowak@drogopol.pl
+ACTION:  MOVE
+
+source_id: 4199
+gmail_message_id: 19064e5563bc3325
+subject: 0096024385.pdf
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4200
+gmail_message_id: 18ee77aa5cd76353
+subject: Fwd: NEXT podnoszenie posadzek
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2986 / lukasz.jaskowiak@jns.legal
+ACTION:  MOVE
+
+source_id: 4286
+gmail_message_id: 1904988a2c46804d
+subject: Prosimy o p┼éatno┼Ť─ç za: Faktura numer 16/06/2024
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4304
+gmail_message_id: 18f9a4e155d75c6f
+subject: Fwd: Formularz kontaktowy (Daniel Ulrych)
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2743 / sender@kodigo.pl
+ACTION:  MOVE
+
+source_id: 4366
+gmail_message_id: 1902bb3baf60dd7d
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  3007 / leszek@szydlowski.info
+ACTION:  MOVE
+
+source_id: 4381
+gmail_message_id: 1902112ef8c80207
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2417 / katarzyna.szafran7@gmail.com
+ACTION:  MOVE
+
+source_id: 4497
+gmail_message_id: 18efbb33576586bb
+subject: Fwd: fundament Gdynia ul. Druskiennicka 48
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2949 / janicki.a@gmail.com
+ACTION:  MOVE
+
+source_id: 4512
+gmail_message_id: 1901ab28f4dd9187
+subject: Faktura numer 16/06/2024
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4522
+gmail_message_id: 1900af022ebe41ff
+subject: Fwd: Wzmocnienie zasypu Czerwone gm Kolno
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2866 / aarkadiusz.kulis@gmail.com
+ACTION:  MOVE
+
+source_id: 4535
+gmail_message_id: 18ffd09e519cdcd0
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2200 / soft@ferraricars.eu
+ACTION:  MOVE
+
+source_id: 4577
+gmail_message_id: 190970a39e9fe546
+subject: Faktura
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4598
+gmail_message_id: 1923cb38c0e681eb
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  3050 / msuszek@o2.pl
+ACTION:  MOVE
+
+source_id: 4619
+gmail_message_id: 19130445761849db
+subject: Fwd: Oferta
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2910 / apodlecki@gmail.com
+ACTION:  MOVE
+
+source_id: 4668
+gmail_message_id: 1921aa183dfff3de
+subject: invoice_BV86220802.pdf
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4688
+gmail_message_id: 19208f196c3c1026
+subject: Test
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4731
+gmail_message_id: 191f01d52a290d9b
+subject: Test
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4743
+gmail_message_id: 191db2b64945bafe
+subject: Fwd: Piekary ┼Ül─ůskie
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  1986 / r.rabsztyn@wp.pl
+ACTION:  MOVE
+
+source_id: 4752
+gmail_message_id: 191cda419034d3fb
+subject: Umowa OPTEX
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4825
+gmail_message_id: 1928bee867da8b4b
+subject: Wiadomo┼Ť─ç Gmail 1928bee867da8b4b
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4857
+gmail_message_id: 19326c35005c9597
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2132 / pmz@op.pl
+ACTION:  MOVE
+
+source_id: 4900
+gmail_message_id: 193aa034b7a95917
+subject: Fwd: Pd: LASZCZKI LESZCZYNOWA 9 KARTY OTWOR├ôW
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2695 / em-fol@wp.pl
+ACTION:  MOVE
+
+source_id: 4902
+gmail_message_id: 19300dbc88f56bb1
+subject: Fwd: Oferta
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  3097 / piotr.cienki@nvent.com
+ACTION:  MOVE
+
+source_id: 4904
+gmail_message_id: 19266a1aa0fe107c
+subject: golabek
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4918
+gmail_message_id: 19397dc1b43e3fdc
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2054 / bkarp28@gmail.com
+ACTION:  MOVE
+
+source_id: 4932
+gmail_message_id: 192f8626d9258b66
+subject: Wiadomo┼Ť─ç Gmail 192f8626d9258b66
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4954
+gmail_message_id: 1938d53bc669c6df
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2143 / i.skwarna@gmail.com
+ACTION:  MOVE
+
+source_id: 5026
+gmail_message_id: 192bf98b280b7650
+subject: Mapu barymetryczne na zam├│wienie
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5038
+gmail_message_id: 19362b6a099f7cca
+subject: Nadruk s┼éupno
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5064
+gmail_message_id: 19340b706fc2c999
+subject: test
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5065
+gmail_message_id: 19340b68a37b3c71
+subject: test
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5066
+gmail_message_id: 193409efc9003085
+subject: Test
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5067
+gmail_message_id: 1933fe483a3d1e06
+subject: Gfdgg
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5068
+gmail_message_id: 1933fe35c381ed32
+subject: test
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5069
+gmail_message_id: 1933fe025019ae79
+subject: Fwd: Zlecenie
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  3086 / serwis@re-bau.com
+ACTION:  MOVE
+
+source_id: 5088
+gmail_message_id: 1959da8efc6000fb
+subject: Test
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5091
+gmail_message_id: 195f24f721b9586a
+subject: Fwd: Faktura
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  3000 / marcin@domset.pl
+ACTION:  MOVE
+
+source_id: 5138
+gmail_message_id: 19677419ca594fa1
+subject: Issue-2.4-NR-00015-ENG-novaG-A-Parts-Identification.pdf
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5146
+gmail_message_id: 1949884128acbc19
+subject: Wiadomo┼Ť─ç Gmail 1949884128acbc19
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5309
+gmail_message_id: 196620f76437ff37
+subject: Protok├│┼é Hozjusza
+resolution_method: none
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5371
+gmail_message_id: 19475b8e13654168
+subject: Fwd: Badanie gruntu Katowice, Kaskady 91
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  2047 / bartkoch@wp.pl
+ACTION:  MOVE
+
+source_id: 5454
+gmail_message_id: 196166b5ef458992
+subject: Fwd: poprosz─Ö o jakie┼Ť wide┼éki cenowe
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  1922 / szwagielpatryk@gmail.com
+ACTION:  MOVE
+
+source_id: 5664
+gmail_message_id: 199770fec257da69
+subject: Fwd: Umowa
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  1765 / maciek409b@gmail.com
+ACTION:  MOVE
+
+source_id: 5899
+gmail_message_id: 1989d7d823b547b4
+subject: Fwd: Faktura proforma Izoservice - serwis
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  3306 / monika.gliga@izoservice.pl
+ACTION:  MOVE
+
+source_id: 6385
+gmail_message_id: 19b288f6fa607412
+subject: Fwd: faktury NEXT STABIL-APEGO
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  3274 / raclawskip@gmail.com
+ACTION:  MOVE
+
+source_id: 6553
+gmail_message_id: 19e01ab58dffb3cc
+subject: Fwd: Dotyczy osiadania budynku Wola Zabierzowska
+resolution_method: forwarded_headers
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  128 / complexbiuro@interia.pl
+ACTION:  MOVE
+
+source_id: 6711
+gmail_message_id: 19cb4c5834d69f83
+subject: Fwd: Rzuty
+resolution_method: forwarded_headers
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  692 / biedrzyckamaria@poczta.onet.pl
+ACTION:  MOVE
+
+source_id: 6720
+gmail_message_id: 19d91d837886f82a
+subject: Proy
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 6799
+gmail_message_id: 19edfbaff5919bae
+subject: Przelew
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 6831
+gmail_message_id: 19fe5da77bd8bbfa
+subject: Testowo
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 6938
+gmail_message_id: 19fe67afa0a67560
+subject: Test test
+resolution_method: none
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+DRY-RUN ONLY ÔÇö database was not modified.

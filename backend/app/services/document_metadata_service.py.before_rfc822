@@ -1,0 +1,1087 @@
+from __future__ import annotations
+
+import re
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+import fitz
+
+from docx import Document as DocxDocument
+from odf.opendocument import load as load_odf
+from openpyxl import load_workbook
+from PIL import ExifTags, Image
+from pillow_heif import register_heif_opener
+from pptx import Presentation
+
+
+register_heif_opener()
+
+
+@dataclass(frozen=True)
+class DocumentMetadataResult:
+    status: str
+    raw_metadata: dict[str, Any] | None
+    normalized_metadata: dict[str, Any] | None
+    error: str | None = None
+
+
+class DocumentMetadataService:
+    IMAGE_EXTENSIONS = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".tif",
+        ".tiff",
+        ".heic",
+        ".heif",
+        ".webp",
+        ".bmp",
+    }
+
+    IMAGE_CONTENT_TYPES = {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/tiff",
+        "image/heic",
+        "image/heif",
+        "image/webp",
+        "image/bmp",
+    }
+
+    def extract(
+        self,
+        *,
+        path: Path,
+        content_type: str | None,
+        original_filename: str | None,
+    ) -> DocumentMetadataResult:
+        if not path.exists():
+            return DocumentMetadataResult(
+                status="failed",
+                raw_metadata=None,
+                normalized_metadata=None,
+                error=f"File does not exist: {path}",
+            )
+
+        normalized_content_type = (
+            content_type or ""
+        ).strip().lower()
+
+        extension = Path(
+            original_filename or path.name
+        ).suffix.lower()
+
+        try:
+            if (
+                normalized_content_type == "application/pdf"
+                or extension == ".pdf"
+            ):
+                return self._extract_pdf(path)
+
+            if extension == ".docx":
+                return self._extract_docx(path)
+
+            if extension == ".xlsx":
+                return self._extract_xlsx(path)
+
+            if extension == ".pptx":
+                return self._extract_pptx(path)
+
+            if extension in {
+                ".odt",
+                ".ods",
+                ".odp",
+            }:
+                return self._extract_odf(path)
+
+            if (
+                normalized_content_type
+                in self.IMAGE_CONTENT_TYPES
+                or extension in self.IMAGE_EXTENSIONS
+            ):
+                return self._extract_image(path)
+
+            return DocumentMetadataResult(
+                status="unsupported",
+                raw_metadata=None,
+                normalized_metadata=None,
+                error=None,
+            )
+
+        except Exception as error:
+            return DocumentMetadataResult(
+                status="failed",
+                raw_metadata=None,
+                normalized_metadata=None,
+                error=str(error),
+            )
+
+    def _extract_pdf(
+        self,
+        path: Path,
+    ) -> DocumentMetadataResult:
+        pdf = fitz.open(str(path))
+
+        try:
+            raw = dict(pdf.metadata or {})
+
+            raw["page_count"] = len(pdf)
+            raw["is_pdf"] = pdf.is_pdf
+            raw["is_encrypted"] = pdf.is_encrypted
+            raw["is_repaired"] = pdf.is_repaired
+
+            raw["pdf_version"] = getattr(
+                pdf,
+                "pdf_version",
+                None,
+            )
+
+            normalized = {
+                "format": "pdf",
+                "title": self._clean(
+                    raw.get("title")
+                ),
+                "subject": self._clean(
+                    raw.get("subject")
+                ),
+                "author": self._clean(
+                    raw.get("author")
+                ),
+                "keywords": self._clean(
+                    raw.get("keywords")
+                ),
+                "creator": self._clean(
+                    raw.get("creator")
+                ),
+                "producer": self._clean(
+                    raw.get("producer")
+                ),
+                "created_at": self._normalize_pdf_date(
+                    raw.get("creationDate")
+                ),
+                "modified_at": self._normalize_pdf_date(
+                    raw.get("modDate")
+                ),
+                "page_count": len(pdf),
+                "is_encrypted": bool(
+                    pdf.is_encrypted
+                ),
+                "is_repaired": bool(
+                    pdf.is_repaired
+                ),
+                "pdf_format": self._clean(
+                    raw.get("format")
+                ),
+            }
+
+            return DocumentMetadataResult(
+                status="processed",
+                raw_metadata=self._json_safe(raw),
+                normalized_metadata=self._json_safe(
+                    normalized
+                ),
+                error=None,
+            )
+
+        finally:
+            pdf.close()
+
+    def _extract_docx(
+        self,
+        path: Path,
+    ) -> DocumentMetadataResult:
+        document = DocxDocument(
+            str(path)
+        )
+
+        properties = document.core_properties
+
+        raw = {
+            "title": properties.title,
+            "subject": properties.subject,
+            "author": properties.author,
+            "last_modified_by": (
+                properties.last_modified_by
+            ),
+            "keywords": properties.keywords,
+            "comments": properties.comments,
+            "category": properties.category,
+            "identifier": properties.identifier,
+            "language": properties.language,
+            "version": properties.version,
+            "revision": properties.revision,
+            "created": properties.created,
+            "modified": properties.modified,
+            "last_printed": properties.last_printed,
+        }
+
+        normalized = {
+            "format": "docx",
+            "title": self._clean(
+                properties.title
+            ),
+            "subject": self._clean(
+                properties.subject
+            ),
+            "author": self._clean(
+                properties.author
+            ),
+            "last_modified_by": self._clean(
+                properties.last_modified_by
+            ),
+            "keywords": self._clean(
+                properties.keywords
+            ),
+            "created_at": self._datetime_iso(
+                properties.created
+            ),
+            "modified_at": self._datetime_iso(
+                properties.modified
+            ),
+            "revision": (
+                int(properties.revision)
+                if properties.revision is not None
+                else None
+            ),
+        }
+
+        return DocumentMetadataResult(
+            status="processed",
+            raw_metadata=self._json_safe(raw),
+            normalized_metadata=self._json_safe(
+                normalized
+            ),
+            error=None,
+        )
+
+    def _extract_xlsx(
+        self,
+        path: Path,
+    ) -> DocumentMetadataResult:
+        workbook = load_workbook(
+            filename=str(path),
+            read_only=True,
+            data_only=False,
+        )
+
+        try:
+            properties = workbook.properties
+
+            sheet_names = list(
+                workbook.sheetnames
+            )
+
+            raw = {
+                "title": properties.title,
+                "subject": properties.subject,
+                "creator": properties.creator,
+                "last_modified_by": (
+                    properties.lastModifiedBy
+                ),
+                "keywords": properties.keywords,
+                "description": properties.description,
+                "category": properties.category,
+                "identifier": properties.identifier,
+                "language": properties.language,
+                "version": properties.version,
+                "created": properties.created,
+                "modified": properties.modified,
+                "revision": properties.revision,
+                "sheet_names": sheet_names,
+                "sheet_count": len(sheet_names),
+            }
+
+            normalized = {
+                "format": "xlsx",
+                "title": self._clean(
+                    properties.title
+                ),
+                "subject": self._clean(
+                    properties.subject
+                ),
+                "author": self._clean(
+                    properties.creator
+                ),
+                "last_modified_by": self._clean(
+                    properties.lastModifiedBy
+                ),
+                "keywords": self._clean(
+                    properties.keywords
+                ),
+                "created_at": self._datetime_iso(
+                    properties.created
+                ),
+                "modified_at": self._datetime_iso(
+                    properties.modified
+                ),
+                "sheet_names": sheet_names,
+                "sheet_count": len(
+                    sheet_names
+                ),
+            }
+
+            return DocumentMetadataResult(
+                status="processed",
+                raw_metadata=self._json_safe(
+                    raw
+                ),
+                normalized_metadata=self._json_safe(
+                    normalized
+                ),
+                error=None,
+            )
+
+        finally:
+            workbook.close()
+
+    def _extract_pptx(
+        self,
+        path: Path,
+    ) -> DocumentMetadataResult:
+        presentation = Presentation(
+            str(path)
+        )
+
+        properties = presentation.core_properties
+
+        raw = {
+            "title": properties.title,
+            "subject": properties.subject,
+            "author": properties.author,
+            "last_modified_by": (
+                properties.last_modified_by
+            ),
+            "keywords": properties.keywords,
+            "comments": properties.comments,
+            "category": properties.category,
+            "identifier": properties.identifier,
+            "language": properties.language,
+            "version": properties.version,
+            "revision": properties.revision,
+            "created": properties.created,
+            "modified": properties.modified,
+            "last_printed": properties.last_printed,
+            "slide_count": len(
+                presentation.slides
+            ),
+        }
+
+        normalized = {
+            "format": "pptx",
+            "title": self._clean(
+                properties.title
+            ),
+            "subject": self._clean(
+                properties.subject
+            ),
+            "author": self._clean(
+                properties.author
+            ),
+            "last_modified_by": self._clean(
+                properties.last_modified_by
+            ),
+            "keywords": self._clean(
+                properties.keywords
+            ),
+            "created_at": self._datetime_iso(
+                properties.created
+            ),
+            "modified_at": self._datetime_iso(
+                properties.modified
+            ),
+            "slide_count": len(
+                presentation.slides
+            ),
+        }
+
+        return DocumentMetadataResult(
+            status="processed",
+            raw_metadata=self._json_safe(raw),
+            normalized_metadata=self._json_safe(
+                normalized
+            ),
+            error=None,
+        )
+
+    def _extract_odf(
+        self,
+        path: Path,
+    ) -> DocumentMetadataResult:
+        document = load_odf(
+            str(path)
+        )
+
+        meta = getattr(
+            document,
+            "meta",
+            None,
+        )
+
+        raw: dict[str, Any] = {}
+        values: dict[str, Any] = {}
+
+        if meta is not None:
+            for node in getattr(
+                meta,
+                "childNodes",
+                [],
+            ):
+                qname = getattr(
+                    node,
+                    "qname",
+                    None,
+                )
+
+                text_value = self._odf_text(
+                    node
+                )
+
+                if qname is None:
+                    continue
+
+                namespace: str | None = None
+                local_name: str
+
+                if (
+                    isinstance(qname, tuple)
+                    and len(qname) == 2
+                ):
+                    namespace = str(
+                        qname[0]
+                    )
+                    local_name = str(
+                        qname[1]
+                    )
+                else:
+                    local_name = str(
+                        qname
+                    )
+
+                raw_key = (
+                    f"{namespace}|{local_name}"
+                    if namespace
+                    else local_name
+                )
+
+                raw[raw_key] = text_value
+
+                if text_value is not None:
+                    values[
+                        local_name.lower()
+                    ] = text_value
+
+        format_name = (
+            path.suffix
+            .lower()
+            .lstrip(".")
+        )
+
+        normalized = {
+            "format": format_name,
+            "title": self._clean(
+                values.get("title")
+            ),
+            "subject": self._clean(
+                values.get("subject")
+            ),
+            "author": self._clean(
+                values.get("creator")
+                or values.get(
+                    "initial-creator"
+                )
+            ),
+            "initial_creator": self._clean(
+                values.get(
+                    "initial-creator"
+                )
+            ),
+            "keywords": self._clean(
+                values.get("keyword")
+            ),
+            "created_at": self._clean(
+                values.get(
+                    "creation-date"
+                )
+            ),
+            "modified_at": self._clean(
+                values.get("date")
+            ),
+            "generator": self._clean(
+                values.get("generator")
+            ),
+            "editing_cycles": self._safe_int(
+                values.get(
+                    "editing-cycles"
+                )
+            ),
+            "editing_duration": self._clean(
+                values.get(
+                    "editing-duration"
+                )
+            ),
+        }
+
+        return DocumentMetadataResult(
+            status="processed",
+            raw_metadata=self._json_safe(raw),
+            normalized_metadata=self._json_safe(
+                normalized
+            ),
+            error=None,
+        )
+
+    def _extract_image(
+        self,
+        path: Path,
+    ) -> DocumentMetadataResult:
+        with Image.open(path) as image:
+            image.load()
+
+            info = dict(
+                image.info or {}
+            )
+
+            raw: dict[str, Any] = {
+                "format": image.format,
+                "mode": image.mode,
+                "width": image.width,
+                "height": image.height,
+                "info": self._json_safe(
+                    info
+                ),
+            }
+
+            exif_raw: dict[str, Any] = {}
+
+            try:
+                exif = image.getexif()
+
+                for tag_id, value in exif.items():
+                    tag_name = (
+                        ExifTags.TAGS.get(
+                            tag_id,
+                            str(tag_id),
+                        )
+                    )
+
+                    exif_raw[tag_name] = (
+                        self._json_safe(
+                            value
+                        )
+                    )
+
+            except Exception:
+                exif_raw = {}
+
+            raw["exif"] = exif_raw
+
+            gps_raw = self._extract_gps_ifd(
+                image
+            )
+
+            if gps_raw:
+                raw["gps"] = gps_raw
+
+            normalized = {
+                "format": (
+                    image.format.lower()
+                    if image.format
+                    else path.suffix
+                    .lower()
+                    .lstrip(".")
+                ),
+                "width": image.width,
+                "height": image.height,
+                "device_make": self._clean(
+                    exif_raw.get("Make")
+                ),
+                "device_model": self._clean(
+                    exif_raw.get("Model")
+                ),
+                "software": self._clean(
+                    exif_raw.get("Software")
+                    or info.get("Software")
+                    or info.get("software")
+                ),
+                "captured_at": (
+                    self._normalize_exif_date(
+                        exif_raw.get(
+                            "DateTimeOriginal"
+                        )
+                        or exif_raw.get(
+                            "DateTimeDigitized"
+                        )
+                        or exif_raw.get(
+                            "DateTime"
+                        )
+                    )
+                ),
+                "orientation": exif_raw.get(
+                    "Orientation"
+                ),
+                "dpi": self._json_safe(
+                    info.get("dpi")
+                ),
+                "gps": self._normalize_gps(
+                    gps_raw
+                ),
+            }
+
+        return DocumentMetadataResult(
+            status="processed",
+            raw_metadata=self._json_safe(raw),
+            normalized_metadata=self._json_safe(
+                normalized
+            ),
+            error=None,
+        )
+
+    def _extract_gps_ifd(
+        self,
+        image: Image.Image,
+    ) -> dict[str, Any] | None:
+        try:
+            exif = image.getexif()
+
+            gps_ifd = exif.get_ifd(
+                ExifTags.IFD.GPSInfo
+            )
+
+            if not gps_ifd:
+                return None
+
+            result: dict[str, Any] = {}
+
+            for key, value in gps_ifd.items():
+                name = ExifTags.GPSTAGS.get(
+                    key,
+                    str(key),
+                )
+
+                result[name] = (
+                    self._json_safe(value)
+                )
+
+            return result
+
+        except Exception:
+            return None
+
+    def _normalize_gps(
+        self,
+        gps: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not gps:
+            return None
+
+        latitude = self._gps_coordinate(
+            gps.get("GPSLatitude"),
+            gps.get("GPSLatitudeRef"),
+        )
+
+        longitude = self._gps_coordinate(
+            gps.get("GPSLongitude"),
+            gps.get("GPSLongitudeRef"),
+        )
+
+        altitude = self._rational_to_float(
+            gps.get("GPSAltitude")
+        )
+
+        altitude_ref = gps.get(
+            "GPSAltitudeRef"
+        )
+
+        if (
+            altitude is not None
+            and altitude_ref in {
+                1,
+                b"\x01",
+            }
+        ):
+            altitude *= -1
+
+        if (
+            latitude is None
+            and longitude is None
+            and altitude is None
+        ):
+            return None
+
+        return {
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude_m": (
+                round(altitude, 3)
+                if altitude is not None
+                else None
+            ),
+            "source": "exif",
+        }
+
+    def _gps_coordinate(
+        self,
+        value: Any,
+        ref: Any,
+    ) -> float | None:
+        if not value:
+            return None
+
+        try:
+            degrees = (
+                self._rational_to_float(
+                    value[0]
+                )
+            )
+
+            minutes = (
+                self._rational_to_float(
+                    value[1]
+                )
+            )
+
+            seconds = (
+                self._rational_to_float(
+                    value[2]
+                )
+            )
+
+            if (
+                degrees is None
+                or minutes is None
+                or seconds is None
+            ):
+                return None
+
+            coordinate = (
+                degrees
+                + minutes / 60.0
+                + seconds / 3600.0
+            )
+
+            ref_value = str(
+                ref or ""
+            ).upper()
+
+            if ref_value in {
+                "S",
+                "W",
+            }:
+                coordinate *= -1
+
+            return round(
+                coordinate,
+                8,
+            )
+
+        except Exception:
+            return None
+
+    @staticmethod
+    def _rational_to_float(
+        value: Any,
+    ) -> float | None:
+        if value is None:
+            return None
+
+        try:
+            return float(value)
+
+        except Exception:
+            pass
+
+        try:
+            numerator = float(
+                value[0]
+            )
+
+            denominator = float(
+                value[1]
+            )
+
+            if denominator == 0:
+                return None
+
+            return numerator / denominator
+
+        except Exception:
+            return None
+
+    @staticmethod
+    def _normalize_pdf_date(
+        value: Any,
+    ) -> str | None:
+        if not value:
+            return None
+
+        text = str(
+            value
+        ).strip()
+
+        pattern = re.compile(
+            r"^D:"
+            r"(?P<year>\d{4})"
+            r"(?P<month>\d{2})?"
+            r"(?P<day>\d{2})?"
+            r"(?P<hour>\d{2})?"
+            r"(?P<minute>\d{2})?"
+            r"(?P<second>\d{2})?"
+            r"(?P<tz>Z|[+-]\d{2}'?\d{2}'?)?"
+        )
+
+        match = pattern.match(
+            text
+        )
+
+        if not match:
+            return text or None
+
+        try:
+            year = int(
+                match.group("year")
+            )
+
+            month = int(
+                match.group("month")
+                or 1
+            )
+
+            day = int(
+                match.group("day")
+                or 1
+            )
+
+            hour = int(
+                match.group("hour")
+                or 0
+            )
+
+            minute = int(
+                match.group("minute")
+                or 0
+            )
+
+            second = int(
+                match.group("second")
+                or 0
+            )
+
+            tz_value = match.group(
+                "tz"
+            )
+
+            tzinfo = None
+
+            if tz_value == "Z":
+                tzinfo = timezone.utc
+
+            elif tz_value:
+                sign = (
+                    1
+                    if tz_value[0] == "+"
+                    else -1
+                )
+
+                tz_digits = re.sub(
+                    r"[^\d]",
+                    "",
+                    tz_value[1:],
+                )
+
+                if len(tz_digits) >= 4:
+                    hours = int(
+                        tz_digits[0:2]
+                    )
+
+                    minutes = int(
+                        tz_digits[2:4]
+                    )
+
+                    tzinfo = timezone(
+                        sign
+                        * timedelta(
+                            hours=hours,
+                            minutes=minutes,
+                        )
+                    )
+
+            parsed = datetime(
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+                tzinfo=tzinfo,
+            )
+
+            return parsed.isoformat()
+
+        except Exception:
+            return text or None
+
+    @staticmethod
+    def _normalize_exif_date(
+        value: Any,
+    ) -> str | None:
+        if not value:
+            return None
+
+        text = str(
+            value
+        ).strip()
+
+        try:
+            parsed = datetime.strptime(
+                text,
+                "%Y:%m:%d %H:%M:%S",
+            )
+
+            return parsed.isoformat()
+
+        except Exception:
+            return text or None
+
+    @staticmethod
+    def _datetime_iso(
+        value: Any,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        if isinstance(
+            value,
+            datetime,
+        ):
+            return value.isoformat()
+
+        return str(value)
+
+    @staticmethod
+    def _safe_int(
+        value: Any,
+    ) -> int | None:
+        if value is None:
+            return None
+
+        try:
+            return int(value)
+
+        except Exception:
+            return None
+
+    @staticmethod
+    def _clean(
+        value: Any,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        text = str(
+            value
+        ).strip()
+
+        return text or None
+
+    @staticmethod
+    def _odf_text(
+        node: Any,
+    ) -> str | None:
+        parts: list[str] = []
+
+        def walk(
+            current: Any,
+        ) -> None:
+            data = getattr(
+                current,
+                "data",
+                None,
+            )
+
+            if data:
+                parts.append(
+                    str(data)
+                )
+
+            for child in getattr(
+                current,
+                "childNodes",
+                [],
+            ):
+                walk(child)
+
+        walk(node)
+
+        text = " ".join(
+            part.strip()
+            for part in parts
+            if part.strip()
+        ).strip()
+
+        return text or None
+
+    @classmethod
+    def _json_safe(
+        cls,
+        value: Any,
+    ) -> Any:
+        if value is None:
+            return None
+
+        if isinstance(
+            value,
+            (
+                str,
+                int,
+                float,
+                bool,
+            ),
+        ):
+            return value
+
+        if isinstance(
+            value,
+            datetime,
+        ):
+            return value.isoformat()
+
+        if isinstance(
+            value,
+            bytes,
+        ):
+            return value.hex()
+
+        if isinstance(
+            value,
+            dict,
+        ):
+            return {
+                str(key): cls._json_safe(
+                    item
+                )
+                for key, item
+                in value.items()
+            }
+
+        if isinstance(
+            value,
+            (
+                list,
+                tuple,
+                set,
+            ),
+        ):
+            return [
+                cls._json_safe(item)
+                for item in value
+            ]
+
+        try:
+            return float(value)
+
+        except Exception:
+            return str(value)

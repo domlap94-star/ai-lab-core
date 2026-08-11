@@ -1,0 +1,1749 @@
+﻿===== CLIENT MODEL =====
+from __future__ import annotations
+
+from sqlalchemy import (
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.mixins import BusinessBase
+
+
+class Client(BusinessBase):
+    __tablename__ = "clients"
+
+    __table_args__ = (
+        CheckConstraint(
+            "client_type IN "
+            "('company', 'person', 'institution', 'other')",
+            name="ck_clients_client_type",
+        ),
+        CheckConstraint(
+            "char_length(country_code) = 2",
+            name="ck_clients_country_code_length",
+        ),
+        CheckConstraint(
+            "char_length(trim(name)) > 0",
+            name="ck_clients_name_not_empty",
+        ),
+        Index(
+            "ix_clients_name",
+            "name",
+        ),
+        Index(
+            "ix_clients_tax_id",
+            "tax_id",
+        ),
+        Index(
+            "ix_clients_primary_email",
+            "primary_email",
+        ),
+        Index(
+            "ix_clients_city",
+            "city",
+        ),
+        Index(
+            "ix_clients_deleted_at",
+            "deleted_at",
+        ),
+    )
+
+    client_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    legal_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    tax_id: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+    )
+
+    registration_number: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    industry_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "industries.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
+
+    website: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    primary_email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    primary_phone: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    street: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    building_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    unit_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    postal_code: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    city: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+    )
+
+    country_code: Mapped[str] = mapped_column(
+        String(2),
+        nullable=False,
+        default="PL",
+        server_default="PL",
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    industry: Mapped["Industry | None"] = relationship(
+        "Industry",
+        back_populates="clients",
+    )
+===== CLIENT CANDIDATE MODEL =====
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    JSON,
+    String,
+    Text,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.mixins import BusinessBase
+
+
+class ClientCandidate(BusinessBase):
+    __tablename__ = "client_candidates"
+
+    __table_args__ = (
+        CheckConstraint(
+            "client_type IN "
+            "('company', 'person', 'institution', 'other')",
+            name="ck_client_candidates_client_type",
+        ),
+        CheckConstraint(
+            "status IN "
+            "('pending', 'accepted', 'rejected', 'merged', 'duplicate')",
+            name="ck_client_candidates_status",
+        ),
+        CheckConstraint(
+            "confidence >= 0 AND confidence <= 1",
+            name="ck_client_candidates_confidence_range",
+        ),
+        Index(
+            "ix_client_candidates_status",
+            "status",
+        ),
+        Index(
+            "ix_client_candidates_tax_id",
+            "tax_id",
+        ),
+        Index(
+            "ix_client_candidates_primary_email",
+            "primary_email",
+        ),
+        Index(
+            "ix_client_candidates_matched_client_id",
+            "matched_client_id",
+        ),
+        Index(
+            "ix_client_candidates_import_run_id",
+            "import_run_id",
+        ),
+    )
+
+    import_run_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "import_runs.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    client_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="other",
+        server_default="other",
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    legal_name: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    tax_id: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+    )
+
+    registration_number: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    industry_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "industries.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    website: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    primary_email: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    primary_phone: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    street: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    building_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    unit_number: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    postal_code: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    city: Mapped[str | None] = mapped_column(
+        String(150),
+        nullable=True,
+    )
+
+    country_code: Mapped[str] = mapped_column(
+        String(2),
+        nullable=False,
+        default="PL",
+        server_default="PL",
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+
+    confidence: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0,
+        server_default="0",
+    )
+
+    matched_client_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "clients.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    source_summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    raw_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+===== CANDIDATE SOURCE MODEL =====
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.models.mixins import BusinessBase
+
+
+class CandidateSource(BusinessBase):
+    __tablename__ = "candidate_sources"
+
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('gmail_message', 'gmail_thread', 'google_sheets_row')",
+            name="ck_candidate_sources_source_type",
+        ),
+        Index(
+            "ix_candidate_sources_candidate_id",
+            "candidate_id",
+        ),
+        Index(
+            "ix_candidate_sources_import_source_id",
+            "import_source_id",
+        ),
+        Index(
+            "ix_candidate_sources_import_run_id",
+            "import_run_id",
+        ),
+        Index(
+            "ix_candidate_sources_external_id",
+            "external_id",
+        ),
+        UniqueConstraint(
+            "import_source_id",
+            "source_type",
+            "external_id",
+            name="uq_candidate_sources_external_reference",
+        ),
+    )
+
+    candidate_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "client_candidates.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    import_source_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "import_sources.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+
+    import_run_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "import_runs.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    source_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    external_id: Mapped[str] = mapped_column(
+        String(1000),
+        nullable=False,
+    )
+
+    external_parent_id: Mapped[str | None] = mapped_column(
+        String(1000),
+        nullable=True,
+    )
+
+    source_label: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
+    source_url: Mapped[str | None] = mapped_column(
+        String(2000),
+        nullable=True,
+    )
+
+    extracted_text: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    raw_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+===== DOCUMENT MODEL =====
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database.base import Base
+
+
+class Document(Base):
+    __tablename__ = "documents"
+
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN "
+            "('manual_upload', 'gmail_attachment')",
+            name="ck_documents_source_type",
+        ),
+        CheckConstraint(
+            "processing_status IN "
+            "('pending', 'stored', 'extracting', 'processed', 'failed')",
+            name="ck_documents_processing_status",
+        ),
+        CheckConstraint(
+            "match_status IN "
+            "('unmatched', 'suggested', 'matched', 'confirmed', 'rejected')",
+            name="ck_documents_match_status",
+        ),
+        CheckConstraint(
+            "match_confidence IS NULL OR "
+            "(match_confidence >= 0 AND match_confidence <= 1)",
+            name="ck_documents_match_confidence_range",
+        ),
+        UniqueConstraint(
+            "source_type",
+            "external_id",
+            name="uq_documents_source_external_id",
+        ),
+        Index(
+            "ix_documents_client_id",
+            "client_id",
+        ),
+        Index(
+            "ix_documents_candidate_id",
+            "candidate_id",
+        ),
+        Index(
+            "ix_documents_processing_status",
+            "processing_status",
+        ),
+        Index(
+            "ix_documents_match_status",
+            "match_status",
+        ),
+        Index(
+            "ix_documents_checksum_sha256",
+            "checksum_sha256",
+        ),
+        Index(
+            "ix_documents_gmail_message_id",
+            "gmail_message_id",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        index=True,
+    )
+
+    filename: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    original_filename: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    content_type: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    file_size: Mapped[int] = mapped_column(
+        nullable=False,
+    )
+
+    storage_path: Mapped[str | None] = mapped_column(
+        String(2000),
+        nullable=True,
+    )
+
+    checksum_sha256: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    source_type: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="manual_upload",
+        server_default="manual_upload",
+    )
+
+    external_id: Mapped[str | None] = mapped_column(
+        String(1000),
+        nullable=True,
+    )
+
+    gmail_message_id: Mapped[str | None] = mapped_column(
+        String(1000),
+        nullable=True,
+    )
+
+    gmail_thread_id: Mapped[str | None] = mapped_column(
+        String(1000),
+        nullable=True,
+    )
+
+    candidate_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "client_candidates.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    client_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "clients.id",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+    )
+
+    processing_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+
+    processing_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    extracted_text: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    match_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="unmatched",
+        server_default="unmatched",
+    )
+
+    match_confidence: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    match_method: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    matched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
+        "DocumentChunk",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+===== DOCUMENT CHUNK MODEL =====
+from __future__ import annotations
+
+from sqlalchemy import ForeignKey, Integer, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database.base import Base
+
+
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        index=True,
+    )
+
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "documents.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    chunk_index: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    token_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    document: Mapped["Document"] = relationship(
+        "Document",
+        back_populates="chunks",
+    )
+===== CONVERSATION MODEL =====
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database.base import Base
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        index=True,
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="Nowa rozmowa",
+    )
+
+    model: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="llama3.2",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="conversations",
+    )
+
+    messages: Mapped[list["Message"]] = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Message.created_at",
+    )
+===== MESSAGE MODEL =====
+from __future__ import annotations
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database.base import Base
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        index=True,
+    )
+
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "conversations.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    conversation: Mapped["Conversation"] = relationship(
+        "Conversation",
+        back_populates="messages",
+    )
+===== CLIENT SERVICE =====
+from sqlalchemy.orm import Session
+
+from app.models.client import Client
+from app.repositories.client_repository import ClientRepository
+from app.repositories.industry_repository import IndustryRepository
+from app.schemas.client import ClientCreate, ClientUpdate
+from app.services.base_service import BaseService
+
+
+class ClientNotFoundError(Exception):
+    pass
+
+
+class IndustryNotFoundError(Exception):
+    pass
+
+
+class DuplicateTaxIdError(Exception):
+    pass
+
+
+class ClientService(BaseService[Client]):
+    def __init__(self, db: Session) -> None:
+        self.db = db
+        self.client_repository = ClientRepository(db)
+        self.industry_repository = IndustryRepository(db)
+
+        super().__init__(self.client_repository)
+
+    def get_client(self, client_id: int) -> Client:
+        client = self.client_repository.get(client_id)
+
+        if client is None:
+            raise ClientNotFoundError
+
+        return client
+
+    def get_clients(
+        self,
+        *,
+        search: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Client]:
+        return self.client_repository.get_all(
+            search=search,
+            skip=skip,
+            limit=limit,
+        )
+
+    def create_client(
+        self,
+        data: ClientCreate,
+    ) -> Client:
+        payload = data.model_dump()
+
+        self._validate_industry(payload.get("industry_id"))
+        self._validate_tax_id(payload.get("tax_id"))
+
+        client = Client(**payload)
+
+        self.client_repository.create(client)
+
+        return self.get_client(client.id)
+
+    def update_client(
+        self,
+        client_id: int,
+        data: ClientUpdate,
+    ) -> Client:
+        client = self.get_client(client_id)
+
+        payload = data.model_dump(
+            exclude_unset=True,
+        )
+
+        if "industry_id" in payload:
+            self._validate_industry(
+                payload["industry_id"],
+            )
+
+        if "tax_id" in payload:
+            self._validate_tax_id(
+                payload["tax_id"],
+                excluded_client_id=client.id,
+            )
+
+        for field_name, value in payload.items():
+            setattr(client, field_name, value)
+
+        self.client_repository.update(client)
+
+        return self.get_client(client.id)
+
+    def delete_client(
+        self,
+        client_id: int,
+    ) -> None:
+        client = self.get_client(client_id)
+        self.client_repository.soft_delete(client)
+
+    def _validate_industry(
+        self,
+        industry_id: int | None,
+    ) -> None:
+        if industry_id is None:
+            return
+
+        industry = self.industry_repository.get_active(
+            industry_id,
+        )
+
+        if industry is None:
+            raise IndustryNotFoundError
+
+    def _validate_tax_id(
+        self,
+        tax_id: str | None,
+        *,
+        excluded_client_id: int | None = None,
+    ) -> None:
+        if not tax_id:
+            return
+
+        existing_client = self.client_repository.get_by_tax_id(
+            tax_id,
+        )
+
+        if existing_client is None:
+            return
+
+        if existing_client.id == excluded_client_id:
+            return
+
+        raise DuplicateTaxIdError
+===== DOCUMENT SERVICE =====
+from __future__ import annotations
+
+import hashlib
+import re
+import uuid
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.models.client_candidate import ClientCandidate
+from app.models.document import Document
+from app.repositories.document_repository import DocumentRepository
+
+
+class DocumentStorageError(Exception):
+    pass
+
+
+class EmptyDocumentError(DocumentStorageError):
+    pass
+
+
+class InvalidDocumentSourceTypeError(DocumentStorageError):
+    pass
+
+
+@dataclass(frozen=True)
+class StoredDocumentResult:
+    document: Document
+    created: bool
+    matched_by: str | None = None
+
+
+class DocumentService:
+    ALLOWED_SOURCE_TYPES = {
+        "manual_upload",
+        "gmail_attachment",
+    }
+
+    def __init__(self, db: Session) -> None:
+        self.repository = DocumentRepository(db)
+
+        self.documents_directory = (
+            Path(settings.data_dir)
+            / "documents"
+        )
+
+    def store_document(
+        self,
+        *,
+        content: bytes,
+        original_filename: str,
+        content_type: str,
+        source_type: str,
+        external_id: str | None = None,
+        gmail_message_id: str | None = None,
+        gmail_thread_id: str | None = None,
+        candidate_id: int | None = None,
+        client_id: int | None = None,
+    ) -> StoredDocumentResult:
+        self._validate_source_type(source_type)
+
+        if not content:
+            raise EmptyDocumentError(
+                "The uploaded document is empty."
+            )
+
+        normalized_external_id = self._normalize_optional_string(
+            external_id,
+        )
+
+        normalized_gmail_message_id = (
+            self._normalize_optional_string(
+                gmail_message_id,
+            )
+        )
+
+        normalized_gmail_thread_id = (
+            self._normalize_optional_string(
+                gmail_thread_id,
+            )
+        )
+
+        if normalized_external_id:
+            existing_document = (
+                self.repository.get_by_external_id(
+                    source_type=source_type,
+                    external_id=normalized_external_id,
+                )
+            )
+
+            if existing_document is not None:
+                return StoredDocumentResult(
+                    document=existing_document,
+                    created=False,
+                    matched_by="external_id",
+                )
+
+        resolved_candidate_id = candidate_id
+        resolved_client_id = client_id
+        automatic_match_method: str | None = None
+
+        if (
+            source_type == "gmail_attachment"
+            and resolved_candidate_id is None
+            and resolved_client_id is None
+            and normalized_gmail_message_id
+        ):
+            candidate = (
+                self.repository
+                .find_candidate_by_gmail_message_id(
+                    normalized_gmail_message_id,
+                )
+            )
+
+            if candidate is not None:
+                resolved_candidate_id = candidate.id
+                resolved_client_id = (
+                    candidate.matched_client_id
+                )
+                automatic_match_method = (
+                    "gmail_message_source"
+                )
+
+        checksum_sha256 = hashlib.sha256(content).hexdigest()
+
+        if source_type == "manual_upload":
+            existing_document = (
+                self.repository.get_by_checksum(
+                    checksum_sha256,
+                )
+            )
+
+            if existing_document is not None:
+                return StoredDocumentResult(
+                    document=existing_document,
+                    created=False,
+                    matched_by="checksum_sha256",
+                )
+
+        safe_original_filename = self._sanitize_filename(
+            original_filename,
+        )
+
+        stored_filename = (
+            f"{uuid.uuid4().hex}_"
+            f"{safe_original_filename}"
+        )
+
+        storage_directory = self._build_storage_directory(
+            source_type=source_type,
+        )
+
+        storage_directory.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        absolute_storage_path = (
+            storage_directory
+            / stored_filename
+        )
+
+        relative_storage_path = (
+            absolute_storage_path.relative_to(
+                Path(settings.data_dir)
+            )
+        )
+
+        matched = (
+            resolved_candidate_id is not None
+            or resolved_client_id is not None
+        )
+
+        if automatic_match_method is not None:
+            match_method = automatic_match_method
+        elif matched:
+            match_method = "explicit_relation"
+        else:
+            match_method = None
+
+        document = Document(
+            filename=stored_filename,
+            original_filename=safe_original_filename,
+            content_type=(
+                self._normalize_content_type(
+                    content_type,
+                )
+            ),
+            file_size=len(content),
+            storage_path=str(
+                relative_storage_path.as_posix()
+            ),
+            checksum_sha256=checksum_sha256,
+            source_type=source_type,
+            external_id=normalized_external_id,
+            gmail_message_id=normalized_gmail_message_id,
+            gmail_thread_id=normalized_gmail_thread_id,
+            candidate_id=resolved_candidate_id,
+            client_id=resolved_client_id,
+            processing_status="stored",
+            processing_error=None,
+            match_status=(
+                "matched"
+                if matched
+                else "unmatched"
+            ),
+            match_confidence=(
+                1.0
+                if matched
+                else None
+            ),
+            match_method=match_method,
+            matched_at=(
+                datetime.now(UTC)
+                if matched
+                else None
+            ),
+        )
+
+        try:
+            absolute_storage_path.write_bytes(content)
+
+            created_document = self.repository.create(
+                document,
+            )
+
+            self.repository.commit()
+
+            return StoredDocumentResult(
+                document=created_document,
+                created=True,
+                matched_by=match_method,
+            )
+
+        except Exception as error:
+            self.repository.rollback()
+
+            if absolute_storage_path.exists():
+                absolute_storage_path.unlink(
+                    missing_ok=True,
+                )
+
+            raise DocumentStorageError(
+                "Could not store the document."
+            ) from error
+
+    def get_document(
+        self,
+        document_id: int,
+    ) -> Document | None:
+        return self.repository.get(document_id)
+
+    def get_absolute_storage_path(
+        self,
+        document: Document,
+    ) -> Path | None:
+        if not document.storage_path:
+            return None
+
+        return (
+            Path(settings.data_dir)
+            / document.storage_path
+        ).resolve()
+
+    def find_candidate_for_gmail_message(
+        self,
+        gmail_message_id: str,
+    ) -> ClientCandidate | None:
+        return (
+            self.repository
+            .find_candidate_by_gmail_message_id(
+                gmail_message_id,
+            )
+        )
+
+    def _build_storage_directory(
+        self,
+        *,
+        source_type: str,
+    ) -> Path:
+        now = datetime.now(UTC)
+
+        return (
+            self.documents_directory
+            / source_type
+            / f"{now.year:04d}"
+            / f"{now.month:02d}"
+        )
+
+    def _validate_source_type(
+        self,
+        source_type: str,
+    ) -> None:
+        if source_type not in self.ALLOWED_SOURCE_TYPES:
+            raise InvalidDocumentSourceTypeError(
+                "Unsupported document source type: "
+                f"{source_type}"
+            )
+
+    @staticmethod
+    def _sanitize_filename(
+        filename: str,
+    ) -> str:
+        normalized = filename.strip()
+
+        if not normalized:
+            normalized = "document.bin"
+
+        normalized = Path(normalized).name
+
+        normalized = re.sub(
+            r"[^A-Za-z0-9._()\-Ä…Ä‡Ä™Ĺ‚Ĺ„ĂłĹ›ĹşĹĽÄ„Ä†ÄĹĹĂ“ĹšĹąĹ» ]+",
+            "_",
+            normalized,
+        )
+
+        normalized = re.sub(
+            r"\s+",
+            "_",
+            normalized,
+        )
+
+        normalized = normalized.strip("._")
+
+        if not normalized:
+            return "document.bin"
+
+        return normalized[:255]
+
+    @staticmethod
+    def _normalize_content_type(
+        content_type: str,
+    ) -> str:
+        normalized = content_type.strip().lower()
+
+        if not normalized:
+            return "application/octet-stream"
+
+        return normalized[:255]
+
+    @staticmethod
+    def _normalize_optional_string(
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+
+        return normalized or None
+===== CURRENT AI API =====
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.ai.schemas.chat_request import ChatRequest
+from app.ai.schemas.chat_response import ChatResponse
+from app.ai.services.chat_service import ChatService
+from app.api.auth import get_current_user
+from app.database.session import get_db
+from app.models.user import User
+
+router = APIRouter(
+    prefix="/ai",
+    tags=["AI"],
+)
+
+
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+)
+async def chat(
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ChatResponse:
+    try:
+        service = ChatService(db)
+
+        return await service.chat(
+            user_id=current_user.id,
+            model=request.model,
+            message=request.message,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        ) from exc
+===== CLIENT API =====
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
+from sqlalchemy.orm import Session
+
+from app.api.auth import get_current_user
+from app.database.session import get_db
+from app.models.user import User
+from app.schemas.client import (
+    ClientCreate,
+    ClientRead,
+    ClientUpdate,
+)
+from app.schemas.industry import IndustryRead
+from app.repositories.industry_repository import IndustryRepository
+from app.services.client_service import (
+    ClientNotFoundError,
+    ClientService,
+    DuplicateTaxIdError,
+    IndustryNotFoundError,
+)
+
+router = APIRouter(
+    prefix="/clients",
+    tags=["Clients"],
+    dependencies=[
+        Depends(get_current_user),
+    ],
+)
+
+
+@router.get(
+    "/industries",
+    response_model=list[IndustryRead],
+)
+def get_industries(
+    db: Session = Depends(get_db),
+) -> list[IndustryRead]:
+    repository = IndustryRepository(db)
+    return repository.get_all_active()
+
+
+@router.post(
+    "",
+    response_model=ClientRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_client(
+    data: ClientCreate,
+    db: Session = Depends(get_db),
+) -> ClientRead:
+    service = ClientService(db)
+
+    try:
+        return service.create_client(data)
+
+    except IndustryNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Selected industry does not exist or is inactive",
+        ) from error
+
+    except DuplicateTaxIdError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An active client with this tax ID already exists",
+        ) from error
+
+
+@router.get(
+    "",
+    response_model=list[ClientRead],
+)
+def get_clients(
+    search: str | None = Query(
+        default=None,
+        max_length=255,
+    ),
+    skip: int = Query(
+        default=0,
+        ge=0,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=500,
+    ),
+    db: Session = Depends(get_db),
+) -> list[ClientRead]:
+    service = ClientService(db)
+
+    return service.get_clients(
+        search=search,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/{client_id}",
+    response_model=ClientRead,
+)
+def get_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+) -> ClientRead:
+    service = ClientService(db)
+
+    try:
+        return service.get_client(client_id)
+
+    except ClientNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found",
+        ) from error
+
+
+@router.patch(
+    "/{client_id}",
+    response_model=ClientRead,
+)
+def update_client(
+    client_id: int,
+    data: ClientUpdate,
+    db: Session = Depends(get_db),
+) -> ClientRead:
+    service = ClientService(db)
+
+    try:
+        return service.update_client(
+            client_id,
+            data,
+        )
+
+    except ClientNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found",
+        ) from error
+
+    except IndustryNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Selected industry does not exist or is inactive",
+        ) from error
+
+    except DuplicateTaxIdError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An active client with this tax ID already exists",
+        ) from error
+
+
+@router.delete(
+    "/{client_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_client(
+    client_id: int,
+    db: Session = Depends(get_db),
+) -> Response:
+    service = ClientService(db)
+
+    try:
+        service.delete_client(client_id)
+
+    except ClientNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found",
+        ) from error
+
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+===== DOCUMENT API =====
+from __future__ import annotations
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
+from sqlalchemy.orm import Session
+
+from app.api.imports.dependencies import require_import_api_key
+from app.database.session import get_db
+from app.schemas.document import (
+    DocumentRead,
+    DocumentUploadResponse,
+)
+from app.services.document_service import (
+    DocumentService,
+    DocumentStorageError,
+    EmptyDocumentError,
+    InvalidDocumentSourceTypeError,
+)
+
+router = APIRouter(
+    prefix="/documents",
+    tags=["Documents"],
+)
+
+
+@router.post(
+    "/upload",
+    response_model=DocumentUploadResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[
+        Depends(require_import_api_key),
+    ],
+)
+async def upload_document(
+    file: UploadFile = File(...),
+    source_type: str = Form(
+        default="manual_upload",
+    ),
+    external_id: str | None = Form(
+        default=None,
+    ),
+    gmail_message_id: str | None = Form(
+        default=None,
+    ),
+    gmail_thread_id: str | None = Form(
+        default=None,
+    ),
+    candidate_id: int | None = Form(
+        default=None,
+    ),
+    client_id: int | None = Form(
+        default=None,
+    ),
+    db: Session = Depends(get_db),
+) -> DocumentUploadResponse:
+    content = await file.read()
+
+    service = DocumentService(db)
+
+    try:
+        result = service.store_document(
+            content=content,
+            original_filename=(
+                file.filename
+                or "document.bin"
+            ),
+            content_type=(
+                file.content_type
+                or "application/octet-stream"
+            ),
+            source_type=source_type,
+            external_id=external_id,
+            gmail_message_id=gmail_message_id,
+            gmail_thread_id=gmail_thread_id,
+            candidate_id=candidate_id,
+            client_id=client_id,
+        )
+
+        return DocumentUploadResponse(
+            document=DocumentRead.model_validate(
+                result.document,
+            ),
+            created=result.created,
+            matched_by=result.matched_by,
+        )
+
+    except EmptyDocumentError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    except InvalidDocumentSourceTypeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(error),
+        ) from error
+
+    except DocumentStorageError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(error),
+        ) from error
+===== CONFIG =====
+from pathlib import Path
+
+from pydantic import computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """
+    Central configuration for AI Lab.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # ==========================================================
+    # Application
+    # ==========================================================
+
+    app_name: str = "AI-Lab"
+    environment: str = "development"
+    debug: bool = False
+
+    # ==========================================================
+    # Database
+    # ==========================================================
+
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
+    postgres_host: str = "postgres"
+    postgres_port: int = 5432
+
+    # ==========================================================
+    # JWT
+    # ==========================================================
+
+    secret_key: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = 30
+
+    # ==========================================================
+    # Administrator
+    # ==========================================================
+
+    admin_username: str
+    admin_email: str
+    admin_password: str
+
+    # ==========================================================
+    # Integration authentication
+    # ==========================================================
+
+    n8n_ingest_api_key: str
+
+    # ==========================================================
+    # AI providers and internal services
+    # ==========================================================
+
+    ollama_url: str = "http://ollama:11434"
+    openwebui_url: str = "http://open-webui:8080"
+
+    qdrant_host: str = "qdrant"
+    qdrant_port: int = 6333
+
+    n8n_url: str = "http://n8n:5678"
+
+    # ==========================================================
+    # Paths
+    # ==========================================================
+
+    data_dir: str = "/data"
+
+    @computed_field
+    @property
+    def project_dir(self) -> Path:
+        return Path(__file__).resolve().parents[3]
+
+    @computed_field
+    @property
+    def backend_dir(self) -> Path:
+        return self.project_dir / "backend"
+
+    @computed_field
+    @property
+    def database_url(self) -> str:
+        return (
+            "postgresql+psycopg://"
+            f"{self.postgres_user}:"
+            f"{self.postgres_password}@"
+            f"{self.postgres_host}:"
+            f"{self.postgres_port}/"
+            f"{self.postgres_db}"
+        )
+
+
+settings = Settings()
+===== DOCKER SERVICES =====
+NAME             IMAGE                                COMMAND                  SERVICE      CREATED       STATUS                PORTS
+ai-lab-backend   ai-lab-core-backend                  "uvicorn app.main:ap…"   backend      6 days ago    Up About an hour      0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp
+ollama           ollama/ollama:latest                 "/bin/ollama serve"      ollama       11 days ago   Up 6 days             0.0.0.0:11434->11434/tcp, [::]:11434->11434/tcp
+open-webui       ghcr.io/open-webui/open-webui:main   "bash start.sh"          open-webui   11 days ago   Up 6 days (healthy)   0.0.0.0:3000->8080/tcp, [::]:3000->8080/tcp
+postgres         postgres:17                          "docker-entrypoint.s…"   postgres     11 days ago   Up 6 days (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+qdrant           qdrant/qdrant:latest                 "./entrypoint.sh"        qdrant       11 days ago   Up 6 days             0.0.0.0:6333-6334->6333-6334/tcp, [::]:6333-6334->6333-6334/tcp

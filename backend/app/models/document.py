@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
@@ -9,6 +10,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Index,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -17,6 +19,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
+
+if TYPE_CHECKING:
+    from app.models.document_asset import DocumentAsset
+    from app.models.document_chunk import DocumentChunk
+    from app.models.document_page import DocumentPage
 
 
 class Document(Base):
@@ -39,6 +46,11 @@ class Document(Base):
             name="ck_documents_processing_status",
         ),
         CheckConstraint(
+            "metadata_status IN "
+            "('pending', 'processed', 'unsupported', 'failed')",
+            name="ck_documents_metadata_status",
+        ),
+        CheckConstraint(
             "match_status IN "
             "('unmatched', 'suggested', 'matched', 'confirmed', 'rejected')",
             name="ck_documents_match_status",
@@ -59,8 +71,13 @@ class Document(Base):
             name="ck_documents_longitude_range",
         ),
         CheckConstraint(
-            "location_accuracy_m IS NULL OR location_accuracy_m >= 0",
+            "location_accuracy_m IS NULL OR "
+            "location_accuracy_m >= 0",
             name="ck_documents_location_accuracy_positive",
+        ),
+        CheckConstraint(
+            "archive_depth >= 0",
+            name="ck_documents_archive_depth_positive",
         ),
         UniqueConstraint(
             "source_type",
@@ -80,12 +97,25 @@ class Document(Base):
             "processing_status",
         ),
         Index(
+            "ix_documents_metadata_status",
+            "metadata_status",
+        ),
+        Index(
             "ix_documents_match_status",
             "match_status",
         ),
         Index(
             "ix_documents_checksum_sha256",
             "checksum_sha256",
+        ),
+        Index(
+            "ix_documents_parent_document_id",
+            "parent_document_id",
+        ),
+        Index(
+            "ix_documents_parent_archive_member",
+            "parent_document_id",
+            "archive_member_path",
         ),
         Index(
             "ix_documents_gmail_message_id",
@@ -133,6 +163,25 @@ class Document(Base):
     checksum_sha256: Mapped[str | None] = mapped_column(
         String(64),
         nullable=True,
+    )
+
+    parent_document_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "documents.id",
+            ondelete="CASCADE",
+        ),
+        nullable=True,
+    )
+
+    archive_member_path: Mapped[str | None] = mapped_column(
+        String(2000),
+        nullable=True,
+    )
+
+    archive_depth: Mapped[int] = mapped_column(
+        nullable=False,
+        default=0,
+        server_default="0",
     )
 
     source_type: Mapped[str] = mapped_column(
@@ -222,6 +271,33 @@ class Document(Base):
         nullable=True,
     )
 
+    metadata_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="pending",
+        server_default="pending",
+    )
+
+    metadata_raw: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
+    metadata_normalized: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
+    metadata_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    metadata_extracted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     match_status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,
@@ -255,6 +331,37 @@ class Document(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    parent: Mapped["Document | None"] = relationship(
+        "Document",
+        remote_side="Document.id",
+        back_populates="children",
+        foreign_keys=[parent_document_id],
+    )
+
+    children: Mapped[list["Document"]] = relationship(
+        "Document",
+        back_populates="parent",
+        foreign_keys=[parent_document_id],
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    pages: Mapped[list["DocumentPage"]] = relationship(
+        "DocumentPage",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="DocumentPage.page_number",
+    )
+
+    assets: Mapped[list["DocumentAsset"]] = relationship(
+        "DocumentAsset",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="DocumentAsset.asset_index",
     )
 
     chunks: Mapped[list["DocumentChunk"]] = relationship(

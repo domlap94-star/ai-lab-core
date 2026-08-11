@@ -1,0 +1,617 @@
+from __future__ import annotations
+
+import csv
+import io
+import zipfile
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
+
+from docx import Document as DocxDocument
+from odf import text as odf_text
+from odf.opendocument import load as load_odf
+from openpyxl import load_workbook
+from pypdf import PdfReader
+from pptx import Presentation
+from striprtf.striprtf import rtf_to_text
+
+
+ExtractionStatus = Literal[
+    "extracted",
+    "requires_ocr",
+    "unsupported",
+    "failed",
+]
+
+
+@dataclass(frozen=True)
+class DocumentExtractionResult:
+    status: ExtractionStatus
+    text: str | None
+    extractor: str | None
+    character_count: int
+    error: str | None = None
+
+
+class DocumentExtractionService:
+    MIN_TEXT_CHARACTERS = 40
+
+    TEXT_CONTENT_TYPES = {
+        "text/plain",
+        "text/csv",
+        "text/tab-separated-values",
+    }
+
+    IMAGE_CONTENT_TYPES = {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/heic",
+        "image/heif",
+        "image/tiff",
+        "image/bmp",
+    }
+
+    def extract(
+        self,
+        *,
+        path: Path,
+        content_type: str | None,
+        original_filename: str | None,
+    ) -> DocumentExtractionResult:
+        try:
+            if not path.exists():
+                return DocumentExtractionResult(
+                    status="failed",
+                    text=None,
+                    extractor=None,
+                    character_count=0,
+                    error=f"File does not exist: {path}",
+                )
+
+            normalized_content_type = (
+                (content_type or "")
+                .strip()
+                .lower()
+            )
+
+            extension = self._get_extension(
+                original_filename=original_filename,
+                path=path,
+            )
+
+            if (
+                normalized_content_type == "application/pdf"
+                or extension == ".pdf"
+            ):
+                return self._extract_pdf(path)
+
+            if extension == ".docx":
+                return self._extract_docx(path)
+
+            if extension == ".odt":
+                return self._extract_odt(path)
+
+            if extension == ".xlsx":
+                return self._extract_xlsx(path)
+
+            if extension == ".pptx":
+                return self._extract_pptx(path)
+
+            if extension == ".rtf":
+                return self._extract_rtf(path)
+
+            if (
+                normalized_content_type
+                in self.TEXT_CONTENT_TYPES
+                or extension in {".txt", ".csv", ".tsv"}
+            ):
+                return self._extract_text_file(
+                    path,
+                    extension=extension,
+                )
+
+            if (
+                normalized_content_type
+                in self.IMAGE_CONTENT_TYPES
+                or extension
+                in {
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                    ".heic",
+                    ".heif",
+                    ".tif",
+                    ".tiff",
+                    ".bmp",
+                }
+            ):
+                return DocumentExtractionResult(
+                    status="requires_ocr",
+                    text=None,
+                    extractor="image",
+                    character_count=0,
+                )
+
+            if extension in {
+                ".doc",
+                ".xls",
+                ".dwg",
+                ".sdn",
+                ".zip",
+                ".rar",
+                ".7z",
+                ".mp4",
+                ".dat",
+                ".p7s",
+                ".emz",
+                ".bak",
+            }:
+                return DocumentExtractionResult(
+                    status="unsupported",
+                    text=None,
+                    extractor=None,
+                    character_count=0,
+                )
+
+            return DocumentExtractionResult(
+                status="unsupported",
+                text=None,
+                extractor=None,
+                character_count=0,
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor=None,
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_pdf(
+        self,
+        path: Path,
+    ) -> DocumentExtractionResult:
+        try:
+            reader = PdfReader(str(path))
+
+            pages: list[str] = []
+
+            for page in reader.pages:
+                text = page.extract_text() or ""
+
+                if text.strip():
+                    pages.append(text)
+
+            extracted_text = self._normalize_text(
+                "\n\n".join(pages)
+            )
+
+            if (
+                len(extracted_text)
+                < self.MIN_TEXT_CHARACTERS
+            ):
+                return DocumentExtractionResult(
+                    status="requires_ocr",
+                    text=(
+                        extracted_text
+                        if extracted_text
+                        else None
+                    ),
+                    extractor="pypdf",
+                    character_count=len(
+                        extracted_text
+                    ),
+                )
+
+            return DocumentExtractionResult(
+                status="extracted",
+                text=extracted_text,
+                extractor="pypdf",
+                character_count=len(
+                    extracted_text
+                ),
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="pypdf",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_docx(
+        self,
+        path: Path,
+    ) -> DocumentExtractionResult:
+        try:
+            document = DocxDocument(str(path))
+
+            parts: list[str] = []
+
+            for paragraph in document.paragraphs:
+                value = paragraph.text.strip()
+
+                if value:
+                    parts.append(value)
+
+            for table in document.tables:
+                for row in table.rows:
+                    values = [
+                        cell.text.strip()
+                        for cell in row.cells
+                    ]
+
+                    if any(values):
+                        parts.append(
+                            " | ".join(values)
+                        )
+
+            extracted_text = self._normalize_text(
+                "\n".join(parts)
+            )
+
+            return self._result_from_text(
+                extracted_text,
+                extractor="python-docx",
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="python-docx",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_odt(
+        self,
+        path: Path,
+    ) -> DocumentExtractionResult:
+        try:
+            document = load_odf(str(path))
+
+            parts: list[str] = []
+
+            for element in document.getElementsByType(
+                odf_text.P
+            ):
+                text_value = self._odf_element_text(
+                    element
+                )
+
+                if text_value:
+                    parts.append(text_value)
+
+            extracted_text = self._normalize_text(
+                "\n".join(parts)
+            )
+
+            return self._result_from_text(
+                extracted_text,
+                extractor="odfpy",
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="odfpy",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_xlsx(
+        self,
+        path: Path,
+    ) -> DocumentExtractionResult:
+        try:
+            workbook = load_workbook(
+                filename=str(path),
+                read_only=True,
+                data_only=True,
+            )
+
+            parts: list[str] = []
+
+            for worksheet in workbook.worksheets:
+                parts.append(
+                    f"[SHEET] {worksheet.title}"
+                )
+
+                for row in worksheet.iter_rows(
+                    values_only=True
+                ):
+                    values = [
+                        self._cell_to_text(value)
+                        for value in row
+                    ]
+
+                    if any(values):
+                        parts.append(
+                            " | ".join(values)
+                        )
+
+            workbook.close()
+
+            extracted_text = self._normalize_text(
+                "\n".join(parts)
+            )
+
+            return self._result_from_text(
+                extracted_text,
+                extractor="openpyxl",
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="openpyxl",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_pptx(
+        self,
+        path: Path,
+    ) -> DocumentExtractionResult:
+        try:
+            presentation = Presentation(
+                str(path)
+            )
+
+            parts: list[str] = []
+
+            for index, slide in enumerate(
+                presentation.slides,
+                start=1,
+            ):
+                parts.append(
+                    f"[SLIDE {index}]"
+                )
+
+                for shape in slide.shapes:
+                    if not hasattr(
+                        shape,
+                        "text",
+                    ):
+                        continue
+
+                    value = str(
+                        shape.text
+                    ).strip()
+
+                    if value:
+                        parts.append(value)
+
+            extracted_text = self._normalize_text(
+                "\n".join(parts)
+            )
+
+            return self._result_from_text(
+                extracted_text,
+                extractor="python-pptx",
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="python-pptx",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_rtf(
+        self,
+        path: Path,
+    ) -> DocumentExtractionResult:
+        try:
+            raw = path.read_text(
+                encoding="utf-8",
+                errors="ignore",
+            )
+
+            extracted_text = self._normalize_text(
+                rtf_to_text(raw)
+            )
+
+            return self._result_from_text(
+                extracted_text,
+                extractor="striprtf",
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="striprtf",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _extract_text_file(
+        self,
+        path: Path,
+        *,
+        extension: str,
+    ) -> DocumentExtractionResult:
+        try:
+            raw = path.read_text(
+                encoding="utf-8",
+                errors="ignore",
+            )
+
+            if extension == ".csv":
+                raw = self._normalize_csv(raw)
+
+            extracted_text = self._normalize_text(
+                raw
+            )
+
+            return self._result_from_text(
+                extracted_text,
+                extractor="text",
+            )
+
+        except Exception as error:
+            return DocumentExtractionResult(
+                status="failed",
+                text=None,
+                extractor="text",
+                character_count=0,
+                error=str(error),
+            )
+
+    def _result_from_text(
+        self,
+        text: str,
+        *,
+        extractor: str,
+    ) -> DocumentExtractionResult:
+        if (
+            len(text)
+            < self.MIN_TEXT_CHARACTERS
+        ):
+            return DocumentExtractionResult(
+                status="requires_ocr",
+                text=text if text else None,
+                extractor=extractor,
+                character_count=len(text),
+            )
+
+        return DocumentExtractionResult(
+            status="extracted",
+            text=text,
+            extractor=extractor,
+            character_count=len(text),
+        )
+
+    @staticmethod
+    def _get_extension(
+        *,
+        original_filename: str | None,
+        path: Path,
+    ) -> str:
+        filename = (
+            original_filename
+            or path.name
+        )
+
+        return Path(
+            filename
+        ).suffix.lower()
+
+    @staticmethod
+    def _normalize_text(
+        value: str,
+    ) -> str:
+        lines = [
+            line.strip()
+            for line in value
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .split("\n")
+        ]
+
+        normalized_lines: list[str] = []
+
+        previous_empty = False
+
+        for line in lines:
+            is_empty = not line
+
+            if (
+                is_empty
+                and previous_empty
+            ):
+                continue
+
+            normalized_lines.append(line)
+            previous_empty = is_empty
+
+        return "\n".join(
+            normalized_lines
+        ).strip()
+
+    @staticmethod
+    def _cell_to_text(
+        value: object,
+    ) -> str:
+        if value is None:
+            return ""
+
+        return str(value).strip()
+
+    @staticmethod
+    def _normalize_csv(
+        value: str,
+    ) -> str:
+        try:
+            reader = csv.reader(
+                io.StringIO(value)
+            )
+
+            rows: list[str] = []
+
+            for row in reader:
+                rows.append(
+                    " | ".join(
+                        str(cell).strip()
+                        for cell in row
+                    )
+                )
+
+            return "\n".join(rows)
+
+        except Exception:
+            return value
+
+    def _odf_element_text(
+        self,
+        element: object,
+    ) -> str:
+        parts: list[str] = []
+
+        child_nodes = getattr(
+            element,
+            "childNodes",
+            [],
+        )
+
+        for node in child_nodes:
+            data = getattr(
+                node,
+                "data",
+                None,
+            )
+
+            if data:
+                parts.append(
+                    str(data)
+                )
+
+            if getattr(
+                node,
+                "childNodes",
+                None,
+            ):
+                nested = self._odf_element_text(
+                    node
+                )
+
+                if nested:
+                    parts.append(nested)
+
+        return " ".join(
+            part.strip()
+            for part in parts
+            if part.strip()
+        )

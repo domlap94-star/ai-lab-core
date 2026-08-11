@@ -3,7 +3,9 @@ from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
 from app.models.conversation import Conversation
 from app.models.document import Document
+from app.models.document_asset import DocumentAsset
 from app.models.document_chunk import DocumentChunk
+from app.models.document_page import DocumentPage
 from app.models.import_run import ImportRun
 from app.models.import_source import ImportSource
 from app.models.industry import Industry
@@ -17,7 +19,9 @@ __all__ = [
     "ClientCandidate",
     "Conversation",
     "Document",
+    "DocumentAsset",
     "DocumentChunk",
+    "DocumentPage",
     "ImportRun",
     "ImportSource",
     "Industry",

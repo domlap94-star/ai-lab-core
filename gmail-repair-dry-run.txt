@@ -1,0 +1,1068 @@
+﻿
+===== GMAIL REPAIR DRY-RUN =====
+Total gmail_message: 4185
+
+KEEP                 4014
+MOVE_EXISTING        4
+NEEDS_CANDIDATE      1
+AMBIGUOUS            45
+NO_COUNTERPART       121
+
+===== OWN EMAIL CANDIDATES =====
+  2559 | podnoszenieposadzek@gmail.com            | gmail_messages=5
+  2569 | lapa35@gmail.com                         | gmail_messages=56
+  2595 | domlap94@gmail.com                       | gmail_messages=65
+
+===== EXAMPLES =====
+
+source_id: 2603
+gmail_message_id: 19fbe61cf47eff83
+subject: Re: Re: Re: Umowa PDF
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  27 / danutabojarowicz@wp.pl
+ACTION:  MOVE
+
+source_id: 2605
+gmail_message_id: 19fad85ed9b56e18
+subject: Kontakt
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  347 / wiolka323@gmail.com
+ACTION:  MOVE
+
+source_id: 2607
+gmail_message_id: 19faa0691e8d8d59
+subject: Fwd: Oferta
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  428 / zbyszek_jurkiewicz@o2.pl
+ACTION:  MOVE
+
+source_id: 2609
+gmail_message_id: 19fa352ba81232ee
+subject: Umowa
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  358 / alero099@wp.pl
+ACTION:  MOVE
+
+source_id: 2610
+gmail_message_id: 19fa2aa2c810855d
+subject: Fwd: Oferta
+CURRENT: 2559 / podnoszenieposadzek@gmail.com
+TARGET:  NEW / zbyszek_jurkiewicz@02.pl
+ACTION:  MOVE
+
+source_id: 2623
+gmail_message_id: 17d9105f470a5922
+subject: A
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2641
+gmail_message_id: 17c5a3ff3db506ba
+subject: Fwd: Podbicie fundamentów. Lublin ul. Niecała 7
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2667
+gmail_message_id: 17fb0c3fe683a646
+subject: Fwd: FW: Panattoni Radomsko ONTEX
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2668
+gmail_message_id: 17fb0c32b715bb46
+subject: Fwd: FW: Panattoni Radomsko ONTEX
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2673
+gmail_message_id: 17fa114cc47532d3
+subject: Wiadomość Gmail 17fa114cc47532d3
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2686
+gmail_message_id: 17f17ec53e629610
+subject: Faktura
+CURRENT: 2604 / g.szulin@ekobud2.pl
+TARGET:  g.szulin@ekobud2.pl, ekobud2@ekobud2.pl
+ACTION:  AMBIGUOUS
+
+source_id: 2713
+gmail_message_id: 17e63c13329cb2c4
+subject: Faktura
+CURRENT: 2563 / danddys@interia.pl
+TARGET:  danddys@interia.pl, kontakt@oxywent.pl
+ACTION:  AMBIGUOUS
+
+source_id: 2746
+gmail_message_id: 18165f733125cae1
+subject: Test
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2756
+gmail_message_id: 181284fd6f811127
+subject: Fwd: Zamówienie
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2884
+gmail_message_id: 182bfa3fa5d48785
+subject: Fwd: oferta
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2886
+gmail_message_id: 18285fed2b35fc76
+subject: Umowa Łask-Pabianice
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2897
+gmail_message_id: 1825dfffbcec6091
+subject: Fwd:
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2926
+gmail_message_id: 181ee22dbcbf034d
+subject: Fwd: Analiza strony podnoszenieposadzek.pl
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2927
+gmail_message_id: 181ee228f122eebe
+subject: Fwd: Podsumowanie rozmowy: Kompleksowa opieka nad stroną podnoszenieposadzek.pl
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2939
+gmail_message_id: 1853889aa8768ee0
+subject: Fwd: Pd: LASZCZKI LESZCZYNOWA 9 KARTY OTWORÓW
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2940
+gmail_message_id: 1853641e53126758
+subject: Fwd: Pd: Fwd: Wzmocnienie gruntu i podbicie fundamentu / iniekcje geopolimerowe
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 2973
+gmail_message_id: 18494dc4492da502
+subject: Fwd: Nad Wisłą Bydgoszcz
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3003
+gmail_message_id: 1842d4b62e31aced
+subject: Zawiercie Wcisło
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3063
+gmail_message_id: 186230fee0cd5a09
+subject: link do opini
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3079
+gmail_message_id: 1872cfab1b20edfd
+subject: Mail
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3082
+gmail_message_id: 18608ac18d0ee43a
+subject: Fwd: Remmers szkolenie 01.02.23 Środa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3182
+gmail_message_id: 186b5e11647421f7
+subject: Udostępniam Ci plik „EPSON002”
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3183
+gmail_message_id: 186b0c6feb119430
+subject: Fwd:
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3184
+gmail_message_id: 186b0a595587403b
+subject: Wiadomość Gmail 186b0a595587403b
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3185
+gmail_message_id: 186b087ced886d6e
+subject: Re: Faktura
+CURRENT: 2764 / sylwester.zienczuk@emer-build.pl
+TARGET:  sylwester.zienczuk@emer-build.pl, magdalena.bogucka@emer-build.pl
+ACTION:  AMBIGUOUS
+
+source_id: 3186
+gmail_message_id: 186b084070a29ab8
+subject: Faktura
+CURRENT: 2764 / sylwester.zienczuk@emer-build.pl
+TARGET:  sylwester.zienczuk@emer-build.pl, magdalena.bogucka@emer-build.pl
+ACTION:  AMBIGUOUS
+
+source_id: 3192
+gmail_message_id: 186a13c623530f25
+subject: Wiadomość Gmail 186a13c623530f25
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3229
+gmail_message_id: 188351296a3b45ce
+subject: DPL Biała Podlaska
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3248
+gmail_message_id: 188f8cc6009b41fd
+subject: Wiadomość Gmail 188f8cc6009b41fd
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3252
+gmail_message_id: 188f2828e253490f
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3301
+gmail_message_id: 188abcbf4e7abed6
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3303
+gmail_message_id: 188abcaf73d8b3bc
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3318
+gmail_message_id: 1887d5c68972c5ae
+subject: Fwd: Dokker NEXT
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3325
+gmail_message_id: 18877f02483b9d0c
+subject: Badanie i oferta
+CURRENT: 2530 / mazurki@kki.pl
+TARGET:  mazurki@kki.pl, jacekmazur@hotmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 3328
+gmail_message_id: 188772cfa27e8ec4
+subject: Re: Faktura
+CURRENT: 2530 / mazurki@kki.pl
+TARGET:  mazurki@kki.pl, jacekmazur@hotmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 3332
+gmail_message_id: 18873a53a4bea980
+subject: Re: Faktura
+CURRENT: 2530 / mazurki@kki.pl
+TARGET:  mazurki@kki.pl, jacekmazur@hotmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 3333
+gmail_message_id: 18873a42b49d9d8c
+subject: Faktura
+CURRENT: 2530 / mazurki@kki.pl
+TARGET:  mazurki@kki.pl, jacekmazur@hotmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 3347
+gmail_message_id: 188546c1acb4f091
+subject: Zdjęcie od Wojciech Łapiński
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3348
+gmail_message_id: 1885466277f8dad7
+subject: Zdjęcie od Wojciech Łapiński
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3361
+gmail_message_id: 188256d9a1558ced
+subject: Fwd: Certyfikaty
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3477
+gmail_message_id: 18ada85618ff8dfe
+subject: Fwd: WEBAC IP2K-F2 - instrukcja
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3479
+gmail_message_id: 1891fa1ac6a8f9e3
+subject: Faktura
+CURRENT: 2840 / monikamikolajczak@projektbudowa.pl
+TARGET:  monikamikolajczak@projektbudowa.pl, faktury@projektbudowa.pl
+ACTION:  AMBIGUOUS
+
+source_id: 3512
+gmail_message_id: 189ac852ef1dfc46
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3537
+gmail_message_id: 189a793af9bb27ef
+subject: Fwd: Oferta
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3549
+gmail_message_id: 1899b0e587a49445
+subject: Fwd: Skan łajsk
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3579
+gmail_message_id: 189880b1104586bf
+subject: Wiadomość Gmail 189880b1104586bf
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3581
+gmail_message_id: 18987acdeb0f697b
+subject: Fwd:
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3582
+gmail_message_id: 18a4f051cc3b176e
+subject: Wiadomość Gmail 18a4f051cc3b176e
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3592
+gmail_message_id: 18982cadc68c91f8
+subject: Fwd: Oferta
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3596
+gmail_message_id: 1896d4b217a949f4
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3639
+gmail_message_id: 18a370c882d315d1
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3640
+gmail_message_id: 18a370c4168afc03
+subject: Fwd: Oferta
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3651
+gmail_message_id: 18a12ff7df7d4456
+subject: Fwd: ul. Budrysów 3 Lublin
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3652
+gmail_message_id: 18a12fcaa47edfae
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3739
+gmail_message_id: 18c688fc94a623c9
+subject: Fwd: FV
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3740
+gmail_message_id: 18c684bb54c1a729
+subject: Fwd: faktura za nocleg
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3742
+gmail_message_id: 18c67b9952d9cfc2
+subject: Fwd: Pod Debem - faktura
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3792
+gmail_message_id: 18b9e9966497f944
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3796
+gmail_message_id: 18c45296199b9084
+subject: Faktura żarcie
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3815
+gmail_message_id: 18c24c78787edc49
+subject: Fwd: Podnoszenie posadzki Niepołomice ul. Ogrodowa 69/1
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3817
+gmail_message_id: 18c24c72acee4d36
+subject: Fwd: Podnoszenie posadzki Niepołomice ul. Ogrodowa 69/1
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3834
+gmail_message_id: 18b62ba7ab475a12
+subject: Fwd: Łysomice Opaliński Jacek
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3844
+gmail_message_id: 18b62b8c5f4fb16e
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3910
+gmail_message_id: 18e10186bdc95b88
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3949
+gmail_message_id: 18e6fb94073d998d
+subject: rysunek Kościerzyna
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3954
+gmail_message_id: 18e0ad5b25dab803
+subject: Zaświadczenia
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3962
+gmail_message_id: 18d746c20a29f6a1
+subject: Oferta Stabilizacji Fundamentów
+CURRENT: 2408 / m.dzialach@parkhajduki.pl
+TARGET:  m.dzialach@parkhajduki.pl, biuro@parkhajduki.pl
+ACTION:  AMBIGUOUS
+
+source_id: 3987
+gmail_message_id: 18d357e912daa8d8
+subject: Zaświadczenie_o_przychodach_ZAS‑DFU_23-01-2024_09-12.pdf
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 3992
+gmail_message_id: 18d326ec60948d20
+subject: Fwd: Pd: Badania geologiczne
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4004
+gmail_message_id: 18d25ecdfbc9105b
+subject: Oferta
+CURRENT: 2961 / ekarpinska@onet.eu
+TARGET:  ekarpinska@onet.eu, kary@poczta.onet.eu
+ACTION:  AMBIGUOUS
+
+source_id: 4027
+gmail_message_id: 18d0c764fae59733
+subject: Dokument od Wojciech
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4030
+gmail_message_id: 18d0c760c470f5a4
+subject: Dokument od Wojciech
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4065
+gmail_message_id: 18e5869a32966d2b
+subject: Fwd: Pd: Fwd: Oferta dla klienta
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4070
+gmail_message_id: 18cf881a2793c99c
+subject: Fwd: FV nocleg
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4071
+gmail_message_id: 18dd066b2b56a47e
+subject: Udostępniam Ci plik „gwarancja10”
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4072
+gmail_message_id: 18e57ffc239a7555
+subject: Wiadomość Gmail 18e57ffc239a7555
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4076
+gmail_message_id: 18cf7eb02266db6a
+subject: LED_2K_EURO_08_2023 (2).pdf
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4079
+gmail_message_id: 18cf7eab5fa0b11d
+subject: 2K_PROFILES_EURO_12_2023.pdf
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4115
+gmail_message_id: 18dcacadf31ea9d3
+subject: Fwd: Udostępniam Ci plik „Umowa Posadzki Ostaszewo”
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4122
+gmail_message_id: 18ce931811d11f9a
+subject: Fwd: CMS - dostęp
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4127
+gmail_message_id: 18dc67b7b422e6d2
+subject: Re: Zużycie materiału Brwinów Pszczelińska 99
+CURRENT: 2535 / koordynator@ekobud.com
+TARGET:  koordynator@ekobud.com, ekobud@ekobud.com
+ACTION:  AMBIGUOUS
+
+source_id: 4133
+gmail_message_id: 18dc17caac9f75ce
+subject: Zużycie materiału Brwinów Pszczelińska 99
+CURRENT: 2535 / koordynator@ekobud.com
+TARGET:  koordynator@ekobud.com, ekobud@ekobud.com
+ACTION:  AMBIGUOUS
+
+source_id: 4136
+gmail_message_id: 18db76fcd4d2aad2
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4153
+gmail_message_id: 18e3210f3ee1bc1e
+subject: Fwd: Zapytanie ofertowe - UM Jaworzno  - wypełnienie pustek pogórniczych
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4186
+gmail_message_id: 18da687f37a3d03b
+subject: Umowa
+CURRENT: 2898 / ekobud@ekobud.com
+TARGET:  ekobud@ekobud.com, koordynator@ekobud.com
+ACTION:  AMBIGUOUS
+
+source_id: 4199
+gmail_message_id: 19064e5563bc3325
+subject: 0096024385.pdf
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4200
+gmail_message_id: 18ee77aa5cd76353
+subject: Fwd: NEXT podnoszenie posadzek
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4217
+gmail_message_id: 1905e146a708eb18
+subject: Wezwanie do zapłaty
+CURRENT: 2986 / lukasz.jaskowiak@jns.legal
+TARGET:  lukasz.jaskowiak@jns.legal, faktury@invest-complex.com
+ACTION:  AMBIGUOUS
+
+source_id: 4286
+gmail_message_id: 1904988a2c46804d
+subject: Prosimy o płatność za: Faktura numer 16/06/2024
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4304
+gmail_message_id: 18f9a4e155d75c6f
+subject: Fwd: Formularz kontaktowy (Daniel Ulrych)
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4343
+gmail_message_id: 18eb74dff564f696
+subject: Skan protokołu
+CURRENT: 2477 / marcin.skawinski@gardenia.pl
+TARGET:  marcin.skawinski@gardenia.pl, marcin.bernat@gardenia.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4351
+gmail_message_id: 18eadb7872a1cef3
+subject: Faktury
+CURRENT: 2957 / marcin.bernat@gardenia.pl
+TARGET:  marcin.bernat@gardenia.pl, marcin.skawinski@gardenia.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4353
+gmail_message_id: 18eadab0178cd8e9
+subject: Faktura
+CURRENT: 2957 / marcin.bernat@gardenia.pl
+TARGET:  marcin.bernat@gardenia.pl, marcin.skawinski@gardenia.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4366
+gmail_message_id: 1902bb3baf60dd7d
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4370
+gmail_message_id: 1902b953871f797b
+subject: Umowa
+CURRENT: 2995 / krzdob@o2.pl
+TARGET:  krzdob@o2.pl, tomkalbud@gmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 4373
+gmail_message_id: 1902b7a05a89b6f4
+subject: Oferta
+CURRENT: 3000 / marcin@domset.pl
+TARGET:  marcin@domset.pl, broszford@gmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 4381
+gmail_message_id: 1902112ef8c80207
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4497
+gmail_message_id: 18efbb33576586bb
+subject: Fwd: fundament Gdynia ul. Druskiennicka 48
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4512
+gmail_message_id: 1901ab28f4dd9187
+subject: Faktura numer 16/06/2024
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4522
+gmail_message_id: 1900af022ebe41ff
+subject: Fwd: Wzmocnienie zasypu Czerwone gm Kolno
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4524
+gmail_message_id: 19001d9936cccebb
+subject: Fwd: Badania geologiczne
+CURRENT: 3031 / fabianrudziak@wp.pl
+TARGET:  fabianrudziak@wp.pl, info@statical.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4526
+gmail_message_id: 19001d8e39f62192
+subject: Fwd: Pd: Płyta zbrojona Silno
+CURRENT: 3031 / fabianrudziak@wp.pl
+TARGET:  fabianrudziak@wp.pl, info@statical.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4528
+gmail_message_id: 19001d8565baefec
+subject: Fwd: Silno Jarzębinowa 9-11
+CURRENT: 3031 / fabianrudziak@wp.pl
+TARGET:  fabianrudziak@wp.pl, info@statical.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4529
+gmail_message_id: 19001d78eedbc0e7
+subject: Fwd: Silno Jarzębinowa 9-11
+CURRENT: 3031 / fabianrudziak@wp.pl
+TARGET:  fabianrudziak@wp.pl, info@statical.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4530
+gmail_message_id: 19001d6fd9fa9c53
+subject: Fwd: Silno k. Toruń
+CURRENT: 3031 / fabianrudziak@wp.pl
+TARGET:  fabianrudziak@wp.pl, info@statical.pl
+ACTION:  AMBIGUOUS
+
+source_id: 4535
+gmail_message_id: 18ffd09e519cdcd0
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4577
+gmail_message_id: 190970a39e9fe546
+subject: Faktura
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4598
+gmail_message_id: 1923cb38c0e681eb
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4619
+gmail_message_id: 19130445761849db
+subject: Fwd: Oferta
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4668
+gmail_message_id: 1921aa183dfff3de
+subject: invoice_BV86220802.pdf
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4688
+gmail_message_id: 19208f196c3c1026
+subject: Test
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4731
+gmail_message_id: 191f01d52a290d9b
+subject: Test
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4743
+gmail_message_id: 191db2b64945bafe
+subject: Fwd: Piekary Śląskie
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4752
+gmail_message_id: 191cda419034d3fb
+subject: Umowa OPTEX
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4825
+gmail_message_id: 1928bee867da8b4b
+subject: Wiadomość Gmail 1928bee867da8b4b
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4857
+gmail_message_id: 19326c35005c9597
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4900
+gmail_message_id: 193aa034b7a95917
+subject: Fwd: Pd: LASZCZKI LESZCZYNOWA 9 KARTY OTWORÓW
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4902
+gmail_message_id: 19300dbc88f56bb1
+subject: Fwd: Oferta
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4904
+gmail_message_id: 19266a1aa0fe107c
+subject: golabek
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4918
+gmail_message_id: 19397dc1b43e3fdc
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4932
+gmail_message_id: 192f8626d9258b66
+subject: Wiadomość Gmail 192f8626d9258b66
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 4954
+gmail_message_id: 1938d53bc669c6df
+subject: Fwd: Umowa
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5026
+gmail_message_id: 192bf98b280b7650
+subject: Mapu barymetryczne na zamówienie
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5038
+gmail_message_id: 19362b6a099f7cca
+subject: Nadruk słupno
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5064
+gmail_message_id: 19340b706fc2c999
+subject: test
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5065
+gmail_message_id: 19340b68a37b3c71
+subject: test
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5066
+gmail_message_id: 193409efc9003085
+subject: Test
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5067
+gmail_message_id: 1933fe483a3d1e06
+subject: Gfdgg
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5068
+gmail_message_id: 1933fe35c381ed32
+subject: test
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5069
+gmail_message_id: 1933fe025019ae79
+subject: Fwd: Zlecenie
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5088
+gmail_message_id: 1959da8efc6000fb
+subject: Test
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5091
+gmail_message_id: 195f24f721b9586a
+subject: Fwd: Faktura
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5138
+gmail_message_id: 19677419ca594fa1
+subject: Issue-2.4-NR-00015-ENG-novaG-A-Parts-Identification.pdf
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5146
+gmail_message_id: 1949884128acbc19
+subject: Wiadomość Gmail 1949884128acbc19
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5309
+gmail_message_id: 196620f76437ff37
+subject: Protokół Hozjusza
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5371
+gmail_message_id: 19475b8e13654168
+subject: Fwd: Badanie gruntu Katowice, Kaskady 91
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5448
+gmail_message_id: 1961946afc54f466
+subject: Oferta
+CURRENT: 3129 / krzysztof.fk.5@gmail.com
+TARGET:  krzysztof.fk.5@gmail.com, sztukadlapolski@gmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 5454
+gmail_message_id: 196166b5ef458992
+subject: Fwd: poproszę o jakieś widełki cenowe
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5574
+gmail_message_id: 19996b25a38ccea4
+subject: Fwd: Oferta
+CURRENT: 3245 / maciejpolewka@o2.pl
+TARGET:  maciejpolewka@o2.pl, makej7@o2.pl
+ACTION:  AMBIGUOUS
+
+source_id: 5664
+gmail_message_id: 199770fec257da69
+subject: Fwd: Umowa
+CURRENT: 2569 / lapa35@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+source_id: 5714
+gmail_message_id: 1996621727efe9cc
+subject: Oferta
+CURRENT: 3245 / maciejpolewka@o2.pl
+TARGET:  maciejpolewka@o2.pl, makej7@o2.pl
+ACTION:  AMBIGUOUS
+
+source_id: 5718
+gmail_message_id: 19966174785abaa5
+subject: Oferta
+CURRENT: 860 / agapol.cieszyn@poczta.fm
+TARGET:  agapol.cieszyn@poczta.fm, marcinguz@gmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 5783
+gmail_message_id: 198517f9e9d65333
+subject: Oferta
+CURRENT: 3291 / tomekkwietniewski@interia.pl
+TARGET:  tomekkwietniewski@interia.pl, bartosz.blazejczyk@gmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 5837
+gmail_message_id: 198bd509fe404bb7
+subject: Oferta
+CURRENT: 3285 / jmg.development@wp.pl
+TARGET:  jmg.development@wp.pl, dyhdalewicz@gmail.com
+ACTION:  AMBIGUOUS
+
+source_id: 5899
+gmail_message_id: 1989d7d823b547b4
+subject: Fwd: Faktura proforma Izoservice - serwis
+CURRENT: 2595 / domlap94@gmail.com
+TARGET:  None
+ACTION:  NO_COUNTERPART
+
+DRY-RUN ONLY — database was not modified.
