@@ -10,14 +10,26 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.document import Document
 from app.repositories.document_repository import DocumentRepository
+from app.services.document_asset_extraction_service import (
+    DocumentAssetExtractionService,
+)
 from app.services.document_extraction_service import (
     DocumentExtractionService,
+)
+from app.services.document_legacy_office_service import (
+    DocumentLegacyOfficeService,
 )
 from app.services.document_metadata_service import (
     DocumentMetadataService,
 )
 from app.services.document_ocr_service import (
     DocumentOCRService,
+)
+from app.services.document_office_ocr_service import (
+    DocumentOfficeOCRService,
+)
+from app.services.document_office_page_service import (
+    DocumentOfficePageService,
 )
 from app.services.document_page_render_service import (
     DocumentPageRenderService,
@@ -63,14 +75,34 @@ class DocumentProcessingService:
         "image/webp",
     }
 
+    LEGACY_OFFICE_EXTENSIONS = {
+        ".doc",
+        ".xls",
+    }
+
+    LEGACY_OFFICE_CONTENT_TYPES = {
+        "application/msword",
+        "application/vnd.ms-excel",
+    }
+
+    ASSET_CAPABLE_TEXT_EXTENSIONS = {
+        ".xlsx",
+    }
+
     def __init__(
         self,
         db: Session,
     ) -> None:
-        self.repository = DocumentRepository(db)
+        self.repository = DocumentRepository(
+            db
+        )
 
         self.extraction_service = (
             DocumentExtractionService()
+        )
+
+        self.legacy_office_service = (
+            DocumentLegacyOfficeService()
         )
 
         self.ocr_service = (
@@ -83,6 +115,24 @@ class DocumentProcessingService:
 
         self.render_service = (
             DocumentPageRenderService()
+        )
+
+        self.office_page_service = (
+            DocumentOfficePageService(
+                db
+            )
+        )
+
+        self.office_ocr_service = (
+            DocumentOfficeOCRService(
+                db
+            )
+        )
+
+        self.asset_service = (
+            DocumentAssetExtractionService(
+                db
+            )
         )
 
     def process_document(
@@ -106,7 +156,10 @@ class DocumentProcessingService:
         if not document.storage_path:
             return self._failed_result(
                 document_id=document.id,
-                error="Document has no storage path.",
+                error=(
+                    "Document has no "
+                    "storage path."
+                ),
             )
 
         path = (
@@ -117,7 +170,9 @@ class DocumentProcessingService:
         if not path.exists():
             return self._failed_result(
                 document_id=document.id,
-                error=f"File not found: {path}",
+                error=(
+                    f"File not found: {path}"
+                ),
             )
 
         try:
@@ -139,7 +194,8 @@ class DocumentProcessingService:
             ).strip().lower()
 
             is_pdf = (
-                content_type == "application/pdf"
+                content_type
+                == "application/pdf"
                 or extension == ".pdf"
             )
 
@@ -150,14 +206,38 @@ class DocumentProcessingService:
                 in self.IMAGE_EXTENSIONS
             )
 
+            is_legacy_office = (
+                extension
+                in self.LEGACY_OFFICE_EXTENSIONS
+                or content_type
+                in self.LEGACY_OFFICE_CONTENT_TYPES
+            )
+
+            is_office_renderable = (
+                self.office_page_service
+                .render_service
+                .supports(
+                    content_type=(
+                        document.content_type
+                    ),
+                    original_filename=(
+                        document.original_filename
+                        or document.filename
+                    ),
+                )
+            )
+
             if (
                 not force
                 and document.processing_status
                 == "processed"
             ):
                 if is_pdf:
-                    pages = self.repository.get_pages(
-                        document.id
+                    pages = (
+                        self.repository
+                        .get_pages(
+                            document.id
+                        )
                     )
 
                     missing_render = any(
@@ -165,13 +245,70 @@ class DocumentProcessingService:
                         for page in pages
                     )
 
-                    if not pages or missing_render:
+                    if (
+                        not pages
+                        or missing_render
+                    ):
                         return self._process_pdf(
                             document=document,
                             path=path,
                             ocr_dpi=ocr_dpi,
                             render_dpi=render_dpi,
                             force=False,
+                        )
+
+                    return self._existing_result(
+                        document=document,
+                        metadata_status=(
+                            document.metadata_status
+                        ),
+                        render_status="existing",
+                    )
+
+                if is_office_renderable:
+                    pages = (
+                        self.repository
+                        .get_pages(
+                            document.id
+                        )
+                    )
+
+                    missing_render = (
+                        not pages
+                        or any(
+                            not page.render_path
+                            for page in pages
+                        )
+                    )
+
+                    incomplete_ocr = (
+                        not pages
+                        or any(
+                            page.processing_status
+                            not in {
+                                "processed",
+                                "no_text",
+                            }
+                            for page in pages
+                        )
+                    )
+
+                    if (
+                        missing_render
+                        or incomplete_ocr
+                    ):
+                        return (
+                            self._process_office_document(
+                                document=document,
+                                path=path,
+                                render_dpi=(
+                                    max(
+                                        render_dpi,
+                                        ocr_dpi,
+                                    )
+                                ),
+                                force=False,
+                            )
                         )
 
                     return self._existing_result(
@@ -216,6 +353,41 @@ class DocumentProcessingService:
                     document=document,
                     path=path,
                     force=force,
+                )
+
+            if is_office_renderable:
+                return (
+                    self._process_office_document(
+                        document=document,
+                        path=path,
+                        render_dpi=(
+                            max(
+                                render_dpi,
+                                ocr_dpi,
+                            )
+                        ),
+                        force=force,
+                    )
+                )
+
+            if is_legacy_office:
+                return (
+                    self._process_legacy_office_document(
+                        document=document,
+                        path=path,
+                    )
+                )
+
+            if (
+                extension
+                in self.ASSET_CAPABLE_TEXT_EXTENSIONS
+            ):
+                return (
+                    self._process_asset_text_document(
+                        document=document,
+                        path=path,
+                        force=force,
+                    )
                 )
 
             return self._process_text_document(
@@ -269,12 +441,16 @@ class DocumentProcessingService:
         ):
             return
 
-        result = self.metadata_service.extract(
-            path=path,
-            content_type=document.content_type,
-            original_filename=(
-                document.original_filename
-            ),
+        result = (
+            self.metadata_service.extract(
+                path=path,
+                content_type=(
+                    document.content_type
+                ),
+                original_filename=(
+                    document.original_filename
+                ),
+            )
         )
 
         document.metadata_status = (
@@ -344,7 +520,9 @@ class DocumentProcessingService:
         ocr_result = (
             self.ocr_service.ocr_document(
                 path=path,
-                content_type=document.content_type,
+                content_type=(
+                    document.content_type
+                ),
                 original_filename=(
                     document.original_filename
                 ),
@@ -364,7 +542,9 @@ class DocumentProcessingService:
             len(render_result.pages),
         )
 
-        combined_document_parts: list[str] = []
+        combined_document_parts: list[
+            str
+        ] = []
 
         native_character_count = 0
         ocr_character_count = 0
@@ -464,28 +644,31 @@ class DocumentProcessingService:
                 width = ocr_page.width
                 height = ocr_page.height
 
-            page = self.repository.upsert_page(
-                document_id=document.id,
-                page_number=page_number,
-                extracted_text=native_text,
-                ocr_text=ocr_text,
-                ocr_confidence=(
-                    ocr_page.confidence
-                    if ocr_page is not None
-                    else None
-                ),
-                width=width,
-                height=height,
-                processing_status=(
-                    page_processing_status
-                ),
-                processing_error=(
-                    " | ".join(
-                        page_errors
-                    )
-                    if page_errors
-                    else None
-                ),
+            page = (
+                self.repository.upsert_page(
+                    document_id=document.id,
+                    page_number=page_number,
+                    extracted_text=native_text,
+                    ocr_text=ocr_text,
+                    ocr_confidence=(
+                        ocr_page.confidence
+                        if ocr_page
+                        is not None
+                        else None
+                    ),
+                    width=width,
+                    height=height,
+                    processing_status=(
+                        page_processing_status
+                    ),
+                    processing_error=(
+                        " | ".join(
+                            page_errors
+                        )
+                        if page_errors
+                        else None
+                    ),
+                )
             )
 
             if render_page is not None:
@@ -538,11 +721,13 @@ class DocumentProcessingService:
             errors: list[str] = []
 
             if (
-                ocr_result.status == "failed"
+                ocr_result.status
+                == "failed"
                 and ocr_result.error
             ):
                 errors.append(
-                    f"OCR: {ocr_result.error}"
+                    f"OCR: "
+                    f"{ocr_result.error}"
                 )
 
             if (
@@ -559,7 +744,9 @@ class DocumentProcessingService:
                 )
 
             document.processing_error = (
-                " | ".join(errors)
+                " | ".join(
+                    errors
+                )
                 if errors
                 else None
             )
@@ -578,7 +765,9 @@ class DocumentProcessingService:
 
         return DocumentProcessingResult(
             document_id=document.id,
-            status=document.processing_status,
+            status=(
+                document.processing_status
+            ),
             page_count=total_pages,
             native_character_count=(
                 native_character_count
@@ -595,7 +784,523 @@ class DocumentProcessingService:
             render_status=(
                 render_result.status
             ),
-            error=document.processing_error,
+            error=(
+                document.processing_error
+            ),
+        )
+
+    def _process_office_document(
+        self,
+        *,
+        document: Document,
+        path: Path,
+        render_dpi: int,
+        force: bool,
+    ) -> DocumentProcessingResult:
+        extension = Path(
+            document.original_filename
+            or document.filename
+            or path.name
+        ).suffix.lower()
+
+        content_type = (
+            document.content_type
+            or ""
+        ).strip().lower()
+
+        if force:
+            self.repository.delete_pages(
+                document.id
+            )
+
+            self.repository.commit()
+
+        native_text: str | None = None
+        native_status: str | None = None
+        native_error: str | None = None
+
+        if (
+            extension == ".doc"
+            or content_type
+            == "application/msword"
+        ):
+            native_result = (
+                self.legacy_office_service
+                .extract(
+                    path=path,
+                    content_type=(
+                        document.content_type
+                    ),
+                    original_filename=(
+                        document.original_filename
+                    ),
+                )
+            )
+
+            native_text = self._clean_text(
+                native_result.text
+            )
+
+            native_status = (
+                native_result.status
+            )
+
+            native_error = (
+                native_result.error
+            )
+
+        else:
+            native_result = (
+                self.extraction_service.extract(
+                    path=path,
+                    content_type=(
+                        document.content_type
+                    ),
+                    original_filename=(
+                        document.original_filename
+                    ),
+                )
+            )
+
+            native_text = self._clean_text(
+                native_result.text
+            )
+
+            native_status = (
+                native_result.status
+            )
+
+            native_error = (
+                native_result.error
+            )
+
+        page_result = (
+            self.office_page_service
+            .process_document(
+                document_id=document.id,
+                dpi=render_dpi,
+                force=force,
+            )
+        )
+
+        ocr_result = None
+
+        if (
+            page_result.stored_page_count > 0
+            and page_result.status
+            in {
+                "processed",
+                "partial",
+            }
+        ):
+            ocr_result = (
+                self.office_ocr_service
+                .process_document(
+                    document_id=document.id,
+                    force=force,
+                )
+            )
+
+        asset_result = (
+            self.asset_service
+            .extract_document_assets(
+                document_id=document.id,
+                force=force,
+            )
+        )
+
+        pages = self.repository.get_pages(
+            document.id
+        )
+
+        ocr_character_count = sum(
+            len(
+                page.ocr_text
+                or ""
+            )
+            for page in pages
+        )
+
+        native_character_count = len(
+            native_text
+            or ""
+        )
+
+        page_ocr_text = (
+            self._build_office_ocr_fallback(
+                pages
+            )
+        )
+
+        final_text = (
+            native_text
+            or page_ocr_text
+        )
+
+        errors: list[str] = []
+
+        if (
+            native_status == "failed"
+            and native_error
+        ):
+            errors.append(
+                f"NATIVE: {native_error}"
+            )
+
+        if (
+            page_result.status
+            in {
+                "failed",
+                "partial",
+            }
+            and page_result.error
+        ):
+            errors.append(
+                f"RENDER: "
+                f"{page_result.error}"
+            )
+
+        if (
+            ocr_result is not None
+            and ocr_result.status
+            in {
+                "failed",
+                "partial",
+            }
+        ):
+            if ocr_result.error:
+                errors.append(
+                    f"OCR: "
+                    f"{ocr_result.error}"
+                )
+
+            elif (
+                ocr_result.failed_count
+                > 0
+            ):
+                errors.append(
+                    "OCR: "
+                    f"{ocr_result.failed_count} "
+                    "page(s) failed."
+                )
+
+        if (
+            asset_result.status
+            in {
+                "failed",
+                "partial",
+            }
+        ):
+            if asset_result.error:
+                errors.append(
+                    f"ASSETS: "
+                    f"{asset_result.error}"
+                )
+
+            elif (
+                asset_result.failed_count
+                > 0
+            ):
+                errors.append(
+                    "ASSETS: "
+                    f"{asset_result.failed_count} "
+                    "asset(s) failed."
+                )
+
+        has_useful_result = bool(
+            final_text
+            or pages
+            or (
+                asset_result.extracted_count
+                > 0
+            )
+            or (
+                asset_result.existing_count
+                > 0
+            )
+        )
+
+        if has_useful_result:
+            document.processing_status = (
+                "processed"
+            )
+        else:
+            document.processing_status = (
+                "failed"
+            )
+
+        document.processing_error = (
+            " | ".join(
+                errors
+            )
+            if errors
+            else None
+        )
+
+        if (
+            document.processing_status
+            == "failed"
+            and not document.processing_error
+        ):
+            document.processing_error = (
+                "Office document produced "
+                "no usable text, pages, "
+                "or assets."
+            )
+
+        document.extracted_text = (
+            final_text
+        )
+
+        self.repository.update(
+            document
+        )
+
+        self.repository.commit()
+
+        return DocumentProcessingResult(
+            document_id=document.id,
+            status=(
+                document.processing_status
+            ),
+            page_count=len(
+                pages
+            ),
+            native_character_count=(
+                native_character_count
+            ),
+            ocr_character_count=(
+                ocr_character_count
+            ),
+            combined_character_count=len(
+                final_text
+                or ""
+            ),
+            metadata_status=(
+                document.metadata_status
+            ),
+            render_status=(
+                page_result.status
+            ),
+            error=(
+                document.processing_error
+            ),
+        )
+
+    def _process_legacy_office_document(
+        self,
+        *,
+        document: Document,
+        path: Path,
+    ) -> DocumentProcessingResult:
+        result = (
+            self.legacy_office_service.extract(
+                path=path,
+                content_type=(
+                    document.content_type
+                ),
+                original_filename=(
+                    document.original_filename
+                ),
+            )
+        )
+
+        text = self._clean_text(
+            result.text
+        )
+
+        if result.status == "extracted":
+            document.extracted_text = text
+
+            document.processing_status = (
+                "processed"
+            )
+
+            document.processing_error = None
+
+        elif result.status == "unsupported":
+            document.processing_status = (
+                "stored"
+            )
+
+            document.processing_error = (
+                "Unsupported by legacy "
+                "Office processor."
+            )
+
+        else:
+            document.processing_status = (
+                "failed"
+            )
+
+            document.processing_error = (
+                result.error
+            )
+
+        self.repository.update(
+            document
+        )
+
+        self.repository.commit()
+
+        return DocumentProcessingResult(
+            document_id=document.id,
+            status=(
+                document.processing_status
+            ),
+            page_count=0,
+            native_character_count=len(
+                text
+                or ""
+            ),
+            ocr_character_count=0,
+            combined_character_count=len(
+                text
+                or ""
+            ),
+            metadata_status=(
+                document.metadata_status
+            ),
+            render_status=None,
+            error=(
+                document.processing_error
+            ),
+        )
+
+    def _process_asset_text_document(
+        self,
+        *,
+        document: Document,
+        path: Path,
+        force: bool,
+    ) -> DocumentProcessingResult:
+        result = (
+            self.extraction_service.extract(
+                path=path,
+                content_type=(
+                    document.content_type
+                ),
+                original_filename=(
+                    document.original_filename
+                ),
+            )
+        )
+
+        text = self._clean_text(
+            result.text
+        )
+
+        asset_result = (
+            self.asset_service
+            .extract_document_assets(
+                document_id=document.id,
+                force=force,
+            )
+        )
+
+        errors: list[str] = []
+
+        if (
+            result.status == "failed"
+            and result.error
+        ):
+            errors.append(
+                f"TEXT: {result.error}"
+            )
+
+        if (
+            asset_result.status
+            in {
+                "failed",
+                "partial",
+            }
+        ):
+            if asset_result.error:
+                errors.append(
+                    f"ASSETS: "
+                    f"{asset_result.error}"
+                )
+
+            elif (
+                asset_result.failed_count
+                > 0
+            ):
+                errors.append(
+                    "ASSETS: "
+                    f"{asset_result.failed_count} "
+                    "asset(s) failed."
+                )
+
+        if (
+            result.status == "extracted"
+            or text
+        ):
+            document.processing_status = (
+                "processed"
+            )
+
+            document.extracted_text = (
+                text
+            )
+
+        elif (
+            asset_result.extracted_count
+            > 0
+            or asset_result.existing_count
+            > 0
+        ):
+            document.processing_status = (
+                "processed"
+            )
+
+            document.extracted_text = None
+
+        elif result.status == "unsupported":
+            document.processing_status = (
+                "stored"
+            )
+
+        else:
+            document.processing_status = (
+                "failed"
+            )
+
+        document.processing_error = (
+            " | ".join(
+                errors
+            )
+            if errors
+            else None
+        )
+
+        self.repository.update(
+            document
+        )
+
+        self.repository.commit()
+
+        return DocumentProcessingResult(
+            document_id=document.id,
+            status=(
+                document.processing_status
+            ),
+            page_count=0,
+            native_character_count=len(
+                text
+                or ""
+            ),
+            ocr_character_count=0,
+            combined_character_count=len(
+                text
+                or ""
+            ),
+            metadata_status=(
+                document.metadata_status
+            ),
+            render_status=None,
+            error=(
+                document.processing_error
+            ),
         )
 
     def _process_image(
@@ -615,7 +1320,9 @@ class DocumentProcessingService:
         result = (
             self.ocr_service.ocr_document(
                 path=path,
-                content_type=document.content_type,
+                content_type=(
+                    document.content_type
+                ),
                 original_filename=(
                     document.original_filename
                 ),
@@ -643,12 +1350,18 @@ class DocumentProcessingService:
                 ocr_confidence=(
                     page_result.confidence
                 ),
-                width=page_result.width,
-                height=page_result.height,
+                width=(
+                    page_result.width
+                ),
+                height=(
+                    page_result.height
+                ),
                 processing_status=(
                     "failed"
-                    if page_result.status
-                    == "failed"
+                    if (
+                        page_result.status
+                        == "failed"
+                    )
                     else "processed"
                 ),
                 processing_error=(
@@ -684,20 +1397,28 @@ class DocumentProcessingService:
 
         return DocumentProcessingResult(
             document_id=document.id,
-            status=document.processing_status,
-            page_count=len(result.pages),
+            status=(
+                document.processing_status
+            ),
+            page_count=len(
+                result.pages
+            ),
             native_character_count=0,
             ocr_character_count=len(
-                ocr_text or ""
+                ocr_text
+                or ""
             ),
             combined_character_count=len(
-                ocr_text or ""
+                ocr_text
+                or ""
             ),
             metadata_status=(
                 document.metadata_status
             ),
             render_status=None,
-            error=document.processing_error,
+            error=(
+                document.processing_error
+            ),
         )
 
     def _process_text_document(
@@ -709,7 +1430,9 @@ class DocumentProcessingService:
         result = (
             self.extraction_service.extract(
                 path=path,
-                content_type=document.content_type,
+                content_type=(
+                    document.content_type
+                ),
                 original_filename=(
                     document.original_filename
                 ),
@@ -768,20 +1491,26 @@ class DocumentProcessingService:
 
         return DocumentProcessingResult(
             document_id=document.id,
-            status=document.processing_status,
+            status=(
+                document.processing_status
+            ),
             page_count=0,
             native_character_count=len(
-                text or ""
+                text
+                or ""
             ),
             ocr_character_count=0,
             combined_character_count=len(
-                text or ""
+                text
+                or ""
             ),
             metadata_status=(
                 document.metadata_status
             ),
             render_status=None,
-            error=document.processing_error,
+            error=(
+                document.processing_error
+            ),
         )
 
     def _extract_pdf_native_pages(
@@ -805,7 +1534,9 @@ class DocumentProcessingService:
                 except Exception:
                     return []
 
-            pages: list[str | None] = []
+            pages: list[
+                str | None
+            ] = []
 
             for page in reader.pages:
                 try:
@@ -830,6 +1561,38 @@ class DocumentProcessingService:
         except Exception:
             return []
 
+    def _build_office_ocr_fallback(
+        self,
+        pages: list,
+    ) -> str | None:
+        parts: list[str] = []
+
+        for page in pages:
+            text = self._clean_text(
+                page.ocr_text
+            )
+
+            if not text:
+                continue
+
+            parts.append(
+                f"[PAGE {page.page_number}]"
+            )
+
+            parts.append(
+                text
+            )
+
+        combined = "\n\n".join(
+            parts
+        ).strip()
+
+        return (
+            combined
+            if combined
+            else None
+        )
+
     def _build_page_text(
         self,
         *,
@@ -837,7 +1600,10 @@ class DocumentProcessingService:
         native_text: str | None,
         ocr_text: str | None,
     ) -> str | None:
-        if not native_text and not ocr_text:
+        if (
+            not native_text
+            and not ocr_text
+        ):
             return None
 
         parts = [
@@ -917,14 +1683,18 @@ class DocumentProcessingService:
         metadata_status: str | None,
         render_status: str | None,
     ) -> DocumentProcessingResult:
-        pages = self.repository.get_pages(
-            document.id
+        pages = (
+            self.repository.get_pages(
+                document.id
+            )
         )
 
         return DocumentProcessingResult(
             document_id=document.id,
             status="already_processed",
-            page_count=len(pages),
+            page_count=len(
+                pages
+            ),
             native_character_count=sum(
                 len(
                     page.extracted_text
@@ -943,8 +1713,12 @@ class DocumentProcessingService:
                 document.extracted_text
                 or ""
             ),
-            metadata_status=metadata_status,
-            render_status=render_status,
+            metadata_status=(
+                metadata_status
+            ),
+            render_status=(
+                render_status
+            ),
             error=None,
         )
 
