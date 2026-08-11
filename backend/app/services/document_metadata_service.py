@@ -1,5 +1,6 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+import math
 import re
 
 from dataclasses import dataclass
@@ -1066,10 +1067,20 @@ class DocumentMetadataService:
 
         if isinstance(
             value,
+            float,
+        ):
+            if not math.isfinite(
+                value
+            ):
+                return None
+
+            return value
+
+        if isinstance(
+            value,
             (
                 str,
                 int,
-                float,
                 bool,
             ),
         ):
@@ -1113,7 +1124,16 @@ class DocumentMetadataService:
             ]
 
         try:
-            return float(value)
+            numeric_value = float(
+                value
+            )
+
+            if not math.isfinite(
+                numeric_value
+            ):
+                return None
+
+            return numeric_value
 
         except Exception:
             return str(value)
