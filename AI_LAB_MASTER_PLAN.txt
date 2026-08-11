@@ -1,0 +1,2345 @@
+﻿================================================================================
+AI-LAB — MASTER PLAN / SPECYFIKACJA SYSTEMU
+================================================================================
+
+Status dokumentu:
+AKTYWNA SPECYFIKACJA PROJEKTOWA
+
+Data aktualizacji:
+2026-08-11
+
+Repozytorium:
+ai-lab-core
+
+Cel dokumentu:
+Ten dokument definiuje docelową wizję, architekturę, zasady projektowe,
+zakres funkcjonalny i checklistę budowy systemu AI-Lab.
+
+Nie jest to instrukcja implementacji pojedynczych funkcji ani lista komend.
+Jest to nadrzędny dokument projektowy, według którego należy prowadzić dalszy
+rozwój systemu.
+
+Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
+zgodna z założeniami tego dokumentu.
+
+================================================================================
+1. GŁÓWNY CEL SYSTEMU
+================================================================================
+
+AI-Lab ma być prywatnym, firmowym systemem CRM i zarządzania wiedzą,
+rozbudowanym o sztuczną inteligencję.
+
+System nie ma być jedynie chatbotem.
+
+Docelowo ma pełnić rolę:
+
+- rozbudowanego CRM,
+- firmowego archiwum danych,
+- inteligentnej bazy wiedzy,
+- systemu analizy dokumentów,
+- systemu analizy zdjęć i materiałów technicznych,
+- systemu wyszukiwania semantycznego,
+- systemu wspomagającego przygotowanie ofert,
+- systemu wspomagającego przygotowanie umów,
+- systemu wspomagającego analizę techniczną,
+- systemu wspomagającego obliczenia inżynierskie,
+- osobistego wirtualnego asystenta właściciela firmy,
+- w dalszej przyszłości agenta AI wykonującego określone działania.
+
+Głównym celem AI-Lab jest umożliwienie użytkownikowi scedowania części
+codziennej pracy administracyjnej, analitycznej, dokumentacyjnej i technicznej
+na system AI przy zachowaniu kontroli użytkownika nad istotnymi decyzjami.
+
+================================================================================
+2. GŁÓWNA ZASADA ARCHITEKTURY
+================================================================================
+
+System ma być budowany warstwowo.
+
+Przepływ danych:
+
+ŹRÓDŁA DANYCH
+    |
+    v
+IMPORT / INGESTION
+    |
+    v
+NORMALIZACJA I ARCHIWIZACJA
+    |
+    v
+DOCUMENT INTELLIGENCE
+    |
+    v
+BAZA WIEDZY
+    |
+    v
+WYSZUKIWANIE SEMANTYCZNE
+    |
+    v
+AI / RAG
+    |
+    v
+CRM + ASYSTENT
+    |
+    v
+AGENT / AUTOMATYZACJE
+
+
+System AI nie może być budowany w oderwaniu od warstwy danych.
+
+Każda odpowiedź oparta na danych firmowych powinna w miarę możliwości posiadać:
+
+- źródło,
+- dokument,
+- stronę,
+- fragment,
+- klienta,
+- datę,
+- pochodzenie informacji.
+
+================================================================================
+3. DOCELOWA INFRASTRUKTURA
+================================================================================
+
+[✓] Docker / Docker Compose
+
+[✓] Backend Python
+
+[✓] FastAPI
+
+[✓] PostgreSQL
+
+[✓] Ollama
+
+[✓] Open WebUI
+
+[✓] Qdrant
+
+[✓] n8n — przewidziane do integracji i automatyzacji
+
+[✓] Lokalny storage danych na SSD
+
+[ ] Flutter jako główny docelowy interfejs użytkownika
+
+[ ] Mechanizm wersjonowania aplikacji
+
+[ ] Mechanizm aktualizacji backendu
+
+[ ] Mechanizm migracji bazy danych przy aktualizacji
+
+[ ] Mechanizm aktualizacji aplikacji Flutter
+
+[ ] Mechanizm zdalnego wymuszenia aktualizacji aplikacji
+
+[ ] Kontrola zgodności wersji:
+    Flutter <-> API <-> Backend <-> Database schema
+
+[ ] Endpoint informujący aplikację o:
+    - najnowszej wersji,
+    - minimalnej obsługiwanej wersji,
+    - wymaganej aktualizacji,
+    - opcjonalnej aktualizacji.
+
+[ ] Możliwość zablokowania starej wersji aplikacji, jeżeli:
+    - API zostało zmienione niekompatybilnie,
+    - schema bazy została zmieniona,
+    - została wykryta luka bezpieczeństwa,
+    - administrator oznaczył aktualizację jako obowiązkową.
+
+================================================================================
+4. MODEL DANYCH — STAN OBECNY I DOCELOWY
+================================================================================
+
+ISTNIEJĄCE / ROZPOCZĘTE ENCJE:
+
+[✓] User
+
+[✓] Client
+
+[✓] Industry
+
+[✓] ClientCandidate
+
+[✓] CandidateSource
+
+[✓] ImportSource
+
+[✓] ImportRun
+
+[✓] Document
+
+[✓] DocumentPage
+
+[✓] DocumentAsset
+
+[✓] DocumentChunk
+
+[✓] Conversation
+
+[✓] Message
+
+
+DOCELOWO MODEL DANYCH POWINIEN OBSŁUGIWAĆ TAKŻE:
+
+[ ] osoby kontaktowe klienta
+
+[ ] wiele adresów klienta
+
+[ ] wiele numerów telefonu
+
+[ ] wiele adresów e-mail
+
+[ ] lokalizacje realizacji
+
+[ ] projekty / realizacje
+
+[ ] zlecenia
+
+[ ] oferty
+
+[ ] umowy
+
+[ ] faktury / dokumenty finansowe — w zakresie potrzeb systemu
+
+[ ] wizje lokalne
+
+[ ] inspekcje
+
+[ ] sesje dokumentacji terenowej
+
+[ ] notatki
+
+[ ] zadania
+
+[ ] terminy
+
+[ ] statusy realizacji
+
+[ ] powiązania pomiędzy dokumentami
+
+[ ] historia zmian danych
+
+[ ] historia działań AI
+
+[ ] historia decyzji użytkownika
+
+[ ] wersje ofert i umów
+
+[ ] wersje dokumentów wygenerowanych przez AI
+
+================================================================================
+5. CRM — DOCELOWY INTERFEJS UŻYTKOWNIKA
+================================================================================
+
+Następnym dużym etapem projektu ma być stworzenie działającej aplikacji CRM,
+aby można było testować rozwijane funkcjonalności AI w realnym interfejsie.
+
+Interfejs docelowy:
+FLUTTER.
+
+Aplikacja powinna działać docelowo przynajmniej na:
+
+[ ] Windows / desktop
+
+[ ] Android
+
+[ ] opcjonalnie Web
+
+[ ] opcjonalnie iOS
+
+
+GŁÓWNE MODUŁY INTERFEJSU:
+
+[ ] Dashboard
+
+[ ] Klienci
+
+[ ] Projekty / realizacje
+
+[ ] Dokumenty
+
+[ ] Zdjęcia
+
+[ ] Inspekcje
+
+[ ] Oferty
+
+[ ] Umowy
+
+[ ] Zadania
+
+[ ] AI Assistant
+
+[ ] Wyszukiwanie globalne
+
+[ ] Ustawienia
+
+[ ] Administracja systemem
+
+
+================================================================================
+6. KLIENT — FUNKCJONALNOŚĆ
+================================================================================
+
+Użytkownik musi mieć możliwość:
+
+[ ] ręcznego dodania klienta
+
+[ ] ręcznej edycji klienta
+
+[ ] usunięcia / archiwizacji klienta
+
+[ ] dodania firmy
+
+[ ] dodania osoby prywatnej
+
+[ ] dodania instytucji
+
+[ ] przypisania branży
+
+[ ] wpisania NIP
+
+[ ] wpisania danych adresowych
+
+[ ] dodania wielu kontaktów
+
+[ ] dodania notatek
+
+[ ] przypisania dokumentów
+
+[ ] przypisania wiadomości e-mail
+
+[ ] przypisania zdjęć
+
+[ ] przypisania realizacji
+
+[ ] przypisania ofert
+
+[ ] przypisania umów
+
+[ ] przypisania inspekcji
+
+
+System powinien pokazywać widok klienta typu:
+
+CLIENT 360
+
+zawierający:
+
+- dane podstawowe,
+- dane kontaktowe,
+- historię komunikacji,
+- dokumenty,
+- zdjęcia,
+- realizacje,
+- oferty,
+- umowy,
+- notatki,
+- zadania,
+- podsumowanie wygenerowane przez AI,
+- najważniejsze zdarzenia,
+- powiązane osoby i firmy.
+
+================================================================================
+7. IMPORT I ARCHIWIZACJA DOKUMENTÓW
+================================================================================
+
+SYSTEM JUŻ POTRAFI:
+
+[✓] przechowywać dokument
+
+[✓] zapisywać oryginalną nazwę
+
+[✓] zapisywać MIME type
+
+[✓] zapisywać rozmiar
+
+[✓] zapisywać storage path
+
+[✓] obliczać SHA-256
+
+[✓] wykrywać część duplikatów
+
+[✓] przechowywać źródło dokumentu
+
+[✓] wiązać dokument z Gmail message ID
+
+[✓] wiązać dokument z Gmail thread ID
+
+[✓] wiązać dokument z ClientCandidate
+
+[✓] wiązać dokument z Client
+
+[✓] przechowywać status przetwarzania
+
+[✓] przechowywać błędy przetwarzania
+
+
+DOCELOWO:
+
+[ ] upload pliku z aplikacji Flutter
+
+[ ] drag & drop na desktop
+
+[ ] upload wielu plików
+
+[ ] upload całego folderu
+
+[ ] upload zdjęcia
+
+[ ] wykonanie zdjęcia bezpośrednio w aplikacji
+
+[ ] import dokumentu z Gmaila
+
+[ ] import dokumentu z innego źródła
+
+[ ] automatyczne przypisanie do klienta, jeśli confidence jest wystarczające
+
+[ ] sugestia klienta, jeśli confidence jest średnie
+
+[ ] ręczne przypisanie do klienta
+
+[ ] ręczne odpięcie od klienta
+
+[ ] możliwość przeniesienia dokumentu pomiędzy klientami
+
+================================================================================
+8. OBSŁUGA ZDJĘĆ I DANYCH TERENOWYCH
+================================================================================
+
+Aplikacja mobilna Flutter powinna umożliwiać wykonanie zdjęcia bezpośrednio
+podczas wizji lokalnej / inspekcji.
+
+Przy wykonaniu zdjęcia należy — jeśli użytkownik udzielił zgody — zapisać:
+
+[ ] zdjęcie w oryginalnej jakości
+
+[ ] datę wykonania
+
+[ ] godzinę wykonania
+
+[ ] latitude
+
+[ ] longitude
+
+[ ] accuracy GPS
+
+[ ] źródło lokalizacji
+
+[ ] orientation
+
+[ ] model urządzenia
+
+[ ] inspection_session_id
+
+[ ] client_id
+
+[ ] project_id / realization_id
+
+[ ] opcjonalny komentarz użytkownika
+
+
+Zdjęcia powinny być później widoczne:
+
+- na osi czasu klienta,
+- w projekcie,
+- na mapie,
+- w inspekcji,
+- w analizie AI.
+
+
+AI powinno w przyszłości umieć:
+
+[ ] opisać zdjęcie
+
+[ ] wykryć typ materiału
+
+[ ] wykryć rysy
+
+[ ] wykryć potencjalne uszkodzenia
+
+[ ] rozpoznać element konstrukcyjny
+
+[ ] rozpoznać stan posadzki
+
+[ ] rozpoznać ślady zawilgocenia
+
+[ ] porównać zdjęcia przed/po
+
+[ ] analizować serię zdjęć z jednej lokalizacji
+
+[ ] wykorzystywać geolokalizację jako element kontekstu
+
+================================================================================
+9. METADANE
+================================================================================
+
+SYSTEM JUŻ OBSŁUGUJE METADANE DLA GŁÓWNYCH FORMATÓW.
+
+[✓] metadata_status
+
+[✓] metadata_raw
+
+[✓] metadata_normalized
+
+[✓] metadata_error
+
+[✓] metadata_extracted_at
+
+
+OBSŁUGIWANE INFORMACJE MOGĄ OBEJMOWAĆ:
+
+[✓] author
+
+[✓] creator
+
+[✓] producer
+
+[✓] title
+
+[✓] creation date
+
+[✓] modification date
+
+[✓] page count
+
+[✓] image dimensions
+
+[✓] software
+
+[✓] EXIF
+
+[✓] GPS — jeśli istnieje
+
+[✓] model urządzenia — jeśli istnieje
+
+
+DOCELOWO:
+
+[ ] metadata powinny uczestniczyć w wyszukiwaniu AI
+
+[ ] metadata powinny pomagać w klasyfikacji dokumentu
+
+[ ] metadata powinny pomagać w deduplikacji
+
+[ ] metadata powinny być widoczne w UI
+
+================================================================================
+10. DOCUMENT INTELLIGENCE — STAN OBECNY
+================================================================================
+
+SYSTEM POTRAFI OBECNIE PRZETWARZAĆ M.IN.:
+
+[✓] PDF
+
+[✓] PNG
+
+[✓] JPEG
+
+[✓] JPG
+
+[✓] TIFF
+
+[✓] HEIC / HEIF
+
+[✓] WEBP
+
+[✓] BMP
+
+[✓] DOC
+
+[✓] DOCX
+
+[✓] ODT
+
+[✓] XLS
+
+[✓] XLSX
+
+[✓] RFC822
+
+[✓] ZIP
+
+
+DLA PDF SYSTEM POTRAFI:
+
+[✓] czytać native text
+
+[✓] renderować strony
+
+[✓] wykonywać OCR
+
+[✓] przechowywać DocumentPage
+
+[✓] przechowywać tekst per strona
+
+[✓] przechowywać OCR per strona
+
+
+DLA OFFICE SYSTEM POTRAFI:
+
+[✓] czytać native text
+
+[✓] konwertować dokument przez LibreOffice
+
+[✓] renderować dokument na strony
+
+[✓] zapisywać strony jako PNG
+
+[✓] tworzyć DocumentPage
+
+[✓] wykonywać OCR każdej strony
+
+[✓] wyodrębniać część embedded images
+
+[✓] zapisywać DocumentAsset
+
+
+DLA LEGACY OFFICE:
+
+[✓] DOC przez antiword
+
+[✓] XLS przez xlrd
+
+
+DLA OBRAZÓW:
+
+[✓] odczyt rozmiaru
+
+[✓] metadata / EXIF
+
+[✓] OCR
+
+
+DLA RFC822:
+
+[✓] subject
+
+[✓] from
+
+[✓] to
+
+[✓] cc
+
+[✓] date
+
+[✓] message ID
+
+[✓] attachment info
+
+[✓] extraction tekstu
+
+
+DLA ARCHIWÓW:
+
+[✓] ekstrakcja ZIP
+
+[✓] bezpieczne nazwy
+
+[✓] checksum plików
+
+[✓] parent_document_id
+
+[✓] archive_member_path
+
+[✓] archive_depth
+
+[✓] idempotentny import dzieci archiwum
+
+
+================================================================================
+11. DOCUMENT PAGE
+================================================================================
+
+SYSTEM POSIADA:
+
+[✓] DocumentPage
+
+
+STRONA MOŻE POSIADAĆ:
+
+[✓] page_number
+
+[✓] extracted_text
+
+[✓] ocr_text
+
+[✓] ocr_confidence
+
+[✓] width
+
+[✓] height
+
+[✓] render_path
+
+[✓] render_dpi
+
+[✓] processing_status
+
+[✓] processing_error
+
+[✓] vision_analysis
+
+
+DOCELOWE ZASTOSOWANIA:
+
+[ ] cytowanie konkretnej strony
+
+[ ] otwieranie strony z wyniku AI
+
+[ ] Vision analysis
+
+[ ] wyszukiwanie per strona
+
+[ ] tworzenie chunków per strona
+
+[ ] porównywanie stron
+
+================================================================================
+12. DOCUMENT ASSET
+================================================================================
+
+SYSTEM POSIADA:
+
+[✓] DocumentAsset
+
+
+ASSET MOŻE REPREZENTOWAĆ:
+
+- zdjęcie,
+- wykres,
+- rysunek,
+- diagram,
+- embedded image,
+- fragment dokumentu.
+
+
+SYSTEM POTRAFI:
+
+[✓] wykryć część obrazów osadzonych w dokumentach
+
+[✓] wydobyć PNG
+
+[✓] wydobyć JPEG
+
+[✓] zapisać asset na SSD
+
+[✓] zapisać checksum
+
+[✓] zapisać rozmiary
+
+[✓] zachować relację z Document
+
+
+DOCELOWO:
+
+[ ] OCR assetu
+
+[ ] Vision analysis assetu
+
+[ ] embedding obrazu
+
+[ ] multimodal retrieval
+
+[ ] wyszukiwanie:
+    "pokaż zdjęcia z pęknięciami"
+
+================================================================================
+13. OCR
+================================================================================
+
+SYSTEM POSIADA:
+
+[✓] Tesseract OCR
+
+[✓] język polski
+
+[✓] język angielski
+
+[✓] OCR PDF
+
+[✓] OCR image
+
+[✓] OCR renderów Office
+
+[✓] confidence
+
+[✓] status no_text
+
+[✓] status failed
+
+
+PRZYKŁADOWY POTWIERDZONY TEST:
+
+Warnowo-Opinia_technciczna.doc
+
+21 stron
+
+20 stron -> processed
+1 strona -> no_text
+0 stron -> failed
+
+OCR characters:
+22158
+
+average confidence:
+~88.25%
+
+================================================================================
+14. GŁÓWNY DOCUMENT PROCESSING PIPELINE
+================================================================================
+
+SYSTEM POSIADA CENTRALNY:
+
+[✓] DocumentProcessingService
+
+
+DOCZELOWA ZASADA:
+
+Jedno wywołanie powinno wystarczyć do przetworzenia dokumentu.
+
+System sam wybiera odpowiedni pipeline.
+
+
+PDF:
+
+metadata
++
+native extraction
++
+render
++
+OCR
++
+DocumentPage
+
+
+IMAGE:
+
+metadata
++
+OCR
+
+
+OFFICE:
+
+metadata
++
+native extraction
++
+LibreOffice render
++
+DocumentPage
++
+OCR
++
+DocumentAsset
+
+
+LEGACY OFFICE:
+
+antiword / xlrd
+
+
+ARCHIVE:
+
+extract children
++
+normal processing dzieci
+
+
+System powinien zachować idempotencję.
+
+[✓] sprawdzono idempotencję kluczowych procesów
+
+================================================================================
+15. TESTY
+================================================================================
+
+WYKONANO M.IN.:
+
+[✓] PDF OCR test
+
+[✓] metadata test
+
+[✓] Office render test
+
+[✓] Office page database test
+
+[✓] Office OCR test
+
+[✓] archive test
+
+[✓] archive idempotency test
+
+[✓] RFC822 test
+
+[✓] legacy XLS test
+
+[✓] legacy DOC test
+
+[✓] asset extraction test
+
+[✓] Office end-to-end test
+
+[✓] format regression test
+
+
+REGRESSION TEST:
+
+PDF  -> OK
+PNG  -> OK
+DOCX -> OK
+ODT  -> OK
+XLS  -> OK
+XLSX -> OK
+
+passed: 6
+failed: 0
+
+================================================================================
+16. NAJBLIŻSZY ETAP — BATCH VALIDATION
+================================================================================
+
+Przed rozpoczęciem właściwego RAG należy przetestować obecny DocumentProcessing
+na większej, reprezentatywnej grupie dokumentów.
+
+Plan:
+
+[ ] batch około 50 różnych dokumentów
+
+[ ] zebrać statusy
+
+[ ] zebrać czasy
+
+[ ] zebrać błędy
+
+[ ] sprawdzić bardzo duże dokumenty
+
+[ ] sprawdzić nietypowe MIME types
+
+[ ] sprawdzić corrupted files
+
+[ ] sprawdzić dokumenty bez rozszerzenia
+
+[ ] sprawdzić błędy LibreOffice
+
+[ ] sprawdzić OCR failures
+
+[ ] sprawdzić empty documents
+
+[ ] poprawić wykryte problemy
+
+Nie należy czekać z budową AI do zakończenia przetwarzania całej bazy.
+
+Po reprezentatywnym batch teście należy rozpocząć budowę warstwy wiedzy.
+
+================================================================================
+17. DOCUMENT CHUNKING 2.0
+================================================================================
+
+Obecny DocumentChunk jest fundamentem, ale przed RAG musi zostać rozwinięty.
+
+Chunk powinien zachowywać przynajmniej:
+
+[ ] document_id
+
+[ ] chunk_index
+
+[ ] page_number lub zakres stron
+
+[ ] content
+
+[ ] token_count
+
+[ ] source type
+
+[ ] source position
+
+[ ] client_id, jeśli dostępny
+
+[ ] project_id, jeśli dostępny
+
+[ ] document metadata potrzebne do retrieval
+
+[ ] identyfikator wersji chunkingu
+
+
+Chunking musi uwzględniać strukturę dokumentu.
+
+Nie należy dzielić tekstu wyłącznie co stałą liczbę znaków bez uwzględnienia:
+
+- akapitów,
+- nagłówków,
+- tabel,
+- stron,
+- sekcji,
+- kontekstu.
+
+================================================================================
+18. EMBEDDINGS
+================================================================================
+
+Należy zbudować warstwę embeddings.
+
+[ ] wybrać model embeddingowy
+
+[ ] ustalić wymiar embeddingu
+
+[ ] stworzyć EmbeddingService
+
+[ ] obsłużyć batch embedding
+
+[ ] przechowywać wersję modelu
+
+[ ] umożliwić reindex przy zmianie modelu
+
+[ ] mierzyć czas indeksowania
+
+[ ] obsłużyć błędy
+
+[ ] nie wykonywać embeddingu ponownie bez potrzeby
+
+================================================================================
+19. QDRANT
+================================================================================
+
+Qdrant jest już elementem infrastruktury.
+
+Należy stworzyć właściwy knowledge index.
+
+Payload powinien umożliwiać filtrowanie po:
+
+[ ] chunk_id
+
+[ ] document_id
+
+[ ] page_number
+
+[ ] client_id
+
+[ ] project_id
+
+[ ] source_type
+
+[ ] content_type
+
+[ ] date
+
+[ ] document type
+
+
+Należy przygotować:
+
+[ ] collection management
+
+[ ] index creation
+
+[ ] upsert
+
+[ ] delete
+
+[ ] reindex
+
+[ ] semantic search
+
+[ ] metadata filtering
+
+================================================================================
+20. SEARCH
+================================================================================
+
+Docelowo aplikacja powinna posiadać globalne wyszukiwanie.
+
+Typy search:
+
+[ ] exact search
+
+[ ] PostgreSQL text search
+
+[ ] semantic search
+
+[ ] hybrid search
+
+[ ] filters
+
+
+Przykłady:
+
+"osiadanie gruntu"
+
+"pęknięcie ściany"
+
+"oferta klienta Kowalski"
+
+"realizacje podobne do Warnowa"
+
+"badania geotechniczne Warszawa"
+
+"podnoszenie posadzki hala"
+
+
+Search powinien zwracać:
+
+- fragment,
+- score,
+- dokument,
+- stronę,
+- klienta,
+- źródło,
+- możliwość otworzenia dokumentu.
+
+================================================================================
+21. RAG
+================================================================================
+
+AI-Lab ma posiadać właściwy Retrieval-Augmented Generation.
+
+Przepływ:
+
+USER QUESTION
+    |
+    v
+QUERY ANALYSIS
+    |
+    v
+RETRIEVAL
+    |
+    +--> PostgreSQL
+    |
+    +--> Qdrant
+    |
+    v
+RANKED CONTEXT
+    |
+    v
+LLM
+    |
+    v
+ANSWER
++
+SOURCES
+
+
+System AI powinien:
+
+[ ] rozpoznawać intencję pytania
+
+[ ] wyszukiwać odpowiednie dane
+
+[ ] wybierać najbardziej istotne fragmenty
+
+[ ] ograniczać kontekst do rzeczy potrzebnych
+
+[ ] odpowiadać na podstawie źródeł
+
+[ ] wskazywać brak wystarczających danych
+
+[ ] nie wymyślać danych klienta
+
+[ ] podawać źródła
+
+[ ] podawać dokument
+
+[ ] podawać stronę
+
+[ ] umożliwiać otwarcie źródła
+
+================================================================================
+22. AI CLIENT KNOWLEDGE
+================================================================================
+
+Jednym z najważniejszych zastosowań AI będzie możliwość zadania:
+
+"Co wiemy o tym kliencie?"
+
+
+AI powinno mieć możliwość zebrania:
+
+[ ] danych Client
+
+[ ] danych kontaktowych
+
+[ ] Gmail
+
+[ ] dokumentów
+
+[ ] zdjęć
+
+[ ] ofert
+
+[ ] umów
+
+[ ] realizacji
+
+[ ] notatek
+
+[ ] inspekcji
+
+[ ] wcześniejszych rozmów
+
+[ ] ważnych dat
+
+
+I stworzenia:
+
+[ ] client summary
+
+[ ] timeline
+
+[ ] najważniejszych ustaleń
+
+[ ] otwartych tematów
+
+[ ] problemów
+
+[ ] kolejnych zalecanych działań
+
+================================================================================
+23. WIRTUALNY ASYSTENT
+================================================================================
+
+AI-Lab ma docelowo działać jako rzeczywisty wirtualny asystent właściciela firmy.
+
+Przykładowe zastosowania:
+
+[ ] znajdowanie dokumentów
+
+[ ] podsumowanie klienta
+
+[ ] podsumowanie korespondencji
+
+[ ] analiza dokumentów
+
+[ ] porównanie dokumentów
+
+[ ] analiza ofert historycznych
+
+[ ] przygotowanie szkicu oferty
+
+[ ] przygotowanie szkicu umowy
+
+[ ] przygotowanie notatki
+
+[ ] przygotowanie e-maila
+
+[ ] tworzenie raportu
+
+[ ] wskazywanie brakujących danych
+
+[ ] sugerowanie kolejnych kroków
+
+[ ] przygotowanie danych do wizji lokalnej
+
+[ ] analiza materiałów z wizji
+
+[ ] porównanie realizacji
+
+[ ] wyszukiwanie podobnych przypadków
+
+================================================================================
+24. GENEROWANIE OFERT
+================================================================================
+
+System ma docelowo przygotowywać projekty ofert na podstawie dostępnych danych.
+
+Źródła mogą obejmować:
+
+- Client,
+- dane kontaktowe,
+- lokalizację,
+- wcześniejsze oferty,
+- opis problemu,
+- dokumentację techniczną,
+- zdjęcia,
+- pomiary,
+- wcześniejsze realizacje,
+- historię cen,
+- szablony firmowe.
+
+
+Proces:
+
+DANE KLIENTA
++
+DANE TECHNICZNE
++
+HISTORIA
++
+SZABLON
++
+REGUŁY FIRMY
+    |
+    v
+AI
+    |
+    v
+DRAFT OFERTA
+    |
+    v
+AKCEPTACJA UŻYTKOWNIKA
+
+
+ZASADA:
+
+AI nie wysyła oferty automatycznie bez określonej polityki zatwierdzania.
+
+Oferta powinna przechodzić statusy:
+
+[ ] draft
+
+[ ] AI prepared
+
+[ ] review required
+
+[ ] approved
+
+[ ] sent
+
+[ ] rejected / superseded
+
+
+Należy przechowywać wersje.
+
+================================================================================
+25. GENEROWANIE UMÓW
+================================================================================
+
+Analogicznie system powinien przygotowywać projekty umów.
+
+Źródła:
+
+- Client,
+- oferta,
+- zakres prac,
+- cena,
+- lokalizacja,
+- terminy,
+- szablon umowy,
+- dane firmy,
+- zaakceptowane warunki.
+
+
+Proces:
+
+DATA
+    |
+    v
+AI / TEMPLATE ENGINE
+    |
+    v
+DRAFT
+    |
+    v
+USER REVIEW
+    |
+    v
+APPROVED DOCUMENT
+
+
+[ ] wersjonowanie
+
+[ ] historia zmian
+
+[ ] możliwość porównania wersji
+
+[ ] jednoznaczne oznaczenie dokumentów wygenerowanych przez AI
+
+[ ] akceptacja człowieka przed użyciem finalnym
+
+================================================================================
+26. ANALIZA TECHNICZNA
+================================================================================
+
+System ma być rozwijany także jako asystent techniczny dla zagadnień
+budowlanych i geotechnicznych.
+
+Docelowe zastosowania:
+
+[ ] analiza dokumentacji geotechnicznej
+
+[ ] analiza CPT
+
+[ ] analiza sondowań
+
+[ ] analiza parametrów gruntów
+
+[ ] analiza fundamentów
+
+[ ] analiza osiadań
+
+[ ] analiza posadzek
+
+[ ] analiza obciążeń
+
+[ ] interpretacja dokumentacji technicznej
+
+[ ] porównanie z podobnymi przypadkami
+
+[ ] pomoc w obliczeniach
+
+================================================================================
+27. OBLICZENIA INŻYNIERSKIE
+================================================================================
+
+System ma docelowo posiadać moduły deterministycznych obliczeń technicznych.
+
+AI NIE powinno wykonywać kluczowych obliczeń jedynie poprzez generowanie tekstu.
+
+Docelowa architektura:
+
+AI
+ |
+ v
+wybór metody
+ |
+ v
+Calculation Engine
+ |
+ v
+wynik deterministyczny
+ |
+ v
+AI explanation
+
+
+Przewidywane moduły:
+
+[ ] parametry gruntów
+
+[ ] nośność
+
+[ ] osiadanie
+
+[ ] obciążenia
+
+[ ] fundamenty
+
+[ ] posadzki
+
+[ ] elementy konstrukcyjne
+
+[ ] inne obliczenia geotechniczne
+
+[ ] inne obliczenia budowlane
+
+
+Każde obliczenie powinno przechowywać:
+
+[ ] dane wejściowe
+
+[ ] jednostki
+
+[ ] użyty wzór
+
+[ ] normę / źródło
+
+[ ] założenia
+
+[ ] wyniki pośrednie
+
+[ ] wynik końcowy
+
+[ ] datę
+
+[ ] wersję calculation engine
+
+[ ] autora / użytkownika
+
+[ ] status weryfikacji
+
+================================================================================
+28. NORMY, PRZEPISY I WIEDZA ZEWNĘTRZNA
+================================================================================
+
+Do prawidłowej analizy technicznej system będzie potrzebował możliwości
+uzyskiwania aktualnej wiedzy zewnętrznej.
+
+System musi mieć kontrolowaną możliwość połączenia z Internetem.
+
+ZASTOSOWANIA:
+
+[ ] aktualne normy
+
+[ ] akty prawne
+
+[ ] dokumentacja techniczna producentów
+
+[ ] aprobaty
+
+[ ] karty produktów
+
+[ ] wytyczne
+
+[ ] publikacje techniczne
+
+[ ] oficjalne bazy danych
+
+[ ] aktualne przepisy
+
+
+ZASADY:
+
+Internet NIE powinien być traktowany jako bezwarunkowo zaufane źródło.
+
+System powinien:
+
+[ ] identyfikować źródło
+
+[ ] przechowywać URL
+
+[ ] przechowywać datę dostępu
+
+[ ] preferować źródła pierwotne i oficjalne
+
+[ ] rozróżniać:
+    - normę,
+    - ustawę,
+    - dokumentację producenta,
+    - artykuł,
+    - forum,
+    - opinię.
+
+[ ] wskazywać użytkownikowi źródło
+
+[ ] oddzielać wiedzę firmową od wiedzy zewnętrznej
+
+[ ] nie przedstawiać wyniku technicznego jako zweryfikowanego,
+    jeśli wymagane dane są niekompletne
+
+
+UWAGA:
+
+Pełne teksty części norm budowlanych mogą podlegać ograniczeniom licencyjnym.
+System powinien respektować prawa dostępu i licencje.
+
+================================================================================
+29. VISION AI
+================================================================================
+
+Obecna architektura jest przygotowana pod Vision poprzez:
+
+[✓] DocumentPage.render_path
+
+[✓] DocumentAsset
+
+[✓] vision_analysis
+
+
+DOCELOWE MOŻLIWOŚCI:
+
+[ ] analiza zdjęć
+
+[ ] analiza rysunków
+
+[ ] analiza planów
+
+[ ] analiza map
+
+[ ] analiza diagramów
+
+[ ] analiza tabel jako obrazu
+
+[ ] analiza uszkodzeń budynku
+
+[ ] klasyfikacja rodzaju rysy
+
+[ ] detekcja elementów konstrukcji
+
+[ ] opis obrazu
+
+[ ] multimodal retrieval
+
+================================================================================
+30. MULTIMODAL RAG
+================================================================================
+
+Docelowo retrieval nie powinien ograniczać się do tekstu.
+
+Źródła:
+
+TEXT
++
+OCR
++
+PAGE IMAGE
++
+DOCUMENT ASSET
++
+METADATA
+
+
+Pytania przykładowe:
+
+"Pokaż zdjęcia podobnych uszkodzeń."
+
+"Na których zdjęciach występują rysy przy nadprożach?"
+
+"Znajdź rzuty fundamentów podobne do tego."
+
+"Porównaj te dwa zdjęcia."
+
+================================================================================
+31. AI — ZASADA HUMAN-IN-THE-LOOP
+================================================================================
+
+System ma pomagać użytkownikowi, ale nie powinien przejmować odpowiedzialności
+za działania wysokiego ryzyka bez zatwierdzenia.
+
+Wymagana akceptacja człowieka przed:
+
+[ ] wysłaniem finalnej oferty
+
+[ ] wysłaniem finalnej umowy
+
+[ ] wysłaniem istotnego e-maila w imieniu firmy
+
+[ ] zmianą kluczowych danych klienta
+
+[ ] usunięciem danych
+
+[ ] wykonaniem operacji finansowej
+
+[ ] uznaniem obliczenia technicznego za finalne
+
+[ ] wydaniem końcowej ekspertyzy technicznej
+
+================================================================================
+32. AI AUDIT / OBSERWOWALNOŚĆ
+================================================================================
+
+Każda istotna akcja AI powinna być możliwa do prześledzenia.
+
+Docelowo należy zapisywać:
+
+[ ] kto zadał pytanie
+
+[ ] kiedy
+
+[ ] jaki model został użyty
+
+[ ] jaka wersja promptu
+
+[ ] jakie źródła zostały pobrane
+
+[ ] jakie chunki zostały użyte
+
+[ ] jakie narzędzia zostały wywołane
+
+[ ] jaki wynik został wygenerowany
+
+[ ] czy użytkownik zaakceptował wynik
+
+[ ] czy użytkownik poprawił wynik
+
+================================================================================
+33. AGENT AI
+================================================================================
+
+RAG odpowiada na pytania.
+
+Agent powinien później wykonywać zadania.
+
+Przykładowe narzędzia agenta:
+
+[ ] search_client
+
+[ ] search_documents
+
+[ ] semantic_search
+
+[ ] fetch_document
+
+[ ] fetch_page
+
+[ ] analyze_image
+
+[ ] calculate
+
+[ ] search_external_sources
+
+[ ] create_offer_draft
+
+[ ] create_contract_draft
+
+[ ] create_note
+
+[ ] create_task
+
+[ ] prepare_email_draft
+
+[ ] retrieve_client_history
+
+
+Agent powinien posiadać system permissions.
+
+Nie wszystkie narzędzia powinny być dostępne dla każdego użytkownika.
+
+================================================================================
+34. APLIKACJA FLUTTER — PIERWSZA DZIAŁAJĄCA WERSJA
+================================================================================
+
+Następnym dużym kamieniem milowym po podstawowej warstwie AI/RAG ma być
+używalna aplikacja CRM.
+
+Nie należy czekać z interfejsem do całkowitego zakończenia całego projektu.
+
+Celem jest stworzenie aplikacji, na której dalsze elementy systemu będą
+testowane w codziennej pracy.
+
+
+PIERWSZA UŻYWALNA WERSJA POWINNA POSIADAĆ:
+
+[ ] logowanie
+
+[ ] dashboard
+
+[ ] listę klientów
+
+[ ] wyszukiwanie klientów
+
+[ ] tworzenie klienta
+
+[ ] edycję klienta
+
+[ ] widok klienta
+
+[ ] upload dokumentu
+
+[ ] podgląd dokumentu
+
+[ ] listę dokumentów klienta
+
+[ ] zdjęcia klienta
+
+[ ] aparat
+
+[ ] geolokalizację zdjęcia
+
+[ ] historię / timeline
+
+[ ] globalne wyszukiwanie
+
+[ ] chat AI
+
+[ ] semantic search
+
+[ ] odpowiedzi AI ze źródłami
+
+
+Następne wersje:
+
+[ ] projekty
+
+[ ] wizje lokalne
+
+[ ] mapa
+
+[ ] oferty
+
+[ ] umowy
+
+[ ] zadania
+
+[ ] workflow
+
+[ ] AI tools
+
+================================================================================
+35. AKTUALIZACJE SYSTEMU
+================================================================================
+
+System powinien posiadać kontrolowany system aktualizacji.
+
+Backend, baza oraz Flutter muszą posiadać kompatybilne wersje.
+
+
+Docelowe elementy:
+
+[ ] app_version
+
+[ ] backend_version
+
+[ ] api_version
+
+[ ] database_schema_version
+
+[ ] minimum_supported_app_version
+
+[ ] latest_app_version
+
+[ ] force_update flag
+
+
+Flutter przy starcie powinien zapytać backend:
+
+GET /system/version
+
+
+Przykładowa odpowiedź:
+
+{
+    "backend_version": "...",
+    "api_version": "...",
+    "database_schema_version": "...",
+    "minimum_app_version": "...",
+    "latest_app_version": "...",
+    "force_update": true/false
+}
+
+
+Jeżeli wersja Flutter jest niższa niż minimum:
+
+APLIKACJA MUSI ZABLOKOWAĆ NORMALNE DZIAŁANIE
+I WYMUSIĆ AKTUALIZACJĘ.
+
+
+Backend deployment powinien umożliwiać:
+
+[ ] backup
+
+[ ] migration
+
+[ ] health check
+
+[ ] rollback
+
+================================================================================
+36. BACKUP I BEZPIECZEŃSTWO
+================================================================================
+
+Należy posiadać:
+
+[ ] backup PostgreSQL
+
+[ ] backup dokumentów
+
+[ ] backup Qdrant
+
+[ ] politykę retencji
+
+[ ] test przywracania backupu
+
+[ ] szyfrowanie sekretów
+
+[ ] kontrolę dostępu
+
+[ ] role użytkowników
+
+[ ] audit log
+
+[ ] ochronę API
+
+[ ] ochronę endpointów administracyjnych
+
+[ ] bezpieczne przechowywanie API keys
+
+[ ] brak sekretów w Git
+
+================================================================================
+37. PERFORMANCE
+================================================================================
+
+System musi skalować się do co najmniej całego obecnego archiwum firmy.
+
+Należy kontrolować:
+
+[ ] czas OCR
+
+[ ] czas LibreOffice conversion
+
+[ ] czas embedding
+
+[ ] czas semantic search
+
+[ ] wielkość storage
+
+[ ] rozmiar Qdrant
+
+[ ] liczbę chunków
+
+[ ] CPU
+
+[ ] RAM
+
+[ ] GPU
+
+[ ] równoległość
+
+[ ] kolejki przetwarzania
+
+================================================================================
+38. BACKGROUND JOBS
+================================================================================
+
+Długotrwałe zadania docelowo nie powinny blokować API.
+
+Należy przewidzieć kolejkę / job system dla:
+
+[ ] OCR
+
+[ ] rendering
+
+[ ] archive extraction
+
+[ ] asset extraction
+
+[ ] embeddings
+
+[ ] Vision
+
+[ ] batch imports
+
+[ ] document reprocessing
+
+[ ] external research
+
+================================================================================
+39. STATUS DOTYCHCZASOWEJ BUDOWY
+================================================================================
+
+GOTOWE / ZAAWANSOWANE:
+
+[✓] Docker infrastructure
+
+[✓] PostgreSQL
+
+[✓] FastAPI backend
+
+[✓] Ollama
+
+[✓] Qdrant
+
+[✓] Open WebUI
+
+[✓] Client model
+
+[✓] Industries
+
+[✓] candidates
+
+[✓] import model
+
+[✓] document storage
+
+[✓] Gmail document relationships
+
+[✓] document metadata fields
+
+[✓] metadata extraction
+
+[✓] DocumentPage
+
+[✓] page rendering
+
+[✓] Tesseract OCR
+
+[✓] PDF processing
+
+[✓] image processing
+
+[✓] DOCX processing
+
+[✓] ODT processing
+
+[✓] legacy DOC processing
+
+[✓] XLS processing
+
+[✓] XLSX processing
+
+[✓] RFC822 processing
+
+[✓] archive extraction
+
+[✓] archive hierarchy
+
+[✓] DocumentAsset
+
+[✓] Office image extraction
+
+[✓] Office page render
+
+[✓] Office page OCR
+
+[✓] integrated DocumentProcessingService
+
+[✓] idempotency key paths
+
+[✓] regression test for:
+    PDF
+    PNG
+    DOCX
+    ODT
+    XLS
+    XLSX
+
+
+AKTUALNY POTWIERDZONY PRZYKŁAD E2E:
+
+Warnowo-Opinia_technciczna.doc
+
+native text:
+21341 znaków
+
+OCR:
+22158 znaków
+
+pages:
+21
+
+page failures:
+0
+
+assets:
+3
+
+status:
+processed
+
+second run:
+already_processed
+
+
+================================================================================
+40. AKTUALNY ETAP PROJEKTU
+================================================================================
+
+Aktualnie zakończono zasadniczy fundament:
+
+DOCUMENT INGESTION + DOCUMENT INTELLIGENCE.
+
+
+NAJBLIŻSZY ETAP:
+
+[ ] batch validation około 50 realnych dokumentów
+
+[ ] analiza błędów
+
+[ ] poprawki
+
+
+NASTĘPNIE NATYCHMIAST ROZPOCZĄĆ:
+
+[ ] DocumentChunk 2.0
+
+[ ] embeddings
+
+[ ] Qdrant knowledge index
+
+[ ] semantic search
+
+[ ] RetrievalService
+
+[ ] pierwszy RAG
+
+[ ] AI answers with sources
+
+
+Nie czekać z AI do przetworzenia całych tysięcy dokumentów.
+
+================================================================================
+41. PRIORYTET — DZIAŁAJĄCY CRM + AI
+================================================================================
+
+Po uruchomieniu pierwszego RAG należy równolegle rozwijać używalną wersję CRM.
+
+Celem nie jest najpierw stworzenie wszystkich funkcji backendowych,
+a dopiero potem UI.
+
+Celem jest jak najszybsze osiągnięcie:
+
+DZIAŁAJĄCA APLIKACJA
++
+DZIAŁAJĄCE AI
++
+REALNE DANE
+
+
+Dzięki temu nowe moduły będą testowane podczas rzeczywistej pracy.
+
+================================================================================
+42. DOCELOWY STAN SYSTEMU
+================================================================================
+
+Docelowo użytkownik powinien móc otworzyć aplikację i wykonać przykładowy
+workflow:
+
+1. Dodaj klienta.
+
+2. Dodaj lokalizację realizacji.
+
+3. Zrób zdjęcia telefonem.
+
+4. Zdjęcia automatycznie zapisują:
+   - czas,
+   - GPS,
+   - klienta,
+   - projekt.
+
+5. Dodaj dokumentację:
+   - PDF,
+   - DOC,
+   - badania gruntu,
+   - rysunki.
+
+6. System automatycznie:
+   - zapisuje pliki,
+   - czyta metadata,
+   - wykonuje OCR,
+   - renderuje strony,
+   - wydobywa obrazy,
+   - indeksuje treść.
+
+7. AI analizuje dostępne dane.
+
+8. Użytkownik pyta:
+   "Co wynika z dokumentacji?"
+
+9. AI odpowiada ze źródłami.
+
+10. Użytkownik pyta:
+    "Czy mieliśmy podobne realizacje?"
+
+11. Semantic retrieval znajduje podobne przypadki.
+
+12. AI może wykorzystać:
+    - dane klienta,
+    - dokumentację,
+    - historię,
+    - podobne realizacje.
+
+13. Użytkownik prosi:
+    "Przygotuj ofertę."
+
+14. AI tworzy draft.
+
+15. Użytkownik sprawdza i akceptuje ofertę.
+
+16. Po akceptacji użytkownik prosi:
+    "Przygotuj umowę."
+
+17. AI generuje draft umowy na podstawie:
+    - klienta,
+    - zaakceptowanej oferty,
+    - szablonu,
+    - danych firmy.
+
+18. W przypadku zagadnienia technicznego system może:
+    - wykonać obliczenia przez Calculation Engine,
+    - sprawdzić dostępne normy i źródła,
+    - przedstawić obliczenia,
+    - wskazać założenia,
+    - wymagać akceptacji użytkownika.
+
+19. Cała historia pozostaje przypisana do klienta i realizacji.
+
+================================================================================
+43. ZASADA ROZWOJU
+================================================================================
+
+Każda nowa funkcja powinna:
+
+[ ] mieć jasno określony cel biznesowy
+
+[ ] korzystać z istniejącej architektury
+
+[ ] nie duplikować istniejących mechanizmów
+
+[ ] być możliwie idempotentna
+
+[ ] posiadać obsługę błędów
+
+[ ] przechowywać źródło danych
+
+[ ] być testowalna
+
+[ ] posiadać test przed masowym uruchomieniem
+
+[ ] zachowywać kompatybilność z istniejącą bazą
+
+[ ] używać migracji Alembic do zmian schematu
+
+[ ] nie usuwać danych bez kontroli użytkownika
+
+[ ] nie wykonywać automatycznych operacji wysokiego ryzyka bez zatwierdzenia
+
+================================================================================
+44. ZASADA DLA AI
+================================================================================
+
+AI nie jest źródłem prawdy.
+
+AI jest warstwą interpretacji i orkiestracji.
+
+Źródłami prawdy są:
+
+- baza danych,
+- dokumenty,
+- zatwierdzone dane użytkownika,
+- deterministyczne obliczenia,
+- wiarygodne źródła zewnętrzne.
+
+
+AI powinno:
+
+[ ] wyszukiwać
+
+[ ] analizować
+
+[ ] podsumowywać
+
+[ ] porównywać
+
+[ ] sugerować
+
+[ ] przygotowywać drafty
+
+[ ] uruchamiać odpowiednie narzędzia
+
+
+AI NIE powinno:
+
+[ ] wymyślać brakujących danych klienta
+
+[ ] tworzyć fikcyjnych wyników obliczeń
+
+[ ] udawać, że znalazło normę, której nie posiada
+
+[ ] przedstawiać niezweryfikowanych danych jako fakt
+
+[ ] wykonywać wysokiego ryzyka akcji bez wymaganej zgody
+
+================================================================================
+45. KRYTERIUM SUKCESU PROJEKTU
+================================================================================
+
+Projekt będzie można uznać za realizujący główne założenie, kiedy właściciel
+firmy będzie mógł używać AI-Lab jako codziennego narzędzia pracy i realnie
+przekazać mu znaczącą część zadań związanych z:
+
+- wyszukiwaniem informacji,
+- zarządzaniem wiedzą o klientach,
+- analizą dokumentacji,
+- przygotowywaniem podsumowań,
+- przygotowywaniem dokumentów,
+- przygotowywaniem ofert,
+- przygotowywaniem umów,
+- analizą danych terenowych,
+- analizą techniczną,
+- wyszukiwaniem podobnych realizacji,
+- wspomaganiem obliczeń,
+- organizacją pracy.
+
+
+SYSTEM NIE MA BYĆ DEMONSTRACJĄ AI.
+
+SYSTEM MA BYĆ REALNYM NARZĘDZIEM OPERACYJNYM FIRMY.
+
+================================================================================
+46. GŁÓWNA ROADMAPA
+================================================================================
+
+FAZA A — INFRASTRUKTURA
+[✓] wykonana w podstawowym zakresie
+
+
+FAZA B — DATA MODEL / CRM CORE
+[✓] fundament wykonany
+
+
+FAZA C — INGESTION
+[✓] zaawansowane
+
+
+FAZA D — DOCUMENT INTELLIGENCE
+[✓] zaawansowane
+
+
+FAZA E — BATCH VALIDATION
+[ ] AKTUALNY ETAP
+
+
+FAZA F — KNOWLEDGE LAYER
+[ ] DocumentChunk 2.0
+[ ] embeddings
+[ ] Qdrant
+
+
+FAZA G — AI RETRIEVAL
+[ ] semantic search
+[ ] hybrid search
+[ ] RetrievalService
+
+
+FAZA H — RAG
+[ ] AI answers
+[ ] citations
+[ ] document/page references
+
+
+FAZA I — CRM APPLICATION
+[ ] Flutter
+[ ] Client 360
+[ ] Documents
+[ ] Photos
+[ ] Search
+[ ] AI
+
+
+FAZA J — BUSINESS ASSISTANT
+[ ] offers
+[ ] contracts
+[ ] summaries
+[ ] email drafts
+
+
+FAZA K — TECHNICAL AI
+[ ] calculation engine
+[ ] standards
+[ ] external knowledge
+[ ] engineering workflows
+
+
+FAZA L — MULTIMODAL AI
+[ ] Vision
+[ ] image embeddings
+[ ] multimodal retrieval
+
+
+FAZA M — AGENT
+[ ] tools
+[ ] permissions
+[ ] workflows
+
+
+FAZA N — PRODUCTION HARDENING
+[ ] security
+[ ] backups
+[ ] monitoring
+[ ] update mechanism
+[ ] forced Flutter updates
+[ ] migrations
+[ ] rollback
+
+
+================================================================================
+47. WAŻNA ZASADA DLA PRZYSZŁYCH SESJI ROZWOJOWYCH
+================================================================================
+
+Przy podejmowaniu decyzji architektonicznych należy najpierw sprawdzić ten plik.
+
+Jeżeli planowana funkcja jest sprzeczna z niniejszą specyfikacją:
+
+1. nie należy bezrefleksyjnie jej implementować,
+
+2. należy ustalić, czy:
+   - specyfikacja wymaga aktualizacji,
+   - czy funkcja jest błędnym kierunkiem.
+
+Po istotnej zmianie wizji projektu należy zaktualizować również ten dokument.
+
+
+================================================================================
+KONIEC MASTER PLAN
+================================================================================
