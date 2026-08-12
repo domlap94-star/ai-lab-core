@@ -3057,6 +3057,391 @@ Knowledge Layer przez przyszły interfejs CRM / Flutter.
 KONIEC CHECKPOINTU KNOWLEDGE LAYER 2026-08-12
 ================================================================================
 
+
+================================================================================
+CHECKPOINT 2026-08-12 — DETERMINISTIC EVIDENCE-ID RAG
+================================================================================
+
+STATUS:
+DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+Po uruchomieniu Knowledge Layer i semantic search zbudowano pierwszą
+działającą warstwę RAG opartą na rzeczywistych dokumentach.
+
+ARCHITEKTURA:
+
+natural-language question
+    |
+    v
+SemanticSearchService
+    |
+    v
+Qdrant semantic retrieval
+    |
+    v
+retrieved DocumentChunks
+    |
+    v
+backend deterministic evidence segmentation
+    |
+    v
+EVIDENCE_ID
+    |
+    v
+local LLM / llama3.2
+    |
+    v
+selection of evidence IDs
+    |
+    v
+backend resolves evidence IDs
+    |
+    v
+exact source evidence + metadata
+
+
+NAJWAŻNIEJSZA DECYZJA ARCHITEKTONICZNA:
+
+Model językowy nie jest źródłem cytowanego tekstu.
+
+LLM wybiera identyfikatory dowodów EVIDENCE_ID spośród fragmentów
+przygotowanych przez backend.
+
+Po wyborze identyfikatora backend sam odtwarza dokładny tekst źródłowy.
+
+Eliminuje to klasę błędów obserwowaną podczas wcześniejszych prób RAG,
+w której model modyfikował tekst OCR, symbole, wzory, liczby lub inne
+elementy fragmentu, mimo że przedstawiał wynik jako cytat.
+
+Backend-controlled evidence oznacza, że model nie może samodzielnie
+wytworzyć treści, która zostanie uznana przez system za dokładny cytat
+ze źródła.
+
+
+IMPLEMENTACJA:
+
+[✓] RagService
+
+[✓] integracja z SemanticSearchService
+
+[✓] retrieval rzeczywistych DocumentChunk
+
+[✓] deterministyczna segmentacja retrieved context na evidence
+
+[✓] nadawanie EVIDENCE_ID
+
+[✓] wybór evidence przez lokalny model llama3.2
+
+[✓] backend-controlled resolution evidence ID -> exact source text
+
+[✓] mapowanie evidence do source/document/chunk/page metadata
+
+[✓] zachowanie źródeł retrievalu
+
+[✓] obsługa przypadku braku wystarczających źródeł
+
+[✓] test RAG E2E
+
+[✓] regresja Semantic Search
+
+[✓] regresja Knowledge Layer
+
+
+OLLAMA CLIENT:
+
+OllamaClient został rozszerzony w zakresie wymaganym przez RAG.
+
+Istniejący ChatService zachował kompatybilność.
+
+Test:
+
+CHAT SERVICE IMPORT: OK
+
+
+RAG E2E:
+
+Test:
+backend/test/test_rag_e2e.py
+
+Testowane pytania obejmowały m.in.:
+
+1.
+"Na podstawie dokumentacji opisz, jakie informacje zawierają badania CPT
+i jakie parametry są w nich widoczne."
+
+2.
+"Co dokumentacja mówi o pęknięciach lub zarysowaniach ścian?"
+
+3.
+przypadek kontrolny bez odpowiednich źródeł.
+
+
+POTWIERDZONE WŁAŚCIWOŚCI:
+
+retrieval: OK
+
+evidence segmentation: OK
+
+evidence ID selection: OK
+
+backend-controlled quotes: OK
+
+source mapping: OK
+
+no-source behavior: OK
+
+validation_errors: 0
+
+DETERMINISTIC EVIDENCE-ID RAG E2E: OK
+
+
+NO-SOURCE BEHAVIOR:
+
+Jeżeli retrieval nie dostarczy wystarczających źródeł, system nie powinien
+tworzyć odpowiedzi udającej wiedzę pochodzącą z dokumentacji.
+
+Potwierdzony wynik:
+
+"Nie znaleziono wystarczających źródeł w dokumentacji, aby udzielić odpowiedzi."
+
+sources: 0
+claims: 0
+
+
+REGRESJA KNOWLEDGE LAYER:
+
+PostgreSQL:
+
+DocumentChunk: 57
+embedded: 57
+pending: 0
+failed: 0
+stale: 0
+vector_id present: 57
+
+Qdrant:
+
+collection:
+ai_lab_document_chunks
+
+vectors: 57
+
+dimensions: 1024
+
+embedding model:
+qwen3-embedding:0.6b
+
+Pierwszy i drugi przebieg embedding service przy istniejącym stanie:
+
+selected_count: 0
+embedded_count: 0
+
+Liczba punktów Qdrant pozostaje:
+
+57
+
+Idempotency:
+
+OK
+
+KNOWLEDGE LAYER EMBEDDING E2E: OK
+
+
+SEMANTIC SEARCH REGRESSION:
+
+Test:
+backend/test/test_semantic_search_e2e.py
+
+queries: 4
+total_results: 20
+validation_errors: 0
+
+SEMANTIC SEARCH E2E: OK
+
+
+WAŻNE — AKTUALNE OGRANICZENIA JAKOŚCIOWE:
+
+Warstwa RAG posiada obecnie poprawny kontrakt strukturalny i bezpieczne
+powiązanie evidence ze źródłem, ale jakość wyboru informacji nie jest jeszcze
+docelowa.
+
+Problem nie jest już problemem integralności cytatu.
+
+Główne pozostałe problemy dotyczą retrieval quality oraz evidence ranking.
+
+
+1. CPT / evidence selection
+
+Dla pytania dotyczącego informacji i parametrów widocznych w badaniach CPT
+retrieval posiada wartościowe treści, w tym dokument opinii geotechnicznej
+oraz dane CPT.
+
+Jednak model może wybrać z retrieved context fragmenty zbyt ogólne, np.
+nagłówki lub informacje o zakresie dokumentacji, zamiast najbardziej
+informatywnych fragmentów opisujących parametry CPT.
+
+Oznacza to:
+
+evidence integrity = działa
+
+evidence relevance = wymaga dalszego rozwoju
+
+
+2. Semantic retrieval dla "osiadanie fundamentów"
+
+Aktualny dense vector retrieval zwraca wysoko fragmenty rysunku fundamentów,
+ponieważ semantycznie są związane z pojęciem fundamentów, mimo że nie opisują
+zjawiska osiadania.
+
+Docelowy retrieval powinien lepiej rozróżniać:
+
+"fundament"
+
+od:
+
+"osiadanie fundamentów"
+
+
+3. Low-information chunks
+
+W wynikach semantic search nadal może pojawić się treść:
+
+"----- Message truncated -----"
+
+Taki chunk posiada bardzo małą wartość informacyjną i nie powinien mieć
+takiej samej wartości retrievalowej jak pełnowartościowa dokumentacja.
+
+Potrzebny będzie mechanizm source/content quality filtering lub scoring.
+
+
+4. OCR quality
+
+Część źródeł pochodzi z OCR.
+
+Backend-controlled evidence celowo zachowuje dokładny tekst źródłowy,
+łącznie z błędami OCR.
+
+Jest to poprawne z punktu widzenia integralności dowodu.
+
+Docelowa warstwa odpowiedzi może interpretować taki materiał, ale nie może
+po cichu przedstawiać poprawionej wersji jako dokładnego cytatu źródłowego.
+
+
+ROZDZIELENIE WARSTW:
+
+Obecny RAG należy traktować przede wszystkim jako bezpieczną warstwę:
+
+retrieval + evidence.
+
+Nie jest to jeszcze finalna warstwa naturalnej odpowiedzi dla użytkownika CRM.
+
+Docelowo:
+
+verified evidence
+    |
+    v
+answer synthesis
+    |
+    v
+claims linked to evidence
+    |
+    v
+natural-language answer
+    |
+    v
+document/page/source citations
+
+Warstwa syntezy nie może osłabić gwarancji zapewnianych przez deterministic
+evidence layer.
+
+
+NASTĘPNE ZADANIA:
+
+[ ] Retrieval quality evaluation
+
+Zbudować kontrolowany zestaw:
+
+query
+expected relevant document/chunk
+expected irrelevant content
+
+oraz mierzyć jakość retrievalu automatycznie.
+
+
+[ ] Low-information filtering
+
+Ograniczyć wpływ chunków takich jak:
+
+"----- Message truncated -----"
+
+oraz innych treści o bardzo małej wartości informacyjnej.
+
+
+[ ] Retrieval ranking / hybrid search
+
+Rozważyć połączenie:
+
+semantic vector search
++
+PostgreSQL filters
++
+metadata
++
+keyword/full-text signals
++
+document/source quality
+
+bez zastępowania semantic search prostym SQL LIKE.
+
+
+[ ] Evidence ranking
+
+Poprawić wybór najbardziej informatywnych evidence z retrieved context.
+
+Model nie powinien preferować ogólnego nagłówka, jeżeli dostępny jest fragment
+bezpośrednio odpowiadający na pytanie.
+
+
+[ ] Grounded answer synthesis
+
+Nad verified evidence zbudować warstwę tworzącą naturalną odpowiedź.
+
+Każde istotne twierdzenie powinno być możliwe do powiązania z evidence.
+
+
+[ ] RAG API
+
+Udostępnić Knowledge Layer / Retrieval / RAG przez FastAPI dla przyszłego
+interfejsu CRM / Flutter.
+
+
+[ ] CRM integration
+
+Po uruchomieniu podstawowego API rozpocząć integrację Knowledge Layer
+z używalnym interfejsem CRM.
+
+Nie czekamy z pierwszym używalnym CRM do ukończenia wszystkich przyszłych
+modułów AI.
+
+
+NASTĘPNY GŁÓWNY KIERUNEK:
+
+RETRIEVAL QUALITY
+    |
+    v
+GROUNDED ANSWER SYNTHESIS
+    |
+    v
+RAG API
+    |
+    v
+FIRST USABLE CRM / FLUTTER INTEGRATION
+
+
+================================================================================
+END CHECKPOINT 2026-08-12 — DETERMINISTIC EVIDENCE-ID RAG
+================================================================================
+
 ================================================================================
 KONIEC MASTER PLAN
 ================================================================================
