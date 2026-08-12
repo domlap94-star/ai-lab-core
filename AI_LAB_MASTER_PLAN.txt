@@ -3586,5 +3586,343 @@ END CHECKPOINT 2026-08-12 — RETRIEVAL QUALITY 1.0
 ================================================================================
 
 ================================================================================
+CHECKPOINT 2026-08-13 — RAG API 1.0
+================================================================================
+
+STATUS:
+DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+Po uruchomieniu:
+
+Document Pipeline
+-> DocumentChunk 2.0
+-> Embeddings / Qdrant
+-> Semantic Search
+-> Retrieval Quality 1.0
+-> Deterministic Evidence-ID RAG
+
+warstwa RAG została udostępniona przez FastAPI.
+
+ENDPOINT:
+
+POST /api/v1/ai/rag
+
+Endpoint znajduje się w istniejącym routerze AI:
+
+backend/app/api/ai.py
+
+Nie utworzono równoległego systemu routerów.
+
+Istniejący endpoint:
+
+POST /api/v1/ai/chat
+
+pozostał dostępny.
+
+AUTORYZACJA:
+
+RAG API korzysta z istniejącego:
+
+get_current_user
+
+czyli wymaga poprawnego JWT.
+
+Anonimowe wywołanie endpointu zostało zweryfikowane:
+
+HTTP 401
+
+AUTHENTICATION BOUNDARY: OK
+
+
+REQUEST SCHEMA:
+
+backend/app/ai/schemas/rag_request.py
+
+Obsługiwane pola:
+
+question
+
+model
+domyślnie:
+llama3.2
+
+retrieval_limit
+
+client_id
+
+document_id
+
+content_type
+
+score_threshold
+
+Walidacja Pydantic obejmuje m.in.:
+
+question:
+min_length = 1
+max_length = 4000
+
+retrieval_limit:
+1..20
+
+score_threshold:
+0.0..1.0
+
+
+RESPONSE SCHEMA:
+
+backend/app/ai/schemas/rag_response.py
+
+RAG API zwraca:
+
+question
+answer
+model
+sources
+evidence
+claims
+cited_source_numbers
+generation_attempts
+
+Każdy source może zawierać:
+
+source_number
+score
+document_id
+chunk_id
+chunk_index
+filename
+page_from
+page_to
+client_id
+content_source
+fragment
+
+Każdy evidence zawiera:
+
+evidence_id
+source_number
+text
+
+Każdy claim zawiera:
+
+evidence_id
+source_number
+quote
+
+
+RAG API FLOW:
+
+HTTP request
+|
+v
+FastAPI
+|
+v
+JWT authentication
+|
+v
+RagRequest
+|
+v
+RagService
+|
+v
+SemanticSearchService
+|
+v
+qwen3-embedding:0.6b
+|
+v
+Qdrant
+|
+v
+Retrieval Quality 1.0
+|
+v
+deterministic evidence segmentation
+|
+v
+EVIDENCE_ID selection
+|
+v
+backend-controlled evidence
+|
+v
+RagApiResponse
+
+
+HTTP E2E TEST:
+
+backend/test/test_rag_api_e2e.py
+
+Potwierdzone:
+
+[✓] anonimowy request odrzucony HTTP 401
+
+[✓] authenticated HTTP request HTTP 200
+
+[✓] request przechodzi przez FastAPI routing
+
+[✓] request przechodzi przez Pydantic validation
+
+[✓] endpoint wywołuje realny RagService
+
+[✓] realny semantic retrieval
+
+[✓] realne embeddings
+
+[✓] realny Qdrant
+
+[✓] realny lokalny LLM
+
+[✓] sources obecne w poprawnej odpowiedzi
+
+[✓] evidence obecne
+
+[✓] claims obecne
+
+[✓] claim -> evidence mapping poprawne
+
+[✓] evidence -> source mapping poprawne
+
+[✓] cited_source_numbers poprawne
+
+[✓] no-source behavior działa
+
+[✓] pusty / niepoprawny request zwraca HTTP 422
+
+
+NO-SOURCE HTTP BEHAVIOR:
+
+Dla zapytania kontrolnego bez wystarczających źródeł system zwraca:
+
+HTTP 200
+
+oraz bezpieczną odpowiedź:
+
+"Nie znaleziono wystarczających źródeł w dokumentacji, aby udzielić odpowiedzi."
+
+sources: 0
+evidence: 0
+claims: 0
+
+System nie generuje sztucznej odpowiedzi bez evidence.
+
+
+OPENAPI:
+
+Endpoint jest obecny w OpenAPI:
+
+/api/v1/ai/rag
+
+method:
+POST
+
+requestBody:
+present
+
+responses:
+
+200
+422
+
+RAG OPENAPI SCHEMA: OK
+
+
+REGRESJE:
+
+[✓] RAG API HTTP E2E
+
+[✓] Deterministic Evidence-ID RAG E2E
+
+[✓] Semantic Search E2E
+
+[✓] Retrieval Quality 1.0 zachowany
+
+[✓] OpenAPI schema validation
+
+[✓] Python compile
+
+[✓] git diff --check
+
+
+WAŻNA GRANICA ARCHITEKTONICZNA:
+
+RAG API nie zastępuje jeszcze ChatService.
+
+Obecnie istnieją dwa różne przepływy:
+
+/ai/chat
+- klasyczny lokalny chat
+- zapisuje Conversation i Message
+
+/ai/rag
+- retrieval + grounded evidence
+- nie zapisuje jeszcze rozmowy
+- przeznaczony do pracy na dokumentacji CRM
+
+Nie łączymy tych dwóch przepływów przed potwierdzeniem stabilnego API.
+
+
+AKTUALNY STABILNY ŁAŃCUCH:
+
+Document Processing
+|
+v
+DocumentChunk 2.0
+|
+v
+Embeddings
+|
+v
+Qdrant
+|
+v
+Semantic Search
+|
+v
+Retrieval Quality 1.0
+|
+v
+Deterministic Evidence-ID RAG
+|
+v
+RAG API 1.0
+
+
+NASTĘPNY GŁÓWNY KIERUNEK:
+
+FIRST USABLE CRM API / FLUTTER
+
+W pierwszej kolejności należy rozpocząć budowę używalnego interfejsu CRM,
+zamiast odkładać frontend do czasu ukończenia wszystkich modułów AI.
+
+Priorytet:
+
+[ ] lista klientów
+
+[ ] szczegóły klienta
+
+[ ] dokumenty klienta
+
+[ ] upload dokumentów
+
+[ ] pierwsze pole wyszukiwania / AI query
+
+[ ] wykorzystanie POST /api/v1/ai/rag
+
+[ ] późniejsza integracja RAG z conversation history
+
+[ ] grounded answer synthesis nad verified evidence
+
+[ ] dalsze rozszerzanie hybrid retrieval
+
+
+================================================================================
+END CHECKPOINT 2026-08-13 — RAG API 1.0
+================================================================================
+
+================================================================================
 KONIEC MASTER PLAN
 ================================================================================
