@@ -1,4 +1,4 @@
-﻿================================================================================
+================================================================================
 AI-LAB — MASTER PLAN / SPECYFIKACJA SYSTEMU
 ================================================================================
 
@@ -1884,7 +1884,7 @@ Należy przewidzieć kolejkę / job system dla:
 
 [ ] asset extraction
 
-[ ] embeddings
+[→] embeddings - AKTUALNY ETAP
 
 [ ] Vision
 
@@ -2021,9 +2021,9 @@ NAJBLIŻSZY ETAP:
 
 NASTĘPNIE NATYCHMIAST ROZPOCZĄĆ:
 
-[ ] DocumentChunk 2.0
+[✓] DocumentChunk 2.0
 
-[ ] embeddings
+[→] embeddings - AKTUALNY ETAP
 
 [ ] Qdrant knowledge index
 
@@ -2262,7 +2262,7 @@ FAZA E — BATCH VALIDATION
 
 FAZA F — KNOWLEDGE LAYER
 [→] AKTUALNY ETAP
-[ ] embeddings
+[→] embeddings - AKTUALNY ETAP
 [ ] Qdrant
 
 
@@ -2476,7 +2476,7 @@ PHASE F - KNOWLEDGE LAYER
 
 Immediate objective:
 
-[ ] DocumentChunk 2.0
+[✓] DocumentChunk 2.0
 
 Planned capabilities:
 
@@ -2536,6 +2536,124 @@ This layer will become the foundation for:
 ================================================================================
 END CHECKPOINT 2026-08-11
 
+
+================================================================================
+CHECKPOINT 2026-08-12 - DOCUMENT CHUNK 2.0 COMPLETE
+================================================================================
+
+STATUS:
+[COMPLETED] DocumentChunk 2.0
+[NEXT] Embeddings and Qdrant semantic index
+
+DATABASE / MODEL:
+
+[X] DocumentChunk upgraded for Knowledge Layer.
+
+[X] Added page-aware source tracking:
+- page_from
+- page_to
+
+[X] Added content source tracking:
+- source_type
+- content_source
+
+[X] Added content lifecycle fields:
+- character_count
+- content_hash
+- chunking_version
+
+[X] Added embedding lifecycle fields:
+- embedding_status
+- embedding_model
+- embedding_version
+- vector_id
+- embedding_error
+- embedded_at
+
+[X] Added timestamps:
+- created_at
+- updated_at
+
+[X] Added indexes and unique constraints.
+
+[X] Alembic migration applied successfully.
+Revision: 98987aa23248
+
+CHUNKING SERVICE:
+
+[X] Deterministic chunk generation.
+[X] Page-aware chunking.
+[X] Document-level fallback.
+[X] Native/OCR source awareness.
+[X] SHA-256 content hashing.
+[X] Chunking version tracking.
+[X] Sequential chunk indexes.
+[X] Embedding status initialized as pending.
+[X] Idempotent processing.
+[X] Force re-chunking.
+[X] Text overlap.
+[X] Paragraph-aware splitting.
+[X] Sentence-aware splitting of long blocks.
+
+REGRESSION TEST:
+
+Formats tested:
+- PDF
+- DOC
+- DOCX
+- ODT
+- XLS
+- XLSX
+- PNG
+- HEIC
+- RFC822
+- archive child PDF
+- CPT PDF
+
+Results:
+
+configured_documents: 12
+skipped_documents: 0
+chunked_documents: 11
+no_text_documents: 1
+total_chunks: 57
+page_aware_chunks: 54
+document_level_chunks: 3
+failures: 0
+
+DOCUMENT CHUNKING FORMAT REGRESSION: OK
+
+KNOWLEDGE LAYER STATE:
+
+The processing chain now supports:
+
+Document
+-> DocumentPage
+-> DocumentChunk
+-> future Embedding
+-> future Qdrant vector
+-> future Semantic Search
+-> future RAG
+-> future AI Assistant
+
+NEXT ACTIVE WORK:
+
+[ ] Select embedding model.
+[ ] Create EmbeddingService.
+[ ] Generate embeddings for DocumentChunk.
+[ ] Add Qdrant infrastructure.
+[ ] Create Qdrant collection.
+[ ] Persist vector_id in DocumentChunk.
+[ ] Implement idempotent embedding processing.
+[ ] Implement semantic search.
+[ ] Add client and document metadata filters.
+[ ] Create retrieval API for CRM.
+[ ] Use retrieval for document-to-client matching.
+[ ] Use retrieval for RAG with source traceability.
+
+================================================================================
+END CHECKPOINT 2026-08-12 - DOCUMENT CHUNK 2.0
+================================================================================
 KONIEC MASTER PLAN
 ================================================================================
 
