@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'client_form_dialog.dart';
 
 import '../application/clients_controller.dart';
@@ -150,7 +151,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                           child: _ClientCard(
                             client: client,
                             onTap: () {
-                              _showClientPreview(context, client);
+                              context.go('/clients/${client.id}');
                             },
                           ),
                         ),
@@ -163,29 +164,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
           ),
         ],
       ),
-    );
-  }
-
-  void _showClientPreview(BuildContext context, Client client) {
-    showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: Text(client.displayName),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: SingleChildScrollView(child: _ClientPreview(client: client)),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Zamknij'),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -584,69 +562,6 @@ class _ClientInformation extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ClientPreview extends StatelessWidget {
-  const _ClientPreview({required this.client});
-
-  final Client client;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        _PreviewRow(label: 'Typ', value: client.clientType.displayName),
-        _PreviewRow(label: 'Nazwa prawna', value: client.legalName),
-        _PreviewRow(label: 'NIP', value: client.taxId),
-        _PreviewRow(
-          label: 'Numer rejestracyjny',
-          value: client.registrationNumber,
-        ),
-        _PreviewRow(label: 'Branża', value: client.industry?.name),
-        _PreviewRow(label: 'E-mail', value: client.primaryEmail),
-        _PreviewRow(label: 'Telefon', value: client.primaryPhone),
-        _PreviewRow(label: 'Strona internetowa', value: client.website),
-        _PreviewRow(
-          label: 'Adres',
-          value: client.address.isEmpty ? null : client.address,
-        ),
-        _PreviewRow(label: 'Notatki', value: client.notes),
-      ],
-    );
-  }
-}
-
-class _PreviewRow extends StatelessWidget {
-  const _PreviewRow({required this.label, required this.value});
-
-  final String label;
-  final String? value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final String displayedValue = value?.trim().isNotEmpty == true
-        ? value!.trim()
-        : 'Brak danych';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            label,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 3),
-          SelectableText(displayedValue, style: theme.textTheme.bodyLarge),
-        ],
-      ),
     );
   }
 }

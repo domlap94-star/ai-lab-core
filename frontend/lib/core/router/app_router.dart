@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/ai/presentation/ai_page.dart';
 import '../../features/cases/presentation/cases_page.dart';
+import '../../features/clients/presentation/client_details_page.dart';
 import '../../features/clients/presentation/clients_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/documents/presentation/documents_page.dart';
@@ -33,6 +34,20 @@ final GoRouter appRouter = GoRouter(
           path: '/clients',
           builder: (BuildContext context, GoRouterState state) {
             return const ClientsPage();
+          },
+        ),
+        GoRoute(
+          path: '/clients/:clientId',
+          builder: (BuildContext context, GoRouterState state) {
+            final int? clientId = int.tryParse(
+              state.pathParameters['clientId'] ?? '',
+            );
+
+            if (clientId == null || clientId <= 0) {
+              return const ClientsPage();
+            }
+
+            return ClientDetailsPage(clientId: clientId);
           },
         ),
         GoRoute(

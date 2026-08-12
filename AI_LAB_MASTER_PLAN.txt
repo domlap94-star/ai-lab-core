@@ -3924,5 +3924,128 @@ END CHECKPOINT 2026-08-13 — RAG API 1.0
 ================================================================================
 
 ================================================================================
+
+================================================================================
+CHECKPOINT 2026-08-13 — CLIENT DETAILS 1.0
+================================================================================
+
+STATUS:
+DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+Pierwszy pionowy slice CRM został rozszerzony o ekran szczegółów klienta
+w aplikacji Flutter.
+
+IMPLEMENTACJA:
+
+[✓] clientDetailsProvider
+[✓] route /clients/:clientId
+[✓] ClientDetailsPage
+[✓] przejście z listy klientów do szczegółów
+[✓] odświeżanie danych klienta
+[✓] obsługa loading / error
+[✓] responsywny ekran szczegółów
+
+EKRAN KLIENTA:
+
+- typ klienta
+- nazwa
+- nazwa prawna
+- branża
+- NIP
+- numer rejestracyjny
+- e-mail
+- telefon
+- strona internetowa
+- adres
+- notatki
+- informacje systemowe
+
+GOOGLE MAPS:
+
+Dodano url_launcher.
+
+Ekran klienta posiada akcję otwierającą adres klienta
+w Google Maps.
+
+Na fikcyjnych danych jakość geokodowania nie jest miarodajna.
+Funkcja będzie dalej weryfikowana na rzeczywistych adresach.
+
+MOBILE CALL:
+
+Na Android oraz iOS klient posiada akcję:
+
+Zadzwoń
+
+Mechanizm wykorzystuje:
+
+tel:<normalized_phone_number>
+
+Akcja nie jest renderowana na Windows oraz Web.
+
+ANDROID:
+
+Zweryfikowano runtime na emulatorze Pixel 8.
+
+[✓] Android emulator działa
+[✓] Flutter wykrywa emulator
+[✓] aplikacja uruchamia się
+[✓] Client Details działa
+[✓] akcja telefoniczna działa
+
+WINDOWS:
+
+[✓] Flutter analyze
+[✓] Windows build
+[✓] Client Details runtime
+
+DEPENDENCY:
+
+url_launcher
+
+CLIENT DATA STATUS:
+
+documents: 5889
+documents_with_client_id: 0
+
+CLIENT DISCOVERY BASELINE:
+
+gmail_documents: 5887
+gmail_documents_with_usable_email_metadata: 13
+metadata_coverage_percent: 0.221
+unique_external_email_candidates: 11
+candidate_parser_operational: True
+metadata_backfill_required: True
+
+WNIOSEK:
+
+Client Discovery działa na dostępnych metadanych Gmail,
+ale obecne pokrycie wynoszące 0.221% jest niewystarczające.
+
+NEXT:
+
+GMAIL METADATA BACKFILL
+|
+v
+Client Discovery
+|
+v
+Client Candidate
+|
+v
+confidence / evidence
+|
+v
+user approval
+|
+v
+Client creation / assignment
+|
+v
+Document.client_id backfill
+
+================================================================================
+END CHECKPOINT 2026-08-13 — CLIENT DETAILS 1.0
+================================================================================
+
 KONIEC MASTER PLAN
 ================================================================================
