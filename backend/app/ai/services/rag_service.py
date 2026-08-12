@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import re
@@ -224,10 +224,12 @@ class RagService:
                 )
 
                 if not selected_ids:
-                    return self._no_source_response(
-                        question=cleaned_question,
-                        model=response_model,
+                    last_error = RuntimeError(
+                        "LLM selected no evidence despite "
+                        "available retrieval sources."
                     )
+
+                    continue
 
                 claims = (
                     self._resolve_claims(

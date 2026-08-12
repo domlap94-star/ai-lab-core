@@ -1,4 +1,4 @@
-﻿================================================================================
+================================================================================
 AI-LAB — MASTER PLAN / SPECYFIKACJA SYSTEMU
 ================================================================================
 
@@ -3440,6 +3440,149 @@ FIRST USABLE CRM / FLUTTER INTEGRATION
 
 ================================================================================
 END CHECKPOINT 2026-08-12 — DETERMINISTIC EVIDENCE-ID RAG
+================================================================================
+
+
+================================================================================
+CHECKPOINT 2026-08-12 — RETRIEVAL QUALITY 1.0
+================================================================================
+
+STATUS:
+DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+Po uruchomieniu Knowledge Layer oraz deterministic evidence-grounded RAG
+wykonano pierwszy kontrolowany etap poprawy jakości retrievalu.
+
+IMPLEMENTACJA:
+
+[✓] stały Retrieval Quality baseline
+[✓] jawne expected-positive documents
+[✓] jawne forbidden documents
+[✓] Hit@1 / Hit@3 / Hit@5
+[✓] Mean Reciprocal Rank
+[✓] forbidden hit validation
+[✓] candidate over-fetch przed finalnym TOP K
+[✓] low-information filtering
+[✓] document diversity
+[✓] maksymalnie 2 chunki z jednego dokumentu w finalnym rankingu
+[✓] zachowanie oryginalnych Qdrant similarity scores
+[✓] Semantic Search regression
+[✓] deterministic RAG regression
+[✓] Knowledge Layer regression
+
+RETRIEVAL PIPELINE:
+
+query
+|
+v
+qwen3-embedding:0.6b
+|
+v
+Qdrant semantic search
+|
+v
+candidate over-fetch x3
+|
+v
+low-information filtering
+|
+v
+document diversity
+MAX_CHUNKS_PER_DOCUMENT = 2
+|
+v
+final TOP K
+
+FINAL BASELINE:
+
+cases_with_expected: 3
+
+Hit@1:
+2/3
+
+Hit@3:
+3/3
+
+Hit@5:
+3/3
+
+MRR:
+0.833333
+
+forbidden_hits:
+0
+
+ZWERYFIKOWANE PRZYPADKI:
+
+wall_cracks
+- właściwy dokument na rank #1
+- właściwy dokument również na rank #2
+
+cpt
+- właściwe dokumenty CPT zajmują rank #1-#5
+- retrieval obejmuje dane qc, opinię geotechniczną oraz wykresy CPT
+
+floor_lifting_contract
+- oferta pozostaje rank #1
+- właściwa umowa rank #2
+- właściwa umowa rank #3
+- document diversity nie usunęło wymaganych wyników
+
+foundation_settlement
+- pozostaje qualitative failure case
+- brak skonfigurowanego expected-positive document w aktualnym korpusie
+- problem nie powinien być maskowany heurystykami retrievalu
+- wymaga przyszłego rozszerzenia / poprawy korpusu lub osobnej ewaluacji
+
+REGRESSION STATUS:
+
+[✓] Retrieval Quality baseline
+[✓] Semantic Search E2E
+[✓] Deterministic Evidence-ID RAG E2E
+[✓] Knowledge Layer E2E
+[✓] git diff --check
+
+DECYZJA:
+
+Document diversity zostaje w produkcyjnej ścieżce retrievalu.
+
+Aktualna konserwatywna wartość:
+
+MAX_CHUNKS_PER_DOCUMENT = 2
+
+Nie wdrażamy obecnie:
+- ręcznego score boostingu
+- keyword boostingu
+- filename boostingu
+- content-type boostingu
+- rerankera
+- heurystycznego naprawiania foundation_settlement
+
+Powód:
+
+Aktualny benchmark osiąga:
+
+Hit@3 = 100%
+Hit@5 = 100%
+forbidden_hits = 0
+
+Dalsze heurystyki bez większego benchmarku mogłyby prowadzić do overfittingu
+pod mały zestaw testowy.
+
+RETRIEVAL QUALITY 1.0: COMPLETE
+
+NEXT:
+
+RAG API
+|
+v
+pierwszy stabilny endpoint Knowledge/RAG
+|
+v
+integracja z CRM / Flutter
+
+================================================================================
+END CHECKPOINT 2026-08-12 — RETRIEVAL QUALITY 1.0
 ================================================================================
 
 ================================================================================
