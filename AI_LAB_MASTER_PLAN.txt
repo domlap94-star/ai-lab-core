@@ -1,4 +1,4 @@
-================================================================================
+﻿================================================================================
 AI-LAB — MASTER PLAN / SPECYFIKACJA SYSTEMU
 ================================================================================
 
@@ -6,7 +6,7 @@ Status dokumentu:
 AKTYWNA SPECYFIKACJA PROJEKTOWA
 
 Data aktualizacji:
-2026-08-11
+2026-08-12
 
 Repozytorium:
 ai-lab-core
@@ -2653,9 +2653,410 @@ NEXT ACTIVE WORK:
 
 ================================================================================
 END CHECKPOINT 2026-08-12 - DOCUMENT CHUNK 2.0
+
 ================================================================================
-KONIEC MASTER PLAN
 ================================================================================
 
 ================================================================================
+CHECKPOINT 2026-08-12 — KNOWLEDGE LAYER / EMBEDDINGS / SEMANTIC SEARCH
+================================================================================
+
+STATUS:
+DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+Knowledge Layer został doprowadzony do pierwszego kompletnego działającego
+przepływu:
+
+DocumentChunk
+    |
+    v
+EmbeddingService
+    |
+    v
+Ollama
+    |
+    v
+qwen3-embedding:0.6b
+    |
+    v
+1024-dimensional embedding
+    |
+    v
+QdrantVectorStore
+    |
+    v
+Qdrant
+    |
+    v
+vector_id / embedding status w PostgreSQL
+    |
+    v
+SemanticSearchService
+    |
+    v
+semantic search na rzeczywistych dokumentach
+
+
+IMPLEMENTACJA:
+
+Dodano / rozwinięto:
+
+[✓] OllamaEmbeddingClient
+
+[✓] EmbeddingService
+
+[✓] QdrantVectorStore
+
+[✓] SemanticSearchService
+
+[✓] DocumentChunkRepository — obsługa stanu embeddingów
+
+[✓] konfiguracja Knowledge Layer
+
+[✓] zależności Qdrant
+
+[✓] test Knowledge Layer E2E
+
+[✓] test Semantic Search E2E
+
+
+EMBEDDING MODEL:
+
+Model:
+qwen3-embedding:0.6b
+
+Embedding dimension:
+1024
+
+Batch embedding:
+[✓] działa
+
+Single embedding:
+[✓] działa
+
+
+QDRANT:
+
+Server:
+1.18.3
+
+Python client:
+1.18.0
+
+Collection:
+ai_lab_document_chunks
+
+Vector size:
+1024
+
+Aktualna liczba punktów:
+57
+
+
+POSTGRESQL / DOCUMENT CHUNK:
+
+Stan po zakończeniu embeddingu:
+
+DocumentChunk:
+57
+
+embedded:
+57
+
+pending:
+0
+
+failed:
+0
+
+stale:
+0
+
+vector_id present:
+57
+
+
+EMBEDDING E2E:
+
+Pierwsze pełne uruchomienie:
+
+selected_count:
+57
+
+embedded_count:
+57
+
+failed_count:
+0
+
+Qdrant vectors:
+57
+
+Wszystkie istniejące DocumentChunk zostały poprawnie osadzone i zapisane
+w Qdrant.
+
+Każdy zaembedowany chunk posiada vector_id w PostgreSQL.
+
+
+IDEMPOTENCY:
+
+Ponowne uruchomienie EmbeddingService:
+
+selected_count:
+0
+
+embedded_count:
+0
+
+failed_count:
+0
+
+Qdrant vectors:
+57
+
+Potwierdzono:
+
+[✓] brak ponownego embeddingu poprawnych chunków
+
+[✓] brak duplikowania punktów Qdrant
+
+[✓] stabilną liczbę 57 wektorów
+
+[✓] trwałość statusów embeddingów
+
+[✓] zgodność PostgreSQL <-> Qdrant
+
+
+SEMANTIC SEARCH:
+
+SemanticSearchService został uruchomiony na rzeczywistych dokumentach.
+
+Testowe natural-language queries:
+
+1.
+problemy z pękaniem ścian
+
+2.
+osiadanie fundamentów
+
+3.
+badania gruntu CPT
+
+4.
+umowa dotycząca podnoszenia posadzki
+
+
+Każde zapytanie zwróciło TOP 5 wyników.
+
+Łącznie:
+
+queries:
+4
+
+results:
+20
+
+validation_errors:
+0
+
+
+Potwierdzono:
+
+[✓] generowanie embeddingu zapytania
+
+[✓] wyszukiwanie wektorowe w Qdrant
+
+[✓] ranking według similarity score
+
+[✓] mapowanie wyników na dokument i chunk
+
+[✓] document_id
+
+[✓] chunk_id
+
+[✓] chunk_index
+
+[✓] filename
+
+[✓] page_from / page_to
+
+[✓] content_source
+
+[✓] fragment źródłowy
+
+[✓] poprawną kolejność wyników według score
+
+
+OCENA JAKOŚCI RETRIEVALU:
+
+Zapytanie:
+"problemy z pękaniem ścian"
+
+Wyniki:
+DOBRE.
+
+Najwyższe wyniki prowadzą do opinii technicznej zawierającej rzeczywiste
+zarysowania i rysy ścian.
+
+
+Zapytanie:
+"badania gruntu CPT"
+
+Wyniki:
+BARDZO DOBRE.
+
+Najwyższe wyniki obejmują:
+
+- arkusz danych CPT-1 / CPT-2 i qc,
+- opinię geotechniczną opisującą interpretację sondowań CPT,
+- dokument CPT-1.pdf.
+
+
+Zapytanie:
+"umowa dotycząca podnoszenia posadzki"
+
+Wyniki:
+DOBRE, ALE WYMAGAJĄ PÓŹNIEJSZEGO RERANKINGU.
+
+Wyniki zawierają właściwy:
+Wzór_umowy_podnoszenie.docx
+
+oraz dokument ofertowy związany z podnoszeniem posadzki.
+
+Czyste similarity search poprawnie rozpoznaje temat, ale nie zawsze dokładnie
+rozpoznaje intencję typu dokumentu.
+
+
+Zapytanie:
+"osiadanie fundamentów"
+
+Wyniki:
+CZĘŚCIOWO TRAFNE.
+
+Wyszukiwanie mocno rozpoznało pojęcie fundamentów, ale najwyżej sklasyfikowało
+rysunek fundamentów zamiast dokumentu opisującego samo zjawisko osiadania.
+
+Jest to znane ograniczenie czystego vector similarity search i jeden z powodów
+budowy późniejszego Hybrid Search / rerankingu.
+
+
+WNIOSKI:
+
+Semantic Search działa jako rzeczywisty element Knowledge Layer.
+
+System nie wykorzystuje SQL LIKE jako mechanizmu semantic search.
+
+Natural-language query jest zamieniane na embedding, a następnie porównywane
+z wektorami rzeczywistych DocumentChunk w Qdrant.
+
+Pierwszy działający Knowledge Layer został tym samym osiągnięty.
+
+
+FINAL REGRESSION:
+
+[✓] Python compile
+
+[✓] Embedding E2E
+
+[✓] PostgreSQL embedding state
+
+[✓] Qdrant vector count
+
+[✓] embedding idempotency
+
+[✓] Semantic Search E2E
+
+[✓] semantic result structural validation
+
+Wynik:
+
+KNOWLEDGE LAYER FINAL REGRESSION: OK
+
+
+WAŻNE OBSERWACJE NA KOLEJNE ETAPY:
+
+[ ] Hybrid Search
+
+Połączyć:
+
+- vector similarity,
+- PostgreSQL filters,
+- metadata,
+- typ dokumentu,
+- klienta,
+- lokalizację,
+- daty,
+- keyword/full-text search.
+
+
+[ ] Retrieval reranking
+
+Dodać możliwość premiowania wyników zgodnych z intencją zapytania, np.:
+
+"umowa" -> dokument typu umowa
+
+"CPT" -> dokumentacja geotechniczna / sondowania
+
+"osiadanie" -> treści opisujące zjawisko, a nie wyłącznie dokument zawierający
+pojęcie fundamentu.
+
+
+[ ] Retrieval quality tests
+
+Rozbudować zestaw kontrolowanych zapytań i expected-relevant documents,
+aby jakość retrievalu mogła być mierzona automatycznie.
+
+
+[ ] Source quality
+
+Treści o bardzo niskiej wartości informacyjnej, np.:
+
+"----- Message truncated -----"
+
+nie powinny w przyszłości otrzymywać takiej samej wartości retrievalowej jak
+pełnowartościowe dokumenty.
+
+
+NASTĘPNY GŁÓWNY ETAP:
+
+RETRIEVAL / RAG / API.
+
+Najbliższy kierunek:
+
+semantic search
+    |
+    v
+retrieval context
+    |
+    v
+LLM
+    |
+    v
+odpowiedź oparta na dokumentach
+    |
+    v
+cytowane źródła
+
+RAG powinien zachować możliwość wskazania minimum:
+
+- document_id,
+- filename,
+- chunk_id,
+- strony / zakresu stron,
+- fragmentu źródłowego,
+- klienta, jeśli istnieje,
+- similarity / retrieval score.
+
+AI nie powinno przedstawiać informacji jako pochodzącej z dokumentacji,
+jeżeli retrieval nie dostarczył odpowiednich źródeł.
+
+Po podstawowym RAG należy przygotować API umożliwiające wykorzystanie
+Knowledge Layer przez przyszły interfejs CRM / Flutter.
+
+================================================================================
+KONIEC CHECKPOINTU KNOWLEDGE LAYER 2026-08-12
+================================================================================
+
+================================================================================
+KONIEC MASTER PLAN
 ================================================================================

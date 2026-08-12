@@ -66,6 +66,19 @@ class Settings(BaseSettings):
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
 
+    # ==========================================================
+    # Knowledge layer / embeddings
+    # ==========================================================
+
+    embedding_model: str = "qwen3-embedding:0.6b"
+    embedding_dimensions: int = 1024
+    embedding_batch_size: int = 32
+    embedding_version: str = "v1"
+
+    qdrant_document_chunks_collection: str = (
+        "ai_lab_document_chunks"
+    )
+
     n8n_url: str = "http://n8n:5678"
 
     # ==========================================================
