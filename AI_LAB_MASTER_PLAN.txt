@@ -2257,11 +2257,11 @@ FAZA D — DOCUMENT INTELLIGENCE
 
 
 FAZA E — BATCH VALIDATION
-[ ] AKTUALNY ETAP
+[✓] ZAKOŃCZONA
 
 
 FAZA F — KNOWLEDGE LAYER
-[ ] DocumentChunk 2.0
+[→] AKTUALNY ETAP
 [ ] embeddings
 [ ] Qdrant
 
@@ -2341,5 +2341,203 @@ Po istotnej zmianie wizji projektu należy zaktualizować również ten dokument
 
 
 ================================================================================
+
+CHECKPOINT 2026-08-11 - DOCUMENT PIPELINE VALIDATION COMPLETE
+================================================================================
+
+STATUS:
+[COMPLETED] Document ingestion and processing validation
+[NEXT] Knowledge Layer / DocumentChunk 2.0
+
+COMPLETED IN THIS PHASE:
+
+[X] Real-world batch validation of the document processing pipeline.
+
+[X] Processing pipeline verified against multiple real document formats.
+
+[X] PDF processing:
+    - native text extraction,
+    - OCR,
+    - page rendering,
+    - metadata extraction,
+    - page persistence.
+
+[X] Microsoft Word processing:
+    - DOC,
+    - DOCX,
+    - native text extraction,
+    - LibreOffice page rendering,
+    - OCR of rendered pages,
+    - embedded graphical asset extraction.
+
+[X] OpenDocument processing:
+    - ODT extraction,
+    - page rendering,
+    - OCR.
+
+[X] Spreadsheet processing:
+    - XLS,
+    - XLSX,
+    - structured text extraction.
+
+[X] RFC822 / email document processing.
+
+[X] Archive processing:
+    - ZIP extraction,
+    - archive member persistence as child documents,
+    - parent/child document hierarchy,
+    - idempotent archive import.
+
+[X] DocumentAsset infrastructure:
+    - embedded images and graphical assets can be persisted separately,
+    - assets remain linked to their source document.
+
+[X] Office document visual processing:
+    - DOC documents can be converted to PDF,
+    - pages can be rendered to PNG,
+    - rendered pages are stored in DocumentPage,
+    - OCR can be executed against rendered pages.
+
+[X] OCR infrastructure:
+    - Tesseract installed in backend container,
+    - Polish/English OCR pipeline operational,
+    - OCR page results persisted,
+    - idempotent OCR processing verified.
+
+[X] HEIC image processing:
+    - HEIC files are processed,
+    - EXIF metadata is extracted,
+    - capture timestamp is retained when available,
+    - OCR works on HEIC images.
+
+[X] JSON metadata sanitization:
+    - NaN values are converted to null/None,
+    - positive infinity is converted to null/None,
+    - negative infinity is converted to null/None,
+    - nested metadata structures are sanitized recursively,
+    - invalid EXIF GPS values no longer break PostgreSQL JSON storage.
+
+REAL-WORLD HEIC REGRESSION:
+
+Document 3277:
+    filename: 20221012_170308.heic
+    result: processed
+    metadata: processed
+    OCR characters: 939
+    failed pages: 0
+
+Document 2879:
+    filename: 20220802_115636.heic
+    result: processed
+    metadata: processed
+    OCR characters: 572
+    failed pages: 0
+
+Regression result:
+    tested: 2
+    failed: 0
+
+    HEIC NAN METADATA FIX: OK
+
+BATCH VALIDATION RESULT:
+
+Initial real-world batch:
+    documents tested: 50
+    hard failures: 2
+
+Both hard failures were caused by invalid NaN values present in HEIC EXIF/GPS
+metadata.
+
+The metadata sanitizer was corrected globally and both failing documents were
+successfully reprocessed.
+
+Remaining unsupported formats observed during validation include:
+
+    - DWG
+    - SDN
+    - AMP HTML
+    - GIF
+
+These formats are currently considered NON-BLOCKING for the first CRM MVP and
+may be implemented in later compatibility phases.
+
+PHASE STATUS:
+
+PHASE E - DOCUMENT PIPELINE / BATCH VALIDATION
+[COMPLETED]
+
+The ingestion and document-processing foundation is considered sufficiently
+stable to begin development of the AI knowledge layer.
+
+NEXT DEVELOPMENT PHASE:
+
+PHASE F - KNOWLEDGE LAYER
+[IN PROGRESS]
+
+Immediate objective:
+
+[ ] DocumentChunk 2.0
+
+Planned capabilities:
+
+[ ] deterministic document chunking
+[ ] page-aware chunks
+[ ] source-aware chunks
+[ ] content hashing
+[ ] chunking versioning
+[ ] embedding lifecycle status
+[ ] embedding model/version tracking
+[ ] idempotent re-chunking
+[ ] semantic indexing
+[ ] vector embeddings
+[ ] Qdrant integration
+[ ] semantic search
+[ ] metadata-filtered semantic search
+[ ] document/page traceability
+[ ] citation-ready retrieval
+[ ] client-aware retrieval
+[ ] hybrid retrieval where appropriate
+
+TARGET FLOW:
+
+Document
+    ->
+DocumentPage / DocumentAsset / extracted text
+    ->
+DocumentChunk
+    ->
+Embedding
+    ->
+Vector index
+    ->
+Semantic search
+    ->
+Relevant source fragments
+    ->
+AI reasoning / RAG
+    ->
+Answer with traceable source context
+
+This layer will become the foundation for:
+
+    - intelligent CRM search,
+    - searching clients using natural language,
+    - searching documents using meaning rather than exact keywords,
+    - automatic client-document matching,
+    - confidence-based assignment suggestions,
+    - AI analysis of client documentation,
+    - technical document analysis,
+    - future offer generation,
+    - future contract generation,
+    - future engineering calculation workflows,
+    - future standards and Internet-assisted technical research,
+    - virtual assistant functionality across the CRM.
+
+================================================================================
+END CHECKPOINT 2026-08-11
+
 KONIEC MASTER PLAN
+================================================================================
+
+================================================================================
 ================================================================================
