@@ -1,0 +1,167 @@
+
+============================================================================================================================================
+CLIENT ENTITY PROJECTION 1.4.6
+============================================================================================================================================
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2535
+entity: 'Eko-bud'
+type: company
+units: []
+contacts:
+   'Adrian Cicho┼ä' | role: None | email: 'koordynator@ekobud.com' | phone: '693366106' | sources: (2578, 3699)
+   'Zofia Deliga' | role: None | email: 'koordynator@ekobud.com' | phone: None | sources: (3699, 3700, 4130, 4182)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2657
+entity: 'Korporacja Budowlana DORACO Sp. z o. o'
+type: company
+units: ['Oddzia┼é w Warszawie']
+contacts:
+   'Marcin Mykieta' | role: 'Specjalista ds. ofertowania' | email: 'marcin.mykieta@doraco.pl' | phone: '734499850' | sources: (2836,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2764
+entity: 'EMER BUILD sp. z o.o'
+type: company
+units: []
+contacts:
+   'Sylwester Zie┼äczuk' | role: 'Koordynator Budowy' | email: 'sylwester.zienczuk@emer-build.pl' | phone: '500477118' | sources: (3193, 3576, 3595, 3738, 3888, 6336)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2867
+entity: 'ArcelorMittal Distribution Solutions Poland Sp. z o.o'
+type: company
+units: []
+contacts:
+   'Moldrzik, Pawel' | role: None | email: 'pawel.moldrzik@arcelormittal.com' | phone: None | sources: (3642,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2933
+entity: '"A.Weber" sp├│┼éka z o.o'
+type: company
+units: []
+contacts:
+   'Stanis┼éaw Kr├│tki' | role: 'Dyrektor Techniczny' | email: 'stanislaw.krotki@weber-mining.pl' | phone: '601491582' | sources: (3926,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3269
+entity: 'Starostwo Powiatowe w ┼üowiczu'
+type: institution
+units: []
+contacts:
+   'Jaros┼éaw Burzykowski' | role: 'Dyrektor Wydzia┼éu Organizacyjnego' | email: 'jaroslaw.burzykowski@powiatlowicki.pl' | phone: '468115308' | sources: (6444, 6543, 6579, 6702, 6784, 6794)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3307
+entity: 'Przedsi─Öbiorstwo Budowlane TB.INVEST Tomasz Brzezi┼äski'
+type: company
+units: ['Oddzia┼é Bydgoszcz']
+contacts:
+   'Jacek Barzy┼äski' | role: 'Kosztorysant' | email: 'j.barzynski@tbinvest.pl' | phone: '884800333' | sources: (5888,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3353
+entity: 'Urz─ůd Gminy i Miasta Ch─Öciny'
+type: institution
+units: []
+contacts:
+   'Zbigniew Giemza' | role: None | email: 'z.giemza@checiny.pl' | phone: None | sources: (6068, 6423, 6430)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3462
+entity: 'Urz─ůd Gminy Zabierz├│w'
+type: institution
+units: ['Wydzia┼é Infrastruktury Komunalnej']
+contacts:
+   'Marek Pieni─ůdz' | role: None | email: 'm.pieniadz@zabierzow.org.pl' | phone: '122830715' | sources: (6606,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3489
+entity: 'Winda - Warszawa Sp. z o.o'
+type: company
+units: []
+contacts:
+   'Rafa┼é Roksela' | role: None | email: 'rroksela@winda.com.pl' | phone: '664771616' | sources: (6783,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 416
+entity: 'Agata Trz─Ösa┼éa'
+type: person
+units: []
+contacts:
+   'Krzysztof Ko┼äczak' | role: None | email: 'trzesala.agata@interia.pl' | phone: None | sources: (421,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 1288
+entity: 'Ma┼égorzata ┼Ümierzy┼äska'
+type: person
+units: []
+contacts:
+   'Jacek ┼Ümierzy┼äski' | role: None | email: 'malgorzata.smierzynska@onet.pl' | phone: None | sources: (6161,)
+   'Jacek Ma┼égorzata ┼Ümierzy┼äski' | role: None | email: 'malgorzata.smierzynska@onet.pl' | phone: None | sources: (1312,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 1382
+entity: 'WLKP'
+type: company
+units: []
+contacts:
+   'WLKP, Smolniki Powidzkie' | role: None | email: 'robertzielsdorf@tlen.pl' | phone: None | sources: (1409,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2189
+entity: 'Dorota Kowalska'
+type: person
+units: []
+contacts:
+   'Dorota Kpwalska' | role: None | email: 'dorotakow1@o2.pl' | phone: None | sources: (2229,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2331
+entity: 'OPTEX'
+type: company
+units: []
+contacts:
+   'Jacek Gorze┼ä OPTEX' | role: None | email: 'j.gorzen@optex.pl' | phone: None | sources: (2374,)
+   'Jacek Gorze┼ä' | role: None | email: 'j.gorzen@optex.pl' | phone: None | sources: (4643,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2668
+entity: 'Pomorskie Przedsi─Öbiorstwo Mechaniczno-Torowe sp. z o.o'
+type: company
+units: []
+contacts:
+   'Marcin Peek' | role: 'Kierownik Rob├│t' | email: 'm.peek@ppmt.pl' | phone: '691257326' | sources: (2863,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2703
+entity: 'INSTAL WARSZAWA S.A'
+type: company
+units: []
+contacts:
+   'Andrzej D─ůbkowski' | role: None | email: 'andrzej.dabkowski@instalwaw.pl' | phone: None | sources: (2974, 2976, 2987, 2988)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3360
+entity: 'MC-Bauchemie Sp. z o.o'
+type: company
+units: []
+contacts:
+   'Jakub Czarnecki' | role: None | email: 'jakub.czarnecki@mc-bauchemie.pl' | phone: None | sources: (6094, 6101, 6123, 6170, 6197, 6473)
+
+============================================================================================================================================
+VALIDATION
+============================================================================================================================================
+public-body signature grammar: OK
+scalar phone hygiene: OK
+title vs role separation: OK
+conservative same-person dedupe: OK
+true multi-contact preservation: OK
+core entity regressions: OK
+
+DATABASE MODIFICATIONS: 0
+CLIENT CANDIDATE WRITES: 0
+AUTO PROMOTIONS: 0
+
+CLIENT ENTITY PROJECTION 1.4.6: OK

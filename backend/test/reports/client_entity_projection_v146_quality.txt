@@ -1,0 +1,176 @@
+
+============================================================================================================================================
+CLIENT ENTITY PROJECTION 1.4 FULL QUALITY AUDIT
+============================================================================================================================================
+candidates: 3545
+
+STATUS:
+first_party_internal : 2
+insufficient : 1233
+relay_container : 2
+review : 2308
+
+ENTITY TYPES:
+person : 2085
+company : 221
+institution : 6
+other : 1233
+
+============================================================================================================================================
+DUPLICATE CONTACTS
+============================================================================================================================================
+count: 0
+
+============================================================================================================================================
+SUSPICIOUS CONTACT NAMES
+============================================================================================================================================
+count: 0
+
+============================================================================================================================================
+SUSPICIOUS ENTITY NAMES
+============================================================================================================================================
+count: 0
+
+============================================================================================================================================
+SUSPICIOUS PHONE VALUES
+============================================================================================================================================
+count: 0
+
+============================================================================================================================================
+SUSPICIOUS CONTACT ROLES
+============================================================================================================================================
+count: 0
+
+============================================================================================================================================
+COURT/KRS UNIT LEAKAGE
+============================================================================================================================================
+count: 0
+
+============================================================================================================================================
+MULTI-CONTACT ENTITIES
+============================================================================================================================================
+count: 18
+(113, 'S┼éawomik Konefa┼é', '4. Zmiana na s─ůd po┼éo┼╝enia nieruchomo┼Ťci.', [('S┼éawomik Konefa┼é', None, 'slawek000@onet.eu', '510212201'), ('Slawomir K', None, 'slawek000@onet.eu', None)])
+(209, 'Cezary Mak├│wka', 'Wysy┼éam projekt.', [('Czarek Mak├│wka', None, 'cezary.makowka@gmail.com', None), ('Cezary Mak├│wka', None, 'cezary.makowka@gmail.com', '667892192')])
+(579, 'Warszawa ul. Juhas├│w 6K', 'nas konstruktor, a pod linkiem pe┼ény projekt .', [('Julia Jarnicka', None, 'jupalka@gmail.com', None), ('J J', None, 'jupalka@gmail.com', None)])
+(664, 'Frasiak Opole ul. Doma┼äskiego 85', '<#DAB4FAD8-2DD7-40BB-A1B8-4E2AA1F9FDF2>', [('Fr─ůsiak Ilona', None, 'kasia.frasiak@gmail.com', None), ('kasia frasiak', None, 'kasia.frasiak@gmail.com', None)])
+(1155, 'Bartosz Szudlarek', 'Bartosz Sz', [('Bartosz Szkudlarek', None, 'b.szkudl@gmail.com', None), ('Bartosz Szudlarek', None, 'b.szkudl@gmail.com', '508609216')])
+(1288, '┼Ümierzy┼äski', 'Ma┼égorzata ┼Ümierzy┼äska', [('Jacek ┼Ümierzy┼äski', None, 'malgorzata.smierzynska@onet.pl', None), ('Jacek Ma┼égorzata ┼Ümierzy┼äski', None, 'malgorzata.smierzynska@onet.pl', None)])
+(1804, 'Nied┼║wiecki 420 Tarnogr├│d, Przedmie┼Ťcie P┼éuskie Wsch├│d 154', 'Bioconcept Gardenia sp. z o.o', [('Pawe┼é Nied┼║wiecki', 'Dyrektor ds. technicznych', 'pniedzwiecki@bioconcept.pl', '603405651'), ('Pawe┼é Nied┼║wiecki BioConcept', None, 'pniedzwiecki@bioconcept.pl', None)])
+(2322, 'Konrad Rudkowski', 'NIP:952-103-06-81', [('Konrad Rutkowski', None, 'konrad@bwmdom.com', None), ('Konrad Rudkowski', None, 'konrad@bwmdom.com', '602118742'), ('BWM Dom', None, 'konrad@bwmdom.com', None)])
+(2331, 'OPTEX S.A.', 'OPTEX', [('Jacek Gorze┼ä OPTEX', None, 'j.gorzen@optex.pl', None), ('Jacek Gorze┼ä', None, 'j.gorzen@optex.pl', None)])
+(2535, 'Adrian Cicho┼ä', 'Eko-bud', [('Adrian Cicho┼ä', None, 'koordynator@ekobud.com', '693366106'), ('Zofia Deliga', None, 'koordynator@ekobud.com', None)])
+(2667, 'Janusz Wesolowski', 'troche zredukowac zageszczenie czesci, ktora sa', [('Janusz Wesolowski', None, 'silawiatru1986@gmail.com', None), ('Kayser Souze', None, 'silawiatru1986@gmail.com', None)])
+(2732, 'Ania Opalinska', 'Ania Opalinska', [('Jacek Opali┼äski', None, 'aniaop@torun.home.pl', None), ('aniaop torun.home.pl', None, 'aniaop@torun.home.pl', None)])
+(2740, 'bartosz bartosz', 'BGJ Profi sp. z o.o', [('Bartosz Kalinowski', None, 'bartosz@whitechem.pl', None), ('bartosz bartosz', None, 'bartosz@whitechem.pl', None)])
+(2807, 'Treger', '[2.PNG]', [('M. K┼éapa', None, 'biuro@treger.pl', None), ('Nadzory, Przegl─ůdy', None, 'biuro@treger.pl', None)])
+(2875, 'Pakery Polska', 'Hammpack Sp. z o.o', [('Beata Torzewska', None, 'biuro@pakery.pl', None), ('Pakery.pl - Poland', None, 'biuro@pakery.pl', None)])
+(2898, 'Adian Cicho┼ä EKOBUD', 'EKOBUD', [('Adrian Cicho┼ä', None, 'ekobud@ekobud.com', None), ('Adian Cicho┼ä', None, 'ekobud@ekobud.com', None)])
+(3281, 'ksenia.kotus ksenia.kotus', 'Miejski Zarz─ůd Nieruchomo┼Ťci', [('Ksenia Kotus', None, 'ksenia.kotus@mzn.swidnica.pl', None), ('ksenia.kotus ksenia.kotus', None, 'ksenia.kotus@mzn.swidnica.pl', None)])
+(3298, 'Patrycja Izdebska', 'STRABAG Sp. z o.o', [('Emilia Wilk-Radzikowska', 'Kierownik Dzia┼éu Technicznego', 'patrycja.izdebska@strabag.com', None), ('Patrycja Izdebska', None, 'patrycja.izdebska@strabag.com', None)])
+
+============================================================================================================================================
+CONTROL RESULTS
+============================================================================================================================================
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2535
+entity: 'Eko-bud'
+type: company
+tax: None
+units: []
+contacts:
+   'Adrian Cicho┼ä' | role: None | email: 'koordynator@ekobud.com' | phone: '693366106' | sources: (2578, 3699)
+   'Zofia Deliga' | role: None | email: 'koordynator@ekobud.com' | phone: None | sources: (3699, 3700, 4130, 4182)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2657
+entity: 'Korporacja Budowlana DORACO Sp. z o. o'
+type: company
+tax: '5840201588'
+units: ['Oddzia┼é w Warszawie']
+contacts:
+   'Marcin Mykieta' | role: 'Specjalista ds. ofertowania' | email: 'marcin.mykieta@doraco.pl' | phone: '734499850' | sources: (2836,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 2764
+entity: 'EMER BUILD sp. z o.o'
+type: company
+tax: '8212663873'
+units: []
+contacts:
+   'Sylwester Zie┼äczuk' | role: 'Koordynator Budowy' | email: 'sylwester.zienczuk@emer-build.pl' | phone: '500477118' | sources: (3193, 3576, 3595, 3738, 3888, 6336)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3269
+entity: 'Starostwo Powiatowe w ┼üowiczu'
+type: institution
+tax: '8341882519'
+units: []
+contacts:
+   'Jaros┼éaw Burzykowski' | role: 'Dyrektor Wydzia┼éu Organizacyjnego' | email: 'jaroslaw.burzykowski@powiatlowicki.pl' | phone: '468115308' | sources: (6444, 6543, 6579, 6702, 6784, 6794)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3305
+entity: 'EMER BUILD SP. Z O.O'
+type: company
+tax: '8212663873'
+units: []
+contacts:
+   'Rados┼éaw Bogucki' | role: None | email: 'radoslaw.bogucki@emer-build.pl' | phone: None | sources: (5870,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3307
+entity: 'Przedsi─Öbiorstwo Budowlane TB.INVEST Tomasz Brzezi┼äski'
+type: company
+tax: '5841352935'
+units: ['Oddzia┼é Bydgoszcz']
+contacts:
+   'Jacek Barzy┼äski' | role: 'Kosztorysant' | email: 'j.barzynski@tbinvest.pl' | phone: '884800333' | sources: (5888,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3323
+entity: 'Bud-Invest Modular Sp. z o.o'
+type: company
+tax: '5932594532'
+units: []
+contacts:
+   'Rados┼éaw Lipski' | role: 'Specjalista ds. Zaopatrzenia' | email: 'r.lipski@bud-invest.com' | phone: None | sources: (5967, 5973, 6968)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3462
+entity: 'Urz─ůd Gminy Zabierz├│w'
+type: institution
+tax: None
+units: ['Wydzia┼é Infrastruktury Komunalnej']
+contacts:
+   'Marek Pieni─ůdz' | role: None | email: 'm.pieniadz@zabierzow.org.pl' | phone: '122830715' | sources: (6606,)
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+candidate_id: 3489
+entity: 'Winda - Warszawa Sp. z o.o'
+type: company
+tax: '5210124745'
+units: []
+contacts:
+   'Rafa┼é Roksela' | role: None | email: 'rroksela@winda.com.pl' | phone: '664771616' | sources: (6783,)
+
+============================================================================================================================================
+SUMMARY COUNTS
+============================================================================================================================================
+duplicate_contact_candidates: 0
+suspicious_contact_candidates: 0
+suspicious_entity_candidates: 0
+suspicious_phone_candidates: 0
+suspicious_role_candidates: 0
+court_unit_candidates: 0
+multi_contact_candidates: 18
+
+============================================================================================================================================
+SAFETY
+============================================================================================================================================
+DATABASE MODIFICATIONS: 0
+CLIENT CANDIDATE WRITES: 0
+AUTO PROMOTIONS: 0
+
+CLIENT ENTITY PROJECTION 1.4 QUALITY AUDIT: OK

@@ -4222,4 +4222,249 @@ END CHECKPOINT: CANDIDATE REVIEW + IDENTITY ENRICHMENT 1.0
 
 ================================================================================
 
+================================================================================
+CHECKPOINT 2026-08-13 — CLIENT ENTITY PROJECTION 1.4.6
+================================================================================
+
+STATUS:
+DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+Zbudowano read-only warstwę projekcji tożsamości klienta / encji na podstawie
+historycznych ClientCandidate oraz CandidateSource.
+
+NAJWAŻNIEJSZA DECYZJA ARCHITEKTONICZNA:
+
+Client nie jest utożsamiany wyłącznie z osobą fizyczną.
+
+System rozróżnia między:
+
+- person,
+- company,
+- institution,
+- other.
+
+Osoba występująca w podpisie wiadomości może być kontaktem reprezentującym
+organizację, a nie nazwą samego klienta.
+
+Przykład:
+
+CLIENT / ENTITY:
+Starostwo Powiatowe w Łowiczu
+
+CONTACT:
+Jarosław Burzykowski
+Dyrektor Wydziału Organizacyjnego
+
+
+IMPLEMENTACJA:
+
+[X] FirstPartyIdentityRegistry.
+
+[X] GmailMessageBoundaryService:
+    - current-author boundary,
+    - relay/container protection,
+    - ograniczenie przecieku first-party identity.
+
+[X] ClientEntityProjectionPolicyService.
+
+[X] ClientEntitySemanticProjectionService 1.4.6.
+
+[X] provenance-ranked entity evidence.
+
+Obsługiwane klasy evidence obejmują:
+
+- signature_legal_entity,
+- signature_public_entity,
+- signature_structured_entity,
+- sender_display_entity,
+- sheet_entity,
+- base_fallback.
+
+[X] Organizacja może posiadać wiele kontaktów na poziomie projekcji.
+
+[X] Jednostki organizacyjne są zachowywane oddzielnie od głównej encji.
+
+Przykłady:
+
+- Oddział Bydgoszcz,
+- Oddział w Warszawie,
+- Wydział Infrastruktury Komunalnej.
+
+[X] Court/KRS organizational units są filtrowane.
+
+[X] Entity/contact cross-validation.
+
+[X] Normalizacja nazw z uwzględnieniem:
+    - polskich znaków,
+    - interpunkcji,
+    - kolejności nazwiska i imienia,
+    - wybranych aliasów tej samej osoby.
+
+[X] Rozdzielenie title od CRM role.
+
+Tytuły typu:
+
+- mgr,
+- inż.,
+- arch.
+
+nie są traktowane jako funkcja organizacyjna klienta.
+
+[X] Scalar phone compatibility field zachowuje tylko jednoznaczny,
+poprawny numer telefonu.
+
+Pola zawierające:
+
+- kilka numerów,
+- placeholdery,
+- wartości niejednoznaczne
+
+nie są automatycznie sprowadzane do jednego arbitralnego numeru.
+
+
+ZWERYFIKOWANE PRZYKŁADY:
+
+EKO-BUD:
+- entity: Eko-bud,
+- Adrian Cichoń,
+- Zofia Deliga,
+- zachowany prawdziwy multi-contact.
+
+DORACO:
+- Korporacja Budowlana DORACO Sp. z o.o.,
+- Marcin Mykieta,
+- Specjalista ds. ofertowania,
+- Oddział w Warszawie,
+- NIP 5840201588.
+
+EMER BUILD:
+- entity poprawnie oddzielone od kontaktów,
+- Sylwester Zieńczuk,
+- Radosław Bogucki.
+
+Starostwo Powiatowe w Łowiczu:
+- institution,
+- Jarosław Burzykowski,
+- poprawne odrzucenie danych KRS/court jako jednostki klienta.
+
+TB.INVEST:
+- Przedsiębiorstwo Budowlane TB.INVEST Tomasz Brzeziński,
+- Jacek Barzyński,
+- Kosztorysant,
+- Oddział Bydgoszcz.
+
+Urząd Gminy Zabierzów:
+- institution,
+- Marek Pieniądz,
+- Wydział Infrastruktury Komunalnej.
+
+Winda - Warszawa Sp. z o.o.:
+- company,
+- Rafał Roksela,
+- organizacja nie jest już błędnie dodawana jako osoba kontaktowa.
+
+
+FULL QUALITY AUDIT:
+
+ClientCandidate:
+3545
+
+Status:
+
+first_party_internal:
+2
+
+relay_container:
+2
+
+review:
+2308
+
+insufficient:
+1233
+
+Entity types:
+
+person:
+2085
+
+company:
+221
+
+institution:
+6
+
+other:
+1233
+
+QUALITY COUNTS:
+
+duplicate_contact_candidates:
+0
+
+suspicious_contact_candidates:
+0
+
+suspicious_entity_candidates:
+0
+
+suspicious_phone_candidates:
+0
+
+suspicious_role_candidates:
+0
+
+court_unit_candidates:
+0
+
+multi_contact_candidates:
+18
+
+
+WAŻNE OGRANICZENIE:
+
+18 multi-contact projections nadal obejmuje zarówno:
+
+- rzeczywiste wiele osób kontaktowych,
+- aliasy,
+- skrócone imiona,
+- literówki,
+- historyczne warianty nazw.
+
+Nie należy automatycznie zapisywać wszystkich tych projekcji jako trwałych
+kontaktów bez dalszej polityki review / identity resolution.
+
+Client Entity Projection 1.4.6 pozostaje warstwą READ ONLY.
+
+DATABASE MODIFICATIONS:
+0
+
+CLIENT CANDIDATE WRITES:
+0
+
+AUTO PROMOTIONS:
+0
+
+
+NASTĘPNY ETAP:
+
+[ ] zaprojektować trwały model ClientContact / EntityContact,
+
+[ ] umożliwić wiele osób kontaktowych jednej encji,
+
+[ ] umożliwić wiele telefonów i e-maili,
+
+[ ] zachować provenance kontaktu,
+
+[ ] zachować source confidence / match method,
+
+[ ] przygotować review przed trwałą migracją danych,
+
+[ ] wykorzystać Client Entity Projection jako źródło propozycji,
+    a nie jako bezwarunkowy mechanizm zapisu.
+
+================================================================================
+END CHECKPOINT 2026-08-13 — CLIENT ENTITY PROJECTION 1.4.6
+================================================================================
+
 KONIEC MASTER PLAN
