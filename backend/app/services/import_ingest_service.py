@@ -563,7 +563,10 @@ class ImportIngestService:
 
         resolved_name = self._resolve_candidate_name(data)
 
-        if resolved_name != "Nieznany klient":
+        if self._should_replace_candidate_name(
+            candidate.name,
+            resolved_name,
+        ):
             candidate.name = resolved_name
 
         self._set_if_present(
@@ -652,10 +655,6 @@ class ImportIngestService:
                 else None,
             ),
             (
-                candidate.name,
-                self._resolve_candidate_name(data),
-            ),
-            (
                 candidate.legal_name,
                 data.legal_name,
             ),
@@ -723,7 +722,148 @@ class ImportIngestService:
             if current != incoming:
                 return True
 
+        resolved_name = self._resolve_candidate_name(
+            data
+        )
+
+        if self._should_replace_candidate_name(
+            candidate.name,
+            resolved_name,
+        ):
+            return True
+
         return False
+
+    @classmethod
+    def _should_replace_candidate_name(
+        cls,
+        current: str | None,
+        incoming: str | None,
+    ) -> bool:
+        current_clean = cls._clean_candidate_name(
+            current
+        )
+
+        incoming_clean = cls._clean_candidate_name(
+            incoming
+        )
+
+        if not incoming_clean:
+            return False
+
+        if (
+            incoming_clean.casefold()
+            == "nieznany klient"
+        ):
+            return False
+
+        if (
+            current_clean.casefold()
+            == incoming_clean.casefold()
+        ):
+            return False
+
+        return (
+            cls._candidate_name_quality(
+                incoming_clean
+            )
+            >
+            cls._candidate_name_quality(
+                current_clean
+            )
+        )
+
+    @staticmethod
+    def _clean_candidate_name(
+        value: str | None,
+    ) -> str:
+        if not value:
+            return ""
+
+        return " ".join(
+            value.strip().split()
+        )
+
+    @classmethod
+    def _candidate_name_quality(
+        cls,
+        value: str | None,
+    ) -> int:
+        text = cls._clean_candidate_name(
+            value
+        )
+
+        if not text:
+            return 0
+
+        lowered = text.casefold()
+
+        if lowered == "nieznany klient":
+            return 0
+
+        if "@" in text:
+            return 0
+
+        if (
+            lowered.startswith("http://")
+            or lowered.startswith("https://")
+            or lowered.startswith("www.")
+        ):
+            return 0
+
+        digits = "".join(
+            character
+            for character in text
+            if character.isdigit()
+        )
+
+        non_digits = "".join(
+            character
+            for character in text
+            if not character.isdigit()
+        ).strip(" +-()/.")
+
+        if (
+            len(digits) >= 7
+            and not non_digits
+        ):
+            return 0
+
+        padded = f" {lowered} "
+
+        address_markers = (
+            " ul. ",
+            " aleja ",
+            " al. ",
+            " os. ",
+            " woj. ",
+        )
+
+        if any(
+            marker in padded
+            for marker in address_markers
+        ):
+            return 0
+
+        if (
+            "," in text
+            and any(
+                character.isdigit()
+                for character in text
+            )
+        ):
+            return 0
+
+        tokens = [
+            token
+            for token in text.split()
+            if token
+        ]
+
+        if len(tokens) >= 2:
+            return 2
+
+        return 1
 
     @staticmethod
     def _source_has_changed(

@@ -4046,6 +4046,180 @@ Document.client_id backfill
 ================================================================================
 END CHECKPOINT 2026-08-13 — CLIENT DETAILS 1.0
 ================================================================================
+START CHECKPOINT: CANDIDATE REVIEW + IDENTITY ENRICHMENT 1.0
+DATA: 2026-08-13
+
+STATUS: ZWERYFIKOWANE / ZAKOŃCZONE
+
+CEL
+- wykorzystanie istniejącej warstwy ClientCandidate / CandidateSource jako stagingu CRM,
+- udostępnienie kandydatów do jawnego review,
+- bezpieczne podnoszenie jakości tożsamości przed utworzeniem finalnego Client,
+- brak cichych merge'ów i brak zgadywania niepewnych danych.
+
+ARCHITEKTURA ŹRÓDEŁ
+- ClientCandidate i CandidateSource były już w projekcie i pozostają główną warstwą stagingową.
+- Źródła CandidateSource:
+  - google_sheets_row,
+  - gmail_message,
+  - gmail_thread.
+- Google Sheets traktowany jest jako wysokiej jakości źródło strukturalne.
+- Gmail dostarcza historię kontaktu i dodatkowe dowody tożsamości.
+- Dokumenty pozostają źródłem uzupełniającym i zachowują provenance.
+
+STAN DANYCH PRZED PROMOCJĄ
+- client_candidates: 3544 pending.
+- candidate_sources: 6958.
+- mixed Google Sheets + Gmail: 525.
+- Google Sheets only: 2126.
+- Gmail only: 892.
+- Final Clients nie są tworzeni automatycznie z niepewnych kandydatów.
+
+CANDIDATE REVIEW API 1.0
+Dodano uwierzytelnione endpointy:
+- GET  /api/v1/client-candidates
+- GET  /api/v1/client-candidates/{candidate_id}
+- POST /api/v1/client-candidates/{candidate_id}/accept
+- POST /api/v1/client-candidates/{candidate_id}/reject
+
+Listowanie obsługuje:
+- status,
+- search,
+- skip,
+- limit.
+
+Detail wykorzystuje CandidateContextService i zwraca:
+- candidate,
+- Gmail messages,
+- Google Sheets rows,
+- documents,
+- other sources,
+- metadata.
+
+PROMOTION CORE
+Dodano ClientCandidatePromotionService:
+- blokada rekordu FOR UPDATE,
+- walidacja pending / unmatched,
+- jawne utworzenie finalnego Client,
+- przypisanie dokumentów kandydata do Client,
+- zachowanie candidate_id jako provenance,
+- match_status -> confirmed,
+- match_confidence -> 1.0,
+- match_method -> candidate_accept.
+
+OCHRONA PRZED DUPLIKATAMI
+Przed promocją sprawdzane są deterministycznie:
+- tax_id,
+- email,
+- phone.
+
+W przypadku dokładnego dopasowania:
+- nowy Client nie jest tworzony,
+- zwracany jest konflikt z istniejącym client_id i matched_by.
+
+FLUTTER CANDIDATE REVIEW 1.0
+Dodano:
+- listę kandydatów,
+- widok szczegółów,
+- jawne Accept / Reject z potwierdzeniem,
+- obsługę HTTP 409 dla duplikatu,
+- przejście do istniejącego/finalnego Client,
+- routing /client-candidates,
+- routing /client-candidates/:candidateId,
+- wejście do kandydatów z ekranu Clients.
+
+IDENTITY RESOLUTION
+Zaimplementowano warstwę deterministyczną:
+1. Primary resolver:
+   - pełne imię + nazwisko z Google Sheets,
+   - wykrywanie sprzecznych pełnych nazw,
+   - wykrywanie wieloosobowych / wieloimiennych pól,
+   - conservative ambiguous / insufficient.
+
+2. Secondary resolver 1.1:
+   - Gmail display name związany dokładnie z adresem kandydata,
+   - zgodność imienia Gmail z imieniem strukturalnym z Sheets,
+   - konserwatywne wzorce email,
+   - blokada niepoprawnych display names typu "A. N",
+   - brak automatycznego sklejania adresów email z 3+ segmentów,
+   - compact email pozostaje REVIEW, nie AUTO_SAFE.
+
+STATUSY RESOLVERA PO 1.1
+- auto_safe: 1876,
+- review: 382,
+- ambiguous: 92,
+- insufficient: 1194.
+
+AUTO_SAFE APPLY
+Pierwsza próba ujawniła, że późniejszy import Google Sheets może degradować wzbogaconą nazwę.
+
+Przyczyna:
+- ImportIngestService porównywał canonical candidate.name z surową nazwą źródłową,
+- _merge_google_sheets_candidate_data bezwarunkowo nadpisywał candidate.name wartością z Sheets.
+
+NAPRAWA IMPORTERA
+Dodano regułę jakości canonical name:
+- importer może zwiększyć jakość nazwy,
+- importer nie może jej obniżyć.
+
+Przykłady:
+- Gruba -> Tadeusz Gruba: DOZWOLONE,
+- Tadeusz Gruba -> Gruba: ZABLOKOWANE,
+- email -> pełna nazwa: DOZWOLONE,
+- pełna nazwa -> email: ZABLOKOWANE,
+- Anna -> Anna Wnorowska: DOZWOLONE,
+- Anna Wnorowska -> Anna: ZABLOKOWANE.
+
+Zweryfikowano:
+- realny commit,
+- fresh-session read,
+- symulowany ponowny import Google Sheets,
+- ponowny commit,
+- fresh-session read po imporcie.
+
+AUTO_SAFE FINAL APPLY
+Finalny przebieg:
+- planned_changes: 1864,
+- service_returned_changes: 1864,
+- commit: OK,
+- fresh-session verified_records: 1864,
+- failed_records: 0,
+- remaining_auto_safe_changes: 0,
+- idempotence: OK.
+
+Kontrolne rekordy po finalnym zapisie:
+- 4    Tadeusz Gruba,
+- 12   Artur Niestrzęba,
+- 316  Dariusz Baboń,
+- 1465 Światosław Milew,
+- 1470 Anna Wnorowska.
+
+ZASADY BEZPIECZEŃSTWA
+- REVIEW nie jest automatycznie zapisywany.
+- AMBIGUOUS nie jest automatycznie zapisywany.
+- INSUFFICIENT nie jest automatycznie zapisywany.
+- AI nie tworzy ani nie scala finalnego Client bez jawnej decyzji.
+- dokładne identyfikatory pozostają deterministyczne.
+- niepewna tożsamość musi zachować evidence/confidence/provenance.
+
+NASTĘPNY ETAP
+Gmail Identity Layer 1.0:
+- sygnatury wiadomości,
+- pełne imiona i nazwiska w treści,
+- zwroty typu "Panie Arturze",
+- korelacja z adresem email i telefonem,
+- agregacja dowodów między wiadomościami,
+- dalsze odzyskiwanie grupy INSUFFICIENT,
+- nadal bez cichego zapisu niepewnych wyników.
+
+Po Gmail Identity Layer:
+- przegląd grupy REVIEW,
+- link/merge candidate -> existing Client,
+- poprawa globalnego zaznaczenia nawigacji Flutter,
+- kontrolowane testy Accept / Link / Reject na realnych kandydatach.
+
+END CHECKPOINT: CANDIDATE REVIEW + IDENTITY ENRICHMENT 1.0
+
+================================================================================
 
 KONIEC MASTER PLAN
-================================================================================

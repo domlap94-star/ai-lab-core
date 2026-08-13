@@ -56,6 +56,16 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
       appBar: AppBar(
         title: const Text('Klienci'),
         actions: <Widget>[
+          OutlinedButton.icon(
+            onPressed: () {
+              context.go('/client-candidates');
+            },
+            icon: const Icon(Icons.manage_accounts_outlined),
+            label: const Text('Kandydaci'),
+          ),
+
+          const SizedBox(width: 12),
+
           FilledButton.icon(
             onPressed: () async {
               final Client? created = await showDialog<Client>(
