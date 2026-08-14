@@ -5,6 +5,8 @@ class CurrentUser {
     required this.email,
     required this.role,
     required this.isActive,
+    required this.mustChangePassword,
+    required this.passwordResetRequested,
   });
 
   final int id;
@@ -12,4 +14,6 @@ class CurrentUser {
   final String email;
   final String role;
   final bool isActive;
+  final bool mustChangePassword;
+  final bool passwordResetRequested;
 }

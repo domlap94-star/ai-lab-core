@@ -5,27 +5,27 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """
-    Central configuration for AI Lab.
-    """
-
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    # ==========================================================
-    # Application
-    # ==========================================================
-
     app_name: str = "AI-Lab"
+    app_version: str = "1.0.0"
+    api_version: int = 1
+    minimum_app_version: str = "1.0.0"
+    latest_app_version: str = "1.0.0"
+
     environment: str = "development"
     debug: bool = False
 
-    # ==========================================================
-    # Database
-    # ==========================================================
+    cors_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173"
+    )
 
     postgres_db: str
     postgres_user: str
@@ -33,42 +33,22 @@ class Settings(BaseSettings):
     postgres_host: str = "postgres"
     postgres_port: int = 5432
 
-    # ==========================================================
-    # JWT
-    # ==========================================================
-
     secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 30
 
-    # ==========================================================
-    # Administrator
-    # ==========================================================
-
     admin_username: str
     admin_email: str
     admin_password: str
 
-    # ==========================================================
-    # Integration authentication
-    # ==========================================================
-
     n8n_ingest_api_key: str
-
-    # ==========================================================
-    # AI providers and internal services
-    # ==========================================================
 
     ollama_url: str = "http://ollama:11434"
     openwebui_url: str = "http://open-webui:8080"
 
     qdrant_host: str = "qdrant"
     qdrant_port: int = 6333
-
-    # ==========================================================
-    # Knowledge layer / embeddings
-    # ==========================================================
 
     embedding_model: str = "qwen3-embedding:0.6b"
     embedding_dimensions: int = 1024
@@ -80,10 +60,6 @@ class Settings(BaseSettings):
     )
 
     n8n_url: str = "http://n8n:5678"
-
-    # ==========================================================
-    # Paths
-    # ==========================================================
 
     data_dir: str = "/data"
 
@@ -108,6 +84,15 @@ class Settings(BaseSettings):
             f"{self.postgres_port}/"
             f"{self.postgres_db}"
         )
+
+    @computed_field
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [
+            value.strip()
+            for value in self.cors_origins.split(",")
+            if value.strip()
+        ]
 
 
 settings = Settings()

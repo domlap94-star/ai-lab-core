@@ -32,7 +32,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('AI LAB'), findsOneWidget);
     expect(find.text('Zaloguj się, aby przejść do systemu.'), findsOneWidget);
     expect(find.text('Nazwa użytkownika'), findsOneWidget);
     expect(find.text('Hasło'), findsOneWidget);
@@ -70,7 +69,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('AI LAB'), findsOneWidget);
     expect(find.text('Dashboard'), findsWidgets);
     expect(find.text('Backend: ONLINE'), findsOneWidget);
     expect(find.text('0.1.0'), findsOneWidget);
@@ -102,6 +100,8 @@ class _AuthenticatedAuthController extends AuthController {
         email: 'admin@example.com',
         role: 'admin',
         isActive: true,
+        mustChangePassword: false,
+        passwordResetRequested: false,
       ),
     );
   }

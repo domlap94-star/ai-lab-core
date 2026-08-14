@@ -10,22 +10,11 @@ from app.api.router import api_router
 from app.database.init_db import init_database
 from app.core.config import settings
 
-# ==========================================================
-# Logging
-# ==========================================================
 
 logger = logging.getLogger("ai_lab")
 
-# ==========================================================
-# Database startup
-# ==========================================================
-
 MAX_DB_RETRIES = 30
 RETRY_DELAY = 2
-
-# ==========================================================
-# Lifespan
-# ==========================================================
 
 
 @asynccontextmanager
@@ -35,14 +24,15 @@ async def lifespan(app: FastAPI):
     for attempt in range(1, MAX_DB_RETRIES + 1):
         try:
             init_database()
-
-            logger.info("Database initialized successfully.")
-
+            logger.info(
+                "Database initialized successfully."
+            )
             break
 
-        except OperationalError as e:
+        except OperationalError as exc:
             logger.warning(
-                "Database not ready (%s/%s). Retrying in %ss...",
+                "Database not ready (%s/%s). "
+                "Retrying in %ss...",
                 attempt,
                 MAX_DB_RETRIES,
                 RETRY_DELAY,
@@ -52,55 +42,34 @@ async def lifespan(app: FastAPI):
                 logger.exception(
                     "Unable to connect to PostgreSQL."
                 )
-
                 raise RuntimeError(
                     "Could not connect to PostgreSQL."
-                ) from e
+                ) from exc
 
             await asyncio.sleep(RETRY_DELAY)
 
     logger.info("Application started.")
-
     yield
-
     logger.info("Application shutdown.")
 
-# ==========================================================
-# FastAPI
-# ==========================================================
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version=settings.app_version,
     lifespan=lifespan,
 )
 
-# ==========================================================
-# CORS
-# ==========================================================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ==========================================================
-# Routers
-# ==========================================================
 
 app.include_router(api_router)
-
-# ==========================================================
-# Endpoints
-# ==========================================================
 
 
 @app.get("/", tags=["System"])
@@ -115,17 +84,6 @@ def root():
 
 @app.get("/health", tags=["System"])
 def health():
-    """
-    Basic health endpoint.
-
-    Future versions should include:
-    - PostgreSQL
-    - Ollama
-    - Qdrant
-    - Open WebUI
-    - n8n
-    """
-
     return {
         "status": "ok",
     }
@@ -136,6 +94,13 @@ def version():
     return {
         "application": settings.app_name,
         "version": app.version,
+        "api_version": settings.api_version,
         "environment": settings.environment,
         "debug": settings.debug,
+        "minimum_app_version": (
+            settings.minimum_app_version
+        ),
+        "latest_app_version": (
+            settings.latest_app_version
+        ),
     }

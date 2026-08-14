@@ -5,6 +5,7 @@ import '../core/router/app_router.dart';
 import '../core/theme/app_theme.dart';
 import '../features/auth/application/auth_controller.dart';
 import '../features/auth/application/auth_state.dart';
+import '../features/auth/presentation/change_password_page.dart';
 import '../features/auth/presentation/login_page.dart';
 
 class App extends ConsumerWidget {
@@ -44,6 +45,17 @@ class App extends ConsumerWidget {
             darkTheme: AppTheme.dark,
             themeMode: ThemeMode.system,
             home: const LoginPage(),
+          );
+        }
+
+        if (state.user?.mustChangePassword == true) {
+          return MaterialApp(
+            title: 'AI LAB',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: ThemeMode.system,
+            home: const ChangePasswordPage(forced: true),
           );
         }
 

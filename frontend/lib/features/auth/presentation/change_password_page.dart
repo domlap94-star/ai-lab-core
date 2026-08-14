@@ -7,7 +7,9 @@ import '../application/auth_controller.dart';
 import '../application/auth_state.dart';
 
 class ChangePasswordPage extends ConsumerStatefulWidget {
-  const ChangePasswordPage({super.key});
+  const ChangePasswordPage({super.key, this.forced = false});
+
+  final bool forced;
 
   @override
   ConsumerState<ChangePasswordPage> createState() {
@@ -76,6 +78,12 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
       _newPasswordController.clear();
       _confirmPasswordController.clear();
 
+      await ref.read(authControllerProvider.notifier).refreshCurrentUser();
+
+      if (!mounted) {
+        return;
+      }
+
       _showMessage('Hasło zostało zmienione.');
     } on DioException catch (error) {
       if (!mounted) {
@@ -143,7 +151,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Zmień hasło')),
+      appBar: widget.forced ? null : AppBar(title: const Text('Zmień hasło')),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -166,8 +174,11 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Po zmianie hasła system potwierdzi '
-                        'operację po stronie backendu.',
+                        widget.forced
+                            ? 'Administrator wymaga zmiany hasła przed '
+                                  'uzyskaniem dostępu do systemu.'
+                            : 'Po zmianie hasła system potwierdzi '
+                                  'operację po stronie backendu.',
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),

@@ -39,6 +39,18 @@ class User(Base):
         nullable=False,
     )
 
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    password_reset_requested: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     role_id: Mapped[int] = mapped_column(
         ForeignKey("roles.id"),
         nullable=False,
