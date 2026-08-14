@@ -233,10 +233,3 @@ class ClientPage(BaseModel):
     total: int
     skip: int
     limit: int
-
-
-class ClientPage(BaseModel):
-    items: list[ClientRead]
-    total: int
-    skip: int
-    limit: int
