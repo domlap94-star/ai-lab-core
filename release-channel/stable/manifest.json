@@ -1,0 +1,23 @@
+{
+  "channel": "stable",
+  "version": "1.0.0",
+  "build_number": 2,
+  "minimum_version": "1.0.0",
+  "published_at": null,
+  "platforms": {
+    "web": {
+      "available": true,
+      "url": "/"
+    },
+    "windows": {
+      "available": false,
+      "url": null,
+      "sha256": null
+    },
+    "android": {
+      "available": false,
+      "url": null,
+      "sha256": null
+    }
+  }
+}
