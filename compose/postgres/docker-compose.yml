@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ai_lab_password
 
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
     volumes:
       - ../../data/postgres:/var/lib/postgresql/data

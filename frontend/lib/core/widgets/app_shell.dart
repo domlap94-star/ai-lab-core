@@ -79,7 +79,9 @@ class AppShell extends ConsumerWidget {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Wylogowanie'),
-          content: const Text('Czy na pewno chcesz wylogować się z AI LAB?'),
+          content: const Text(
+            'Czy na pewno chcesz wylogowaÄ‚â€žĂ˘â‚¬Ë‡ siÄ‚â€žĂ˘â€žË z AI-Lab?',
+          ),
           actions: <Widget>[
             TextButton(
               onPressed: () {
@@ -91,7 +93,7 @@ class AppShell extends ConsumerWidget {
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
-              child: const Text('Wyloguj się'),
+              child: const Text('Wyloguj siÄ‚â€žĂ˘â€žË'),
             ),
           ],
         );
@@ -113,7 +115,7 @@ class AppShell extends ConsumerWidget {
 
     final String username = authState?.user?.username.trim().isNotEmpty == true
         ? authState!.user!.username
-        : 'Użytkownik';
+        : 'UĂ„Ä…Ă„Ëťytkownik';
 
     final String role = authState?.user?.role ?? '';
 
@@ -235,29 +237,17 @@ class _ApplicationHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 16, 20),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.hub, color: theme.colorScheme.onPrimary),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            'AI LAB',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      child: SizedBox(
+        height: 96,
+        child: Image.asset(
+          'logo.png',
+          fit: BoxFit.contain,
+          alignment: Alignment.centerLeft,
+          semanticLabel: 'AI-Lab',
+          height: 72,
+        ),
       ),
     );
   }
@@ -354,7 +344,7 @@ class _UserPanel extends StatelessWidget {
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 8),
             leading: const Icon(Icons.logout),
-            title: const Text('Wyloguj się'),
+            title: const Text('Wyloguj si\u0119'),
             onTap: onLogout,
           ),
         ],
@@ -402,7 +392,7 @@ class _MobileShell extends StatelessWidget {
               const Spacer(),
               ListTile(
                 leading: const Icon(Icons.logout),
-                title: const Text('Wyloguj się'),
+                title: const Text('Wyloguj si\u0119'),
                 onTap: () {
                   Navigator.of(context).pop();
                   onLogout();

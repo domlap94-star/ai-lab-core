@@ -10,6 +10,7 @@ import '../../features/clients/presentation/clients_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/documents/presentation/documents_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
+import '../../features/system_control/presentation/system_control_page.dart';
 import '../widgets/app_shell.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -82,6 +83,12 @@ final GoRouter appRouter = GoRouter(
           path: '/ai',
           builder: (BuildContext context, GoRouterState state) {
             return const AiPage();
+          },
+        ),
+        GoRoute(
+          path: '/system',
+          builder: (BuildContext context, GoRouterState state) {
+            return const SystemControlPage();
           },
         ),
         GoRoute(

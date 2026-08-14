@@ -2,19 +2,26 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app_version/application/app_version_provider.dart';
+import '../../app_version/domain/app_version_info.dart';
 import '../application/auth_controller.dart';
 import '../application/auth_state.dart';
+import 'reset_password_page.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() {
+    return _LoginPageState();
+  }
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   final TextEditingController _usernameController = TextEditingController();
+
   final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
@@ -43,10 +50,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         );
   }
 
+  void _openResetPassword() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ResetPasswordPage()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+
     final AsyncValue<AuthState> authState = ref.watch(authControllerProvider);
+
+    final AsyncValue<AppVersionInfo> appVersion = ref.watch(appVersionProvider);
 
     final bool isLoading = authState.isLoading;
 
@@ -83,30 +99,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: <Widget>[
-                          Align(
-                            child: Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary,
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                              child: Icon(
-                                Icons.hub,
-                                size: 34,
-                                color: theme.colorScheme.onPrimary,
-                              ),
+                          SizedBox(
+                            height: 96,
+                            child: Image.asset(
+                              'logo.png',
+                              fit: BoxFit.contain,
+                              semanticLabel: 'AI-Lab',
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          Text(
-                            'AI LAB',
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.headlineMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 16),
                           Text(
                             'Zaloguj się, aby przejść do systemu.',
                             textAlign: TextAlign.center,
@@ -182,7 +183,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 24),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: isLoading ? null : _openResetPassword,
+                              child: const Text('Nie pamiętasz hasła?'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           FilledButton.icon(
                             onPressed: isLoading ? null : _submit,
                             icon: isLoading
@@ -203,8 +211,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Połączenie jest realizowane przez bezpieczny '
-                            'endpoint FastAPI.',
+                            appVersion.when(
+                              data: (AppVersionInfo value) =>
+                                  'AI-Lab ${value.displayVersion}',
+                              loading: () => 'AI-Lab',
+                              error: (_, _) => 'AI-Lab',
+                            ),
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
@@ -239,7 +251,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         case DioExceptionType.receiveTimeout:
           return 'Backend nie odpowiedział w wymaganym czasie.';
         case DioExceptionType.connectionError:
-          return 'Nie można połączyć się z serwerem AI LAB.';
+          return 'Nie można połączyć się z serwerem AI-Lab.';
         case DioExceptionType.badResponse:
           return 'Serwer zwrócił błąd HTTP '
               '${error.response?.statusCode ?? 'bez kodu'}.';

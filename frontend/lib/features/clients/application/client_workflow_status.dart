@@ -1,0 +1,104 @@
+import 'package:flutter/material.dart';
+
+import '../domain/client.dart';
+
+enum ClientWorkflowState {
+  obsolete,
+  inProgress,
+  inspection,
+  completed,
+  untouched,
+  phoneContact;
+
+  String get label {
+    return switch (this) {
+      ClientWorkflowState.obsolete => 'Nieaktualne',
+      ClientWorkflowState.inProgress => 'W trakcie',
+      ClientWorkflowState.inspection => 'Oględziny',
+      ClientWorkflowState.completed => 'Usługa wykonana',
+      ClientWorkflowState.untouched => 'Brak modyfikacji',
+      ClientWorkflowState.phoneContact => 'Kontakt telefoniczny',
+    };
+  }
+
+  bool get requiresDate {
+    return this == ClientWorkflowState.inspection ||
+        this == ClientWorkflowState.phoneContact;
+  }
+
+  String get shortLabel {
+    return switch (this) {
+      ClientWorkflowState.obsolete => 'X',
+      ClientWorkflowState.inProgress => 'WT',
+      ClientWorkflowState.inspection => 'OG',
+      ClientWorkflowState.completed => 'OK',
+      ClientWorkflowState.untouched => '-',
+      ClientWorkflowState.phoneContact => 'TEL',
+    };
+  }
+
+  Color color(ThemeData theme) {
+    return switch (this) {
+      ClientWorkflowState.obsolete => const Color(0xFFD64C4C),
+      ClientWorkflowState.inProgress => const Color(0xFFE0B93B),
+      ClientWorkflowState.inspection => const Color(0xFF4F78FF),
+      ClientWorkflowState.completed => const Color(0xFF2FA763),
+      ClientWorkflowState.untouched => const Color(0xFF80859B),
+      ClientWorkflowState.phoneContact => const Color(0xFFF5F7FB),
+    };
+  }
+
+  Color foregroundColor(ThemeData theme) {
+    return switch (this) {
+      ClientWorkflowState.phoneContact => const Color(0xFF0F1422),
+      ClientWorkflowState.inProgress => const Color(0xFF0F1422),
+      _ => Colors.white,
+    };
+  }
+}
+
+class ClientWorkflowStatus {
+  const ClientWorkflowStatus({required this.state, this.date});
+
+  final ClientWorkflowState state;
+  final DateTime? date;
+
+  String get displayLabel {
+    if (!state.requiresDate || date == null) {
+      return state.label;
+    }
+    return '${state.label} ${formatDate(date!)}';
+  }
+
+  static String formatDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${twoDigits(local.day)}.'
+        '${twoDigits(local.month)}.'
+        '${local.year}';
+  }
+
+  static String formatBadgeDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${twoDigits(local.day)}.'
+        '${twoDigits(local.month)}';
+  }
+}
+
+class ClientWorkflowMemory {
+  ClientWorkflowMemory._();
+
+  static final ClientWorkflowMemory instance = ClientWorkflowMemory._();
+
+  final Map<int, ClientWorkflowStatus> _entries = <int, ClientWorkflowStatus>{};
+
+  ClientWorkflowStatus statusFor(Client client) {
+    return _entries[client.id] ??
+        const ClientWorkflowStatus(state: ClientWorkflowState.untouched);
+  }
+
+  void setStatus(int clientId, ClientWorkflowStatus status) {
+    _entries[clientId] = status;
+  }
+}

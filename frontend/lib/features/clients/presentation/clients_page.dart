@@ -4,6 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'client_form_dialog.dart';
 
+import '../application/client_list_filter.dart';
+import '../application/client_list_view_memory.dart';
+import '../application/client_workflow_status.dart';
+import 'client_workflow_widgets.dart';
 import '../application/clients_controller.dart';
 import '../application/clients_providers.dart';
 import '../domain/client.dart';
@@ -17,17 +21,38 @@ class ClientsPage extends ConsumerStatefulWidget {
 
 class _ClientsPageState extends ConsumerState<ClientsPage> {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+
+  ClientSortOrder _sortOrder = ClientSortOrder.newestFirst;
+  ClientWorkflowState? _statusFilter;
+  bool _filtersExpanded = false;
+
+  ClientListViewMemory get _viewMemory => ClientListViewMemory.instance;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _searchController.text = _viewMemory.searchQuery;
+    _locationController.text = _viewMemory.locationQuery;
+    _sortOrder = _viewMemory.sortOrder;
+    _statusFilter = _viewMemory.workflowStatusFilter;
+    _filtersExpanded = _viewMemory.filtersExpanded;
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _locationController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
 
   Future<void> _search() async {
     _searchFocusNode.unfocus();
+
+    _viewMemory.searchQuery = _searchController.text;
 
     await ref
         .read(clientsControllerProvider.notifier)
@@ -37,6 +62,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   Future<void> _clearSearch() async {
     _searchController.clear();
     _searchFocusNode.unfocus();
+    _viewMemory.clearSearch();
 
     await ref.read(clientsControllerProvider.notifier).clearSearch();
   }
@@ -113,6 +139,56 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
               onClear: _clearSearch,
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: _ClientFilterPanel(
+              expanded: _filtersExpanded,
+              locationController: _locationController,
+              sortOrder: _sortOrder,
+              workflowStatusFilter: _statusFilter,
+              onExpandedChanged: (bool value) {
+                _viewMemory.filtersExpanded = value;
+
+                setState(() {
+                  _filtersExpanded = value;
+                });
+              },
+              onLocationChanged: () {
+                _viewMemory.locationQuery = _locationController.text;
+                setState(() {});
+              },
+              onClearLocation: () {
+                _locationController.clear();
+                _viewMemory.clearLocation();
+                setState(() {});
+              },
+              onSortChanged: (ClientSortOrder value) {
+                _viewMemory.sortOrder = value;
+
+                setState(() {
+                  _sortOrder = value;
+                });
+              },
+              onWorkflowStatusChanged: (ClientWorkflowState? value) {
+                _viewMemory.workflowStatusFilter = value;
+
+                setState(() {
+                  _statusFilter = value;
+                });
+              },
+              onReset: () {
+                _locationController.clear();
+                _viewMemory.clearLocation();
+                _viewMemory.workflowStatusFilter = null;
+                _viewMemory.sortOrder = ClientSortOrder.newestFirst;
+
+                setState(() {
+                  _statusFilter = null;
+                  _sortOrder = ClientSortOrder.newestFirst;
+                });
+              },
+            ),
+          ),
           Expanded(
             child: clientsValue.when(
               loading: () {
@@ -125,7 +201,13 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                 );
               },
               data: (List<Client> clients) {
-                if (clients.isEmpty) {
+                final List<Client> visibleClients = filterAndSortClients(
+                  clients,
+                  locationQuery: _locationController.text,
+                  sortOrder: _sortOrder,
+                  workflowStatusFilter: _statusFilter,
+                );
+                if (visibleClients.isEmpty) {
                   final bool hasSearchQuery = ref
                       .read(clientsControllerProvider.notifier)
                       .searchQuery
@@ -144,6 +226,18 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                     children: <Widget>[
+                      _ClientStatusSummary(
+                        clients: clients,
+                        selectedStatus: _statusFilter,
+                        onSelected: (ClientWorkflowState? value) {
+                          _viewMemory.workflowStatusFilter = value;
+
+                          setState(() {
+                            _statusFilter = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 10),
                       Row(
                         children: <Widget>[
                           Text(
@@ -155,13 +249,16 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      ...clients.map<Widget>(
+                      ...visibleClients.map<Widget>(
                         (Client client) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _ClientCard(
                             client: client,
                             onTap: () {
                               context.go('/clients/${client.id}');
+                            },
+                            onStatusChanged: () {
+                              setState(() {});
                             },
                           ),
                         ),
@@ -272,6 +369,322 @@ class _SearchBar extends StatelessWidget {
           border: const OutlineInputBorder(),
         ),
       ),
+    );
+  }
+}
+
+class _ClientFilterPanel extends StatelessWidget {
+  const _ClientFilterPanel({
+    required this.expanded,
+    required this.locationController,
+    required this.sortOrder,
+    required this.workflowStatusFilter,
+    required this.onExpandedChanged,
+    required this.onLocationChanged,
+    required this.onClearLocation,
+    required this.onSortChanged,
+    required this.onWorkflowStatusChanged,
+    required this.onReset,
+  });
+
+  final bool expanded;
+  final TextEditingController locationController;
+  final ClientSortOrder sortOrder;
+  final ClientWorkflowState? workflowStatusFilter;
+  final ValueChanged<bool> onExpandedChanged;
+  final VoidCallback onLocationChanged;
+  final VoidCallback onClearLocation;
+  final ValueChanged<ClientSortOrder> onSortChanged;
+  final ValueChanged<ClientWorkflowState?> onWorkflowStatusChanged;
+  final VoidCallback onReset;
+
+  int get activeFilterCount {
+    int count = 0;
+
+    if (locationController.text.trim().isNotEmpty) {
+      count++;
+    }
+
+    if (workflowStatusFilter != null) {
+      count++;
+    }
+
+    if (sortOrder != ClientSortOrder.newestFirst) {
+      count++;
+    }
+
+    return count;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final int activeCount = activeFilterCount;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: <Widget>[
+          InkWell(
+            onTap: () {
+              onExpandedChanged(!expanded);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: <Widget>[
+                  const Icon(Icons.tune),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Filtry i sortowanie',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  if (activeCount > 0) ...<Widget>[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '$activeCount aktywne',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  AnimatedRotation(
+                    turns: expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 180),
+            crossFadeState: expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final bool compact = constraints.maxWidth < 900;
+
+                  final Widget locationField = TextField(
+                    controller: locationController,
+                    onChanged: (_) {
+                      onLocationChanged();
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Lokalizacja',
+                      hintText: 'Miasto, ulica, kod lub fragment adresu',
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      suffixIcon: locationController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Wyczyść filtr lokalizacji',
+                              onPressed: onClearLocation,
+                              icon: const Icon(Icons.clear),
+                            ),
+                      border: const OutlineInputBorder(),
+                    ),
+                  );
+
+                  final Widget sortField =
+                      DropdownButtonFormField<ClientSortOrder>(
+                        initialValue: sortOrder,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Sortowanie',
+                          prefixIcon: Icon(Icons.sort),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: ClientSortOrder.values
+                            .map(
+                              (ClientSortOrder value) =>
+                                  DropdownMenuItem<ClientSortOrder>(
+                                    value: value,
+                                    child: Text(value.label),
+                                  ),
+                            )
+                            .toList(),
+                        onChanged: (ClientSortOrder? value) {
+                          if (value != null) {
+                            onSortChanged(value);
+                          }
+                        },
+                      );
+
+                  final Widget statusField = ClientWorkflowStatusFilterField(
+                    value: workflowStatusFilter,
+                    onChanged: onWorkflowStatusChanged,
+                  );
+
+                  final Widget resetButton = OutlinedButton.icon(
+                    onPressed: activeCount == 0 ? null : onReset,
+                    icon: const Icon(Icons.restart_alt),
+                    label: const Text('Wyczyść filtry'),
+                  );
+
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        locationField,
+                        const SizedBox(height: 12),
+                        sortField,
+                        const SizedBox(height: 12),
+                        statusField,
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: resetButton,
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          Expanded(flex: 2, child: locationField),
+                          const SizedBox(width: 12),
+                          Expanded(child: sortField),
+                          const SizedBox(width: 12),
+                          Expanded(child: statusField),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: resetButton,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientStatusSummary extends StatelessWidget {
+  const _ClientStatusSummary({
+    required this.clients,
+    required this.selectedStatus,
+    required this.onSelected,
+  });
+
+  final List<Client> clients;
+  final ClientWorkflowState? selectedStatus;
+  final ValueChanged<ClientWorkflowState?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ClientWorkflowMemory workflowMemory = ClientWorkflowMemory.instance;
+
+    final Map<ClientWorkflowState, int> counts = <ClientWorkflowState, int>{
+      for (final ClientWorkflowState status in ClientWorkflowState.values)
+        status: 0,
+    };
+
+    for (final Client client in clients) {
+      final ClientWorkflowState status = workflowMemory.statusFor(client).state;
+
+      counts[status] = (counts[status] ?? 0) + 1;
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: <Widget>[
+          _ClientStatusChip(
+            label: 'Wszyscy',
+            count: clients.length,
+            selected: selectedStatus == null,
+            onTap: () {
+              onSelected(null);
+            },
+          ),
+          const SizedBox(width: 8),
+          ...ClientWorkflowState.values.expand((
+            ClientWorkflowState status,
+          ) sync* {
+            yield _ClientStatusChip(
+              label: status.label,
+              count: counts[status] ?? 0,
+              color: status.color(theme),
+              selected: selectedStatus == status,
+              onTap: () {
+                onSelected(selectedStatus == status ? null : status);
+              },
+            );
+
+            yield const SizedBox(width: 8);
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientStatusChip extends StatelessWidget {
+  const _ClientStatusChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.color,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return ActionChip(
+      onPressed: onTap,
+      avatar: color == null
+          ? null
+          : Container(
+              width: 11,
+              height: 11,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
+      label: Text('$label ($count)'),
+      side: selected
+          ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
+          : null,
+      backgroundColor: selected ? theme.colorScheme.primaryContainer : null,
     );
   }
 }
@@ -415,10 +828,15 @@ class _EmptyClientsView extends StatelessWidget {
 }
 
 class _ClientCard extends StatelessWidget {
-  const _ClientCard({required this.client, required this.onTap});
+  const _ClientCard({
+    required this.client,
+    required this.onTap,
+    required this.onStatusChanged,
+  });
 
   final Client client;
   final VoidCallback onTap;
+  final VoidCallback onStatusChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -433,11 +851,9 @@ class _ClientCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: theme.colorScheme.primaryContainer,
-                foregroundColor: theme.colorScheme.onPrimaryContainer,
-                child: Icon(_clientTypeIcon(client.clientType)),
+              ClientWorkflowAvatar(
+                client: client,
+                onStatusChanged: onStatusChanged,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -499,6 +915,11 @@ class _ClientCard extends StatelessWidget {
                             icon: Icons.business_center_outlined,
                             value: client.industry!.name,
                           ),
+                        _ClientInformation(
+                          icon: Icons.calendar_today_outlined,
+                          value:
+                              'Dodano: ${_formatClientDate(client.createdAt)}',
+                        ),
                       ],
                     ),
                   ],
@@ -513,13 +934,13 @@ class _ClientCard extends StatelessWidget {
     );
   }
 
-  IconData _clientTypeIcon(ClientType type) {
-    return switch (type) {
-      ClientType.company => Icons.business_outlined,
-      ClientType.person => Icons.person_outline,
-      ClientType.institution => Icons.account_balance_outlined,
-      ClientType.other => Icons.category_outlined,
-    };
+  String _formatClientDate(DateTime value) {
+    final DateTime local = value.toLocal();
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+
+    return '${twoDigits(local.day)}.'
+        '${twoDigits(local.month)}.'
+        '${local.year}';
   }
 }
 

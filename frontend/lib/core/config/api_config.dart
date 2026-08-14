@@ -9,8 +9,10 @@ class ApiConfig {
   );
 
   static String get baseUrl {
-    if (_definedBaseUrl.isNotEmpty) {
-      return _definedBaseUrl;
+    final String defined = _normalizeBaseUrl(_definedBaseUrl);
+
+    if (defined.isNotEmpty) {
+      return defined;
     }
 
     if (kIsWeb) {
@@ -29,5 +31,31 @@ class ApiConfig {
       case TargetPlatform.fuchsia:
         return 'http://127.0.0.1:8000';
     }
+  }
+
+  static bool get usesExplicitBaseUrl {
+    return _normalizeBaseUrl(_definedBaseUrl).isNotEmpty;
+  }
+
+  static String get sourceDescription {
+    if (usesExplicitBaseUrl) {
+      return 'API_BASE_URL';
+    }
+
+    if (kIsWeb) {
+      return 'web default';
+    }
+
+    return '${defaultTargetPlatform.name} default';
+  }
+
+  static String _normalizeBaseUrl(String value) {
+    String normalized = value.trim();
+
+    while (normalized.endsWith('/')) {
+      normalized = normalized.substring(0, normalized.length - 1);
+    }
+
+    return normalized;
   }
 }

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../application/clients_providers.dart';
 import '../domain/client.dart';
+import 'client_workspace_panels.dart';
 
 class ClientDetailsPage extends ConsumerWidget {
   const ClientDetailsPage({required this.clientId, super.key});
@@ -242,7 +243,8 @@ class _ClientDetails extends StatelessWidget {
                 title: 'Adres',
                 icon: Icons.location_on_outlined,
                 children: <Widget>[
-                  if (client.address.trim().isNotEmpty) ...<Widget>[
+                  if (client.availableAddress?.trim().isNotEmpty ==
+                      true) ...<Widget>[
                     Card(
                       color: theme.colorScheme.surfaceContainerHighest,
                       child: Padding(
@@ -259,13 +261,16 @@ class _ClientDetails extends StatelessWidget {
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 520),
                               child: SelectableText(
-                                client.address,
+                                client.availableAddress!,
                                 style: theme.textTheme.bodyLarge,
                               ),
                             ),
                             FilledButton.icon(
                               onPressed: () {
-                                _openGoogleMaps(context, client.address);
+                                _openGoogleMaps(
+                                  context,
+                                  client.availableAddress!,
+                                );
                               },
                               icon: const Icon(Icons.directions_outlined),
                               label: const Text('Trasa w Google Maps'),
@@ -276,6 +281,13 @@ class _ClientDetails extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                   ],
+                  if (!client.hasStructuredAddressData &&
+                      client.addressFromNotes?.trim().isNotEmpty == true)
+                    _DetailRow(
+                      label: 'Dostępny adres ze źródła',
+                      value: client.addressFromNotes,
+                      multiline: true,
+                    ),
                   _DetailRow(label: 'Ulica', value: client.street),
                   _DetailRow(
                     label: 'Numer budynku',
@@ -294,11 +306,13 @@ class _ClientDetails extends StatelessWidget {
                 children: <Widget>[
                   _DetailRow(
                     label: 'Dodatkowe informacje',
-                    value: client.notes,
+                    value: client.displayNotes,
                     multiline: true,
                   ),
                 ],
               ),
+              const SizedBox(height: 20),
+              ClientWorkspacePanels(clientId: client.id),
               const SizedBox(height: 20),
               _DetailsSection(
                 title: 'Informacje systemowe',

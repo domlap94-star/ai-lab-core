@@ -85,7 +85,15 @@ class Client {
     return name.trim().isEmpty ? 'Klient bez nazwy' : name.trim();
   }
 
-  String get address {
+  bool get hasStructuredAddressData {
+    return street?.trim().isNotEmpty == true ||
+        buildingNumber?.trim().isNotEmpty == true ||
+        unitNumber?.trim().isNotEmpty == true ||
+        postalCode?.trim().isNotEmpty == true ||
+        city?.trim().isNotEmpty == true;
+  }
+
+  String get structuredAddress {
     final List<String> streetParts = <String>[
       if (street?.trim().isNotEmpty == true) street!.trim(),
       if (buildingNumber?.trim().isNotEmpty == true) buildingNumber!.trim(),
@@ -100,8 +108,81 @@ class Client {
     return <String>[
       if (streetParts.isNotEmpty) streetParts.join(' '),
       if (cityParts.isNotEmpty) cityParts.join(' '),
-      if (countryCode.trim().isNotEmpty) countryCode.trim(),
+      if (hasStructuredAddressData && countryCode.trim().isNotEmpty)
+        countryCode.trim(),
     ].join(', ');
+  }
+
+  String? get addressFromNotes {
+    final String source = notes?.trim() ?? '';
+
+    if (source.isEmpty) {
+      return null;
+    }
+
+    for (final String rawLine in source.split(RegExp(r'\r?\n'))) {
+      final RegExpMatch? match = RegExp(
+        r'^\s*adres\s*:\s*(.+?)\s*$',
+        caseSensitive: false,
+      ).firstMatch(rawLine);
+
+      final String? value = match?.group(1)?.trim();
+
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  String? get availableAddress {
+    final String structured = structuredAddress.trim();
+
+    if (structured.isNotEmpty) {
+      return structured;
+    }
+
+    final String? fallback = addressFromNotes;
+
+    if (fallback != null && fallback.trim().isNotEmpty) {
+      return fallback.trim();
+    }
+
+    return null;
+  }
+
+  String get address {
+    return availableAddress ?? '';
+  }
+
+  String? get displayNotes {
+    final String source = notes?.trim() ?? '';
+
+    if (source.isEmpty) {
+      return null;
+    }
+
+    final List<String> lines = source
+        .split(RegExp(r'\r?\n'))
+        .where(
+          (String rawLine) =>
+              !RegExp(r'^\s*adres\s*:', caseSensitive: false).hasMatch(rawLine),
+        )
+        .map((String value) => value.trimRight())
+        .toList();
+
+    while (lines.isNotEmpty && lines.first.trim().isEmpty) {
+      lines.removeAt(0);
+    }
+
+    while (lines.isNotEmpty && lines.last.trim().isEmpty) {
+      lines.removeLast();
+    }
+
+    final String result = lines.join('\n').trim();
+
+    return result.isEmpty ? null : result;
   }
 
   bool get hasContactData {
