@@ -2,6 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ApiBaseUrl,
 
+    [Parameter(Mandatory = $true)]
+    [string]$SupervisorBaseUrl,
+
     [ValidateSet(
         "all",
         "windows",
@@ -22,24 +25,28 @@ Set-Location (
 )
 
 $ApiBaseUrl = $ApiBaseUrl.Trim().TrimEnd("/")
+$SupervisorBaseUrl = $SupervisorBaseUrl.Trim().TrimEnd("/")
 
-if (
-    -not (
-        $ApiBaseUrl.StartsWith("https://") -or
-        $ApiBaseUrl.StartsWith("http://")
-    )
-) {
-    throw "ApiBaseUrl must start with http:// or https://"
+foreach ($url in @($ApiBaseUrl, $SupervisorBaseUrl)) {
+    if (
+        -not (
+            $url.StartsWith("https://") -or
+            $url.StartsWith("http://")
+        )
+    ) {
+        throw "Release URLs must start with http:// or https://"
+    }
 }
 
 Write-Host ""
 Write-Host "============================================================"
-Write-Host "AI-LAB RELEASE BUILD"
+Write-Host "NEXT STABIL RELEASE BUILD"
 Write-Host "============================================================"
-Write-Host ("API URL      : {0}" -f $ApiBaseUrl)
-Write-Host ("PLATFORM     : {0}" -f $Platform)
-Write-Host ("VERSION      : {0}" -f $Version)
-Write-Host ("BUILD NUMBER : {0}" -f $BuildNumber)
+Write-Host ("API URL        : {0}" -f $ApiBaseUrl)
+Write-Host ("SUPERVISOR URL : {0}" -f $SupervisorBaseUrl)
+Write-Host ("PLATFORM       : {0}" -f $Platform)
+Write-Host ("VERSION        : {0}" -f $Version)
+Write-Host ("BUILD NUMBER   : {0}" -f $BuildNumber)
 Write-Host ""
 
 flutter pub get
@@ -52,7 +59,8 @@ $commonArguments = @(
     "--release",
     "--build-name=$Version",
     "--build-number=$BuildNumber",
-    "--dart-define=API_BASE_URL=$ApiBaseUrl"
+    "--dart-define=API_BASE_URL=$ApiBaseUrl",
+    "--dart-define=SUPERVISOR_BASE_URL=$SupervisorBaseUrl"
 )
 
 if ($Platform -in @("all", "windows")) {

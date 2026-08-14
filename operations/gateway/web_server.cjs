@@ -186,7 +186,40 @@ const server = http.createServer((req, res) => {
   }
 
   if (pathname === '/control' || pathname.startsWith('/control/')) {
+    const allowedOrigin = 'https://domai.tail1927bd.ts.net';
+    const origin = String(req.headers.origin || '');
+
+    if (origin === allowedOrigin) {
+      res.setHeader(
+        'Access-Control-Allow-Origin',
+        allowedOrigin,
+      );
+      res.setHeader('Vary', 'Origin');
+      res.setHeader(
+        'Access-Control-Allow-Methods',
+        'GET, POST, OPTIONS',
+      );
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type',
+      );
+    }
+
+    if (req.method === 'OPTIONS') {
+      if (origin !== allowedOrigin) {
+        sendJson(res, 403, {
+          detail: 'Origin not allowed',
+        });
+        return;
+      }
+
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+
     const strippedPath = pathname.replace(/^\/control/, '') || '/';
+
     proxy(
       req,
       res,
