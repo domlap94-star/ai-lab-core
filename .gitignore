@@ -67,3 +67,5 @@ release-channel/**/*.msi
 release-channel/**/*.msix
 release-channel/**/*.zip
 operations/gateway/gateway.js
+frontend/ios/
+frontend/macos/
