@@ -36,6 +36,14 @@ class InvalidLocationMetadataError(DocumentStorageError):
     pass
 
 
+class UnsafeDocumentStoragePathError(DocumentStorageError):
+    pass
+
+
+class DocumentContentUnavailableError(DocumentStorageError):
+    pass
+
+
 @dataclass(frozen=True)
 class StoredDocumentResult:
     document: Document
@@ -311,10 +319,10 @@ class DocumentService:
         if not document.storage_path:
             return None
 
-        return (
-            Path(settings.data_dir)
-            / document.storage_path
-        ).resolve()
+        return resolve_document_storage_path(
+            storage_path=document.storage_path,
+            data_root=Path(settings.data_dir),
+        )
 
     def find_candidate_for_gmail_message(
         self,
@@ -445,3 +453,31 @@ class DocumentService:
         normalized = value.strip()
 
         return normalized or None
+
+
+def resolve_document_storage_path(
+    *,
+    storage_path: str,
+    data_root: Path,
+) -> Path:
+    try:
+        resolved_root = data_root.resolve(strict=True)
+        resolved_path = (resolved_root / storage_path).resolve(strict=True)
+    except (FileNotFoundError, OSError, RuntimeError) as error:
+        raise DocumentContentUnavailableError(
+            "Document content is unavailable."
+        ) from error
+
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError as error:
+        raise UnsafeDocumentStoragePathError(
+            "Document content is unavailable."
+        ) from error
+
+    if not resolved_path.is_file():
+        raise DocumentContentUnavailableError(
+            "Document content is unavailable."
+        )
+
+    return resolved_path

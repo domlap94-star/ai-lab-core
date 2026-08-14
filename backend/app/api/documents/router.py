@@ -8,15 +8,21 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.imports.dependencies import require_import_api_key
+from app.api.auth import get_current_user
 from app.database.session import get_db
 from app.schemas.document import (
     DocumentRead,
+    DocumentLinkState,
+    DocumentPublicPage,
+    DocumentPublicRead,
     DocumentUploadResponse,
 )
 from app.services.document_service import (
@@ -26,12 +32,95 @@ from app.services.document_service import (
     InvalidDocumentSourceTypeError,
     InvalidLocationMetadataError,
     MissingLocationMetadataError,
+    DocumentContentUnavailableError,
+    UnsafeDocumentStoragePathError,
+)
+from app.services.document_read_service import (
+    DocumentNotFoundError,
+    DocumentReadService,
 )
 
 router = APIRouter(
     prefix="/documents",
     tags=["Documents"],
 )
+
+
+@router.get(
+    "",
+    response_model=DocumentPublicPage,
+)
+def list_documents(
+    search: str | None = Query(default=None, max_length=255),
+    client_id: int | None = Query(default=None, ge=1),
+    source_type: str | None = Query(default=None, max_length=30),
+    match_status: str | None = Query(default=None, max_length=30),
+    processing_status: str | None = Query(default=None, max_length=30),
+    link_state: DocumentLinkState = Query(default="ALL"),
+    content_type: str | None = Query(default=None, max_length=255),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentPublicPage:
+    return DocumentReadService(db).get_page(
+        search=search,
+        client_id=client_id,
+        source_type=source_type,
+        match_status=match_status,
+        processing_status=processing_status,
+        link_state=link_state,
+        content_type=content_type,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/{document_id}/content",
+    response_class=FileResponse,
+)
+def get_document_content(
+    document_id: int,
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    try:
+        document, path, filename = DocumentReadService(db).get_content(
+            document_id
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Document not found") from error
+    except (
+        DocumentContentUnavailableError,
+        UnsafeDocumentStoragePathError,
+    ) as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Document content is unavailable",
+        ) from error
+
+    return FileResponse(
+        path=path,
+        media_type=document.content_type,
+        filename=filename,
+        content_disposition_type="inline",
+    )
+
+
+@router.get(
+    "/{document_id}",
+    response_model=DocumentPublicRead,
+)
+def get_document(
+    document_id: int,
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentPublicRead:
+    try:
+        return DocumentReadService(db).get_document(document_id)
+    except DocumentNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Document not found") from error
 
 
 @router.post(

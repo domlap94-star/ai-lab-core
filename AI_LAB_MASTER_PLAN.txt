@@ -4497,7 +4497,7 @@ braku implementacji; obowiązuje poniższa weryfikacja kodem i testami.
     search i filtry client_type/industry_id dla całej aktywnej bazy.
 [~] Client 360 istnieje, lecz dokumenty i pozostałe workspace panels są
     placeholderami.
-[ ] Authenticated document read/list/search/filter/download API.
+[✓] Authenticated document read/list/search/filter/download API.
 [ ] Prawdziwe repozytorium dokumentów Flutter; /documents jest placeholderem.
 [ ] Trwały model wielu kontaktów, emaili, telefonów i adresów z provenance.
 
@@ -4568,6 +4568,67 @@ MIGRATIONS: NONE
 
 ================================================================================
 END CHECKPOINT 2026-08-14 — CLIENT LIST CONTRACT
+================================================================================
+
+================================================================================
+CHECKPOINT 2026-08-14 — DOCUMENT READ API
+================================================================================
+
+STATUS: DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+[✓] Authenticated GET /api/v1/documents.
+[✓] Kontrakt items, total, skip, limit; default 50, maximum 100.
+[✓] Stabilne sortowanie created_at DESC, id DESC.
+[✓] Search po filename/archive member/client/candidate/content type.
+[✓] Filtry client_id, source_type, match_status, processing_status,
+    content_type i link_state.
+[✓] Link states LINKED, CANDIDATE_ONLY i UNLINKED.
+[✓] Authenticated GET /api/v1/documents/{document_id}.
+[✓] Authenticated GET /api/v1/documents/{document_id}/content.
+[✓] Publiczny model nie ujawnia storage_path, checksum ani extracted_text.
+[✓] Lista używa jednej projekcji SQL i dwóch LEFT JOIN bez N+1.
+[✓] Download przyjmuje wyłącznie document ID.
+[✓] Resolved file path musi pozostać w resolved configured data root.
+[✓] Path traversal i symlink poza data root są odrzucane.
+[✓] Import API key semantics POST /documents/upload pozostają bez zmian.
+
+REAL DATA ACCEPTANCE:
+
+- total: 5899,
+- linked: 5639,
+- candidate-only: 161,
+- unlinked: 99,
+- first page: 50,
+- last page: 49,
+- search target outside first page: document ID 5878,
+- source total: 5897,
+- match total: 5638,
+- processing total: 5794,
+- selected client total: 9,
+- checksum-verified download: document ID 4817, 2 bytes.
+
+TESTY:
+
+[✓] real JWT list/detail/content oraz anonymous 401,
+[✓] unknown detail/content 404,
+[✓] pagination, stable order i brak duplikatów,
+[✓] search, filters, combined filters i totals,
+[✓] limit 101 -> HTTP 422,
+[✓] traversal/symlink/missing path security,
+[✓] download MIME/length/filename/SHA-256,
+[✓] upload import-key regression 401/403/422,
+[✓] backend compile,
+[✓] authenticated Client List regression,
+[✓] read-only extraction smoke; istniejący uszkodzony PDF 4812 pozostaje
+    kontrolowanym failure case.
+
+Documents Flutter UI oraz Client 360 Documents pozostają poza tym checkpointem.
+
+DATA IMPACT: NONE
+MIGRATIONS: NONE
+
+================================================================================
+END CHECKPOINT 2026-08-14 — DOCUMENT READ API
 ================================================================================
 
 KONIEC MASTER PLAN

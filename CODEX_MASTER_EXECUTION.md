@@ -17,7 +17,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 | RAG / citations / evidence | DONE | chroniony `/api/v1/ai/rag`; test 401/200/422 i claim→evidence→source PASS. |
 | CRM frontend | PARTIAL | paginowana lista wszystkich klientów oraz details/create/edit istnieją; documents to placeholder, Client 360 ma placeholder panels. |
 | Candidate pipeline | DONE/PARTIAL | review/promotion, duplicate protection i read-only identity projection działają; trwały multi-contact i quality cleanup są otwarte. |
-| Document read API/UI | NOT STARTED | istnieje tylko import-key upload; brak auth list/search/filter/download, UI jest placeholderem. |
+| Document read API/UI | PARTIAL | bezpieczne auth list/detail/content API działa; Flutter Documents UI pozostaje placeholderem do CHUNK 3. |
 | Dane CRM | QUALITY DEBT | 3194 aktywnych; 463 email-name, 284 phone-name, 1 file-name, 3193 bez structured address, 809 mail transcripts w notes. |
 
 ## Problemy źródłowe wykryte w CHUNK 0
@@ -78,16 +78,24 @@ odczytowego audytu bazy, nie ze starych checkboxów.
   reprezentatywnych danych i pozostaje warunkowo testowana, bez tworzenia danych.
 - Commit: `Complete paginated client list contract`.
 
-### 2. Document read API — TODO
+### 2. Document read API — DONE
 
 - Cel: bezpieczny dostęp do 5899+ dokumentów. Zależności: 0.
-- Zakres/pliki: auth list/detail/search/filter/count oraz kontrolowany download
-  w documents router/schema/repository/service i testach; bez ujawniania
-  `storage_path`. Migracje: brak przewidywanych.
-- Ryzyka: path traversal, MIME/content-disposition, duże pliki. Dane: odczyt.
-- Testy/acceptance: 401/403/404, filtry client/link/source/match, total i
-  pagination, traversal rejected, download właściwego pliku.
-- Commit: `Add authenticated document read API`.
+- Zakres wykonany: JWT list/detail/content, `{items,total,skip,limit}`, search
+  metadanych, filtry client/source/match/processing/link/content type, projekcja
+  bez ścieżek oraz download po ID. Upload zachował osobny import API key.
+- Pliki: documents router/schema/repository, osobny read service, containment w
+  document service i read-only E2E. Migracje: brak. Dane: odczyt.
+- Bezpieczeństwo: jawna projekcja SQL bez `storage_path`/text/pages/chunks/assets;
+  dwa LEFT JOIN bez N+1; resolved path musi pozostać w resolved data root;
+  traversal, absolute escape, symlink escape i missing file są odrzucane.
+- Testy/acceptance: real JWT 401/200/404/422; total 5899; strony 50/50/last 49;
+  stable order; search ID 5878; wszystkie filtry i link totals 5639/161/99;
+  checksum download dokumentu 4817; import-key 401/403/valid-key-to-422;
+  client list auth regression i compile PASS; read-only extraction smoke dla
+  DOCX/ODT/PNG/XLSX/PDF zakończony, z istniejącym uszkodzonym PDF 4812 nadal
+  raportowanym jako failed.
+- Commit: `Complete authenticated document read API`.
 
 ### 3. Document repository UI — TODO
 

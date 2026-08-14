@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Query, Session
 
 from app.models.candidate_source import CandidateSource
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.models.document_page import DocumentPage
+from app.models.client import Client
 
 
 class DocumentRepository:
@@ -39,6 +41,138 @@ class DocumentRepository:
             )
             .first()
         )
+
+    def get_read(
+        self,
+        document_id: int,
+    ):
+        return (
+            self._read_query()
+            .filter(Document.id == document_id)
+            .first()
+        )
+
+    def get_read_page(
+        self,
+        *,
+        search: str | None = None,
+        client_id: int | None = None,
+        source_type: str | None = None,
+        match_status: str | None = None,
+        processing_status: str | None = None,
+        link_state: str = "ALL",
+        content_type: str | None = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> tuple[list, int]:
+        query = self._read_query()
+        query = self._apply_read_filters(
+            query,
+            search=search,
+            client_id=client_id,
+            source_type=source_type,
+            match_status=match_status,
+            processing_status=processing_status,
+            link_state=link_state,
+            content_type=content_type,
+        )
+
+        total = query.order_by(None).count()
+        items = (
+            query.order_by(
+                Document.created_at.desc(),
+                Document.id.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return items, total
+
+    def _read_query(self) -> Query:
+        return (
+            self.db.query(
+                Document.id,
+                Document.original_filename,
+                Document.content_type,
+                Document.file_size,
+                Document.source_type,
+                Document.client_id,
+                Client.name.label("client_name"),
+                Document.candidate_id,
+                ClientCandidate.name.label("candidate_name"),
+                Document.processing_status,
+                Document.metadata_status,
+                Document.match_status,
+                Document.match_confidence,
+                Document.captured_at,
+                Document.parent_document_id,
+                Document.archive_member_path,
+                Document.archive_depth,
+                Document.created_at,
+                Document.updated_at,
+            )
+            .outerjoin(Client, Client.id == Document.client_id)
+            .outerjoin(
+                ClientCandidate,
+                ClientCandidate.id == Document.candidate_id,
+            )
+        )
+
+    @staticmethod
+    def _apply_read_filters(
+        query: Query,
+        *,
+        search: str | None,
+        client_id: int | None,
+        source_type: str | None,
+        match_status: str | None,
+        processing_status: str | None,
+        link_state: str,
+        content_type: str | None,
+    ) -> Query:
+        normalized_search = search.strip() if search else ""
+
+        if normalized_search:
+            pattern = f"%{normalized_search}%"
+            query = query.filter(
+                or_(
+                    Document.original_filename.ilike(pattern),
+                    Document.archive_member_path.ilike(pattern),
+                    Document.content_type.ilike(pattern),
+                    Client.name.ilike(pattern),
+                    ClientCandidate.name.ilike(pattern),
+                )
+            )
+
+        if client_id is not None:
+            query = query.filter(Document.client_id == client_id)
+        if source_type is not None:
+            query = query.filter(Document.source_type == source_type)
+        if match_status is not None:
+            query = query.filter(Document.match_status == match_status)
+        if processing_status is not None:
+            query = query.filter(
+                Document.processing_status == processing_status
+            )
+        if content_type is not None:
+            query = query.filter(Document.content_type == content_type)
+
+        if link_state == "LINKED":
+            query = query.filter(Document.client_id.is_not(None))
+        elif link_state == "CANDIDATE_ONLY":
+            query = query.filter(
+                Document.client_id.is_(None),
+                Document.candidate_id.is_not(None),
+            )
+        elif link_state == "UNLINKED":
+            query = query.filter(
+                Document.client_id.is_(None),
+                Document.candidate_id.is_(None),
+            )
+
+        return query
 
     def get_by_external_id(
         self,

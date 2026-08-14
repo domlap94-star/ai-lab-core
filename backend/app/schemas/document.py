@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
+from typing import Literal
+from typing import Literal
 
 
 class DocumentRead(BaseModel):
@@ -53,3 +55,40 @@ class DocumentUploadResponse(BaseModel):
     document: DocumentRead
     created: bool
     matched_by: str | None = None
+
+
+DocumentLinkState = Literal[
+    "ALL",
+    "LINKED",
+    "CANDIDATE_ONLY",
+    "UNLINKED",
+]
+
+
+class DocumentPublicRead(BaseModel):
+    id: int
+    original_filename: str | None
+    content_type: str
+    file_size: int
+    source_type: str
+    client_id: int | None
+    client_name: str | None
+    candidate_id: int | None
+    candidate_name: str | None
+    processing_status: str
+    metadata_status: str
+    match_status: str
+    match_confidence: float | None
+    captured_at: datetime | None
+    parent_document_id: int | None
+    archive_member_path: str | None
+    archive_depth: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentPublicPage(BaseModel):
+    items: list[DocumentPublicRead]
+    total: int
+    skip: int
+    limit: int
