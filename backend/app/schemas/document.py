@@ -4,7 +4,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 from typing import Literal
-from typing import Literal
 
 
 class DocumentRead(BaseModel):
