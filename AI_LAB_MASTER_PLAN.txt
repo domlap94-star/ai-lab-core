@@ -4467,4 +4467,58 @@ NASTĘPNY ETAP:
 END CHECKPOINT 2026-08-13 — CLIENT ENTITY PROJECTION 1.4.6
 ================================================================================
 
+================================================================================
+RECONCILIATION 2026-08-14 — CHUNK 0 BASELINE / SAFETY / REPO HYGIENE
+================================================================================
+
+Ten wpis aktualizuje stan wykonawczy bez zmiany wizji architektonicznej.
+Starsze puste checkboxy w częściach opisujących stan docelowy nie są dowodem
+braku implementacji; obowiązuje poniższa weryfikacja kodem i testami.
+
+[✓] Authentication JWT, role User/Administrator i admin user management.
+[✓] Forced password change oraz reset/change password flow.
+[✓] Flutter jako główny interfejs na Windows, Android i Web.
+[✓] iOS/macOS pozostają świadomie poza zakresem.
+[✓] Stable release channel i wersjonowanie aplikacji.
+[✓] Native self-update Windows/Android, SHA-256 i decyzja required update.
+[✓] Endpoint status/version oraz latest/minimum/required update contract.
+[✓] Alembic migration mechanism; produkcyjna baza na head authv1_20260813.
+[✓] Supervisor na 127.0.0.1:8787.
+[✓] Private gateway na 127.0.0.1:8788 z /control.
+[✓] Public gateway na 127.0.0.1:8789 bez dostępu do /control.
+[✓] Document Chunking 2.0.
+[✓] EmbeddingService z qwen3-embedding:0.6b.
+[✓] Qdrant collection/upsert/search i metadata payload.
+[✓] Semantic retrieval z document diversity.
+[✓] Deterministic Evidence-ID RAG i chroniony POST /api/v1/ai/rag.
+[✓] Client list/details/create/edit oraz candidate review w Flutter.
+
+[~] Lista klientów jest używalna, ale API/UI pobiera domyślnie tylko pierwsze
+    100 rekordów i nie zwraca total; pełna paginacja jest CHUNK 1.
+[~] Client 360 istnieje, lecz dokumenty i pozostałe workspace panels są
+    placeholderami.
+[ ] Authenticated document read/list/search/filter/download API.
+[ ] Prawdziwe repozytorium dokumentów Flutter; /documents jest placeholderem.
+[ ] Trwały model wielu kontaktów, emaili, telefonów i adresów z provenance.
+
+READ-ONLY CRM AUDIT 2026-08-14:
+
+- active clients: 3194,
+- types: person 1994, other 996, company 198, institution 6,
+- email-as-name: 463,
+- phone-as-name: 284,
+- file-as-name: 1,
+- without structured address: 3193,
+- notes containing mail transcripts: 809,
+- documents: 5899,
+- linked/candidate-only/unlinked: 5639 / 161 / 99,
+- Gmail sources linked to clients: 4095.
+
+Szczegółowy podział na małe, testowalne checkpointy znajduje się w
+CODEX_MASTER_EXECUTION.md.
+
+================================================================================
+END RECONCILIATION 2026-08-14 — CHUNK 0
+================================================================================
+
 KONIEC MASTER PLAN
