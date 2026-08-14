@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app_update/application/update_install_controller.dart';
+import '../../app_update/application/update_provider.dart';
+import '../../app_update/domain/app_update.dart';
 import '../../app_version/application/app_version_provider.dart';
 import '../../app_version/domain/app_version_info.dart';
 import '../../auth/application/auth_controller.dart';
@@ -20,18 +23,61 @@ class SettingsPage extends ConsumerWidget {
     return normalized == 'admin' || normalized == 'administrator';
   }
 
+  String _describeUpdate(UpdateCheckResult result) {
+    if (result.platform == AppUpdatePlatform.web) {
+      switch (result.state) {
+        case AppUpdateState.current:
+          return 'Wersja web jest aktualna: '
+              '${result.latestDisplayVersion}.';
+
+        case AppUpdateState.available:
+        case AppUpdateState.required:
+          return 'Dost\u0119pna jest nowsza wersja web. '
+              'Od\u015bwie\u017c kart\u0119 przegl\u0105darki.';
+
+        case AppUpdateState.unsupported:
+          return 'Kana\u0142 aktualizacji web jest niedost\u0119pny.';
+      }
+    }
+
+    switch (result.state) {
+      case AppUpdateState.current:
+        return 'Masz aktualn\u0105 wersj\u0119. '
+            'Kana\u0142 stable: ${result.latestDisplayVersion}.';
+
+      case AppUpdateState.available:
+        return 'Dost\u0119pna aktualizacja: '
+            '${result.latestDisplayVersion}.';
+
+      case AppUpdateState.required:
+        return 'Ta wersja nie jest ju\u017c obs\u0142ugiwana. '
+            'Wymagana wersja minimalna: '
+            '${result.manifest.minimumVersion}.';
+
+      case AppUpdateState.unsupported:
+        return 'Aktualizacje natywne nie s\u0105 obs\u0142ugiwane '
+            'na tej platformie.';
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<AuthState> authValue = ref.watch(authControllerProvider);
-
     final AsyncValue<AppVersionInfo> appVersion = ref.watch(appVersionProvider);
 
     final AsyncValue<BackendStatus> backendStatus = ref.watch(
       backendStatusProvider,
     );
 
-    final String role = authValue.value?.user?.role ?? '';
+    final AsyncValue<UpdateCheckResult> updateCheck = ref.watch(
+      updateCheckProvider,
+    );
 
+    final UpdateInstallState installState = ref.watch(
+      updateInstallControllerProvider,
+    );
+
+    final String role = authValue.value?.user?.role ?? '';
     final bool isAdmin = _isAdminRole(role);
 
     return Scaffold(
@@ -128,19 +174,151 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 ),
               ),
-              const ListTile(
-                leading: Icon(Icons.verified_user_outlined),
-                title: Text('Zgodno\u015b\u0107 wersji'),
-                subtitle: Text(
-                  'Warstwa Flutter jest gotowa. '
-                  'Minimaln\u0105 obs\u0142ugiwan\u0105 wersj\u0119 '
-                  'i wymuszenie aktualizacji '
-                  'pod\u0142\u0105czymy po zako\u0144czeniu '
-                  'batcha klient\u00f3w.',
+              updateCheck.when(
+                data: (UpdateCheckResult result) {
+                  final bool installable =
+                      result.platform != AppUpdatePlatform.web &&
+                      result.platform != AppUpdatePlatform.unsupported &&
+                      (result.state == AppUpdateState.available ||
+                          result.state == AppUpdateState.required);
+
+                  return _UpdateTile(
+                    description: _describeUpdate(result),
+                    result: result,
+                    installState: installState,
+                    installable: installable,
+                    onRefresh: installState.isBusy
+                        ? null
+                        : () {
+                            ref.invalidate(updateCheckProvider);
+                          },
+                    onInstall: installable && !installState.isBusy
+                        ? () {
+                            ref
+                                .read(updateInstallControllerProvider.notifier)
+                                .install(result);
+                          }
+                        : null,
+                  );
+                },
+                loading: () => const ListTile(
+                  leading: Icon(Icons.system_update_alt),
+                  title: Text('Kana\u0142 aktualizacji'),
+                  subtitle: Text('Sprawdzanie kana\u0142u stable...'),
+                ),
+                error: (_, _) => ListTile(
+                  leading: const Icon(Icons.error_outline),
+                  title: const Text('Kana\u0142 aktualizacji'),
+                  subtitle: const Text(
+                    'Nie uda\u0142o si\u0119 sprawdzi\u0107 '
+                    'kana\u0142u stable.',
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Sprawd\u017a ponownie',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
+                      ref.invalidate(updateCheckProvider);
+                    },
+                  ),
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpdateTile extends StatelessWidget {
+  const _UpdateTile({
+    required this.description,
+    required this.result,
+    required this.installState,
+    required this.installable,
+    required this.onRefresh,
+    required this.onInstall,
+  });
+
+  final String description;
+  final UpdateCheckResult result;
+  final UpdateInstallState installState;
+  final bool installable;
+  final VoidCallback? onRefresh;
+  final VoidCallback? onInstall;
+
+  String? _installMessage() {
+    switch (installState.phase) {
+      case UpdateInstallPhase.idle:
+        return null;
+
+      case UpdateInstallPhase.downloading:
+        final double? progress = installState.progress;
+
+        if (progress == null) {
+          return 'Pobieranie aktualizacji...';
+        }
+
+        return 'Pobieranie: ${(progress * 100).round()}%';
+
+      case UpdateInstallPhase.verifying:
+        return 'Weryfikacja SHA256...';
+
+      case UpdateInstallPhase.launching:
+        if (result.platform == AppUpdatePlatform.windows) {
+          return 'Uruchamianie instalatora Windows...';
+        }
+
+        return 'Otwieranie instalatora Android...';
+
+      case UpdateInstallPhase.failed:
+        return 'B\u0142\u0105d aktualizacji: '
+            '${installState.error ?? 'nieznany b\u0142\u0105d'}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? installMessage = _installMessage();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          ListTile(
+            leading: const Icon(Icons.system_update_alt),
+            title: const Text('Kana\u0142 aktualizacji'),
+            subtitle: Text(
+              installMessage == null
+                  ? description
+                  : '$description\n$installMessage',
+            ),
+            trailing: IconButton(
+              tooltip: 'Sprawd\u017a ponownie',
+              icon: const Icon(Icons.refresh),
+              onPressed: onRefresh,
+            ),
+          ),
+          if (installState.phase == UpdateInstallPhase.downloading &&
+              installState.progress != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: LinearProgressIndicator(value: installState.progress),
+            ),
+          if (installable)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: FilledButton.icon(
+                onPressed: onInstall,
+                icon: const Icon(Icons.download),
+                label: Text(
+                  result.state == AppUpdateState.required
+                      ? 'Zainstaluj wymagan\u0105 aktualizacj\u0119'
+                      : 'Pobierz i zainstaluj',
+                ),
+              ),
+            ),
         ],
       ),
     );
