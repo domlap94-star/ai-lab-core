@@ -3,16 +3,16 @@
     "version":  "1.0.0",
     "build_number":  2,
     "minimum_version":  "1.0.0",
-    "published_at":  "2026-08-14T11:16:42Z",
+    "published_at":  "2026-08-14T12:26:32Z",
     "platforms":  {
                       "web":  {
                                   "available":  true,
                                   "url":  "/"
                               },
                       "windows":  {
-                                      "available":  false,
-                                      "url":  null,
-                                      "sha256":  null
+                                      "available":  true,
+                                      "url":  "/updates/stable/windows/NEXT-Stabil-Setup-1.0.0+2.exe",
+                                      "sha256":  "2FE8B3CB63821A0B2311FBB1927062A10729ED79736A4EBC71C9C97800BD0402"
                                   },
                       "android":  {
                                       "available":  true,
