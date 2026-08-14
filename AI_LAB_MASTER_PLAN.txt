@@ -4498,7 +4498,8 @@ braku implementacji; obowiązuje poniższa weryfikacja kodem i testami.
 [~] Client 360 istnieje, lecz dokumenty i pozostałe workspace panels są
     placeholderami.
 [✓] Authenticated document read/list/search/filter/download API.
-[ ] Prawdziwe repozytorium dokumentów Flutter; /documents jest placeholderem.
+[✓] Prawdziwe repozytorium dokumentów Flutter z paginacją, search, filtrami,
+    detail oraz bezpiecznym otwieraniem na Windows/Android/Web.
 [ ] Trwały model wielu kontaktów, emaili, telefonów i adresów z provenance.
 
 READ-ONLY CRM AUDIT 2026-08-14:
@@ -4629,6 +4630,56 @@ MIGRATIONS: NONE
 
 ================================================================================
 END CHECKPOINT 2026-08-14 — DOCUMENT READ API
+================================================================================
+
+================================================================================
+CHECKPOINT 2026-08-15 — DOCUMENT REPOSITORY UI
+================================================================================
+
+STATUS: DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+[✓] /documents używa istniejącego JWT, Dio, Riverpod, routera i theme.
+[✓] Warstwy data/domain/application/presentation mają jawny model strony,
+    dokumentu, filtrów i link state oraz parser pól nullable.
+[✓] Paginacja pozostaje server-side po 50 rekordów; nie ma fetch-all.
+[✓] Search ma debounce 400 ms i resetuje skip do zera.
+[✓] Filtry link/source/match/processing/content type/client działają server-side.
+[✓] Kliknięcie nazwy klienta ustawia client_id bez pobierania całej listy CRM.
+[✓] Desktop/Web pokazują tabelę, a węższy layout pokazuje mobilne karty.
+[✓] Detail jest pobierany z GET /api/v1/documents/{document_id}.
+[✓] Windows/Android pobierają treść przez uwierzytelnione Dio, zapisują plik
+    tymczasowy z sanitizowaną nazwą i otwierają przez open_filex.
+[✓] Web pobiera bajty z JWT przez Dio, a następnie tworzy Blob/Object URL;
+    JWT nigdy nie jest przekazywany w URL dokumentu.
+[✓] Loading, empty, error, retry i postęp otwierania są jawnie obsłużone.
+
+TESTY:
+
+[✓] parser publicznego kontraktu i pól nullable,
+[✓] mapowanie aktywnych filtrów oraz skip/limit do query params,
+[✓] controller: next page oraz reset skip dla search/filtrów,
+[✓] widget: realny wynik strony, total, paginacja i debounce,
+[✓] open service z wstrzykiwalnym openerem i potwierdzeniem sesji,
+[✓] Flutter analyze i pełny Flutter test,
+[✓] Flutter Web release build z gateway 8789/8788,
+[✓] Flutter Windows debug build,
+[✓] backend compile i real Document Read API E2E.
+
+REAL DATA ACCEPTANCE:
+
+- total: 5899,
+- linked/candidate-only/unlinked: 5639 / 161 / 99,
+- search target: document ID 5878, total 12,
+- selected client total: 9,
+- checksum-verified download: document ID 4817, 2 bytes.
+
+Client 360 Documents, matching actions i upload UI pozostają TODO.
+
+DATA IMPACT: NONE
+MIGRATIONS: NONE
+
+================================================================================
+END CHECKPOINT 2026-08-15 — DOCUMENT REPOSITORY UI
 ================================================================================
 
 KONIEC MASTER PLAN

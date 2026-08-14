@@ -15,9 +15,9 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 | Document Intelligence | DONE | centralny pipeline, pages/assets/OCR/Office/archive oraz testy regresyjne. Batch 30 istnieje; pełny cel jakościowy pozostaje częściowo otwarty. |
 | Chunking / embeddings / Qdrant / semantic retrieval | DONE | migracja chunk 2.0, embedding service, Qdrant store i realny baseline Hit@3/5 3/3. |
 | RAG / citations / evidence | DONE | chroniony `/api/v1/ai/rag`; test 401/200/422 i claim→evidence→source PASS. |
-| CRM frontend | PARTIAL | paginowana lista wszystkich klientów oraz details/create/edit istnieją; documents to placeholder, Client 360 ma placeholder panels. |
+| CRM frontend | PARTIAL | paginowana lista klientów i pełne repozytorium dokumentów istnieją; Client 360 ma placeholder panels. |
 | Candidate pipeline | DONE/PARTIAL | review/promotion, duplicate protection i read-only identity projection działają; trwały multi-contact i quality cleanup są otwarte. |
-| Document read API/UI | PARTIAL | bezpieczne auth list/detail/content API działa; Flutter Documents UI pozostaje placeholderem do CHUNK 3. |
+| Document read API/UI | DONE | bezpieczne auth list/detail/content API oraz responsywne Flutter Documents UI działają na wspólnej sesji i Dio. |
 | Dane CRM | QUALITY DEBT | 3194 aktywnych; 463 email-name, 284 phone-name, 1 file-name, 3193 bez structured address, 809 mail transcripts w notes. |
 
 ## Problemy źródłowe wykryte w CHUNK 0
@@ -97,15 +97,21 @@ odczytowego audytu bazy, nie ze starych checkboxów.
   raportowanym jako failed.
 - Commit: `Complete authenticated document read API`.
 
-### 3. Document repository UI — TODO
+### 3. Document repository UI — DONE
 
 - Cel: używalne repozytorium dokumentów. Zależności: 2.
-- Zakres/pliki: Flutter documents data/domain/application/page, paginacja,
-  filtry, responsive layout, open/download. Migracje: brak.
-- Ryzyka: pamięć/mobile download. Dane: odczyt lokalny + jawny download.
-- Testy/acceptance: repository/widget tests, analyze/test; pełny total, search,
-  filters i open działają na Windows/Web/Android.
-- Commit: `Build document repository UI`.
+- Zakres wykonany: osobne warstwy Flutter data/domain/application/presentation,
+  paginacja server-side po 50, debounce search, filtry link/source/match/
+  processing/content type/client, desktopowa tabela, mobilne karty, detail oraz
+  uwierzytelnione otwieranie pliku.
+- Windows/Android pobierają bajty przez wspólne Dio z JWT, zapisują bezpieczną
+  nazwę w katalogu tymczasowym i otwierają przez `open_filex`; Web pobiera te
+  same bajty z auth, tworzy Blob/Object URL i nie umieszcza JWT w URL.
+- Dane: wyłącznie odczyt i jawny download. Migracje: brak. Backend bez zmian.
+- Testy/acceptance: parser nullable, query params, controller pagination/search/
+  filters, widget debounce/lista i testowalny open service; Flutter analyze/test,
+  Web release build, Windows debug build i real Document Read API E2E PASS.
+- Commit: `Complete document repository UI`.
 
 ### 4. Client 360 documents — TODO
 
