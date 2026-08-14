@@ -61,3 +61,8 @@ pre_gmail_repair.dump
 frontend/android/key.properties
 *.jks
 *.keystore
+release-channel/**/*.apk
+release-channel/**/*.exe
+release-channel/**/*.msi
+release-channel/**/*.msix
+release-channel/**/*.zip
