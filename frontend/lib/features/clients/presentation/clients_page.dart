@@ -11,6 +11,8 @@ import 'client_workflow_widgets.dart';
 import '../application/clients_controller.dart';
 import '../application/clients_providers.dart';
 import '../domain/client.dart';
+import '../domain/client_page.dart';
+import '../domain/industry.dart';
 
 class ClientsPage extends ConsumerStatefulWidget {
   const ClientsPage({super.key});
@@ -27,6 +29,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   ClientSortOrder _sortOrder = ClientSortOrder.newestFirst;
   ClientWorkflowState? _statusFilter;
   bool _filtersExpanded = false;
+  ClientType? _clientTypeFilter;
+  int? _industryIdFilter;
 
   ClientListViewMemory get _viewMemory => ClientListViewMemory.instance;
 
@@ -39,6 +43,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     _sortOrder = _viewMemory.sortOrder;
     _statusFilter = _viewMemory.workflowStatusFilter;
     _filtersExpanded = _viewMemory.filtersExpanded;
+    _clientTypeFilter = _viewMemory.clientTypeFilter;
+    _industryIdFilter = _viewMemory.industryIdFilter;
   }
 
   @override
@@ -74,8 +80,11 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final AsyncValue<List<Client>> clientsValue = ref.watch(
+    final AsyncValue<ClientPage> clientsValue = ref.watch(
       clientsControllerProvider,
+    );
+    final AsyncValue<List<Industry>> industriesValue = ref.watch(
+      industriesProvider,
     );
 
     return Scaffold(
@@ -141,6 +150,44 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: _ServerFilters(
+              industries: industriesValue.value ?? const <Industry>[],
+              clientType: _clientTypeFilter,
+              industryId: _industryIdFilter,
+              isLoading: clientsValue.isLoading,
+              onClientTypeChanged: (ClientType? value) async {
+                _viewMemory.clientTypeFilter = value;
+                setState(() => _clientTypeFilter = value);
+                await ref
+                    .read(clientsControllerProvider.notifier)
+                    .setFilters(
+                      clientType: value,
+                      industryId: _industryIdFilter,
+                    );
+              },
+              onIndustryChanged: (int? value) async {
+                _viewMemory.industryIdFilter = value;
+                setState(() => _industryIdFilter = value);
+                await ref
+                    .read(clientsControllerProvider.notifier)
+                    .setFilters(
+                      clientType: _clientTypeFilter,
+                      industryId: value,
+                    );
+              },
+              onReset: () async {
+                _viewMemory.clientTypeFilter = null;
+                _viewMemory.industryIdFilter = null;
+                setState(() {
+                  _clientTypeFilter = null;
+                  _industryIdFilter = null;
+                });
+                await ref.read(clientsControllerProvider.notifier).setFilters();
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
             child: _ClientFilterPanel(
               expanded: _filtersExpanded,
               locationController: _locationController,
@@ -200,7 +247,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                   onRetry: _refresh,
                 );
               },
-              data: (List<Client> clients) {
+              data: (ClientPage page) {
+                final List<Client> clients = page.items;
                 final List<Client> visibleClients = filterAndSortClients(
                   clients,
                   locationQuery: _locationController.text,
@@ -241,7 +289,9 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                       Row(
                         children: <Widget>[
                           Text(
-                            'Liczba klientów: ${clients.length}',
+                            'Wyniki: ${page.total} · '
+                            'strona ${page.pageNumber} z ${page.pageCount} · '
+                            '${clients.length} na tej stronie',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -262,6 +312,16 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                             },
                           ),
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      ClientPaginationControls(
+                        page: page,
+                        onPrevious: ref
+                            .read(clientsControllerProvider.notifier)
+                            .previousPage,
+                        onNext: ref
+                            .read(clientsControllerProvider.notifier)
+                            .nextPage,
                       ),
                     ],
                   ),
@@ -317,6 +377,125 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     }
 
     return 'Nie udało się pobrać listy klientów.';
+  }
+}
+
+class _ServerFilters extends StatelessWidget {
+  const _ServerFilters({
+    required this.industries,
+    required this.clientType,
+    required this.industryId,
+    required this.isLoading,
+    required this.onClientTypeChanged,
+    required this.onIndustryChanged,
+    required this.onReset,
+  });
+
+  final List<Industry> industries;
+  final ClientType? clientType;
+  final int? industryId;
+  final bool isLoading;
+  final ValueChanged<ClientType?> onClientTypeChanged;
+  final ValueChanged<int?> onIndustryChanged;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        SizedBox(
+          width: 220,
+          child: DropdownButtonFormField<ClientType?>(
+            initialValue: clientType,
+            decoration: const InputDecoration(
+              labelText: 'Typ klienta',
+              border: OutlineInputBorder(),
+            ),
+            items: <DropdownMenuItem<ClientType?>>[
+              const DropdownMenuItem<ClientType?>(
+                value: null,
+                child: Text('Wszystkie typy'),
+              ),
+              ...ClientType.values.map(
+                (ClientType type) => DropdownMenuItem<ClientType?>(
+                  value: type,
+                  child: Text(type.displayName),
+                ),
+              ),
+            ],
+            onChanged: isLoading ? null : onClientTypeChanged,
+          ),
+        ),
+        SizedBox(
+          width: 280,
+          child: DropdownButtonFormField<int?>(
+            initialValue: industryId,
+            decoration: const InputDecoration(
+              labelText: 'Branża',
+              border: OutlineInputBorder(),
+            ),
+            items: <DropdownMenuItem<int?>>[
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('Wszystkie branże'),
+              ),
+              ...industries.map(
+                (Industry industry) => DropdownMenuItem<int?>(
+                  value: industry.id,
+                  child: Text(industry.name),
+                ),
+              ),
+            ],
+            onChanged: isLoading ? null : onIndustryChanged,
+          ),
+        ),
+        TextButton.icon(
+          onPressed: isLoading || (clientType == null && industryId == null)
+              ? null
+              : onReset,
+          icon: const Icon(Icons.filter_alt_off_outlined),
+          label: const Text('Wyczyść filtry bazy'),
+        ),
+      ],
+    );
+  }
+}
+
+class ClientPaginationControls extends StatelessWidget {
+  const ClientPaginationControls({
+    required this.page,
+    required this.onPrevious,
+    required this.onNext,
+    super.key,
+  });
+
+  final ClientPage page;
+  final Future<void> Function() onPrevious;
+  final Future<void> Function() onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        OutlinedButton.icon(
+          onPressed: page.hasPreviousPage ? onPrevious : null,
+          icon: const Icon(Icons.chevron_left),
+          label: const Text('Poprzednia'),
+        ),
+        const SizedBox(width: 16),
+        Text('${page.pageNumber} / ${page.pageCount}'),
+        const SizedBox(width: 16),
+        FilledButton.icon(
+          onPressed: page.hasNextPage ? onNext : null,
+          icon: const Icon(Icons.chevron_right),
+          label: const Text('Następna'),
+        ),
+      ],
+    );
   }
 }
 
@@ -619,7 +798,7 @@ class _ClientStatusSummary extends StatelessWidget {
       child: Row(
         children: <Widget>[
           _ClientStatusChip(
-            label: 'Wszyscy',
+            label: 'Ta strona',
             count: clients.length,
             selected: selectedStatus == null,
             onTap: () {

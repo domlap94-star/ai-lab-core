@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'client_create_request.dart';
+import 'client_page_response.dart';
 import 'client_response.dart';
 import 'industry_response.dart';
 
@@ -12,40 +13,42 @@ class ClientsApi {
   static const String _clientsPath = '/api/v1/clients';
   static const String _industriesPath = '/api/v1/clients/industries';
 
-  Future<List<ClientResponse>> fetchClients({
+  Future<ClientPageResponse> fetchClients({
     required String accessToken,
     required String tokenType,
     String? search,
+    String? clientType,
+    int? industryId,
     int skip = 0,
-    int limit = 100,
+    int limit = 50,
   }) async {
-    final Response<List<dynamic>> response = await _dio.get<List<dynamic>>(
-      _clientsPath,
-      queryParameters: <String, dynamic>{
-        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
-        'skip': skip,
-        'limit': limit,
-      },
-      options: Options(
-        headers: _authorizationHeaders(
-          accessToken: accessToken,
-          tokenType: tokenType,
-        ),
-      ),
-    );
+    final Response<Map<String, dynamic>> response = await _dio
+        .get<Map<String, dynamic>>(
+          _clientsPath,
+          queryParameters: <String, dynamic>{
+            if (search != null && search.trim().isNotEmpty)
+              'search': search.trim(),
+            if (clientType != null && clientType.isNotEmpty)
+              'client_type': clientType,
+            'industry_id': ?industryId,
+            'skip': skip,
+            'limit': limit,
+          },
+          options: Options(
+            headers: _authorizationHeaders(
+              accessToken: accessToken,
+              tokenType: tokenType,
+            ),
+          ),
+        );
 
-    final List<dynamic>? data = response.data;
+    final Map<String, dynamic>? data = response.data;
 
     if (data == null) {
       throw const FormatException('Endpoint klientów zwrócił pustą odpowiedź.');
     }
 
-    return data
-        .map<ClientResponse>(
-          (dynamic item) =>
-              ClientResponse.fromJson(Map<String, dynamic>.from(item as Map)),
-        )
-        .toList(growable: false);
+    return ClientPageResponse.fromJson(data);
   }
 
   Future<ClientResponse> fetchClient({

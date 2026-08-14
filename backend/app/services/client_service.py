@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.repositories.client_repository import ClientRepository
 from app.repositories.industry_repository import IndustryRepository
-from app.schemas.client import ClientCreate, ClientUpdate
+from app.schemas.client import ClientCreate, ClientPage, ClientUpdate
 from app.services.base_service import BaseService
 
 
@@ -39,11 +39,22 @@ class ClientService(BaseService[Client]):
         self,
         *,
         search: str | None = None,
+        client_type: str | None = None,
+        industry_id: int | None = None,
         skip: int = 0,
-        limit: int = 100,
-    ) -> list[Client]:
-        return self.client_repository.get_all(
+        limit: int = 50,
+    ) -> ClientPage:
+        items, total = self.client_repository.get_page(
             search=search,
+            client_type=client_type,
+            industry_id=industry_id,
+            skip=skip,
+            limit=limit,
+        )
+
+        return ClientPage(
+            items=items,
+            total=total,
             skip=skip,
             limit=limit,
         )

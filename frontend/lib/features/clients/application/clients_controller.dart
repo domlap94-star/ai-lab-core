@@ -5,46 +5,59 @@ import '../../auth/application/auth_state.dart';
 import '../../auth/domain/auth_session.dart';
 import '../data/client_create_request.dart';
 import '../domain/client.dart';
+import '../domain/client_page.dart';
 import 'clients_providers.dart';
 import 'clients_repository.dart';
 
 final clientsControllerProvider =
-    AsyncNotifierProvider<ClientsController, List<Client>>(
-      ClientsController.new,
-    );
+    AsyncNotifierProvider<ClientsController, ClientPage>(ClientsController.new);
 
-class ClientsController extends AsyncNotifier<List<Client>> {
+class ClientsController extends AsyncNotifier<ClientPage> {
+  static const int pageSize = 50;
   late final ClientsRepository _repository;
 
   String _searchQuery = '';
+  ClientType? _clientType;
+  int? _industryId;
+  int _skip = 0;
 
   String get searchQuery => _searchQuery;
+  ClientType? get clientType => _clientType;
+  int? get industryId => _industryId;
 
   @override
-  Future<List<Client>> build() async {
+  Future<ClientPage> build() async {
     _repository = ref.read(clientsRepositoryProvider);
 
     return _loadClients();
   }
 
-  Future<List<Client>> _loadClients() async {
+  Future<ClientPage> _loadClients() async {
     final AuthSession session = _requireSession();
 
-    return _repository.fetchClients(session: session, search: _searchQuery);
+    return _repository.fetchClients(
+      session: session,
+      search: _searchQuery,
+      clientType: _clientType,
+      industryId: _industryId,
+      skip: _skip,
+      limit: pageSize,
+    );
   }
 
   Future<void> refresh() async {
-    state = const AsyncLoading<List<Client>>();
+    state = const AsyncLoading<ClientPage>();
 
-    state = await AsyncValue.guard<List<Client>>(_loadClients);
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
   }
 
   Future<void> search(String query) async {
     _searchQuery = query.trim();
+    _skip = 0;
 
-    state = const AsyncLoading<List<Client>>();
+    state = const AsyncLoading<ClientPage>();
 
-    state = await AsyncValue.guard<List<Client>>(_loadClients);
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
   }
 
   Future<void> clearSearch() async {
@@ -53,10 +66,34 @@ class ClientsController extends AsyncNotifier<List<Client>> {
     }
 
     _searchQuery = '';
+    _skip = 0;
 
-    state = const AsyncLoading<List<Client>>();
+    state = const AsyncLoading<ClientPage>();
 
-    state = await AsyncValue.guard<List<Client>>(_loadClients);
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
+  }
+
+  Future<void> setFilters({ClientType? clientType, int? industryId}) async {
+    _clientType = clientType;
+    _industryId = industryId;
+    _skip = 0;
+    state = const AsyncLoading<ClientPage>();
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
+  }
+
+  Future<void> nextPage() async {
+    final ClientPage? current = state.value;
+    if (current == null || !current.hasNextPage) return;
+    _skip += pageSize;
+    state = const AsyncLoading<ClientPage>();
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
+  }
+
+  Future<void> previousPage() async {
+    if (_skip <= 0) return;
+    _skip = (_skip - pageSize).clamp(0, 1 << 31);
+    state = const AsyncLoading<ClientPage>();
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
   }
 
   Future<Client> createClient(ClientCreateRequest request) async {

@@ -1,5 +1,6 @@
 import 'client_list_filter.dart';
 import 'client_workflow_status.dart';
+import '../domain/client.dart';
 
 class ClientListViewMemory {
   ClientListViewMemory._();
@@ -10,6 +11,8 @@ class ClientListViewMemory {
   String locationQuery = '';
   ClientSortOrder sortOrder = ClientSortOrder.newestFirst;
   ClientWorkflowState? workflowStatusFilter;
+  ClientType? clientTypeFilter;
+  int? industryIdFilter;
   bool filtersExpanded = false;
 
   void clearSearch() {
@@ -25,5 +28,7 @@ class ClientListViewMemory {
     locationQuery = '';
     sortOrder = ClientSortOrder.newestFirst;
     workflowStatusFilter = null;
+    clientTypeFilter = null;
+    industryIdFilter = null;
   }
 }

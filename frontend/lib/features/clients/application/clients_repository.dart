@@ -2,6 +2,7 @@ import '../../auth/domain/auth_session.dart';
 import '../data/client_create_request.dart';
 import '../data/clients_api.dart';
 import '../domain/client.dart';
+import '../domain/client_page.dart';
 import '../domain/industry.dart';
 
 class ClientsRepository {
@@ -9,23 +10,32 @@ class ClientsRepository {
 
   final ClientsApi _api;
 
-  Future<List<Client>> fetchClients({
+  Future<ClientPage> fetchClients({
     required AuthSession session,
     String? search,
+    ClientType? clientType,
+    int? industryId,
     int skip = 0,
-    int limit = 100,
+    int limit = 50,
   }) async {
-    final responses = await _api.fetchClients(
+    final response = await _api.fetchClients(
       accessToken: session.accessToken,
       tokenType: session.tokenType,
       search: search,
+      clientType: clientType?.value,
+      industryId: industryId,
       skip: skip,
       limit: limit,
     );
 
-    return responses
-        .map<Client>((response) => response.toDomain())
-        .toList(growable: false);
+    return ClientPage(
+      items: response.items
+          .map<Client>((item) => item.toDomain())
+          .toList(growable: false),
+      total: response.total,
+      skip: response.skip,
+      limit: response.limit,
+    );
   }
 
   Future<Client> fetchClient({

@@ -15,7 +15,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 | Document Intelligence | DONE | centralny pipeline, pages/assets/OCR/Office/archive oraz testy regresyjne. Batch 30 istnieje; pełny cel jakościowy pozostaje częściowo otwarty. |
 | Chunking / embeddings / Qdrant / semantic retrieval | DONE | migracja chunk 2.0, embedding service, Qdrant store i realny baseline Hit@3/5 3/3. |
 | RAG / citations / evidence | DONE | chroniony `/api/v1/ai/rag`; test 401/200/422 i claim→evidence→source PASS. |
-| CRM frontend | PARTIAL | klient list/details/create/edit istnieją; lista pobiera maks. 100, documents to placeholder, Client 360 ma placeholder panels. |
+| CRM frontend | PARTIAL | paginowana lista wszystkich klientów oraz details/create/edit istnieją; documents to placeholder, Client 360 ma placeholder panels. |
 | Candidate pipeline | DONE/PARTIAL | review/promotion, duplicate protection i read-only identity projection działają; trwały multi-contact i quality cleanup są otwarte. |
 | Document read API/UI | NOT STARTED | istnieje tylko import-key upload; brak auth list/search/filter/download, UI jest placeholderem. |
 | Dane CRM | QUALITY DEBT | 3194 aktywnych; 463 email-name, 284 phone-name, 1 file-name, 3193 bez structured address, 809 mail transcripts w notes. |
@@ -58,23 +58,25 @@ odczytowego audytu bazy, nie ze starych checkboxów.
   ignorowanego kodu; wymagane źródła śledzone; public/private boundary bez zmian.
 - Commit: `Establish verified execution baseline`.
 
-### 1. Client list contract — TODO
+### 1. Client list contract — DONE
 
 - Cel biznesowy: użytkownik widzi i przeszukuje wszystkie 3194+ klientów.
 - Zależności: chunk 0.
-- Zakres: paginowana odpowiedź `{items,total,skip,limit}`; count z tym samym
-  filtrem; deterministyczne sortowanie; globalne server-side search; filtry typu
-  i branży; kompatybilne przejście Flutter; stan strony i wybór „wszyscy”.
+- Zakres wykonany: jeden atomowo zmieniony kontrakt
+  `{items,total,skip,limit}`; count z tym samym filtrem; sortowanie po
+  case-insensitive name + ID; globalny server-side search; filtry typu i branży;
+  Flutter z rozmiarem strony 50, prawdziwym totalem i kontrolkami stron.
 - Pliki: client repository/service/schema/router; Flutter client data/domain,
   controller i page; testy backend/Flutter.
-- Migracje: brak. Ryzyka: zmiana kontraktu istniejącego API; potrzebny model
-  kompatybilności. Dane produkcyjne: odczyt.
-- Testy: unit count/search/filter/order; API 401, 200, granice paginacji i total;
-  Flutter repository/controller/widget; analyze/test.
-- Acceptance: total=3194 dla pustego filtra w momencie audytu; rekord spoza
-  pierwszych 100 jest znajdowalny; zmiana stron nie duplikuje/nie gubi wyników;
-  filtry i sortowanie zachowane.
-- Commit: `Add paginated full-database client list`.
+- Migracje: brak. Dane produkcyjne: odczyt. Jedyny konsument API został
+  zaktualizowany atomowo; nie pozostawiono konkurencyjnego legacy kontraktu.
+- Testy: API 401/200/422, total=3194, strony 50/50 i ostatnia 44, brak duplikatów,
+  search klienta ID 2152 spoza pierwszej strony, type total=996, industry
+  total=0 zgodny z rzeczywistym brakiem przypisań; Candidate API regression;
+  Flutter parser/repository/pagination widget, analyze i 15 testów PASS.
+- Acceptance: spełnione. Kombinacja search+type+industry nie ma obecnie
+  reprezentatywnych danych i pozostaje warunkowo testowana, bez tworzenia danych.
+- Commit: `Complete paginated client list contract`.
 
 ### 2. Document read API — TODO
 

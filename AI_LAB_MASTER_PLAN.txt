@@ -252,7 +252,7 @@ GŁÓWNE MODUŁY INTERFEJSU:
 
 [ ] Dashboard
 
-[ ] Klienci
+[✓] Klienci
 
 [ ] Projekty / realizacje
 
@@ -3900,7 +3900,7 @@ zamiast odkładać frontend do czasu ukończenia wszystkich modułów AI.
 
 Priorytet:
 
-[ ] lista klientów
+[✓] lista klientów
 
 [ ] szczegóły klienta
 
@@ -4493,8 +4493,8 @@ braku implementacji; obowiązuje poniższa weryfikacja kodem i testami.
 [✓] Deterministic Evidence-ID RAG i chroniony POST /api/v1/ai/rag.
 [✓] Client list/details/create/edit oraz candidate review w Flutter.
 
-[~] Lista klientów jest używalna, ale API/UI pobiera domyślnie tylko pierwsze
-    100 rekordów i nie zwraca total; pełna paginacja jest CHUNK 1.
+[✓] Lista klientów zwraca prawdziwy total, stabilną paginację oraz server-side
+    search i filtry client_type/industry_id dla całej aktywnej bazy.
 [~] Client 360 istnieje, lecz dokumenty i pozostałe workspace panels są
     placeholderami.
 [ ] Authenticated document read/list/search/filter/download API.
@@ -4519,6 +4519,55 @@ CODEX_MASTER_EXECUTION.md.
 
 ================================================================================
 END RECONCILIATION 2026-08-14 — CHUNK 0
+================================================================================
+
+================================================================================
+CHECKPOINT 2026-08-14 — CLIENT LIST CONTRACT
+================================================================================
+
+STATUS: DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+[✓] GET /api/v1/clients zwraca items, total, skip i limit.
+[✓] Total jest liczony na tym samym zestawie filtrów co items.
+[✓] Search działa server-side po name, legal_name, tax_id, primary_email,
+    primary_phone i city.
+[✓] Filtry client_type i industry_id działają server-side.
+[✓] Soft-deleted clients są wykluczeni.
+[✓] Sortowanie jest stabilne: case-insensitive name oraz ID jako tie-breaker.
+[✓] Domyślna strona ma 50 rekordów, limit ochronny wynosi 100.
+[✓] Flutter pokazuje total oraz kontrolki poprzednia/następna.
+[✓] Search i zmiana filtrów resetują paginację.
+[✓] Nie istnieje założenie, że pierwsze 100 rekordów oznacza wszystkich.
+
+ZWERYFIKOWANY STAN DANYCH:
+
+- active total: 3194,
+- first page: 50,
+- last page: 44,
+- search target poza pierwszą stroną: client ID 2152,
+- client_type=other total: 996,
+- aktywni klienci z industry_id: 0.
+
+Brak reprezentatywnych danych dla kombinacji search + client_type + industry_id.
+Nie utworzono sztucznych danych i nie wykonano mutacji produkcyjnej.
+
+TESTY:
+
+[✓] unauthenticated 401,
+[✓] first/second/last page,
+[✓] total i brak duplikatów,
+[✓] search oraz search total,
+[✓] client_type i industry_id,
+[✓] limit 101 -> HTTP 422,
+[✓] Candidate API regression,
+[✓] Flutter analyze,
+[✓] 15 Flutter tests.
+
+DATA IMPACT: NONE
+MIGRATIONS: NONE
+
+================================================================================
+END CHECKPOINT 2026-08-14 — CLIENT LIST CONTRACT
 ================================================================================
 
 KONIEC MASTER PLAN

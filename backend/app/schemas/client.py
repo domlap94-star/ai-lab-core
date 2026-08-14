@@ -226,3 +226,17 @@ class ClientRead(ClientBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+
+
+class ClientPage(BaseModel):
+    items: list[ClientRead]
+    total: int
+    skip: int
+    limit: int
+
+
+class ClientPage(BaseModel):
+    items: list[ClientRead]
+    total: int
+    skip: int
+    limit: int

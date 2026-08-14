@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Query
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.client import Client
@@ -22,22 +23,52 @@ class ClientRepository(BaseRepository[Client]):
             .first()
         )
 
-    def get_all(
+    def get_page(
         self,
         *,
         search: str | None = None,
+        client_type: str | None = None,
+        industry_id: int | None = None,
         skip: int = 0,
-        limit: int = 100,
-    ) -> list[Client]:
-        query = (
-            self.db.query(Client)
-            .options(joinedload(Client.industry))
-            .filter(Client.deleted_at.is_(None))
+        limit: int = 50,
+    ) -> tuple[list[Client], int]:
+        filtered_query = self._filtered_query(
+            search=search,
+            client_type=client_type,
+            industry_id=industry_id,
         )
 
-        if search:
-            pattern = f"%{search.strip()}%"
+        total = filtered_query.count()
 
+        items = (
+            filtered_query
+            .options(joinedload(Client.industry))
+            .order_by(
+                func.lower(Client.name).asc(),
+                Client.id.asc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        return items, total
+
+    def _filtered_query(
+        self,
+        *,
+        search: str | None,
+        client_type: str | None,
+        industry_id: int | None,
+    ) -> Query:
+        query = self.db.query(Client).filter(
+            Client.deleted_at.is_(None)
+        )
+
+        normalized_search = search.strip() if search else ""
+
+        if normalized_search:
+            pattern = f"%{normalized_search}%"
             query = query.filter(
                 or_(
                     Client.name.ilike(pattern),
@@ -49,13 +80,13 @@ class ClientRepository(BaseRepository[Client]):
                 )
             )
 
-        return (
-            query
-            .order_by(Client.name.asc())
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        if client_type is not None:
+            query = query.filter(Client.client_type == client_type)
+
+        if industry_id is not None:
+            query = query.filter(Client.industry_id == industry_id)
+
+        return query
 
     def get_by_tax_id(self, tax_id: str) -> Client | None:
         return (

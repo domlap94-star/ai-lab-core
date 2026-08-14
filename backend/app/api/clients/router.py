@@ -13,7 +13,9 @@ from app.database.session import get_db
 from app.models.user import User
 from app.schemas.client import (
     ClientCreate,
+    ClientPage,
     ClientRead,
+    ClientType,
     ClientUpdate,
 )
 from app.schemas.industry import IndustryRead
@@ -74,28 +76,32 @@ def create_client(
 
 @router.get(
     "",
-    response_model=list[ClientRead],
+    response_model=ClientPage,
 )
 def get_clients(
     search: str | None = Query(
         default=None,
         max_length=255,
     ),
+    client_type: ClientType | None = Query(default=None),
+    industry_id: int | None = Query(default=None, ge=1),
     skip: int = Query(
         default=0,
         ge=0,
     ),
     limit: int = Query(
-        default=100,
+        default=50,
         ge=1,
-        le=500,
+        le=100,
     ),
     db: Session = Depends(get_db),
-) -> list[ClientRead]:
+) -> ClientPage:
     service = ClientService(db)
 
     return service.get_clients(
         search=search,
+        client_type=client_type,
+        industry_id=industry_id,
         skip=skip,
         limit=limit,
     )
