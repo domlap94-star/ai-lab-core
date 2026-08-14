@@ -4,6 +4,16 @@ Stan bazowy: 2026-08-14, commit wejściowy `5700681`. Dokument rozbija
 `AI_LAB_MASTER_PLAN.txt` na małe checkpointy. Statusy wynikają z kodu, testów i
 odczytowego audytu bazy, nie ze starych checkboxów.
 
+## Zasada kompatybilności wdrożonych klientów
+
+DEPLOYED BINARIES ARE API CONSUMERS. Zmiana aktualnego source nie oznacza, że
+ostatnia stabilna aplikacja Windows, Android, live Web ani integracje/importy
+zostały już zaktualizowane. Istniejącego publicznego response shape nie wolno
+łamać bez versioned/additive endpointu, compatibility layer albo jawnej
+strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
+minimum supported app version gwarantuje brak wspieranych konsumentów starego
+kontraktu.
+
 ## Reconciliation stanu
 
 | Obszar | Stan | Dowód / luka |
@@ -62,14 +72,15 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 
 - Cel biznesowy: użytkownik widzi i przeszukuje wszystkie 3194+ klientów.
 - Zależności: chunk 0.
-- Zakres wykonany: jeden atomowo zmieniony kontrakt
-  `{items,total,skip,limit}`; count z tym samym filtrem; sortowanie po
+- Zakres wykonany w source: kontrakt `{items,total,skip,limit}`; count z tym
+  samym filtrem; sortowanie po
   case-insensitive name + ID; globalny server-side search; filtry typu i branży;
   Flutter z rozmiarem strony 50, prawdziwym totalem i kontrolkami stron.
 - Pliki: client repository/service/schema/router; Flutter client data/domain,
   controller i page; testy backend/Flutter.
-- Migracje: brak. Dane produkcyjne: odczyt. Jedyny konsument API został
-  zaktualizowany atomowo; nie pozostawiono konkurencyjnego legacy kontraktu.
+- Migracje: brak. Dane produkcyjne: odczyt. Późniejszy HOTFIX 3A wykazał, że
+  wdrożona aplikacja +4 była nadal konsumentem legacy array; kontrakty zostały
+  rozdzielone addytywnie na `/clients` oraz `/clients/page`.
 - Testy: API 401/200/422, total=3194, strony 50/50 i ostatnia 44, brak duplikatów,
   search klienta ID 2152 spoza pierwszej strony, type total=996, industry
   total=0 zgodny z rzeczywistym brakiem przypisań; Candidate API regression;
@@ -112,6 +123,25 @@ odczytowego audytu bazy, nie ze starych checkboxów.
   filters, widget debounce/lista i testowalny open service; Flutter analyze/test,
   Web release build, Windows debug build i real Document Read API E2E PASS.
 - Commit: `Complete document repository UI`.
+
+### 3A. Deployed API compatibility + live Web safety — DONE
+
+- Przyczyna: wydana aplikacja NEXT Stabil 1.0.1+4 nadal parsowała JSON array z
+  `GET /api/v1/clients`, podczas gdy CHUNK 1 zmienił root na obiekt paginowany.
+- Additive fix: legacy `/clients` ponownie zwraca `list[ClientRead]` z search,
+  skip, legacy default 100 i max 500; wspólna warstwa repository/service nadal
+  zapewnia stabilne sortowanie i nie duplikuje logiki query.
+- Nowy source Flutter korzysta z `/clients/page`, który zachowuje total,
+  search, filtry client_type/industry_id, strony po 50 i max 100.
+- Trwały gate `test_deployed_client_1_0_1_4_compatibility.py` waliduje real JWT,
+  array root, search array i wszystkie elementy jako `ClientRead`.
+- Web-only corrective build używa `https://domai.tail1927bd.ts.net` oraz
+  `https://domai.tail1927bd.ts.net:8443/control`; live JS nie zawiera endpointów
+  127.0.0.1:8789/8788. Public `/control` pozostaje 404, private health 200.
+- Legacy `/clients` pozostaje wspierane do czasu podniesienia minimum supported
+  app version ponad ostatniego konsumenta starego kontraktu.
+- Dane: NONE. Migracje: NONE. CHUNK 4 nie został rozpoczęty.
+- Commit: `Restore deployed client API compatibility`.
 
 ### 4. Client 360 documents — TODO
 

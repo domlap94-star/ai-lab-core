@@ -3,17 +3,14 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from sqlalchemy import func
 
-from app.api.auth import get_current_user
+from app.core.security import create_access_token
 from app.database.session import SessionLocal
 from app.main import app
 from app.models.client import Client
+from app.models.user import User
 
 
-PATH = "/api/v1/clients"
-
-
-def fake_current_user():
-    return object()
+PATH = "/api/v1/clients/page"
 
 
 def require(condition: bool, message: str) -> None:
@@ -21,8 +18,8 @@ def require(condition: bool, message: str) -> None:
         raise RuntimeError(message)
 
 
-def get_json(client: TestClient, **params):
-    response = client.get(PATH, params=params)
+def get_json(client: TestClient, headers: dict[str, str], **params):
+    response = client.get(PATH, headers=headers, params=params)
     require(response.status_code == 200, response.text)
     return response.json()
 
@@ -33,30 +30,45 @@ def main() -> None:
     anonymous = http.get(PATH)
     require(anonymous.status_code == 401, "Anonymous list must return 401")
 
-    app.dependency_overrides[get_current_user] = fake_current_user
-
     db = SessionLocal()
 
     try:
+        user = db.query(User).filter(User.is_active.is_(True)).first()
+        require(user is not None, "No active user for JWT acceptance")
+        token = create_access_token(data={"sub": user.username})
+        headers = {"Authorization": f"Bearer {token}"}
+
         active_count = (
             db.query(func.count(Client.id))
             .filter(Client.deleted_at.is_(None))
             .scalar()
         )
 
-        first = get_json(http, skip=0, limit=50)
+        first = get_json(http, headers, skip=0, limit=50)
         require(set(first) == {"items", "total", "skip", "limit"}, "Bad contract")
         require(first["total"] == active_count, "Total does not match active clients")
         require(first["skip"] == 0 and first["limit"] == 50, "Bad page metadata")
         require(len(first["items"]) == min(50, active_count), "Bad first page size")
 
-        second = get_json(http, skip=50, limit=50)
+        second = get_json(http, headers, skip=50, limit=50)
         first_ids = {item["id"] for item in first["items"]}
         second_ids = {item["id"] for item in second["items"]}
         require(first_ids.isdisjoint(second_ids), "Stable pages contain duplicates")
+        expected_ids = [
+            client_id
+            for (client_id,) in (
+                db.query(Client.id)
+                .filter(Client.deleted_at.is_(None))
+                .order_by(func.lower(Client.name).asc(), Client.id.asc())
+                .limit(100)
+                .all()
+            )
+        ]
+        actual_ids = [item["id"] for item in first["items"] + second["items"]]
+        require(actual_ids == expected_ids, "Client ordering is unstable")
 
         last_skip = ((active_count - 1) // 50) * 50 if active_count else 0
-        last = get_json(http, skip=last_skip, limit=50)
+        last = get_json(http, headers, skip=last_skip, limit=50)
         require(
             len(last["items"]) == active_count - last_skip,
             "Bad last page size",
@@ -79,7 +91,7 @@ def main() -> None:
             ),
             target["name"],
         )
-        searched = get_json(http, search=search_value, limit=100)
+        searched = get_json(http, headers, search=search_value, limit=100)
         require(
             target["id"] in {item["id"] for item in searched["items"]},
             "Search did not find client outside first page",
@@ -87,7 +99,12 @@ def main() -> None:
         require(searched["total"] >= 1, "Search total is invalid")
         require(len(searched["items"]) <= searched["total"], "Search total mismatch")
 
-        typed = get_json(http, client_type=target["client_type"], limit=100)
+        typed = get_json(
+            http,
+            headers,
+            client_type=target["client_type"],
+            limit=100,
+        )
         require(typed["total"] >= len(typed["items"]), "Type total mismatch")
         require(
             all(item["client_type"] == target["client_type"] for item in typed["items"]),
@@ -108,6 +125,7 @@ def main() -> None:
         )
         industry = get_json(
             http,
+            headers,
             industry_id=representative_industry_id,
             limit=100,
         )
@@ -124,6 +142,7 @@ def main() -> None:
         if industry_target is not None:
             combined = get_json(
                 http,
+                headers,
                 search=industry_target.name,
                 client_type=industry_target.client_type,
                 industry_id=industry_target.industry_id,
@@ -143,8 +162,14 @@ def main() -> None:
                 "Combined filters are inconsistent",
             )
 
-        too_large = http.get(PATH, params={"limit": 101})
+        too_large = http.get(PATH, headers=headers, params={"limit": 101})
         require(too_large.status_code == 422, "Limit above maximum must return 422")
+
+        detail = http.get(
+            f"/api/v1/clients/{target['id']}",
+            headers=headers,
+        )
+        require(detail.status_code == 200, "Static /page broke client detail route")
 
         print("CLIENT LIST CONTRACT E2E: OK")
         print(f"active_total={active_count}")
@@ -160,7 +185,6 @@ def main() -> None:
         )
     finally:
         db.close()
-        app.dependency_overrides.clear()
 
 
 if __name__ == "__main__":

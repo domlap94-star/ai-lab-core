@@ -14,6 +14,14 @@
 
 ## Safety
 
+- DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that
+  every API consumer has been updated. Before changing an existing response
+  contract, account for current source, the latest stable Windows and Android
+  builds, live Web, and integrations/imports. Do not break an existing public
+  API response shape without a versioned/additive endpoint, compatibility
+  layer, or an explicit release/migration strategy. Remove a legacy endpoint
+  only when the minimum supported app version guarantees that no supported
+  client still needs it.
 - Never mutate production CRM data, merge/delete clients, run uncertain
   backfills, publish a release, change signing/secrets, or change network
   exposure without explicit human approval.

@@ -43,6 +43,36 @@ class _FakeClientsApi extends ClientsApi {
 }
 
 void main() {
+  test('ClientsApi requests the additive paginated endpoint', () async {
+    final Dio dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    RequestOptions? capturedRequest;
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (RequestOptions options, RequestInterceptorHandler handler) {
+          capturedRequest = options;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              statusCode: 200,
+              data: <String, dynamic>{
+                'items': <dynamic>[],
+                'total': 0,
+                'skip': 0,
+                'limit': 50,
+              },
+            ),
+          );
+        },
+      ),
+    );
+
+    await ClientsApi(
+      dio,
+    ).fetchClients(accessToken: 'token', tokenType: 'bearer');
+
+    expect(capturedRequest?.path, '/api/v1/clients/page');
+  });
+
   test('parses the paginated client API contract', () {
     final ClientPageResponse response = ClientPageResponse.fromJson(
       <String, dynamic>{

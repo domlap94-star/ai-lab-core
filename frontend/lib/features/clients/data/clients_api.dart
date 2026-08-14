@@ -11,6 +11,7 @@ class ClientsApi {
   final Dio _dio;
 
   static const String _clientsPath = '/api/v1/clients';
+  static const String clientsPagePath = '$_clientsPath/page';
   static const String _industriesPath = '/api/v1/clients/industries';
 
   Future<ClientPageResponse> fetchClients({
@@ -24,7 +25,7 @@ class ClientsApi {
   }) async {
     final Response<Map<String, dynamic>> response = await _dio
         .get<Map<String, dynamic>>(
-          _clientsPath,
+          clientsPagePath,
           queryParameters: <String, dynamic>{
             if (search != null && search.trim().isNotEmpty)
               'search': search.trim(),

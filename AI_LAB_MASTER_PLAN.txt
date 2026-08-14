@@ -4682,4 +4682,51 @@ MIGRATIONS: NONE
 END CHECKPOINT 2026-08-15 — DOCUMENT REPOSITORY UI
 ================================================================================
 
+================================================================================
+CHECKPOINT 2026-08-15 — DEPLOYED API COMPATIBILITY HOTFIX
+================================================================================
+
+STATUS: DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+ROOT CAUSE:
+
+Wydana aplikacja NEXT Stabil 1.0.1+4 pozostawała aktywnym konsumentem legacy
+JSON array z GET /api/v1/clients. CHUNK 1 zaktualizował source Flutter razem z
+backendem, lecz nie uwzględnił już wdrożonego binarium Android.
+
+[✓] DEPLOYED BINARIES ARE API CONSUMERS jest regułą repozytorium i wykonania.
+[✓] GET /api/v1/clients ponownie zwraca list[ClientRead].
+[✓] Legacy zachowuje search, skip, limit, default 100 i max 500.
+[✓] GET /api/v1/clients/page zwraca items/total/skip/limit.
+[✓] Nowy endpoint zachowuje search, client_type, industry_id, default 50,
+    max 100 oraz stabilne sortowanie lower(name) + id.
+[✓] Aktualny source Flutter korzysta z /api/v1/clients/page.
+[✓] Static /clients/page oraz dynamic /clients/{client_id} działają obok siebie.
+[✓] Trwały test kompatybilności reprezentuje deployed app 1.0.1+4.
+[✓] Legacy endpoint pozostaje do czasu, gdy minimum supported app version
+    zagwarantuje brak wspieranych konsumentów starego kontraktu.
+[✓] Live Web używa produkcyjnego API i prywatnego admin control endpointu;
+    wygenerowany i serwowany JS nie używa loopback 8789/8788.
+[✓] Public 443 nadal zwraca 404 dla /control/status.
+
+TESTY I REAL RUNTIME:
+
+- legacy JWT array: 200, 100 elementów, ClientRead validation PASS,
+- paginated JWT object: total 3194, first 50, last 44, search ID 2152,
+- real detail ID 646: 200,
+- Candidate API, auth 401/200 i Document Read API: PASS,
+- Flutter analyze i 21 testów: PASS,
+- Web production build oraz live generated-JS audit: PASS,
+- public root 200, anonymous clients 401, public control 404,
+- private gateway-health 200.
+
+DATA IMPACT: NONE
+MIGRATIONS: NONE
+
+Client 360 Documents (CHUNK 4) nie został rozpoczęty.
+
+================================================================================
+END CHECKPOINT 2026-08-15 — DEPLOYED API COMPATIBILITY HOTFIX
+================================================================================
+
 KONIEC MASTER PLAN

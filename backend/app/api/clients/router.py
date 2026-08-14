@@ -75,10 +75,10 @@ def create_client(
 
 
 @router.get(
-    "",
+    "/page",
     response_model=ClientPage,
 )
-def get_clients(
+def get_clients_page(
     search: str | None = Query(
         default=None,
         max_length=255,
@@ -105,6 +105,35 @@ def get_clients(
         skip=skip,
         limit=limit,
     )
+
+
+@router.get(
+    "",
+    response_model=list[ClientRead],
+)
+def get_clients(
+    search: str | None = Query(
+        default=None,
+        max_length=255,
+    ),
+    skip: int = Query(
+        default=0,
+        ge=0,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=500,
+    ),
+    db: Session = Depends(get_db),
+) -> list[ClientRead]:
+    service = ClientService(db)
+
+    return service.get_clients(
+        search=search,
+        skip=skip,
+        limit=limit,
+    ).items
 
 
 @router.get(
