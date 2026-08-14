@@ -1,23 +1,23 @@
 {
-  "channel": "stable",
-  "version": "1.0.0",
-  "build_number": 2,
-  "minimum_version": "1.0.0",
-  "published_at": null,
-  "platforms": {
-    "web": {
-      "available": true,
-      "url": "/"
-    },
-    "windows": {
-      "available": false,
-      "url": null,
-      "sha256": null
-    },
-    "android": {
-      "available": false,
-      "url": null,
-      "sha256": null
-    }
-  }
+    "channel":  "stable",
+    "version":  "1.0.0",
+    "build_number":  2,
+    "minimum_version":  "1.0.0",
+    "published_at":  "2026-08-14T11:16:42Z",
+    "platforms":  {
+                      "web":  {
+                                  "available":  true,
+                                  "url":  "/"
+                              },
+                      "windows":  {
+                                      "available":  false,
+                                      "url":  null,
+                                      "sha256":  null
+                                  },
+                      "android":  {
+                                      "available":  true,
+                                      "url":  "/updates/stable/android/NEXT-Stabil-1.0.0+2.apk",
+                                      "sha256":  "15128FB444807CD2767B85D2E9970D3E8CA216E068F5E861BF6085395BD507A1"
+                                  }
+                  }
 }

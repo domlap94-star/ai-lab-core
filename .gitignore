@@ -58,3 +58,6 @@ __pycache__/
 *.py[cod]
 
 pre_gmail_repair.dump
+frontend/android/key.properties
+*.jks
+*.keystore
