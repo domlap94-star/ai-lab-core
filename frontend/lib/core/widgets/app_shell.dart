@@ -80,7 +80,7 @@ class AppShell extends ConsumerWidget {
         return AlertDialog(
           title: const Text('Wylogowanie'),
           content: const Text(
-            'Czy na pewno chcesz wylogowaÄ‚â€žĂ˘â‚¬Ë‡ siÄ‚â€žĂ˘â€žË z AI-Lab?',
+            'Czy na pewno chcesz wylogowa\u0107 si\u0119 z AI-Lab?',
           ),
           actions: <Widget>[
             TextButton(
@@ -93,7 +93,7 @@ class AppShell extends ConsumerWidget {
               onPressed: () {
                 Navigator.of(dialogContext).pop(true);
               },
-              child: const Text('Wyloguj siÄ‚â€žĂ˘â€žË'),
+              child: const Text('Wyloguj si\u0119'),
             ),
           ],
         );
@@ -115,7 +115,7 @@ class AppShell extends ConsumerWidget {
 
     final String username = authState?.user?.username.trim().isNotEmpty == true
         ? authState!.user!.username
-        : 'UĂ„Ä…Ă„Ëťytkownik';
+        : 'U\u017cytkownik';
 
     final String role = authState?.user?.role ?? '';
 

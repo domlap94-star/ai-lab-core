@@ -29,6 +29,11 @@ class AuthTokenStorage {
     return AuthSession(accessToken: accessToken, tokenType: tokenType);
   }
 
+  Future<String?> readAccessToken() async {
+    final AuthSession? session = await readSession();
+    return session?.accessToken;
+  }
+
   Future<void> clearSession() async {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _tokenTypeKey);

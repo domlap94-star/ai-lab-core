@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
+import '../../auth/application/auth_providers.dart';
 import '../../auth/application/auth_state.dart';
 import '../data/supervisor_api.dart';
 
@@ -16,7 +17,7 @@ class SystemControlPage extends ConsumerStatefulWidget {
 }
 
 class _SystemControlPageState extends ConsumerState<SystemControlPage> {
-  final SupervisorApi _api = SupervisorApi();
+  late final SupervisorApi _api;
 
   SupervisorStatus? _status;
   bool _loading = false;
@@ -30,6 +31,8 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
   @override
   void initState() {
     super.initState();
+
+    _api = SupervisorApi(ref.read(authTokenStorageProvider));
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }

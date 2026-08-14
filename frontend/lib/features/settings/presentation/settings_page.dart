@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app_version/application/app_version_provider.dart';
 import '../../app_version/domain/app_version_info.dart';
@@ -43,10 +44,10 @@ class SettingsPage extends ConsumerWidget {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.password),
-                title: const Text('Zmień hasło'),
+                title: const Text('Zmie\u0144 has\u0142o'),
                 subtitle: const Text(
-                  'Zmień hasło aktualnie '
-                  'zalogowanego użytkownika.',
+                  'Zmie\u0144 has\u0142o aktualnie '
+                  'zalogowanego u\u017cytkownika.',
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
@@ -66,10 +67,10 @@ class SettingsPage extends ConsumerWidget {
               children: <Widget>[
                 ListTile(
                   leading: const Icon(Icons.person_add_alt_1),
-                  title: const Text('Dodaj użytkownika'),
+                  title: const Text('Dodaj u\u017cytkownika'),
                   subtitle: const Text(
-                    'Utwórz konto z rolą i '
-                    'hasłem tymczasowym.',
+                    'Utw\u00f3rz konto z rol\u0105 i '
+                    'has\u0142em tymczasowym.',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
@@ -78,6 +79,18 @@ class SettingsPage extends ConsumerWidget {
                         builder: (_) => const AdminUsersPage(),
                       ),
                     );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.power_settings_new),
+                  title: const Text('Sterowanie systemem'),
+                  subtitle: const Text(
+                    'Sprawd\u017a stan us\u0142ug oraz uruchom, '
+                    'zrestartuj lub zatrzymaj system.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    context.go('/system');
                   },
                 ),
               ],
@@ -96,7 +109,7 @@ class SettingsPage extends ConsumerWidget {
                         'AI-Lab ${value.displayVersion}',
                     loading: () => 'Odczytywanie wersji...',
                     error: (_, _) =>
-                        'Nie udało się odczytać '
+                        'Nie uda\u0142o si\u0119 odczyta\u0107 '
                         'wersji aplikacji.',
                   ),
                 ),
@@ -109,21 +122,21 @@ class SettingsPage extends ConsumerWidget {
                     data: (BackendStatus value) =>
                         '${value.application} '
                         '${value.version} '
-                        '• ${value.environment}',
+                        '\u2022 ${value.environment}',
                     loading: () => 'Sprawdzanie backendu...',
-                    error: (_, _) => 'Backend niedostępny.',
+                    error: (_, _) => 'Backend niedost\u0119pny.',
                   ),
                 ),
               ),
               const ListTile(
                 leading: Icon(Icons.verified_user_outlined),
-                title: Text('Zgodność wersji'),
+                title: Text('Zgodno\u015b\u0107 wersji'),
                 subtitle: Text(
                   'Warstwa Flutter jest gotowa. '
-                  'Minimalną obsługiwaną wersję '
+                  'Minimaln\u0105 obs\u0142ugiwan\u0105 wersj\u0119 '
                   'i wymuszenie aktualizacji '
-                  'podłączymy po zakończeniu '
-                  'batcha klientów.',
+                  'pod\u0142\u0105czymy po zako\u0144czeniu '
+                  'batcha klient\u00f3w.',
                 ),
               ),
             ],
