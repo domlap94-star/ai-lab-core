@@ -14,6 +14,9 @@ from app.services.client_entity_projection_policy_service import (
 from app.services.gmail_message_boundary_service import (
     GmailMessageBoundaryService,
 )
+from app.services.client_identity_name_quality_service import (
+    ClientIdentityNameQualityService,
+)
 
 
 EMAIL_RE = re.compile(
@@ -1838,6 +1841,9 @@ class ClientEntitySemanticProjectionService:
         if not value:
             return False
 
+        if ClientIdentityNameQualityService.is_address_or_location_name(value):
+            return False
+
         if cls._entity_is_narrative(
             value
         ):
@@ -1907,6 +1913,9 @@ class ClientEntitySemanticProjectionService:
         )
 
         if not value:
+            return False
+
+        if ClientIdentityNameQualityService.is_address_or_location_name(value):
             return False
 
         if EMAIL_RE.match(

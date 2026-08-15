@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -238,6 +239,17 @@ class ClientIdentityCleanupDryRunService:
             }
             for evidence in identity_support_evidence
         )
+        abbreviated_person_fallback = bool(
+            winning
+            and proposed_type == "person"
+            and proposed_name
+            and re.search(r"(?<!\w)[^\W\d_]\.(?!\w)", proposed_name)
+            and identity_support_evidence
+            and all(
+                evidence.method == "person_contact_fallback"
+                for evidence in identity_support_evidence
+            )
+        )
 
         if boundary_only:
             action = "FIRST_PARTY_OR_RELAY_REVIEW"
@@ -259,6 +271,12 @@ class ClientIdentityCleanupDryRunService:
         elif duplicate_risk == "POSSIBLE":
             action = "REVIEW_REQUIRED"
             reason = "The proposed normalized name already exists on another client."
+        elif abbreviated_person_fallback:
+            action = "REVIEW_REQUIRED"
+            reason = (
+                "The person identity is supported only by an abbreviated "
+                "person-contact fallback and requires human confirmation."
+            )
         elif not strong_evidence:
             action = "REVIEW_REQUIRED"
             reason = "The proposal lacks strong source-ranked identity evidence."

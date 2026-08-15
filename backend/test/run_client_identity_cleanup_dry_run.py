@@ -156,6 +156,7 @@ def _human_review_items(proposals) -> list[dict]:
                 "identity_confidence": proposal.confidence,
                 "action": proposal.action,
                 "safety_reason": proposal.safety_reason,
+                "human_review_note": _human_review_note(proposal),
                 "duplicate_risk": proposal.duplicate_risk,
                 "potential_duplicate_client_ids": (
                     proposal.potential_duplicate_client_ids
@@ -187,6 +188,28 @@ def _human_review_items(proposals) -> list[dict]:
             }
         )
     return result
+
+
+def _human_review_note(proposal) -> str:
+    findings = (
+        ClientIdentityNameQualityService.additional_findings(
+            proposal.proposed_name
+        )
+        if proposal.proposed_name
+        else ()
+    )
+    if "ADDRESS_OR_LOCATION_AS_NAME" in findings:
+        return "Rejected: the proposed identity is an explicit address/location."
+    if "abbreviated person-contact fallback" in proposal.safety_reason:
+        return (
+            "Review the abbreviated person identity; no deterministic full "
+            "given name is present in the supporting provenance."
+        )
+    if proposal.action == "POTENTIAL_DUPLICATE_OR_MERGE":
+        return "Requires a separate human-controlled duplicate/merge decision."
+    if proposal.action == "REVIEW_REQUIRED":
+        return proposal.safety_reason
+    return "Source-backed proposal; production apply remains human-gated."
 
 
 def _insufficient_sample(proposals) -> list[dict]:

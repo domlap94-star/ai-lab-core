@@ -335,6 +335,16 @@ class ClientCandidatePromotionService:
                 "identity review is required before promotion."
             )
 
+        additional_findings = (
+            ClientIdentityNameQualityService.additional_findings(candidate.name)
+        )
+        if "ADDRESS_OR_LOCATION_AS_NAME" in additional_findings:
+            raise CandidatePromotionError(
+                "Candidate "
+                f"{candidate.id} has an address/location as identity name; "
+                "source-backed identity review is required before promotion."
+            )
+
         if FirstPartyIdentityRegistry.is_first_party_email(
             candidate.primary_email
         ):

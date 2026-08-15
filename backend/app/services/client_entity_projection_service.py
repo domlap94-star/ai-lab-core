@@ -11,6 +11,9 @@ from app.models.client_candidate import ClientCandidate
 from app.services.gmail_message_boundary_service import (
     GmailMessageBoundaryService,
 )
+from app.services.client_identity_name_quality_service import (
+    ClientIdentityNameQualityService,
+)
 
 
 EMAIL_RE = re.compile(
@@ -905,6 +908,9 @@ class ClientEntityProjectionService:
         if not value:
             return False
 
+        if ClientIdentityNameQualityService.is_address_or_location_name(value):
+            return False
+
         if EMAIL_RE.match(
             value
         ):
@@ -1069,6 +1075,9 @@ class ClientEntityProjectionService:
         )
 
         if not value:
+            return False
+
+        if ClientIdentityNameQualityService.is_address_or_location_name(value):
             return False
 
         if EMAIL_RE.match(

@@ -10,6 +10,9 @@ from app.services.client_candidate_promotion_service import (
 from app.services.client_entity_semantic_projection_service import (
     ClientEntitySemanticProjectionService,
 )
+from app.services.client_entity_projection_service import (
+    ClientEntityProjectionService,
+)
 from app.services.client_identity_name_quality_service import (
     ClientIdentityNameQualityService,
 )
@@ -165,6 +168,47 @@ def verify_identity_evidence_attribution() -> None:
     assert unrelated_contact not in organization_proposal.identity_support_evidence
     assert substring_evidence not in organization_proposal.identity_support_evidence
 
+    address_evidence = CleanupEvidence(
+        candidate_id=4,
+        source_id=40,
+        source_type="google_sheets_row",
+        method="person_contact_fallback",
+        value="Pruszków ul. Guzikowa",
+        confidence=0.94,
+    )
+    address_projection = cleanup_projection(
+        service,
+        candidate_id=4,
+        proposed_name="Pruszków ul. Guzikowa",
+        proposed_type="person",
+        evidence=[address_evidence],
+    )
+    service._project_candidate = lambda item, source_types: address_projection
+    address_proposal = service._build_proposal(
+        client=SimpleNamespace(
+            id=103,
+            name="address@example.com",
+            client_type="other",
+            legal_name=None,
+            tax_id=None,
+            primary_email=None,
+            primary_phone=None,
+        ),
+        candidates=[
+            candidate(
+                id=4,
+                name="Pruszków ul. Guzikowa",
+                status="accepted",
+                matched_client_id=103,
+            )
+        ],
+        source_types={},
+        document_counts={},
+        duplicate_indexes=indexes,
+    )
+    assert address_proposal.proposed_name is None
+    assert address_proposal.action == "INSUFFICIENT_EVIDENCE"
+
     person_evidence = CleanupEvidence(
         candidate_id=2,
         source_id=20,
@@ -206,6 +250,48 @@ def verify_identity_evidence_attribution() -> None:
     assert person_proposal.confidence == 0.95
     assert person_proposal.identity_support_evidence == [person_evidence]
 
+    abbreviated_evidence = CleanupEvidence(
+        candidate_id=3,
+        source_id=30,
+        source_type="gmail_message",
+        method="person_contact_fallback",
+        value="M. Kłapa",
+        confidence=0.95,
+    )
+    abbreviated_projection = cleanup_projection(
+        service,
+        candidate_id=3,
+        proposed_name="M. Kłapa",
+        proposed_type="person",
+        evidence=[abbreviated_evidence],
+    )
+    service._project_candidate = lambda item, source_types: abbreviated_projection
+    abbreviated_proposal = service._build_proposal(
+        client=SimpleNamespace(
+            id=102,
+            name="[2.PNG]",
+            client_type="company",
+            legal_name=None,
+            tax_id=None,
+            primary_email=None,
+            primary_phone=None,
+        ),
+        candidates=[
+            candidate(
+                id=3,
+                name="Treger",
+                status="accepted",
+                matched_client_id=102,
+            )
+        ],
+        source_types={},
+        document_counts={},
+        duplicate_indexes=indexes,
+    )
+    assert abbreviated_proposal.proposed_name == "M. Kłapa"
+    assert abbreviated_proposal.action == "REVIEW_REQUIRED"
+    assert "abbreviated" in abbreviated_proposal.safety_reason
+
 
 def main() -> None:
     quality = ClientIdentityNameQualityService
@@ -215,9 +301,43 @@ def main() -> None:
     assert not quality.is_suspicious("Jan Kowalski")
     assert not quality.is_suspicious("ACME Sp. z o.o.")
 
+    rejected_addresses = (
+        "Pruszków ul. Guzikowa",
+        "Warszawa, ul. Marszałkowska",
+        "ul. Długa 10",
+        "Aleja Jana Pawła II 15",
+        "os. Zielone 4",
+    )
+    for value in rejected_addresses:
+        assert quality.additional_findings(value) == (
+            "ADDRESS_OR_LOCATION_AS_NAME",
+        )
+        assert not ClientEntityProjectionService._looks_person_name(value)
+        assert not ClientEntitySemanticProjectionService._looks_person_name(value)
+        assert not ClientEntityProjectionService._looks_entity_name(value)
+        assert not ClientEntitySemanticProjectionService._looks_entity_name(value)
+
+    allowed_names = (
+        "Agnieszka Woźniak",
+        "Alstal Grupa Budowlana Sp. z o.o.",
+        "Warszawska Grupa Inwestycyjna",
+        "Hotel Warszawa",
+        "Budimex Warszawa",
+        "Plac Zabaw Sp. z o.o.",
+        "kontakt@example.pl",
+    )
+    for value in allowed_names:
+        assert "ADDRESS_OR_LOCATION_AS_NAME" not in quality.additional_findings(
+            value
+        )
+
     expect_promotion_rejected(candidate(name="name@example.com"), "EMAIL_AS_NAME")
     expect_promotion_rejected(candidate(name="500 600 700"), "PHONE_AS_NAME")
     expect_promotion_rejected(candidate(name="Oferta.pdf"), "FILE_AS_NAME")
+    expect_promotion_rejected(
+        candidate(name="Pruszków ul. Guzikowa"),
+        "address/location",
+    )
     expect_promotion_rejected(
         candidate(primary_email="kontakt@podnoszenieposadzek.pl"),
         "first-party internal",

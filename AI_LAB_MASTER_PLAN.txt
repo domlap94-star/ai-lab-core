@@ -4969,6 +4969,35 @@ CHUNK 6: DRY-RUN DONE.
 PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
 CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE nie zostały rozpoczęte.
 
+MICRO-FIX 6A.1 — ADDRESS-AS-IDENTITY REJECTION:
+
+[✓] Root cause klienta 13 potwierdzono read-only: legacy Sheets source 1349
+    przechowywał `Pruszków ul. Guzikowa` w polu `NAZWISKO`; dotychczasowy
+    classifier uznał trzy bezcyfrowe tokeny za osobę i utworzył
+    person_contact_fallback 0.94.
+[✓] Wspólny high-precision quality signal ADDRESS_OR_LOCATION_AS_NAME wymaga
+    jawnego markera ulicy/adresu i numeru budynku albo poprzedzającej
+    lokalizacji; nie korzysta z listy miast.
+[✓] Oba projection layers odrzucają adres jako person/entity, cleanup zachowuje
+    niezależny final quality gate, a future promotion nie może użyć adresu jako
+    Client.name.
+[✓] False-positive boundary zachowuje realne osoby/organizacje, w tym Budimex
+    Warszawa, Hotel Warszawa, Warszawska Grupa Inwestycyjna i Plac Zabaw
+    Sp. z o.o.; domeny `.pl` nie są klasyfikowane jako adres.
+[✓] Client 13: INSUFFICIENT_EVIDENCE, proposed identity brak. Client 2560:
+    proposal `M. Kłapa` zachowany, lecz initial-only person_contact_fallback ma
+    REVIEW_REQUIRED; source audit nie znalazł pełniejszego imienia.
+[✓] Real-data AFTER: SAFE 6, REVIEW 2, INSUFFICIENT 739,
+    POTENTIAL_DUPLICATE_OR_MERGE 1.
+[✓] Raporty wygenerowano ponownie w PostgreSQL READ ONLY i pozostają lokalne /
+    ignored / not committed.
+[✓] DATA IMPACT: DRY-RUN ONLY; PRODUCTION WRITES 0; MIGRATIONS NONE;
+    API CONTRACT UNCHANGED.
+
+CHUNK 6: DRY-RUN DONE.
+PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
+CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE nie zostały rozpoczęte.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================

@@ -21,6 +21,14 @@ class ClientIdentityNameQualityService:
         r"^(?:[0-9a-f]{24,}|[0-9a-f]{8}-[0-9a-f-]{27,})$",
         re.IGNORECASE,
     )
+    ADDRESS_MARKER_RE = re.compile(
+        r"(?<!\w)(?:ul(?:ica)?[.]?|al[.]|aleja|os[.]|osiedle|pl[.]|plac)(?!\w)",
+        re.IGNORECASE,
+    )
+    BUILDING_NUMBER_RE = re.compile(
+        r"\b\d+[a-z]?(?:\s*[/\-]\s*\d+[a-z]?)?\b",
+        re.IGNORECASE,
+    )
     PLACEHOLDERS = frozenset(
         {
             "brak",
@@ -75,8 +83,31 @@ class ClientIdentityNameQualityService:
             result.append("PLACEHOLDER_AS_NAME")
         if cls.TECHNICAL_ID_RE.fullmatch(name):
             result.append("TECHNICAL_IDENTIFIER_AS_NAME")
+        if cls.is_address_or_location_name(name):
+            result.append("ADDRESS_OR_LOCATION_AS_NAME")
 
         return tuple(result)
+
+    @classmethod
+    def is_address_or_location_name(cls, value: str | None) -> bool:
+        """Recognize only explicit, high-precision Polish address shapes."""
+        name = cls._clean(value)
+        if cls.EMAIL_RE.fullmatch(name) or cls.URL_RE.match(name):
+            return False
+        marker = cls.ADDRESS_MARKER_RE.search(name)
+        if marker is None:
+            return False
+
+        suffix = name[marker.end() :]
+        if cls.BUILDING_NUMBER_RE.search(suffix):
+            return True
+
+        # A location before an explicit street marker is an address-like
+        # construction even when the building number is missing. A marker at
+        # the start without a number remains allowed to protect organization
+        # names such as "Plac Zabaw Sp. z o.o.".
+        prefix = name[: marker.start()].strip(" ,;:-")
+        return bool(prefix and any(character.isalpha() for character in prefix))
 
     @staticmethod
     def normalize_identity(value: str | None) -> str:

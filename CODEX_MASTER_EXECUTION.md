@@ -268,6 +268,32 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 - PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
 - Commit: `Bind cleanup confidence to identity evidence`.
 
+### 6A.1. Address-as-identity rejection — DONE
+
+- Root cause: legacy Sheets candidate 1322 stored `Pruszków ul. Guzikowa` in
+  the structured `NAZWISKO` field. The person-name classifier accepted its
+  three non-numeric tokens and emitted `person_contact_fallback` at 0.94.
+- Shared high-precision name-quality logic now reports
+  `ADDRESS_OR_LOCATION_AS_NAME` for explicit street/address markers combined
+  with a building number or a preceding location. It does not use a city list.
+- Both projection layers reject address-like values as person and entity
+  identity. Cleanup retains an independent final quality gate, and candidate
+  promotion blocks future address/location values as `Client.name`.
+- False-positive controls preserve real people/organizations, including
+  `Budimex Warszawa`, `Hotel Warszawa`, `Warszawska Grupa Inwestycyjna` and
+  `Plac Zabaw Sp. z o.o.`; e-mail domains ending in `.pl` are not addresses.
+- Client 13 is now `INSUFFICIENT_EVIDENCE` with no proposed identity. Client
+  2560 remains proposed as `M. Kłapa`, but initial-only
+  `person_contact_fallback` is conservatively `REVIEW_REQUIRED`; no full given
+  name exists in its Gmail display names, current signatures or attachments.
+- Real-data AFTER: SAFE 6, REVIEW 2, INSUFFICIENT 739,
+  POTENTIAL_DUPLICATE_OR_MERGE 1. The four reports were regenerated locally
+  under PostgreSQL READ ONLY and remain ignored.
+- DATA IMPACT: DRY-RUN ONLY; PRODUCTION WRITES 0; MIGRATIONS NONE;
+  API CONTRACT UNCHANGED.
+- PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
+- Commit: `Reject address values as client identity`.
+
 ### 7. Contact and address model — TODO
 
 - Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.
