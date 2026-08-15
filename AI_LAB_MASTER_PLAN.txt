@@ -4840,24 +4840,23 @@ API COMPATIBILITY: ADDITIVE; legacy clients/documents contracts bez zmian.
 PRE-RELEASE CHUNK — ADMIN USER LIFECYCLE
 ================================================================================
 
-STATUS: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
+STATUS: DONE / NEXT NATIVE RELEASE NOT PUBLISHED.
 
-Przed następnym Android/Windows release trzeba wykonać osobny checkpoint:
+Checkpoint wykonany przed następnym Android/Windows release:
 
-- akcja „Usuń użytkownika” w Admin UI,
-- backend admin-only,
-- preferowana deactivate/soft-delete zamiast hard delete, jeśli model pozwala,
-- zakaz self-delete/self-deactivate,
-- zakaz usunięcia/dezaktywacji ostatniego aktywnego Administratora,
-- potwierdzenie w UI,
-- audit kto/kiedy,
-- brak dalszego logowania,
-- weryfikacja zachowania istniejących JWT,
-- testy 401/403, self, last-admin i zwykłego użytkownika,
-- deployed API compatibility,
-- zero publikacji release bez human approval.
+- admin-only POST deactivate ustawia wyłącznie User.is_active=false,
+- brak physical DELETE i zachowanie conversations/history/references,
+- self, inactive repeat i last active Administrator są odrzucane 409,
+- advisory transaction lock + row locks zabezpieczają concurrency,
+- durable user_lifecycle_events zapisuje actor/target/action/timestamp atomowo,
+- inactive login i wcześniej wydany JWT zwracają 401,
+- inactive password reset zwraca 409; nie ma implicit reactivation,
+- UI wymaga dokładnego wpisania username i wyjaśnia zachowanie danych,
+- additive migration userlife_20260815; existing API shapes unchanged,
+- real users before/after: 4 active, 0 inactive; physical deletes 0,
+- testy backend/auth/API/AI/Flutter PASS.
 
-Funkcja nie została zaimplementowana w CHUNK 5.
+Następny native release nadal: NOT PUBLISHED / HUMAN GATE.
 
 ================================================================================
 END CHECKPOINT 2026-08-15 — CLIENT 360 EMAIL HISTORY
@@ -4933,8 +4932,7 @@ QUALITY DEBT:
   przyszłego CHUNK 8 matching workspace; w CHUNK 6 nie wykonano przypisań.
 - Notes cleanup pozostaje osobnym human-gated etapem (809/809 coverage z
   CHUNK 5); notes nie zostały zmienione.
-- PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
-  NATIVE RELEASE i nie został zaimplementowany.
+- PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT PUBLISHED.
 
 HUMAN GATE:
 
@@ -4967,7 +4965,8 @@ MICRO-FIX 6A — IDENTITY EVIDENCE ATTRIBUTION:
 
 CHUNK 6: DRY-RUN DONE.
 PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
-CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE nie zostały rozpoczęte.
+Na tym historycznym checkpointcie CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE
+nie były jeszcze rozpoczęte; aktualny status lifecycle: DONE.
 
 MICRO-FIX 6A.1 — ADDRESS-AS-IDENTITY REJECTION:
 
@@ -4996,7 +4995,8 @@ MICRO-FIX 6A.1 — ADDRESS-AS-IDENTITY REJECTION:
 
 CHUNK 6: DRY-RUN DONE.
 PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
-CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE nie zostały rozpoczęte.
+Na tym historycznym checkpointcie CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE
+nie były jeszcze rozpoczęte; aktualny status lifecycle: DONE.
 
 CHUNK 6B — CONTROLLED IDENTITY APPLY:
 
@@ -5026,8 +5026,7 @@ CHUNK 6B — CONTROLLED IDENTITY APPLY:
 
 CHUNK 6B — CONTROLLED IDENTITY APPLY — DONE.
 CHUNK 7 i CHUNK 8 pozostają nierozpoczęte.
-PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
-NATIVE RELEASE.
+PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT PUBLISHED.
 
 CHUNK 6C — LEGACY EMAIL NOTES CLEANUP DRY-RUN:
 
@@ -5057,7 +5056,7 @@ CHUNK 6C — LEGACY EMAIL NOTES CLEANUP DRY-RUN:
 CHUNK 6C — LEGACY EMAIL NOTES CLEANUP DRY-RUN — DONE.
 PRODUCTION NOTES CLEANUP: NOT APPLIED / HUMAN GATE.
 CHUNK 7: NOT STARTED.
-PRE-RELEASE ADMIN USER LIFECYCLE: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
+PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT PUBLISHED.
 
 MICRO-AUDIT 6C.1 — CLIENT.NOTES DOWNSTREAM DEPENDENCY AUDIT:
 
@@ -5086,9 +5085,10 @@ MICRO-AUDIT 6C.1 — CLIENT.NOTES DOWNSTREAM DEPENDENCY AUDIT:
 MICRO-AUDIT 6C.1 — CLIENT.NOTES DOWNSTREAM DEPENDENCY AUDIT — DONE.
 GO / NO-GO: BLOCK_6D.
 PRODUCTION NOTES CLEANUP: NOT APPLIED.
-CHUNK 6D: NOT STARTED.
+CHUNK 6D: BLOCKED — WAITING FOR NATIVE EMAIL HISTORY RELEASE +
+SUPPORTED-VERSION GATE.
 CHUNK 7: NOT STARTED.
-PRE-RELEASE ADMIN USER LIFECYCLE: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
+PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT PUBLISHED.
 
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN

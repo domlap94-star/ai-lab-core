@@ -12,6 +12,7 @@ from app.models.industry import Industry
 from app.models.message import Message
 from app.models.role import Role
 from app.models.user import User
+from app.models.user_lifecycle_event import UserLifecycleEvent
 
 __all__ = [
     "CandidateSource",
@@ -28,4 +29,5 @@ __all__ = [
     "Message",
     "Role",
     "User",
+    "UserLifecycleEvent",
 ]

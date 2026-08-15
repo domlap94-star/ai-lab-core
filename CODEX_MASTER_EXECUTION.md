@@ -186,22 +186,31 @@ kontraktu.
   Client List, Document Read, auth oraz Flutter analyze/test PASS.
 - Commit: `Add sourced client email history`.
 
-### PRE-RELEASE CHUNK — ADMIN USER LIFECYCLE — TODO
+### PRE-RELEASE CHUNK — ADMIN USER LIFECYCLE — DONE
 
-Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
+Status: DONE / RELEASE NOT PUBLISHED.
 
-- Akcja „Usuń użytkownika” w Admin UI oraz backend admin-only.
-- Preferowana bezpieczna deactivate/soft-delete zamiast hard delete, jeśli
-  aktualny model pozwala zachować kompatybilność i audit.
-- Zakaz self-delete/self-deactivate oraz usunięcia/dezaktywacji ostatniego
-  aktywnego Administratora.
-- Potwierdzenie operacji w UI i audit kto/kiedy wykonał akcję.
-- Brak dalszego logowania oraz jawna weryfikacja zachowania istniejących JWT.
-- Testy 401/403, self, last-admin i zwykłego użytkownika.
-- Zachowanie deployed API compatibility.
-- Zero publikacji release bez human approval.
-- Ten checkpoint musi być DONE przed następnym Android/Windows release; nie
-  został zaimplementowany w CHUNK 5.
+- Additive admin-only `POST /admin/users/{user_id}/deactivate` ustawia wyłącznie
+  `User.is_active=false`; nie istnieje physical-delete path i username/email/
+  role/conversations/history pozostają zachowane.
+- Self-deactivation, inactive repeat i last-active-Administrator są odrzucane
+  jako 409. PostgreSQL advisory transaction lock oraz actor/target/active-admin
+  `FOR UPDATE` serializują operację; actor jest ponownie autoryzowany po locku.
+- Additive tabela `user_lifecycle_events` zapisuje actor, target, DEACTIVATED i
+  timestamp w tej samej transakcji. Audit failure rollbackuje zmianę User.
+- `get_current_user` sprawdza aktywność w DB dla wszystkich chronionych API;
+  test potwierdza natychmiastowe 401 istniejącego JWT oraz generic 401 loginu.
+- Reset hasła inactive User zwraca 409 i nie reaktywuje konta. Unique username/
+  email nadal obejmują inactive users.
+- Flutter pokazuje „Usuń użytkownika”, wyjaśnia soft deactivation i wymaga
+  dokładnego wpisania username; self/inactive/reset actions są disabled, a
+  konflikty backendu mają jawne polskie komunikaty.
+- Additive migration `userlife_20260815` PASS; baseline real users przed/po:
+  total 4, active 4, inactive 0, active Administrator 1, active User 3;
+  produkcyjne lifecycle events 0, physical deletes 0.
+- Existing API shapes pozostają bez zmian; dodano tylko lifecycle endpoint.
+  Release nie został zbudowany ani opublikowany i nadal wymaga human gate.
+- Commit: `Add safe admin user deactivation`.
 
 ### 5A. Client email attachment scope hardening — DONE
 
@@ -319,8 +328,7 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
   data są ignorowane i niecommitowane. Rollback artifact nie został wykonany.
 - Pozostały identity quality debt: 742 suspicious, w tym 739 insufficient;
   identity cleanup nie jest zakończony.
-- PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
-  NATIVE RELEASE.
+- PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT PUBLISHED.
 - Commit: `Apply approved client identity renames`.
 
 ### 6C. Legacy email notes cleanup dry-run — DONE
@@ -352,8 +360,8 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 - DATA IMPACT: DRY-RUN ONLY; PRODUCTION WRITES 0; MIGRATIONS NONE;
   API CONTRACT UNCHANGED.
 - PRODUCTION NOTES CLEANUP: NOT APPLIED / HUMAN GATE.
-- CHUNK 7: NOT STARTED. PRE-RELEASE ADMIN USER LIFECYCLE remains TODO /
-  MANDATORY BEFORE NEXT NATIVE RELEASE.
+- CHUNK 7: NOT STARTED. PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT
+  PUBLISHED.
 - Commit: `Add legacy email notes cleanup dry run`.
 
 ### 6C.1. Client.notes downstream dependency audit — DONE / BLOCK_6D
@@ -378,9 +386,10 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
   sourced Email History, establish a supported-version cleanup gate, create a
   private encrypted full-notes rollback snapshot, then rerun 6C/6C.1 without
   manifest or source drift.
-- GO / NO-GO: BLOCK_6D. PRODUCTION NOTES CLEANUP: NOT APPLIED. CHUNK 6D and
-  CHUNK 7: NOT STARTED. PRE-RELEASE ADMIN USER LIFECYCLE remains TODO /
-  MANDATORY BEFORE NEXT NATIVE RELEASE.
+- GO / NO-GO: BLOCK_6D. PRODUCTION NOTES CLEANUP: NOT APPLIED. CHUNK 6D is
+  BLOCKED pending native Email History release + supported-version gate;
+  CHUNK 7: NOT STARTED. PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT
+  PUBLISHED.
 - DATA IMPACT: READ ONLY; PRODUCTION DATABASE WRITES 0; QDRANT WRITES 0;
   MIGRATIONS NONE; API CONTRACT UNCHANGED.
 - Commit: `Audit client notes downstream dependencies`.

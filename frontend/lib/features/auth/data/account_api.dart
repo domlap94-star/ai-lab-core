@@ -125,4 +125,14 @@ class AccountApi {
       options: _authorizedOptions(session),
     );
   }
+
+  Future<void> deactivateUser({
+    required AuthSession session,
+    required int userId,
+  }) async {
+    await _dio.post<void>(
+      '/api/v1/admin/users/$userId/deactivate',
+      options: _authorizedOptions(session),
+    );
+  }
 }

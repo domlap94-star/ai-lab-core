@@ -190,65 +190,10 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
   }
 
   Future<void> _resetPassword(ManagedUser user) async {
-    final TextEditingController controller = TextEditingController();
-
-    bool obscure = true;
-
     final String? temporaryPassword = await showDialog<String>(
       context: context,
-      builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setDialogState) {
-            return AlertDialog(
-              title: Text('Reset hasła: ${user.username}'),
-              content: TextField(
-                controller: controller,
-                obscureText: obscure,
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: 'Nowe hasło tymczasowe',
-                  helperText: 'Minimum 10 znaków.',
-                  suffixIcon: IconButton(
-                    onPressed: () {
-                      setDialogState(() {
-                        obscure = !obscure;
-                      });
-                    },
-                    icon: Icon(
-                      obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                  ),
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('Anuluj'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final String value = controller.text;
-
-                    if (value.length < 10) {
-                      return;
-                    }
-
-                    Navigator.of(dialogContext).pop(value);
-                  },
-                  child: const Text('Ustaw hasło tymczasowe'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _ResetPasswordDialog(username: user.username),
     );
-
-    controller.dispose();
 
     if (temporaryPassword == null) {
       return;
@@ -293,6 +238,67 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
     }
   }
 
+  Future<void> _deactivateUser(ManagedUser user) async {
+    final bool confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (_) => _DeactivateUserDialog(username: user.username),
+        ) ??
+        false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    final AuthState? state = ref.read(authControllerProvider).value;
+    final session = state?.session;
+    if (session == null || !session.isAuthenticated) {
+      _showMessage('Sesja wygasła.', isError: true);
+      return;
+    }
+
+    try {
+      await ref
+          .read(accountApiProvider)
+          .deactivateUser(session: session, userId: user.id);
+      if (!mounted) {
+        return;
+      }
+      _showMessage('Konto użytkownika zostało dezaktywowane.');
+      await _loadUsers();
+    } on DioException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(_deactivationErrorMessage(error), isError: true);
+    }
+  }
+
+  String _deactivationErrorMessage(DioException error) {
+    final int? statusCode = error.response?.statusCode;
+    final dynamic responseData = error.response?.data;
+    final String detail = responseData is Map
+        ? responseData['detail']?.toString() ?? ''
+        : '';
+
+    if (statusCode == 403) {
+      return 'Brak uprawnień administratora.';
+    }
+    if (statusCode == 404) {
+      return 'Użytkownik nie istnieje.';
+    }
+    if (statusCode == 409 && detail.contains('own account')) {
+      return 'Nie możesz usunąć własnego konta.';
+    }
+    if (statusCode == 409 && detail.contains('last active Administrator')) {
+      return 'Nie można usunąć ostatniego aktywnego Administratora.';
+    }
+    if (statusCode == 409 && detail.contains('already inactive')) {
+      return 'Konto użytkownika jest już nieaktywne.';
+    }
+    return 'Nie udało się dezaktywować użytkownika.';
+  }
+
   void _showMessage(String message, {bool isError = false}) {
     final ThemeData theme = Theme.of(context);
 
@@ -311,6 +317,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
     final AuthState? state = ref.watch(authControllerProvider).value;
 
     final String role = state?.user?.role ?? '';
+    final int? currentUserId = state?.user?.id;
 
     if (!_isAdminRole(role)) {
       return Scaffold(
@@ -490,8 +497,12 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                   ..._users.map(
                     (ManagedUser user) => _UserTile(
                       user: user,
+                      isCurrentUser: user.id == currentUserId,
                       onResetPassword: () {
                         _resetPassword(user);
+                      },
+                      onDeactivate: () {
+                        _deactivateUser(user);
                       },
                     ),
                   ),
@@ -505,11 +516,137 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
   }
 }
 
+class _DeactivateUserDialog extends StatefulWidget {
+  const _DeactivateUserDialog({required this.username});
+
+  final String username;
+
+  @override
+  State<_DeactivateUserDialog> createState() => _DeactivateUserDialogState();
+}
+
+class _ResetPasswordDialog extends StatefulWidget {
+  const _ResetPasswordDialog({required this.username});
+
+  final String username;
+
+  @override
+  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+  final TextEditingController _controller = TextEditingController();
+  bool _obscure = true;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Reset hasła: ${widget.username}'),
+      content: TextField(
+        controller: _controller,
+        obscureText: _obscure,
+        autofocus: true,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: 'Nowe hasło tymczasowe',
+          helperText: 'Minimum 10 znaków.',
+          suffixIcon: IconButton(
+            onPressed: () => setState(() => _obscure = !_obscure),
+            icon: Icon(
+              _obscure
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+            ),
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Anuluj'),
+        ),
+        FilledButton(
+          key: const Key('confirm-password-reset'),
+          onPressed: _controller.text.length < 10
+              ? null
+              : () => Navigator.of(context).pop(_controller.text),
+          child: const Text('Ustaw hasło tymczasowe'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeactivateUserDialogState extends State<_DeactivateUserDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool exactMatch = _controller.text == widget.username;
+    return AlertDialog(
+      title: Text('Usuń użytkownika: ${widget.username}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          const Text(
+            'Konto zostanie dezaktywowane. Dane użytkownika '
+            'i historia pozostaną w systemie.',
+          ),
+          const SizedBox(height: 16),
+          Text('Aby potwierdzić, wpisz:\n${widget.username}'),
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('deactivate-username-confirmation'),
+            controller: _controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Nazwa użytkownika',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Anuluj'),
+        ),
+        FilledButton(
+          key: const Key('confirm-user-deactivation'),
+          onPressed: exactMatch ? () => Navigator.of(context).pop(true) : null,
+          child: const Text('Usuń użytkownika'),
+        ),
+      ],
+    );
+  }
+}
+
 class _UserTile extends StatelessWidget {
-  const _UserTile({required this.user, required this.onResetPassword});
+  const _UserTile({
+    required this.user,
+    required this.isCurrentUser,
+    required this.onResetPassword,
+    required this.onDeactivate,
+  });
 
   final ManagedUser user;
+  final bool isCurrentUser;
   final VoidCallback onResetPassword;
+  final VoidCallback onDeactivate;
 
   @override
   Widget build(BuildContext context) {
@@ -542,10 +679,31 @@ class _UserTile extends StatelessWidget {
         ].join('\n'),
       ),
       isThreeLine: flags.isNotEmpty,
-      trailing: IconButton(
-        tooltip: 'Ustaw hasło tymczasowe',
-        onPressed: onResetPassword,
-        icon: const Icon(Icons.lock_reset),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          IconButton(
+            key: Key('reset-password-user-${user.id}'),
+            tooltip: user.isActive
+                ? 'Ustaw hasło tymczasowe'
+                : 'Nie można resetować hasła nieaktywnego konta.',
+            onPressed: user.isActive ? onResetPassword : null,
+            icon: const Icon(Icons.lock_reset),
+          ),
+          Tooltip(
+            key: Key('deactivate-user-${user.id}'),
+            message: isCurrentUser
+                ? 'Nie możesz usunąć własnego konta.'
+                : user.isActive
+                ? 'Usuń użytkownika'
+                : 'Konto jest nieaktywne.',
+            child: TextButton.icon(
+              onPressed: user.isActive && !isCurrentUser ? onDeactivate : null,
+              icon: const Icon(Icons.person_off_outlined),
+              label: const Text('Usuń użytkownika'),
+            ),
+          ),
+        ],
       ),
     );
   }

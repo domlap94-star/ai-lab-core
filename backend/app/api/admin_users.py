@@ -10,6 +10,12 @@ from app.core.security import hash_password
 from app.database.session import get_db
 from app.models.role import Role
 from app.models.user import User
+from app.services.user_lifecycle_service import (
+    UserLifecycleAuthorizationError,
+    UserLifecycleConflictError,
+    UserLifecycleNotFoundError,
+    UserLifecycleService,
+)
 
 
 router = APIRouter(
@@ -212,6 +218,12 @@ def reset_user_password(
             detail="User not found",
         )
 
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot reset password for inactive user",
+        )
+
     user.password_hash = hash_password(
         request.temporary_password,
     )
@@ -224,4 +236,45 @@ def reset_user_password(
     return {
         "status": "ok",
         "user_id": user.id,
+    }
+
+
+@router.post("/{user_id}/deactivate")
+def deactivate_user(
+    user_id: int,
+    current_admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        UserLifecycleService(db).deactivate_user(
+            actor_user_id=current_admin.id,
+            target_user_id=user_id,
+        )
+        db.commit()
+    except UserLifecycleNotFoundError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except UserLifecycleAuthorizationError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except UserLifecycleConflictError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "status": "deactivated",
+        "user_id": user_id,
+        "is_active": False,
     }
