@@ -5130,6 +5130,24 @@ POST-RELEASE HOTFIX — NEXT STABIL 1.0.2+6:
 [ ] CANDIDATE AUTO-PROMOTION: NOT STARTED.
 [ ] CHUNK 7: NOT STARTED.
 
+FINAL PRE-BACKUP PATCH — NEXT STABIL 1.0.2+7:
+
+[✓] User-facing branding produkcyjnych Flutter/native sources: NEXT Stabil;
+    internal ai_lab/package IDs/applicationId/APP_ID pozostają bez zmian.
+[✓] Client business creation date: source_record_date ?? created_at.date().
+    Client Details pokazuje jedną Datę dodania; card używa tej samej wartości.
+[✓] /clients/page: addytywny sort_order newest|oldest, default newest.
+    Globalne effective-date sortowanie i ID tie-breaker wykonują się przed
+    pagination, bez N+1 i z canonical batched Sheets projection.
+[✓] Android i Windows 1.0.2+7 opublikowane; Web bez build/deploy.
+[✓] minimum_version pozostaje 1.0.0; 1.0.2+6 -> +7 = AVAILABLE.
+[✓] FINAL PRE-BACKUP PATCH 1.0.2+7: PUBLISHED.
+[ ] GOLDEN BACKUP: NEXT CHECKPOINT / NOT STARTED.
+[ ] DATA ARTIFACT CLEANUP: DEFERRED UNTIL AFTER GOLDEN BACKUP.
+[!] CHUNK 6D: BLOCKED.
+[ ] CANDIDATE AUTO-PROMOTION: NOT STARTED.
+[ ] CHUNK 7: NOT STARTED.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================

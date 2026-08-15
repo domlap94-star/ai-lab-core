@@ -524,3 +524,20 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - GOLDEN BACKUP: WAITING FOR HUMAN VERIFICATION OF 1.0.2+6.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
+
+### FINAL PRE-BACKUP PATCH — NEXT STABIL 1.0.2+7 — PUBLISHED
+
+- Branding wszystkich produkcyjnych Flutter/native user-facing sources:
+  `NEXT Stabil`; internal `ai_lab`, package/application IDs i APP_ID bez zmian.
+- Business creation date: `source_record_date ?? created_at.date()`; Client
+  Details pokazuje jedną `Datę dodania`, a karty zachowują tę samą semantykę.
+- `/clients/page` ma addytywny `sort_order=newest|oldest`, domyślnie newest.
+  Globalne effective-date sortowanie z tie-breakerem ID odbywa się przed
+  pagination i korzysta z tego samego batched source-date projection co API.
+- Android i Windows 1.0.2+7: PUBLISHED. Web: UNCHANGED / NOT DEPLOYED.
+  `minimum_version` nadal 1.0.0; aktualizacja z +6 ma stan AVAILABLE.
+- FINAL PRE-BACKUP PATCH 1.0.2+7: PUBLISHED.
+- GOLDEN BACKUP: NEXT CHECKPOINT / NOT STARTED.
+- DATA ARTIFACT CLEANUP: DEFERRED UNTIL AFTER GOLDEN BACKUP.
+- CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
+  NOT STARTED.
