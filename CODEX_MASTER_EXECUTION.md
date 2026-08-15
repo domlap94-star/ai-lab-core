@@ -203,6 +203,22 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 - Ten checkpoint musi być DONE przed następnym Android/Windows release; nie
   został zaimplementowany w CHUNK 5.
 
+### 5A. Client email attachment scope hardening — DONE
+
+- Read-only audit: 0 external Gmail ID collisions między import sources i 0
+  Document.gmail_message_id collisions między różnymi jawnymi client_id.
+- Wykryto 20 attachment documents bez client_id/candidate_id, które wcześniejsze
+  zapytanie mogło eksponować wyłącznie na podstawie message ID.
+- Attachment batch query wymaga teraz zgodnego `Document.client_id` albo — tylko
+  dla candidate-only document — aktywnego kandydata ze zgodnym matched_client_id
+  i statusem accepted/merged/duplicate. Unscoped i cross-client są odrzucane.
+- Dedupe używa provenance-safe `(import_source_id, external_id)`, ponieważ schema
+  i importer nie gwarantują globalnego namespace external_id.
+- Izolowany test tworzy kolizję Client A/Client B, potwierdza scope przez realny
+  endpoint i wykonuje rollback; trwałe modyfikacje danych: 0.
+- Publiczny Email API contract, CHUNK 5 DONE i Client.notes pozostają bez zmian.
+- Commit: `Harden client email attachment scope`.
+
 ### 6. Client identity quality dry-run — TODO
 
 - Cel: odzyskać tożsamość bez automatycznego zgadywania. Zależności: 5.

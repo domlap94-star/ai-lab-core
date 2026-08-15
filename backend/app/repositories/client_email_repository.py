@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import DateTime, Numeric, case, cast, func
+from sqlalchemy import DateTime, Numeric, and_, case, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.candidate_source import CandidateSource
@@ -47,7 +47,10 @@ class ClientEmailRepository:
     def _deduplicated_sources(self, client_id: int):
         message_at = self._message_at_expression()
         row_number = func.row_number().over(
-            partition_by=CandidateSource.external_id,
+            partition_by=(
+                CandidateSource.import_source_id,
+                CandidateSource.external_id,
+            ),
             order_by=(
                 message_at.desc().nulls_last(),
                 CandidateSource.id.desc(),
@@ -106,6 +109,7 @@ class ClientEmailRepository:
 
     def get_attachments(
         self,
+        client_id: int,
         message_ids: Sequence[str],
     ) -> list[Document]:
         if not message_ids:
@@ -113,9 +117,25 @@ class ClientEmailRepository:
 
         return (
             self.db.query(Document)
+            .outerjoin(
+                ClientCandidate,
+                ClientCandidate.id == Document.candidate_id,
+            )
             .filter(
                 Document.source_type == "gmail_attachment",
                 Document.gmail_message_id.in_(message_ids),
+                or_(
+                    Document.client_id == client_id,
+                    and_(
+                        Document.client_id.is_(None),
+                        ClientCandidate.id.isnot(None),
+                        ClientCandidate.deleted_at.is_(None),
+                        ClientCandidate.matched_client_id == client_id,
+                        ClientCandidate.status.in_(
+                            LINKED_CANDIDATE_STATUSES
+                        ),
+                    ),
+                ),
             )
             .order_by(
                 Document.gmail_message_id.asc(),

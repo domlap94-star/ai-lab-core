@@ -94,7 +94,10 @@ class ClientEmailService:
         )
         message_ids = [row.external_id for row in rows]
         attachments_by_message: dict[str, list[Any]] = defaultdict(list)
-        for document in self.email_repository.get_attachments(message_ids):
+        for document in self.email_repository.get_attachments(
+            client_id,
+            message_ids,
+        ):
             attachments_by_message[document.gmail_message_id].append(document)
 
         items = [

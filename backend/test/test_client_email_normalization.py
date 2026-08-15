@@ -94,9 +94,10 @@ def main() -> None:
             )
         )
         require(
-            "row_number() OVER (PARTITION BY candidate_sources.external_id"
-            in sql,
-            "External Gmail ID deduplication is missing",
+            "row_number() OVER (PARTITION BY "
+            "candidate_sources.import_source_id, "
+            "candidate_sources.external_id" in sql,
+            "Provenance-safe Gmail ID deduplication is missing",
         )
         require(
             "candidate_sources.source_type = 'gmail_message'" in sql,
