@@ -5059,6 +5059,37 @@ PRODUCTION NOTES CLEANUP: NOT APPLIED / HUMAN GATE.
 CHUNK 7: NOT STARTED.
 PRE-RELEASE ADMIN USER LIFECYCLE: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
 
+MICRO-AUDIT 6C.1 — CLIENT.NOTES DOWNSTREAM DEPENDENCY AUDIT:
+
+[✓] Ponowny PostgreSQL READ ONLY dry-run potwierdził stabilny 789-record safe
+    manifest, 2119 safe legacy blocks i 2119/2119 CONFIRMED_SOURCE_MATCH.
+    Missing sources, linkage anomalies i normalization anomalies: 0.
+[✓] Current Client API/Flutter serializuje i pokazuje nullable notes, ale
+    Client List search, Document search, Email History, semantic retrieval,
+    RAG, embeddings i prompt context nie czytają Client.notes.
+[✓] PostgreSQL Documents/DocumentChunks i istniejące 57 Qdrant points nie
+    zawierają Client.notes-derived ani legacy transcript marker content.
+    Qdrant audit był wyłącznie read-only; żadnego rebuild/upsert/delete.
+[✓] Aktywny n8n runtime sprawdzono read-only. Notes występuje wyłącznie jako
+    pole budowanego candidate import payload; workflow nie czyta Client.notes.
+    Nie znaleziono produkcyjnego export/report consumer Client.notes.
+[!] BLOCKING: opublikowane Android/Windows 1.0.1+4 pochodzą z commita sprzed
+    Client Email History. Pokazują Client.notes, a panel Maile jest placeholderem.
+    Cleanup usunąłby jedyną widoczną historię mailową tym deployed consumers,
+    mimo zachowania canonical Gmail sources.
+[!] Prerequisite: opublikować i human-verify Android/Windows z sourced Email
+    History, ustalić supported-version cleanup gate, przed apply wykonać prywatny
+    encrypted full-notes rollback snapshot, potem ponowić 6C/6C.1 bez driftu.
+[✓] DATA IMPACT: READ ONLY; PRODUCTION DATABASE WRITES 0; QDRANT WRITES 0;
+    MIGRATIONS NONE; API CONTRACT UNCHANGED.
+
+MICRO-AUDIT 6C.1 — CLIENT.NOTES DOWNSTREAM DEPENDENCY AUDIT — DONE.
+GO / NO-GO: BLOCK_6D.
+PRODUCTION NOTES CLEANUP: NOT APPLIED.
+CHUNK 6D: NOT STARTED.
+CHUNK 7: NOT STARTED.
+PRE-RELEASE ADMIN USER LIFECYCLE: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================

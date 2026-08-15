@@ -86,3 +86,6 @@ backend/test/reports/client_notes_email_cleanup_summary.json
 backend/test/reports/client_notes_email_cleanup_review.json
 backend/test/reports/client_notes_email_cleanup_summary.txt
 backend/test/reports/client_notes_email_cleanup_safe_manifest.json
+backend/test/reports/client_notes_cleanup_downstream_impact.jsonl
+backend/test/reports/client_notes_cleanup_downstream_summary.json
+backend/test/reports/client_notes_cleanup_downstream_summary.txt

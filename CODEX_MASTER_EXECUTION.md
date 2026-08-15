@@ -356,6 +356,35 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
   MANDATORY BEFORE NEXT NATIVE RELEASE.
 - Commit: `Add legacy email notes cleanup dry run`.
 
+### 6C.1. Client.notes downstream dependency audit — DONE / BLOCK_6D
+
+- The regenerated PostgreSQL READ ONLY 6C safe manifest is byte-stable:
+  789 SAFE_CLEAR_NOTES records, 2119 safe legacy blocks and 2119/2119
+  CONFIRMED_SOURCE_MATCH results; source/linkage/normalization anomalies: 0.
+- Current backend and Flutter source does not use Client.notes for Client List,
+  document search, semantic retrieval, RAG, embeddings or sourced Email
+  History. Client detail only serializes nullable notes; current Client 360
+  displays them as notes and otherwise uses the independent Email API.
+- PostgreSQL Document/DocumentChunk and the current 57-point Qdrant collection
+  contain no Client.notes-derived or legacy-marker content. Active n8n runtime
+  was audited read-only: its notes fields belong to candidate import payloads;
+  it does not read Client.notes. Export/report consumers were not found.
+- BLOCKING dependency: the published Android/Windows 1.0.1+4 source commit
+  predates Client Email History. It displays Client.notes while its Mail panel
+  is a placeholder, so clearing the 789 values would remove the only visible
+  mail history for those deployed native consumers despite canonical Gmail
+  data remaining intact.
+- Required prerequisites: publish and human-verify Android/Windows clients with
+  sourced Email History, establish a supported-version cleanup gate, create a
+  private encrypted full-notes rollback snapshot, then rerun 6C/6C.1 without
+  manifest or source drift.
+- GO / NO-GO: BLOCK_6D. PRODUCTION NOTES CLEANUP: NOT APPLIED. CHUNK 6D and
+  CHUNK 7: NOT STARTED. PRE-RELEASE ADMIN USER LIFECYCLE remains TODO /
+  MANDATORY BEFORE NEXT NATIVE RELEASE.
+- DATA IMPACT: READ ONLY; PRODUCTION DATABASE WRITES 0; QDRANT WRITES 0;
+  MIGRATIONS NONE; API CONTRACT UNCHANGED.
+- Commit: `Audit client notes downstream dependencies`.
+
 ### 7. Contact and address model — TODO
 
 - Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.
