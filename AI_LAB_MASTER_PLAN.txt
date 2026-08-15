@@ -5130,6 +5130,18 @@ POST-RELEASE HOTFIX — NEXT STABIL 1.0.2+6:
 [ ] CANDIDATE AUTO-PROMOTION: NOT STARTED.
 [ ] CHUNK 7: NOT STARTED.
 
+AI CLIENT RECONSTRUCTION — EXISTING LOCAL MODELS CALIBRATION:
+
+[✓] Live Ollama inventory: `llama3.2:latest` (generative) and
+    `qwen3-embedding:0.6b` (embedding only). No models downloaded.
+[✓] Reusable local `/api/chat` adapter uses the Phase 1A evidence packet,
+    strict schema, deterministic validator and policy; temperature 0, no tools.
+[✓] Existing 128-client manifest completed read-only with llama3.2: schema
+    valid 128/128, but clean-control false-change 100%, unsupported
+    high-confidence values 2 and foreign evidence refs 3.
+[!] DECISION: EXISTING_MODELS_INSUFFICIENT. No full 3194-client run.
+[✓] PRODUCTION CRM WRITES: 0. QDRANT WRITES: 0.
+
 GOLDEN BACKUP — NEXT STABIL 1.0.2+7:
 
 [✓] HUMAN ACCEPTED WITH KNOWN QDRANT OFFICIAL SNAPSHOT LIMITATION.

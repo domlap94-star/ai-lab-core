@@ -547,6 +547,27 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 6D: NOT PERFORMED. CHUNK 7:
   NOT STARTED.
 
+### AI CLIENT RECONSTRUCTION — EXISTING LOCAL MODELS CALIBRATION
+
+- Live Ollama contains only `llama3.2:latest` (3.2B Q4_K_M, generative) and
+  `qwen3-embedding:0.6b` (595.78M Q8_0, embedding only). No pull/download.
+- Active Chat/RAG default and historical conversations use `llama3.2`; active
+  semantic/embedding pipeline and 57 chunks use `qwen3-embedding:0.6b`.
+  `gemma3:4b`, `qwen3:4b` and `nomic-embed-text` in `config/ai-lab.yaml` are
+  stale/unwired declarations and are not installed.
+- Added reusable local Ollama reconstruction adapter using Phase 1A packet,
+  schema, validator and policy. `/api/chat`, stream false, temperature 0,
+  no tools; all DB calibration transactions are READ ONLY.
+- `llama3.2:latest` smoke 5/5 schema-valid; full existing manifest 128/128
+  schema-valid. Policy: INSUFFICIENT 72, CONFLICT 43, MODEL_INVALID 10,
+  POSSIBLE_DUPLICATE 2, POLICY_REJECTED 1, KEEP 0, HIGH_CONFIDENCE 0.
+- Critical gates failed: clean-control false-change 100%, unsupported
+  high-confidence values 2, foreign evidence refs 3. Known HOLD unsafe 0;
+  high-confidence evidence coverage is N/A because no candidate passed that
+  classification.
+- DECISION: EXISTING_MODELS_INSUFFICIENT. Full 3194-client run NOT STARTED.
+  Production CRM writes 0; Qdrant writes 0.
+
 ### FINAL PRE-BACKUP PATCH — NEXT STABIL 1.0.2+7 — PUBLISHED
 
 - Branding wszystkich produkcyjnych Flutter/native user-facing sources:
