@@ -533,6 +533,20 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - OFFICIAL QDRANT SNAPSHOT: restore FAIL — not relied upon.
 - FULL BARE-METAL RESTORE: NOT PERFORMED.
 
+### AI CLIENT DATA RECONSTRUCTION — PHASE 1A
+
+- IMPLEMENTATION: DONE. Reusable layers: minimized provenance evidence packet,
+  OpenAI Responses API adapter (`store=false`, strict schema, no tools),
+  deterministic evidence/duplicate validator, policy and local report generator.
+- PRODUCTION WRITES: 0. QDRANT WRITES: 0. No apply/promotion path exists.
+- PILOT: BLOCKED — `OPENAI_API_KEY` MISSING. Deterministic 128-client manifest
+  (40 clean controls and historical HOLD cases) prepared read-only; model calls 0.
+- FULL 3194 CLIENT DRY-RUN: NOT STARTED.
+- AUTOMATIC APPLY: NOT IMPLEMENTED.
+- INCREMENTAL GMAIL/SHEETS: DESIGNED / NOT ENABLED.
+- CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 6D: NOT PERFORMED. CHUNK 7:
+  NOT STARTED.
+
 ### FINAL PRE-BACKUP PATCH — NEXT STABIL 1.0.2+7 — PUBLISHED
 
 - Branding wszystkich produkcyjnych Flutter/native user-facing sources:

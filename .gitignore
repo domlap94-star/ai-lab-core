@@ -89,3 +89,9 @@ backend/test/reports/client_notes_email_cleanup_safe_manifest.json
 backend/test/reports/client_notes_cleanup_downstream_impact.jsonl
 backend/test/reports/client_notes_cleanup_downstream_summary.json
 backend/test/reports/client_notes_cleanup_downstream_summary.txt
+backend/test/reports/ai_client_reconstruction_pilot_manifest.json
+backend/test/reports/ai_client_reconstruction_pilot_summary.json
+backend/test/reports/ai_client_reconstruction_pilot_summary.txt
+backend/test/reports/ai_client_reconstruction_human_review.jsonl
+backend/test/reports/private/ai_client_reconstruction_pilot_results.jsonl
+backend/test/reports/private/ai_client_reconstruction_pilot_failures.jsonl

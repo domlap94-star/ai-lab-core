@@ -61,6 +61,9 @@ class Settings(BaseSettings):
 
     n8n_url: str = "http://n8n:5678"
 
+    openai_api_key: str | None = None
+    openai_client_reconstruction_model: str = "gpt-5.6"
+
     data_dir: str = "/data"
 
     @computed_field
