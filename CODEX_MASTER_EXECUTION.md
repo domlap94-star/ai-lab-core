@@ -323,6 +323,39 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
   NATIVE RELEASE.
 - Commit: `Apply approved client identity renames`.
 
+### 6C. Legacy email notes cleanup dry-run — DONE
+
+- Read-only baseline: 3194 active clients, 3146 non-empty notes, 809
+  transcript-like notes; all 809 have sourced Gmail history and 0 are blocked
+  for missing source history.
+- Full legacy audit found 2430 blocks in four deterministic marker variants.
+  Every real block is paragraph-bounded, all transcript-like notes start and
+  end with transcript content, and no manual/other non-empty lines occur in
+  that population. There are 449 multi-message clients and at most 118 blocks
+  in one notes value.
+- The parser requires a complete ordered wrapper, explicit sent/received
+  direction, timezone-aware timestamp and blank-line paragraph boundaries.
+  It never removes text through body replacement or a single-marker match and
+  preserves manual paragraphs byte-for-byte apart from one removed transport
+  boundary separator.
+- Conservative source cross-check uses exact direction + UTC timestamp and
+  exact subject when present; exact normalized body is used only to
+  disambiguate multiple otherwise-equal sources. Results: 2386 confirmed
+  blocks, 44 no-source-match blocks, 0 non-unique and 0 ambiguous blocks.
+- Classification: SAFE_REMOVE_TRANSCRIPT_ONLY 0, SAFE_CLEAR_NOTES 789,
+  REVIEW_REQUIRED 20, BLOCKED_NO_SOURCE_HISTORY 0, NO_CHANGE 0. The 789 safe
+  records propose removing 2119 legacy blocks / 2077937 characters and setting
+  notes to NULL; this proposal has not been applied.
+- Local JSONL/summary/review/text reports and the 789-record safe manifest are
+  ignored and not committed. The manifest explicitly states that apply is not
+  approved. No apply script was added in this chunk.
+- DATA IMPACT: DRY-RUN ONLY; PRODUCTION WRITES 0; MIGRATIONS NONE;
+  API CONTRACT UNCHANGED.
+- PRODUCTION NOTES CLEANUP: NOT APPLIED / HUMAN GATE.
+- CHUNK 7: NOT STARTED. PRE-RELEASE ADMIN USER LIFECYCLE remains TODO /
+  MANDATORY BEFORE NEXT NATIVE RELEASE.
+- Commit: `Add legacy email notes cleanup dry run`.
+
 ### 7. Contact and address model — TODO
 
 - Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.

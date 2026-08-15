@@ -81,3 +81,8 @@ backend/test/reports/client_identity_cleanup_approved_apply.json
 backend/test/reports/client_identity_cleanup_6b_before.json
 backend/test/reports/client_identity_cleanup_6b_after.json
 backend/test/reports/client_identity_cleanup_6b_rollback.json
+backend/test/reports/client_notes_email_cleanup_dry_run.jsonl
+backend/test/reports/client_notes_email_cleanup_summary.json
+backend/test/reports/client_notes_email_cleanup_review.json
+backend/test/reports/client_notes_email_cleanup_summary.txt
+backend/test/reports/client_notes_email_cleanup_safe_manifest.json

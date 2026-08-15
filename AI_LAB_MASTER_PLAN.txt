@@ -5029,6 +5029,36 @@ CHUNK 7 i CHUNK 8 pozostają nierozpoczęte.
 PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
 NATIVE RELEASE.
 
+CHUNK 6C — LEGACY EMAIL NOTES CLEANUP DRY-RUN:
+
+[✓] Read-only baseline: 3194 aktywnych klientów, 3146 non-empty notes,
+    809 transcript-like notes, 1338 klientów z sourced Gmail history.
+[✓] Wszystkie 809 transcript-like notes mają sourced Gmail history; 0 jest
+    BLOCKED_NO_SOURCE_HISTORY.
+[✓] Audit wszystkich notes wykrył 2430 deterministic legacy blocks w czterech
+    wariantach markerów. 449 klientów ma wiele bloków; maksimum to 118.
+[✓] Wszystkie realne transcript-like notes składają się wyłącznie z legacy
+    blocks rozdzielonych pojedynczym pustym wierszem. Manual/other content w tej
+    populacji: 0; malformed/truncated boundary cases: 0.
+[✓] Parser wymaga pełnej uporządkowanej struktury, jawnego kierunku,
+    timezone-aware daty i paragraph boundary. Pojedynczy marker ani body text
+    similarity nie uruchamia cleanup proposal.
+[✓] Source cross-check: 2386 CONFIRMED_SOURCE_MATCH, 44 NO_SOURCE_MATCH,
+    0 STRUCTURE_CONFIRMED_BUT_MESSAGE_NOT_UNIQUE, 0 AMBIGUOUS.
+[✓] Classification: SAFE_REMOVE_TRANSCRIPT_ONLY 0, SAFE_CLEAR_NOTES 789,
+    REVIEW_REQUIRED 20, BLOCKED_NO_SOURCE_HISTORY 0, NO_CHANGE 0.
+[✓] Safe proposal obejmuje 2119 bloków / 2077937 znaków i proponuje NULL dla
+    789 notes. Żaden proposed cleanup nie został zastosowany.
+[✓] Lokalne PII reports i 789-record safe manifest są ignored/not committed;
+    manifest jawnie nie stanowi approval do apply. Apply script nie powstał.
+[✓] DATA IMPACT: DRY-RUN ONLY; PRODUCTION WRITES 0; MIGRATIONS NONE;
+    API CONTRACT UNCHANGED.
+
+CHUNK 6C — LEGACY EMAIL NOTES CLEANUP DRY-RUN — DONE.
+PRODUCTION NOTES CLEANUP: NOT APPLIED / HUMAN GATE.
+CHUNK 7: NOT STARTED.
+PRE-RELEASE ADMIN USER LIFECYCLE: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================
