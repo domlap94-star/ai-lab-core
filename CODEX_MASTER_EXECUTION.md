@@ -294,6 +294,35 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 - PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
 - Commit: `Reject address values as client identity`.
 
+### 6B. Controlled client identity apply — DONE
+
+- Human approval obejmował dokładnie Client IDs 39, 113, 1912, 1915, 2269
+  i 2282 oraz wyłącznie pole `Client.name`.
+- Przed zapisem aktualny dry-run PostgreSQL READ ONLY potwierdził dla wszystkich
+  sześciu: dokładne OLD/NEW, SAFE_RENAME_CANDIDATE, duplicate risk NONE,
+  identity support, brak conflict oraz czyste quality gates.
+- Dedykowany fail-closed skrypt domyślnie działa jako dry-run, wymaga lokalnego
+  manifestu o przypiętym SHA256, dokładnie sześciu oczekiwanych ID i wykonuje
+  apply w jednej transakcji z `SELECT ... FOR UPDATE`.
+- Transakcja zmieniła dokładnie sześć `Client.name`; automatyczny `updated_at`
+  zmienił się zgodnie z modelem. Pozostałe snapshot fields, notes hashes,
+  document IDs/counts, Email History totals i matched candidate IDs są identyczne.
+- Quality BEFORE: active 3194, email 463, phone 284, file 1, unique 748.
+  AFTER: active 3194, email 462, phone 279, file 1, unique 742. Delta dokładnie
+  odpowiada zatwierdzonym sześciu rename.
+- Client 13 pozostaje INSUFFICIENT. Clients 1745 i 2256 pozostają odpowiednio
+  POSSIBLE/STRONG duplicate HOLD. Client 2560 pozostaje abbreviated identity
+  HUMAN REVIEW/HOLD.
+- APPROVED/APPLIED CLIENT RENAMES: 6. Client type changes: 0. Merges: 0.
+  Notes cleanup: 0. Migracje/API contract: brak zmian.
+- Lokalne approval/before/after/rollback oraz dry-run reports zawierające CRM
+  data są ignorowane i niecommitowane. Rollback artifact nie został wykonany.
+- Pozostały identity quality debt: 742 suspicious, w tym 739 insufficient;
+  identity cleanup nie jest zakończony.
+- PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
+  NATIVE RELEASE.
+- Commit: `Apply approved client identity renames`.
+
 ### 7. Contact and address model — TODO
 
 - Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.

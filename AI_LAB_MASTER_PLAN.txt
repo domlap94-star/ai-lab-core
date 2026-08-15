@@ -4998,6 +4998,37 @@ CHUNK 6: DRY-RUN DONE.
 PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
 CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE nie zostały rozpoczęte.
 
+CHUNK 6B — CONTROLLED IDENTITY APPLY:
+
+[✓] HUMAN APPROVAL obejmował dokładnie Client IDs 39, 113, 1912, 1915, 2269
+    i 2282 oraz wyłącznie pole Client.name.
+[✓] Pre-apply READ ONLY dry-run potwierdził exact OLD/NEW, SAFE action,
+    duplicate risk NONE, identity support, brak conflict i czyste quality gates
+    dla całej szóstki; dry apply pokazał WOULD CHANGE: 6 i zero writes.
+[✓] Apply wykonano ALL OR NOTHING w jednej transakcji z SELECT FOR UPDATE,
+    ponownym sprawdzeniem exact OLD i field-level validation przed COMMIT.
+[✓] APPROVED/APPLIED CLIENT RENAMES: 6. Zmiany client_type: 0. Merges: 0.
+    Notes cleanup: 0. Relacje, statusy, candidates, sources i documents bez zmian.
+[✓] Field diff zawiera wyłącznie sześć Client.name oraz oczekiwany automatyczny
+    updated_at dla tych samych sześciu rekordów.
+[✓] Quality BEFORE: active 3194, email-as-name 463, phone-as-name 284,
+    file-as-name 1, suspicious unique 748.
+[✓] Quality AFTER: active 3194, email-as-name 462, phone-as-name 279,
+    file-as-name 1, suspicious unique 742. Delta: email -1, phone -5, file 0,
+    unique -6 — dokładnie zgodna z approval scope.
+[✓] Client 13 pozostaje INSUFFICIENT. Clients 1745/2256/2560 pozostają
+    HUMAN REVIEW/HOLD; żadnego merge ani dodatkowego rename nie wykonano.
+[✓] Approval manifest, before/after snapshots i rollback artifact są lokalne,
+    ignored i not committed. Rollback nie został wykonany.
+[✓] Pozostały identity debt: 742 suspicious, w tym 739 insufficient. Nie
+    oznaczono identity cleanup jako complete.
+[✓] MIGRATIONS NONE. API CONTRACT UNCHANGED. Regression/API/Flutter gates PASS.
+
+CHUNK 6B — CONTROLLED IDENTITY APPLY — DONE.
+CHUNK 7 i CHUNK 8 pozostają nierozpoczęte.
+PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
+NATIVE RELEASE.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================
