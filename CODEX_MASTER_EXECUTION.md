@@ -561,10 +561,17 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - `llama3.2:latest` smoke 5/5 schema-valid; full existing manifest 128/128
   schema-valid. Policy: INSUFFICIENT 72, CONFLICT 43, MODEL_INVALID 10,
   POSSIBLE_DUPLICATE 2, POLICY_REJECTED 1, KEEP 0, HIGH_CONFIDENCE 0.
-- Critical gates failed: clean-control false-change 100%, unsupported
-  high-confidence values 2, foreign evidence refs 3. Known HOLD unsafe 0;
-  high-confidence evidence coverage is N/A because no candidate passed that
-  classification.
+- MICRO-FIX benchmarku rescored the existing raw 128-run with zero new model
+  calls. Corrected clean false-change is 1/40 (2.5%): KEEP 0, non-KEEP 40,
+  abstention/rejection 39. Non-KEEP alone is no longer treated as a mutation.
+- Safety metrics distinguish proposal from bypass: unsupported HC proposals 2
+  / bypass 0; foreign evidence proposals 3 / bypass 0; duplicate-risk 3,
+  POSSIBLE_DUPLICATE 2 / bypass 0; critical policy bypass 0; HOLD unsafe 0.
+- High-confidence count/covered: 0/0; coverage is
+  N/A_NO_HIGH_CONFIDENCE_CANDIDATES and does not independently fail the gate.
+- Future model smoke set is deterministic and diverse: clean control 1875,
+  HOLD 13, address artifact 543, richer-evidence abbreviated 2063, ambiguous
+  abbreviated 203. The prior `[13,1745,2256,2560,203]` set was not diverse.
 - DECISION: EXISTING_MODELS_INSUFFICIENT. Full 3194-client run NOT STARTED.
   Production CRM writes 0; Qdrant writes 0.
 
