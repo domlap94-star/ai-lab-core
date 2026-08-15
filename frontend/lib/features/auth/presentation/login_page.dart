@@ -104,7 +104,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             child: Image.asset(
                               'logo.png',
                               fit: BoxFit.contain,
-                              semanticLabel: 'AI-Lab',
+                              semanticLabel: 'NEXT Stabil',
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -213,9 +213,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           Text(
                             appVersion.when(
                               data: (AppVersionInfo value) =>
-                                  'AI-Lab ${value.displayVersion}',
-                              loading: () => 'AI-Lab',
-                              error: (_, _) => 'AI-Lab',
+                                  'NEXT Stabil ${value.displayVersion}',
+                              loading: () => 'NEXT Stabil',
+                              error: (_, _) => 'NEXT Stabil',
                             ),
                             textAlign: TextAlign.center,
                             style: theme.textTheme.bodySmall?.copyWith(
@@ -251,7 +251,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         case DioExceptionType.receiveTimeout:
           return 'Backend nie odpowiedział w wymaganym czasie.';
         case DioExceptionType.connectionError:
-          return 'Nie można połączyć się z serwerem AI-Lab.';
+          return 'Nie można połączyć się z serwerem NEXT Stabil.';
         case DioExceptionType.badResponse:
           return 'Serwer zwrócił błąd HTTP '
               '${error.response?.statusCode ?? 'bez kodu'}.';

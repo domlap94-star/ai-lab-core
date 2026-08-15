@@ -152,7 +152,7 @@ class SettingsPage extends ConsumerWidget {
                 subtitle: Text(
                   appVersion.when(
                     data: (AppVersionInfo value) =>
-                        'AI-Lab ${value.displayVersion}',
+                        'NEXT Stabil ${value.displayVersion}',
                     loading: () => 'Odczytywanie wersji...',
                     error: (_, _) =>
                         'Nie uda\u0142o si\u0119 odczyta\u0107 '
@@ -166,8 +166,7 @@ class SettingsPage extends ConsumerWidget {
                 subtitle: Text(
                   backendStatus.when(
                     data: (BackendStatus value) =>
-                        '${value.application} '
-                        '${value.version} '
+                        'NEXT Stabil Backend ${value.version} '
                         '\u2022 ${value.environment}',
                     loading: () => 'Sprawdzanie backendu...',
                     error: (_, _) => 'Backend niedost\u0119pny.',

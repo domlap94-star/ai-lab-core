@@ -199,7 +199,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: <Widget>[
                   Text(
-                    'Stan AI-Lab',
+                    'Stan NEXT Stabil',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 16),
@@ -214,7 +214,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                     online: current?.supervisorOnline == true,
                   ),
                   _StatusRow(
-                    label: 'AI-Lab',
+                    label: 'NEXT Stabil',
                     online: current?.systemRunning == true,
                   ),
                   ...?current?.services.entries.map(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi.testclient import TestClient
 from sqlalchemy import func
 
@@ -54,18 +56,20 @@ def main() -> None:
         first_ids = {item["id"] for item in first["items"]}
         second_ids = {item["id"] for item in second["items"]}
         require(first_ids.isdisjoint(second_ids), "Stable pages contain duplicates")
-        expected_ids = [
-            client_id
-            for (client_id,) in (
-                db.query(Client.id)
-                .filter(Client.deleted_at.is_(None))
-                .order_by(func.lower(Client.name).asc(), Client.id.asc())
-                .limit(100)
-                .all()
+        combined_items = first["items"] + second["items"]
+        effective_keys = [
+            (
+                date.fromisoformat(
+                    item["source_record_date"] or item["created_at"][:10]
+                ),
+                item["id"],
             )
+            for item in combined_items
         ]
-        actual_ids = [item["id"] for item in first["items"] + second["items"]]
-        require(actual_ids == expected_ids, "Client ordering is unstable")
+        require(
+            effective_keys == sorted(effective_keys, reverse=True),
+            "Client effective-date ordering is unstable",
+        )
 
         last_skip = ((active_count - 1) // 50) * 50 if active_count else 0
         last = get_json(http, headers, skip=last_skip, limit=50)

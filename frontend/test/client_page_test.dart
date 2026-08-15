@@ -1,5 +1,6 @@
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
 import 'package:ai_lab/features/clients/application/clients_repository.dart';
+import 'package:ai_lab/features/clients/application/client_list_filter.dart';
 import 'package:ai_lab/features/clients/data/client_page_response.dart';
 import 'package:ai_lab/features/clients/data/clients_api.dart';
 import 'package:ai_lab/features/clients/domain/client.dart';
@@ -15,6 +16,7 @@ class _FakeClientsApi extends ClientsApi {
   String? capturedSearch;
   String? capturedClientType;
   int? capturedIndustryId;
+  String? capturedSortOrder;
   int? capturedSkip;
   int? capturedLimit;
 
@@ -25,12 +27,14 @@ class _FakeClientsApi extends ClientsApi {
     String? search,
     String? clientType,
     int? industryId,
+    String sortOrder = 'newest',
     int skip = 0,
     int limit = 50,
   }) async {
     capturedSearch = search;
     capturedClientType = clientType;
     capturedIndustryId = industryId;
+    capturedSortOrder = sortOrder;
     capturedSkip = skip;
     capturedLimit = limit;
     return const ClientPageResponse(
@@ -71,6 +75,7 @@ void main() {
     ).fetchClients(accessToken: 'token', tokenType: 'bearer');
 
     expect(capturedRequest?.path, '/api/v1/clients/page');
+    expect(capturedRequest?.queryParameters['sort_order'], 'newest');
   });
 
   test('parses the paginated client API contract', () {
@@ -127,6 +132,7 @@ void main() {
       search: 'Kowalski',
       clientType: ClientType.person,
       industryId: 7,
+      sortOrder: ClientSortOrder.oldestFirst.apiValue,
       skip: 50,
       limit: 50,
     );
@@ -134,6 +140,7 @@ void main() {
     expect(api.capturedSearch, 'Kowalski');
     expect(api.capturedClientType, 'person');
     expect(api.capturedIndustryId, 7);
+    expect(api.capturedSortOrder, 'oldest');
     expect(api.capturedSkip, 50);
     expect(api.capturedLimit, 50);
     expect(page.total, 125);

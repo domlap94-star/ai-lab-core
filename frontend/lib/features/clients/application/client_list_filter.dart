@@ -11,12 +11,18 @@ enum ClientSortOrder {
       ClientSortOrder.oldestFirst => 'Data dodania: najstarsi',
     };
   }
+
+  String get apiValue {
+    return switch (this) {
+      ClientSortOrder.newestFirst => 'newest',
+      ClientSortOrder.oldestFirst => 'oldest',
+    };
+  }
 }
 
-List<Client> filterAndSortClients(
+List<Client> filterClientsForCurrentPage(
   List<Client> clients, {
   required String locationQuery,
-  required ClientSortOrder sortOrder,
   ClientWorkflowState? workflowStatusFilter,
 }) {
   final String normalizedLocation = locationQuery.trim().toLowerCase();
@@ -48,15 +54,6 @@ List<Client> filterAndSortClients(
 
     return true;
   }).toList();
-
-  result.sort((Client left, Client right) {
-    final int comparison = left.createdAt.compareTo(right.createdAt);
-
-    return switch (sortOrder) {
-      ClientSortOrder.newestFirst => -comparison,
-      ClientSortOrder.oldestFirst => comparison,
-    };
-  });
 
   return result;
 }

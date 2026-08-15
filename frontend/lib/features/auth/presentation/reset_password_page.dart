@@ -106,7 +106,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
                         child: Image.asset(
                           'logo.png',
                           fit: BoxFit.contain,
-                          semanticLabel: 'AI-Lab',
+                          semanticLabel: 'NEXT Stabil',
                         ),
                       ),
                       const SizedBox(height: 16),

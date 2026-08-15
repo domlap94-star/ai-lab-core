@@ -6,6 +6,7 @@ import '../../auth/domain/auth_session.dart';
 import '../data/client_create_request.dart';
 import '../domain/client.dart';
 import '../domain/client_page.dart';
+import 'client_list_filter.dart';
 import 'clients_providers.dart';
 import 'clients_repository.dart';
 
@@ -19,11 +20,13 @@ class ClientsController extends AsyncNotifier<ClientPage> {
   String _searchQuery = '';
   ClientType? _clientType;
   int? _industryId;
+  ClientSortOrder _sortOrder = ClientSortOrder.newestFirst;
   int _skip = 0;
 
   String get searchQuery => _searchQuery;
   ClientType? get clientType => _clientType;
   int? get industryId => _industryId;
+  ClientSortOrder get sortOrder => _sortOrder;
 
   @override
   Future<ClientPage> build() async {
@@ -40,6 +43,7 @@ class ClientsController extends AsyncNotifier<ClientPage> {
       search: _searchQuery,
       clientType: _clientType,
       industryId: _industryId,
+      sortOrder: _sortOrder.apiValue,
       skip: _skip,
       limit: pageSize,
     );
@@ -73,9 +77,27 @@ class ClientsController extends AsyncNotifier<ClientPage> {
     state = await AsyncValue.guard<ClientPage>(_loadClients);
   }
 
-  Future<void> setFilters({ClientType? clientType, int? industryId}) async {
+  Future<void> setFilters({
+    ClientType? clientType,
+    int? industryId,
+    ClientSortOrder? sortOrder,
+  }) async {
     _clientType = clientType;
     _industryId = industryId;
+    if (sortOrder != null) {
+      _sortOrder = sortOrder;
+    }
+    _skip = 0;
+    state = const AsyncLoading<ClientPage>();
+    state = await AsyncValue.guard<ClientPage>(_loadClients);
+  }
+
+  Future<void> setSortOrder(ClientSortOrder sortOrder) async {
+    if (_sortOrder == sortOrder) {
+      return;
+    }
+
+    _sortOrder = sortOrder;
     _skip = 0;
     state = const AsyncLoading<ClientPage>();
     state = await AsyncValue.guard<ClientPage>(_loadClients);

@@ -530,7 +530,7 @@ class _ClientFormDialogState extends ConsumerState<ClientFormDialog> {
         case DioExceptionType.receiveTimeout:
           return 'Backend nie odpowiedział w wymaganym czasie.';
         case DioExceptionType.connectionError:
-          return 'Nie można połączyć się z serwerem AI LAB.';
+          return 'Nie można połączyć się z serwerem NEXT Stabil.';
         case DioExceptionType.badResponse:
           return 'Serwer zwrócił błąd HTTP '
               '${error.response?.statusCode ?? 'bez kodu'}.';

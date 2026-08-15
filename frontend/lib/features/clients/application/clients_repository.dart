@@ -15,6 +15,7 @@ class ClientsRepository {
     String? search,
     ClientType? clientType,
     int? industryId,
+    String sortOrder = 'newest',
     int skip = 0,
     int limit = 50,
   }) async {
@@ -24,6 +25,7 @@ class ClientsRepository {
       search: search,
       clientType: clientType?.value,
       industryId: industryId,
+      sortOrder: sortOrder,
       skip: skip,
       limit: limit,
     );

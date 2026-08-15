@@ -1,4 +1,5 @@
 import 'package:ai_lab/features/clients/application/client_list_view_memory.dart';
+import 'package:ai_lab/features/clients/application/client_list_filter.dart';
 import 'package:ai_lab/features/clients/application/clients_controller.dart';
 import 'package:ai_lab/features/clients/application/clients_providers.dart';
 import 'package:ai_lab/features/clients/data/client_response.dart';
@@ -27,6 +28,7 @@ class _HotfixClientsController extends ClientsController {
   int nextCalls = 0;
   ClientType? lastClientType;
   int? lastIndustryId;
+  ClientSortOrder? lastSortOrder;
 
   @override
   Future<ClientPage> build() async {
@@ -39,9 +41,19 @@ class _HotfixClientsController extends ClientsController {
   }
 
   @override
-  Future<void> setFilters({ClientType? clientType, int? industryId}) async {
+  Future<void> setFilters({
+    ClientType? clientType,
+    int? industryId,
+    ClientSortOrder? sortOrder,
+  }) async {
     lastClientType = clientType;
     lastIndustryId = industryId;
+    if (sortOrder != null) lastSortOrder = sortOrder;
+  }
+
+  @override
+  Future<void> setSortOrder(ClientSortOrder sortOrder) async {
+    lastSortOrder = sortOrder;
   }
 
   @override
@@ -160,6 +172,16 @@ void main() {
         container.read(clientsControllerProvider.notifier)
             as _HotfixClientsController;
     expect(controller.lastClientType, ClientType.person);
+
+    await tester.tap(find.text('Data dodania: najnowsi'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Data dodania: najstarsi').last);
+    await tester.pumpAndSettle();
+    expect(controller.lastSortOrder, ClientSortOrder.oldestFirst);
+
+    await tester.tap(find.text('Wyczyść filtry'));
+    await tester.pumpAndSettle();
+    expect(controller.lastSortOrder, ClientSortOrder.newestFirst);
   });
 
   testWidgets('pagination is available above and below source-dated cards', (
@@ -252,6 +274,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Data dodania'), findsOneWidget);
+    expect(find.text('17.01.2025'), findsOneWidget);
+    expect(find.text('Utworzono w CRM'), findsNothing);
+    expect(find.text('Data rekordu źródłowego'), findsNothing);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     expect(router.routeInformationProvider.value.uri.path, '/clients');

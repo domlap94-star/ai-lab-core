@@ -12,6 +12,8 @@ ClientType = Literal[
     "other",
 ]
 
+ClientPageSortOrder = Literal["newest", "oldest"]
+
 
 class ClientBase(BaseModel):
     client_type: ClientType

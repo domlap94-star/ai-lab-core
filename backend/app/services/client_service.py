@@ -3,7 +3,12 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.repositories.client_repository import ClientRepository
 from app.repositories.industry_repository import IndustryRepository
-from app.schemas.client import ClientCreate, ClientPage, ClientUpdate
+from app.schemas.client import (
+    ClientCreate,
+    ClientPage,
+    ClientPageSortOrder,
+    ClientUpdate,
+)
 from app.services.base_service import BaseService
 from app.services.client_source_record_date_service import (
     ClientSourceRecordDateService,
@@ -50,9 +55,20 @@ class ClientService(BaseService[Client]):
         search: str | None = None,
         client_type: str | None = None,
         industry_id: int | None = None,
+        sort_order: ClientPageSortOrder | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> ClientPage:
+        if sort_order is not None:
+            return self._get_clients_sorted_by_effective_date(
+                search=search,
+                client_type=client_type,
+                industry_id=industry_id,
+                sort_order=sort_order,
+                skip=skip,
+                limit=limit,
+            )
+
         items, total = self.client_repository.get_page(
             search=search,
             client_type=client_type,
@@ -61,11 +77,7 @@ class ClientService(BaseService[Client]):
             limit=limit,
         )
 
-        source_dates = self.source_record_date_service.get_for_client_ids(
-            [item.id for item in items]
-        )
-        for item in items:
-            item.source_record_date = source_dates.get(item.id)
+        self._attach_source_dates(items)
 
         return ClientPage(
             items=items,
@@ -73,6 +85,57 @@ class ClientService(BaseService[Client]):
             skip=skip,
             limit=limit,
         )
+
+    def _get_clients_sorted_by_effective_date(
+        self,
+        *,
+        search: str | None,
+        client_type: str | None,
+        industry_id: int | None,
+        sort_order: ClientPageSortOrder,
+        skip: int,
+        limit: int,
+    ) -> ClientPage:
+        candidates = self.client_repository.get_sort_candidates(
+            search=search,
+            client_type=client_type,
+            industry_id=industry_id,
+        )
+        source_dates = self.source_record_date_service.get_for_client_ids(
+            [client_id for client_id, _ in candidates]
+        )
+        ordered_ids = self.source_record_date_service.order_client_ids(
+            candidates,
+            source_dates,
+            sort_order=sort_order,
+        )
+        page_ids = ordered_ids[skip : skip + limit]
+        clients_by_id = {
+            client.id: client
+            for client in self.client_repository.get_by_ids(page_ids)
+        }
+        items = [
+            clients_by_id[client_id]
+            for client_id in page_ids
+            if client_id in clients_by_id
+        ]
+
+        for item in items:
+            item.source_record_date = source_dates.get(item.id)
+
+        return ClientPage(
+            items=items,
+            total=len(ordered_ids),
+            skip=skip,
+            limit=limit,
+        )
+
+    def _attach_source_dates(self, items: list[Client]) -> None:
+        source_dates = self.source_record_date_service.get_for_client_ids(
+            [item.id for item in items]
+        )
+        for item in items:
+            item.source_record_date = source_dates.get(item.id)
 
     def create_client(
         self,

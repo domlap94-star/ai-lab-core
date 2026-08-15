@@ -16,7 +16,7 @@ class App extends ConsumerWidget {
 
   MaterialApp _materialApp({required Widget home}) {
     return MaterialApp(
-      title: 'AI LAB',
+      title: 'NEXT Stabil',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
@@ -61,7 +61,7 @@ class App extends ConsumerWidget {
         }
 
         return MaterialApp.router(
-          title: 'AI LAB',
+          title: 'NEXT Stabil',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
@@ -100,7 +100,7 @@ class _ApplicationLoadingPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'AI LAB',
+              'NEXT Stabil',
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),

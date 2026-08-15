@@ -80,7 +80,7 @@ class AppShell extends ConsumerWidget {
         return AlertDialog(
           title: const Text('Wylogowanie'),
           content: const Text(
-            'Czy na pewno chcesz wylogowa\u0107 si\u0119 z AI-Lab?',
+            'Czy na pewno chcesz wylogowa\u0107 si\u0119 z NEXT Stabil?',
           ),
           actions: <Widget>[
             TextButton(
@@ -245,7 +245,7 @@ class _ApplicationHeader extends StatelessWidget {
           'logo.png',
           fit: BoxFit.contain,
           alignment: Alignment.centerLeft,
-          semanticLabel: 'AI-Lab',
+          semanticLabel: 'NEXT Stabil',
           height: 72,
         ),
       ),

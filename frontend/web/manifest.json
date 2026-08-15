@@ -1,11 +1,11 @@
 {
-  "name": "AI-Lab",
-  "short_name": "AI-Lab",
+  "name": "NEXT Stabil",
+  "short_name": "NEXT Stabil",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#FFFFFF",
   "theme_color": "#FFFFFF",
-  "description": "AI-Lab CRM and knowledge assistant.",
+  "description": "NEXT Stabil CRM and knowledge assistant.",
   "orientation": "any",
   "prefer_related_applications": false,
   "icons": [

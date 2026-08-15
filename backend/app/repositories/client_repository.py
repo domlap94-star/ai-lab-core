@@ -54,6 +54,37 @@ class ClientRepository(BaseRepository[Client]):
 
         return items, total
 
+    def get_sort_candidates(
+        self,
+        *,
+        search: str | None = None,
+        client_type: str | None = None,
+        industry_id: int | None = None,
+    ) -> list[tuple[int, datetime]]:
+        return (
+            self._filtered_query(
+                search=search,
+                client_type=client_type,
+                industry_id=industry_id,
+            )
+            .with_entities(Client.id, Client.created_at)
+            .all()
+        )
+
+    def get_by_ids(self, client_ids: list[int]) -> list[Client]:
+        if not client_ids:
+            return []
+
+        return (
+            self.db.query(Client)
+            .options(joinedload(Client.industry))
+            .filter(
+                Client.id.in_(client_ids),
+                Client.deleted_at.is_(None),
+            )
+            .all()
+        )
+
     def _filtered_query(
         self,
         *,

@@ -20,6 +20,7 @@ class ClientsApi {
     String? search,
     String? clientType,
     int? industryId,
+    String sortOrder = 'newest',
     int skip = 0,
     int limit = 50,
   }) async {
@@ -32,6 +33,7 @@ class ClientsApi {
             if (clientType != null && clientType.isNotEmpty)
               'client_type': clientType,
             'industry_id': ?industryId,
+            'sort_order': sortOrder,
             'skip': skip,
             'limit': limit,
           },

@@ -112,7 +112,9 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
       _industryIdFilter = null;
     });
 
-    await ref.read(clientsControllerProvider.notifier).setFilters();
+    await ref
+        .read(clientsControllerProvider.notifier)
+        .setFilters(sortOrder: ClientSortOrder.newestFirst);
   }
 
   Future<void> _changePage(Future<void> Function() action) async {
@@ -253,12 +255,16 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                 _viewMemory.clearLocation();
                 setState(() {});
               },
-              onSortChanged: (ClientSortOrder value) {
+              onSortChanged: (ClientSortOrder value) async {
                 _viewMemory.sortOrder = value;
 
                 setState(() {
                   _sortOrder = value;
                 });
+
+                await ref
+                    .read(clientsControllerProvider.notifier)
+                    .setSortOrder(value);
               },
               onWorkflowStatusChanged: (ClientWorkflowState? value) {
                 _viewMemory.workflowStatusFilter = value;
@@ -283,10 +289,9 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
               },
               data: (ClientPage page) {
                 final List<Client> clients = page.items;
-                final List<Client> visibleClients = filterAndSortClients(
+                final List<Client> visibleClients = filterClientsForCurrentPage(
                   clients,
                   locationQuery: _locationController.text,
-                  sortOrder: _sortOrder,
                   workflowStatusFilter: _statusFilter,
                 );
                 if (visibleClients.isEmpty) {
@@ -389,7 +394,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
         case DioExceptionType.receiveTimeout:
           return 'Backend nie odpowiedział w wymaganym czasie.';
         case DioExceptionType.connectionError:
-          return 'Nie można połączyć się z serwerem AI LAB.';
+          return 'Nie można połączyć się z serwerem NEXT Stabil.';
         case DioExceptionType.badResponse:
           return 'Serwer zwrócił błąd HTTP '
               '${error.response?.statusCode ?? 'bez kodu'}.';

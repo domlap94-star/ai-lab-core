@@ -3,6 +3,9 @@ import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
 import 'package:ai_lab/features/auth/domain/current_user.dart';
+import 'package:ai_lab/features/app_update/application/update_provider.dart';
+import 'package:ai_lab/features/app_version/application/app_version_provider.dart';
+import 'package:ai_lab/features/app_version/domain/app_version_info.dart';
 import 'package:ai_lab/features/system_status/application/system_status_provider.dart';
 import 'package:ai_lab/features/system_status/domain/backend_status.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('AI LAB displays login page for unauthenticated user', (
+  testWidgets('NEXT Stabil displays login page for unauthenticated user', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -25,6 +28,13 @@ void main() {
           authControllerProvider.overrideWith(
             _UnauthenticatedAuthController.new,
           ),
+          appVersionProvider.overrideWith(
+            (Ref ref) async =>
+                const AppVersionInfo(version: '1.0.2', buildNumber: '7'),
+          ),
+          updateCheckProvider.overrideWith(
+            (Ref ref) async => throw StateError('offline in branding test'),
+          ),
         ],
         child: const App(),
       ),
@@ -36,9 +46,14 @@ void main() {
     expect(find.text('Nazwa użytkownika'), findsOneWidget);
     expect(find.text('Hasło'), findsOneWidget);
     expect(find.text('Zaloguj się'), findsOneWidget);
+    expect(find.text('NEXT Stabil 1.0.2+7'), findsOneWidget);
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
+      'NEXT Stabil',
+    );
   });
 
-  testWidgets('AI LAB displays dashboard for authenticated user', (
+  testWidgets('NEXT Stabil displays dashboard for authenticated user', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);

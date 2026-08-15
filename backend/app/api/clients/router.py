@@ -14,6 +14,7 @@ from app.models.user import User
 from app.schemas.client import (
     ClientCreate,
     ClientPage,
+    ClientPageSortOrder,
     ClientRead,
     ClientType,
     ClientUpdate,
@@ -87,6 +88,7 @@ def get_clients_page(
     ),
     client_type: ClientType | None = Query(default=None),
     industry_id: int | None = Query(default=None, ge=1),
+    sort_order: ClientPageSortOrder = Query(default="newest"),
     skip: int = Query(
         default=0,
         ge=0,
@@ -104,6 +106,7 @@ def get_clients_page(
         search=search,
         client_type=client_type,
         industry_id=industry_id,
+        sort_order=sort_order,
         skip=skip,
         limit=limit,
     )

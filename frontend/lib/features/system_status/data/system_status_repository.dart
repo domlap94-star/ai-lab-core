@@ -33,7 +33,7 @@ class SystemStatusRepository {
 
     return BackendStatus(
       isOnline: healthStatus.toLowerCase() == 'ok',
-      application: version['application']?.toString() ?? 'AI-Lab',
+      application: version['application']?.toString() ?? 'NEXT Stabil',
       version: version['version']?.toString() ?? 'nieznana',
       environment: version['environment']?.toString() ?? 'nieznane',
       debug: version['debug'] == true,

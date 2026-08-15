@@ -100,7 +100,7 @@ class ClientDetailsPage extends ConsumerWidget {
         case DioExceptionType.receiveTimeout:
           return 'Backend nie odpowiedział w wymaganym czasie.';
         case DioExceptionType.connectionError:
-          return 'Nie można połączyć się z serwerem AI LAB.';
+          return 'Nie można połączyć się z serwerem NEXT Stabil.';
         case DioExceptionType.badResponse:
           return 'Serwer zwrócił błąd HTTP '
               '${error.response?.statusCode ?? 'bez kodu'}.';
@@ -333,14 +333,9 @@ class _ClientDetails extends StatelessWidget {
                 children: <Widget>[
                   _DetailRow(label: 'ID klienta', value: client.id.toString()),
                   _DetailRow(
-                    label: 'Utworzono w CRM',
-                    value: _formatDateTime(client.createdAt),
+                    label: 'Data dodania',
+                    value: _formatDate(client.displayCreatedDate),
                   ),
-                  if (client.sourceRecordDate != null)
-                    _DetailRow(
-                      label: 'Data rekordu źródłowego',
-                      value: _formatDate(client.sourceRecordDate!),
-                    ),
                   _DetailRow(
                     label: 'Ostatnia aktualizacja',
                     value: _formatDateTime(client.updatedAt),
