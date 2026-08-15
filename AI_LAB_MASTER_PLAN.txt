@@ -5111,6 +5111,25 @@ NATIVE RELEASE CHECKPOINT — NEXT STABIL 1.0.2+5:
 Release nie jest jeszcze production-validated. Kolejny krok to realne testy
 Android/Windows przez użytkownika; bez automatycznej instalacji urządzeń.
 
+POST-RELEASE HOTFIX — NEXT STABIL 1.0.2+6:
+
+[✓] Client List UX: filtry bazowe przeniesiono do zwijanego panelu,
+    paginacja jest nad i pod listą, a zmiana strony przewija do góry wyników.
+[✓] Addytywne source_record_date pochodzi read-only z aktywnego provenance
+    Google Sheets; najwcześniejsza poprawna data DD.MM.YYYY jest używana bez
+    migracji i bez modyfikacji CRM.
+[✓] Client i Candidate drill-down używają push oraz bezpiecznego fallbacku
+    Back dla direct entry.
+[✓] Android i Windows 1.0.2+6 opublikowane; Web pozostaje bez zmian.
+[✓] minimum_version pozostaje 1.0.0; 1.0.2+5 -> 1.0.2+6 = AVAILABLE.
+[!] POST-RELEASE HOTFIX 1.0.2+6: PUBLISHED / WAITING FOR HUMAN VERIFICATION.
+[!] 1.0.2+5: SUPERSEDED BY 1.0.2+6.
+[ ] DATA ARTIFACT CLEANUP: DEFERRED UNTIL GOLDEN BACKUP.
+[ ] GOLDEN BACKUP: WAITING FOR HUMAN VERIFICATION OF 1.0.2+6.
+[!] CHUNK 6D: BLOCKED.
+[ ] CANDIDATE AUTO-PROMOTION: NOT STARTED.
+[ ] CHUNK 7: NOT STARTED.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================

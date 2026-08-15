@@ -506,3 +506,21 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Dane: backup/restore na izolowanym celu; produkcja bez mutacji bez approval.
 - Acceptance: udokumentowany restore, alerts, version matrix i rollback drill.
 - Commit: osobne checkpointy, zaczynając `Pin production service versions`.
+
+### POST-RELEASE HOTFIX — NEXT STABIL 1.0.2+6 — PUBLISHED
+
+- Client List: filtry bazowe są wewnątrz zwijanego panelu, paginacja działa
+  nad i pod listą, a zmiana strony przewija do początku wyników.
+- Addytywne `source_record_date` jest wyliczane read-only z aktywnego
+  provenance Google Sheets; najwcześniejsza prawidłowa data `DD.MM.YYYY`
+  wygrywa, bez migracji i bez mutacji CRM.
+- Client i Candidate drill-down używają `push`; system/AppBar Back wraca do
+  listy, z fallbackiem dla direct entry.
+- Android i Windows: 1.0.2+6 opublikowane. Web: bez zmian. `minimum_version`
+  nadal 1.0.0, więc aktualizacja z +5 ma stan AVAILABLE.
+- POST-RELEASE HOTFIX 1.0.2+6: PUBLISHED / WAITING FOR HUMAN VERIFICATION.
+- 1.0.2+5: SUPERSEDED BY 1.0.2+6.
+- DATA ARTIFACT CLEANUP: DEFERRED UNTIL GOLDEN BACKUP.
+- GOLDEN BACKUP: WAITING FOR HUMAN VERIFICATION OF 1.0.2+6.
+- CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
+  NOT STARTED.
