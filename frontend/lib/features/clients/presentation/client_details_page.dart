@@ -312,7 +312,10 @@ class _ClientDetails extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-              ClientWorkspacePanels(clientId: client.id),
+              ClientWorkspacePanels(
+                clientId: client.id,
+                clientName: client.displayName,
+              ),
               const SizedBox(height: 20),
               _DetailsSection(
                 title: 'Informacje systemowe',

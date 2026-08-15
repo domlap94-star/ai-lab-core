@@ -10,6 +10,7 @@ import '../application/documents_providers.dart';
 import '../domain/document.dart';
 import '../domain/document_filters.dart';
 import '../domain/document_page.dart';
+import 'document_presentation.dart';
 
 class DocumentsPage extends ConsumerStatefulWidget {
   const DocumentsPage({super.key});
@@ -60,7 +61,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
               child: documents.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (Object error, StackTrace _) => _ErrorState(
-                  message: _friendlyError(error),
+                  message: friendlyDocumentError(error),
                   onRetry: controller.refresh,
                 ),
                 data: (DocumentPage page) => _buildResults(page, controller),
@@ -148,8 +149,9 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                     label: 'Źródło',
                     value: filters.sourceType,
                     values: const <String?>[null, 'gmail', 'upload', 'archive'],
-                    labelFor: (String? value) =>
-                        value == null ? 'Wszystkie' : _sourceLabel(value),
+                    labelFor: (String? value) => value == null
+                        ? 'Wszystkie'
+                        : documentSourceLabel(value),
                     onChanged: (String? value) => controller.setFilters(
                       filters.copyWith(
                         sourceType: value,
@@ -169,7 +171,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                       'rejected',
                     ],
                     labelFor: (String? value) =>
-                        value == null ? 'Wszystkie' : _matchLabel(value),
+                        value == null ? 'Wszystkie' : documentMatchLabel(value),
                     onChanged: (String? value) => controller.setFilters(
                       filters.copyWith(
                         matchStatus: value,
@@ -188,8 +190,9 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                       'processed',
                       'failed',
                     ],
-                    labelFor: (String? value) =>
-                        value == null ? 'Wszystkie' : _processingLabel(value),
+                    labelFor: (String? value) => value == null
+                        ? 'Wszystkie'
+                        : documentProcessingLabel(value),
                     onChanged: (String? value) => controller.setFilters(
                       filters.copyWith(
                         processingStatus: value,
@@ -209,8 +212,9 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
                       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     ],
-                    labelFor: (String? value) =>
-                        value == null ? 'Wszystkie' : _contentTypeLabel(value),
+                    labelFor: (String? value) => value == null
+                        ? 'Wszystkie'
+                        : documentContentTypeLabel(value),
                     onChanged: (String? value) => controller.setFilters(
                       filters.copyWith(
                         contentType: value,
@@ -308,7 +312,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Nie udało się otworzyć pliku: ${_friendlyError(error)}',
+              'Nie udało się otworzyć pliku: ${friendlyDocumentError(error)}',
             ),
           ),
         );
@@ -418,15 +422,19 @@ class _DocumentTable extends StatelessWidget {
                         ),
                       ),
                     ),
-                    DataCell(Text(_contentTypeLabel(document.contentType))),
-                    DataCell(Text(_sourceLabel(document.sourceType))),
+                    DataCell(
+                      Text(documentContentTypeLabel(document.contentType)),
+                    ),
+                    DataCell(Text(documentSourceLabel(document.sourceType))),
                     DataCell(
                       _LinkedEntity(document: document, onClient: onClient),
                     ),
                     DataCell(_StatusChip(value: document.processingStatus)),
                     DataCell(
                       Text(
-                        _formatDate(document.capturedAt ?? document.createdAt),
+                        formatDocumentDate(
+                          document.capturedAt ?? document.createdAt,
+                        ),
                       ),
                     ),
                     DataCell(
@@ -497,9 +505,9 @@ class _DocumentCards extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    '${_contentTypeLabel(document.contentType)} • '
-                    '${_sourceLabel(document.sourceType)} • '
-                    '${_formatBytes(document.fileSize)}',
+                    '${documentContentTypeLabel(document.contentType)} • '
+                    '${documentSourceLabel(document.sourceType)} • '
+                    '${formatDocumentBytes(document.fileSize)}',
                   ),
                   const SizedBox(height: 6),
                   _LinkedEntity(document: document, onClient: onClient),
@@ -508,7 +516,7 @@ class _DocumentCards extends StatelessWidget {
                     children: <Widget>[
                       Expanded(
                         child: Text(
-                          _formatDate(
+                          formatDocumentDate(
                             document.capturedAt ?? document.createdAt,
                           ),
                         ),
@@ -593,7 +601,7 @@ class _StatusChip extends StatelessWidget {
         failed ? Icons.error_outline : Icons.check_circle_outline,
         size: 16,
       ),
-      label: Text(_processingLabel(value)),
+      label: Text(documentProcessingLabel(value)),
     );
   }
 }
@@ -655,7 +663,8 @@ class _DocumentDetailsDialog extends ConsumerWidget {
         width: 560,
         child: details.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (Object error, StackTrace _) => Text(_friendlyError(error)),
+          error: (Object error, StackTrace _) =>
+              Text(friendlyDocumentError(error)),
           data: (RepositoryDocument document) => SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,23 +676,32 @@ class _DocumentDetailsDialog extends ConsumerWidget {
                 const Divider(height: 24),
                 _DetailRow('ID', '${document.id}'),
                 _DetailRow('Typ treści', document.contentType),
-                _DetailRow('Rozmiar', _formatBytes(document.fileSize)),
-                _DetailRow('Źródło', _sourceLabel(document.sourceType)),
+                _DetailRow('Rozmiar', formatDocumentBytes(document.fileSize)),
+                _DetailRow('Źródło', documentSourceLabel(document.sourceType)),
                 _DetailRow('Powiązanie', document.linkedEntityName),
                 _DetailRow(
                   'Przetwarzanie',
-                  _processingLabel(document.processingStatus),
+                  documentProcessingLabel(document.processingStatus),
                 ),
-                _DetailRow('Metadane', _polishCode(document.metadataStatus)),
-                _DetailRow('Dopasowanie', _matchLabel(document.matchStatus)),
+                _DetailRow(
+                  'Metadane',
+                  polishDocumentCode(document.metadataStatus),
+                ),
+                _DetailRow(
+                  'Dopasowanie',
+                  documentMatchLabel(document.matchStatus),
+                ),
                 if (document.matchConfidence != null)
                   _DetailRow(
                     'Pewność dopasowania',
                     '${(document.matchConfidence! * 100).toStringAsFixed(1)}%',
                   ),
-                _DetailRow('Utworzono', _formatDate(document.createdAt)),
+                _DetailRow('Utworzono', formatDocumentDate(document.createdAt)),
                 if (document.capturedAt != null)
-                  _DetailRow('Pozyskano', _formatDate(document.capturedAt!)),
+                  _DetailRow(
+                    'Pozyskano',
+                    formatDocumentDate(document.capturedAt!),
+                  ),
                 if (document.archiveMemberPath != null)
                   _DetailRow('Ścieżka w archiwum', document.archiveMemberPath!),
               ],
@@ -771,66 +789,4 @@ class _ErrorState extends StatelessWidget {
       ),
     );
   }
-}
-
-String _friendlyError(Object error) {
-  final String text = error.toString();
-  return text.length > 240 ? '${text.substring(0, 240)}…' : text;
-}
-
-String _sourceLabel(String value) => switch (value.toLowerCase()) {
-  'gmail' => 'Gmail',
-  'upload' => 'Przesłany plik',
-  'archive' => 'Archiwum',
-  _ => _polishCode(value),
-};
-
-String _processingLabel(String value) => switch (value.toLowerCase()) {
-  'pending' => 'Oczekuje',
-  'stored' => 'Zapisany',
-  'extracting' => 'Ekstrakcja',
-  'processed' => 'Przetworzony',
-  'failed' => 'Błąd',
-  _ => _polishCode(value),
-};
-
-String _matchLabel(String value) => switch (value.toLowerCase()) {
-  'unmatched' => 'Niedopasowany',
-  'suggested' => 'Sugerowany',
-  'matched' => 'Dopasowany',
-  'confirmed' => 'Potwierdzony',
-  'rejected' => 'Odrzucony',
-  _ => _polishCode(value),
-};
-
-String _contentTypeLabel(String value) => switch (value.toLowerCase()) {
-  'application/pdf' => 'PDF',
-  'image/jpeg' => 'JPEG',
-  'image/png' => 'PNG',
-  'message/rfc822' => 'Wiadomość e-mail',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document' =>
-    'DOCX',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'XLSX',
-  _ => value.isEmpty ? 'Nieznany' : value,
-};
-
-String _polishCode(String value) {
-  final String spaced = value.replaceAll('_', ' ').trim();
-  if (spaced.isEmpty) return 'Brak';
-  return '${spaced[0].toUpperCase()}${spaced.substring(1).toLowerCase()}';
-}
-
-String _formatDate(DateTime value) {
-  final DateTime local = value.toLocal();
-  String two(int number) => number.toString().padLeft(2, '0');
-  return '${two(local.day)}.${two(local.month)}.${local.year} '
-      '${two(local.hour)}:${two(local.minute)}';
-}
-
-String _formatBytes(int bytes) {
-  if (bytes >= 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '$bytes B';
 }

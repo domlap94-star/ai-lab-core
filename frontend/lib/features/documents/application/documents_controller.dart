@@ -11,11 +11,15 @@ final documentsControllerProvider =
     );
 
 class DocumentsController extends AsyncNotifier<DocumentPage> {
+  DocumentsController({
+    DocumentFilters initialFilters = const DocumentFilters(),
+  }) : _filters = initialFilters;
+
   static const int pageSize = 50;
   late final DocumentsRepository _repository;
 
   String _searchQuery = '';
-  DocumentFilters _filters = const DocumentFilters();
+  DocumentFilters _filters;
   int _skip = 0;
 
   String get searchQuery => _searchQuery;

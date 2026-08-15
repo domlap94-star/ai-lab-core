@@ -4495,8 +4495,8 @@ braku implementacji; obowiązuje poniższa weryfikacja kodem i testami.
 
 [✓] Lista klientów zwraca prawdziwy total, stabilną paginację oraz server-side
     search i filtry client_type/industry_id dla całej aktywnej bazy.
-[~] Client 360 istnieje, lecz dokumenty i pozostałe workspace panels są
-    placeholderami.
+[~] Client 360 ma prawdziwy lazy panel dokumentów; Mail i pozostałe workspace
+    panels pozostają placeholderami.
 [✓] Authenticated document read/list/search/filter/download API.
 [✓] Prawdziwe repozytorium dokumentów Flutter z paginacją, search, filtrami,
     detail oraz bezpiecznym otwieraniem na Windows/Android/Web.
@@ -4727,6 +4727,54 @@ Client 360 Documents (CHUNK 4) nie został rozpoczęty.
 
 ================================================================================
 END CHECKPOINT 2026-08-15 — DEPLOYED API COMPATIBILITY HOTFIX
+================================================================================
+
+================================================================================
+CHECKPOINT 2026-08-15 — CLIENT 360 DOCUMENTS
+================================================================================
+
+STATUS: DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+[✓] Placeholder Dokumenty zastąpiono prawdziwym panelem Client 360.
+[✓] Panel jest domyślnie zwinięty i wykonuje zero Documents API requests przed
+    pierwszym expand.
+[✓] Pierwszy expand ładuje jedną stronę; collapse/expand zachowuje wynik.
+[✓] Refresh jest jawny, a paginacja server-side używa stron po 10.
+[✓] Każdy request używa istniejącego /documents z filtrem client_id.
+[✓] Panel pokazuje total, zakres, filename/fallback, typ, rozmiar, datę,
+    source, processing status i match status.
+[✓] Polskie mapowanie statusów jest współdzielone z pełnym Documents UI.
+[✓] Otwieranie używa istniejącego DocumentOpenService na Windows/Android/Web.
+[✓] Empty i error są izolowane; podstawowe dane klienta pozostają widoczne.
+[✓] Link do pełnego repozytorium przekazuje client_id i widoczną nazwę klienta
+    przez query, a DocumentsController ładuje filtr od pierwszego requestu.
+[✓] Nie utworzono drugiego API/parsera/auth/Dio/download flow.
+[✓] Backend i publiczne kontrakty API pozostały bez zmian.
+[✓] Panel Maile pozostaje placeholderem.
+
+TESTY:
+
+- lazy 0→1 request i brak reload po collapse/expand,
+- client_id, page size 10, total/range i rozłączne strony,
+- empty, error isolation, retry i Android width 390 bez overflow,
+- shared DocumentOpenService z wstrzykiwalnym openerem,
+- pełny repository link i route-provided initial filter,
+- Flutter analyze i 28 testów: PASS,
+- Document Read, deployed +4 i paginated Client List E2E: PASS.
+
+REAL DATA ACCEPTANCE:
+
+- client ID 1915: total 9, zwrócone 9, wszystkie client_id zgodne,
+- document ID 3974: authenticated content open, 750481 bytes,
+- client ID 1: total 0 i pusty items.
+
+DATA IMPACT: NONE
+MIGRATIONS: NONE
+
+Mail history, notes cleanup, document matching i upload UI pozostają TODO.
+
+================================================================================
+END CHECKPOINT 2026-08-15 — CLIENT 360 DOCUMENTS
 ================================================================================
 
 KONIEC MASTER PLAN

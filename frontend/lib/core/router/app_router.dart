@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/ai/presentation/ai_page.dart';
@@ -9,6 +10,8 @@ import '../../features/clients/presentation/client_details_page.dart';
 import '../../features/clients/presentation/clients_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
 import '../../features/documents/presentation/documents_page.dart';
+import '../../features/documents/application/documents_controller.dart';
+import '../../features/documents/domain/document_filters.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/system_control/presentation/system_control_page.dart';
 import '../widgets/app_shell.dart';
@@ -76,7 +79,28 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/documents',
           builder: (BuildContext context, GoRouterState state) {
-            return const DocumentsPage();
+            final int? clientId = int.tryParse(
+              state.uri.queryParameters['client_id'] ?? '',
+            );
+            final String? clientName = state.uri.queryParameters['client_name']
+                ?.trim();
+            final DocumentFilters filters = clientId != null && clientId > 0
+                ? DocumentFilters(
+                    clientId: clientId,
+                    clientName: clientName?.isNotEmpty == true
+                        ? clientName
+                        : 'Klient #$clientId',
+                  )
+                : const DocumentFilters();
+
+            return ProviderScope(
+              overrides: [
+                documentsControllerProvider.overrideWith(
+                  () => DocumentsController(initialFilters: filters),
+                ),
+              ],
+              child: const DocumentsPage(),
+            );
           },
         ),
         GoRoute(

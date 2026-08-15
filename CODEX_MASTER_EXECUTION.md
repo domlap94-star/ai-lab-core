@@ -19,13 +19,13 @@ kontraktu.
 | Obszar | Stan | Dowód / luka |
 |---|---|---|
 | Auth, role, wymuszona zmiana hasła | DONE | JWT, `User.role`, `must_change_password`, admin API i Flutter flow; migracja `authv1_20260813` jest aktualnym headem. |
-| Flutter Windows / Android / Web | DONE | katalogi platform i działający frontend; analyze oraz 10 testów PASS. iOS/macOS są świadomie nieobecne. Linux istnieje, lecz nie jest celem produkcyjnym. |
+| Flutter Windows / Android / Web | DONE | katalogi platform i działający frontend; analyze oraz 28 testów PASS. iOS/macOS są świadomie nieobecne. Linux istnieje, lecz nie jest celem produkcyjnym. |
 | Release channel / self-update | DONE | stable manifest 1.0.1+4, SHA-256, testy decyzji/hash, instalacja Windows/Android. Publikacja pozostaje human-gated. |
 | Supervisor i gateway split | DONE | bindy 8787/8788/8789 na loopback; public gateway jawnie odrzuca `/control`. |
 | Document Intelligence | DONE | centralny pipeline, pages/assets/OCR/Office/archive oraz testy regresyjne. Batch 30 istnieje; pełny cel jakościowy pozostaje częściowo otwarty. |
 | Chunking / embeddings / Qdrant / semantic retrieval | DONE | migracja chunk 2.0, embedding service, Qdrant store i realny baseline Hit@3/5 3/3. |
 | RAG / citations / evidence | DONE | chroniony `/api/v1/ai/rag`; test 401/200/422 i claim→evidence→source PASS. |
-| CRM frontend | PARTIAL | paginowana lista klientów i pełne repozytorium dokumentów istnieją; Client 360 ma placeholder panels. |
+| CRM frontend | PARTIAL | paginowana lista klientów, repozytorium dokumentów i lazy Client 360 Documents istnieją; Mail i dalsze workspace panels są TODO. |
 | Candidate pipeline | DONE/PARTIAL | review/promotion, duplicate protection i read-only identity projection działają; trwały multi-contact i quality cleanup są otwarte. |
 | Document read API/UI | DONE | bezpieczne auth list/detail/content API oraz responsywne Flutter Documents UI działają na wspólnej sesji i Dio. |
 | Dane CRM | QUALITY DEBT | 3194 aktywnych; 463 email-name, 284 phone-name, 1 file-name, 3193 bez structured address, 809 mail transcripts w notes. |
@@ -143,13 +143,23 @@ kontraktu.
 - Dane: NONE. Migracje: NONE. CHUNK 4 nie został rozpoczęty.
 - Commit: `Restore deployed client API compatibility`.
 
-### 4. Client 360 documents — TODO
+### 4. Client 360 documents — DONE
 
 - Cel: prawdziwe dokumenty klienta. Zależności: 2–3.
-- Zakres: zastąpić placeholder panelem lazy/collapsible po `client_id`, z
-  source/match/open. Pliki: client details/workspace + providers/tests.
-- Migracje: brak. Ryzyko: ciężki ekran. Dane: odczyt.
-- Acceptance: klient pokazuje tylko swoje dokumenty i poprawny total.
+- Zakres wykonany: domyślnie zwinięty panel ładuje pierwszą stronę po pierwszym
+  expand, zachowuje wynik przy collapse/expand, ma jawny refresh oraz strony po
+  10 filtrowane server-side przez `client_id`.
+- Panel wykorzystuje wspólne DocumentsRepository, modele, auth/Dio,
+  DocumentOpenService i wyciągnięte presentation mappers; nie powstał drugi
+  parser, download flow ani endpoint backendu.
+- UI: kompaktowe responsywne wiersze, total/range, source/processing/match,
+  empty/error/retry i opening progress. Mail pozostaje placeholderem.
+- Link do `/documents?client_id=...&client_name=...` uruchamia pełne
+  repozytorium ze scoped początkowym filtrem bez fetch-all klientów.
+- Migracje: brak. Dane: odczyt. Backend/API: bez zmian.
+- Acceptance: Flutter analyze i 28 testów PASS; real client ID 1915 ma 9/9
+  zgodnych dokumentów, content ID 3974 otwiera 750481 bytes; client ID 1 daje
+  poprawny empty total 0; Document Read i oba Client List gates PASS.
 - Commit: `Connect client 360 documents`.
 
 ### 5. Client 360 email history — TODO

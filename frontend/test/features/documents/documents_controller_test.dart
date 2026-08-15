@@ -46,6 +46,35 @@ void main() {
   });
 
   test(
+    'controller loads a route-provided client filter on its first request',
+    () async {
+      final _FakeDocumentsRepository repository = _FakeDocumentsRepository();
+      final ProviderContainer container = ProviderContainer(
+        overrides: [
+          authControllerProvider.overrideWith(_TestAuthController.new),
+          documentsRepositoryProvider.overrideWithValue(repository),
+          documentsControllerProvider.overrideWith(
+            () => DocumentsController(
+              initialFilters: const DocumentFilters(
+                clientId: 7,
+                clientName: 'Klient Test',
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(authControllerProvider.future);
+      await container.read(documentsControllerProvider.future);
+
+      expect(repository.calls, hasLength(1));
+      expect(repository.calls.single.filters.clientId, 7);
+      expect(repository.calls.single.filters.clientName, 'Klient Test');
+    },
+  );
+
+  test(
     'open service uses authenticated repository bytes and injectable opener',
     () async {
       final _FakeDocumentsRepository repository = _FakeDocumentsRepository();
