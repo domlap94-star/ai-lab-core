@@ -394,6 +394,25 @@ Status: DONE / RELEASE NOT PUBLISHED.
   MIGRATIONS NONE; API CONTRACT UNCHANGED.
 - Commit: `Audit client notes downstream dependencies`.
 
+### NATIVE RELEASE CHECKPOINT — NEXT STABIL 1.0.2+5 — PUBLISHED
+
+- Status: PUBLISHED / WAITING FOR HUMAN VERIFICATION.
+- Android i Windows zbudowano dokładnie z prep commit
+  `c234ade9a7fb27d2071685d7ac5bba77c675fdac`, wersja 1.0.2, build 5.
+- Build config: public API `https://domai.tail1927bd.ts.net`; private
+  supervisor `https://domai.tail1927bd.ts.net:8443/control`.
+- APK version/signing i Windows installer metadata zweryfikowane; publiczne
+  artifact Content-Length/SHA256 są zgodne z lokalnymi plikami.
+- Stable manifest: 1.0.2+5; minimum_version pozostaje 1.0.0, więc 1.0.1+4
+  otrzymuje AVAILABLE, nie REQUIRED. Production Web pozostaje bez zmian.
+- PRE-RELEASE ADMIN USER LIFECYCLE: DONE. Real users: 4 active, 0 inactive;
+  żadna lifecycle operation nie została wykonana przez release checkpoint.
+- CHUNK 6D: BLOCKED — WAITING FOR HUMAN VERIFICATION + SUPPORTED-VERSION GATE.
+- POST-RELEASE CANDIDATE AUTO-PROMOTION: PLANNED / NOT STARTED.
+- GOLDEN BACKUP: WAITING FOR HUMAN VALIDATION OF 1.0.2+5.
+- Release nie jest production-validated; użytkownik musi zweryfikować Android
+  i Windows. Brak auto-install, notes cleanup, auto-promotion i golden backup.
+
 ### 7. Contact and address model — TODO
 
 - Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.

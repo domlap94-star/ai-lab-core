@@ -5090,6 +5090,27 @@ SUPPORTED-VERSION GATE.
 CHUNK 7: NOT STARTED.
 PRE-RELEASE ADMIN USER LIFECYCLE: DONE / RELEASE NOT PUBLISHED.
 
+NATIVE RELEASE CHECKPOINT — NEXT STABIL 1.0.2+5:
+
+[✓] Android i Windows 1.0.2+5 zbudowano z prep release commit
+    c234ade9a7fb27d2071685d7ac5bba77c675fdac i dokładnych production URLs.
+[✓] APK jest podpisany tym samym certyfikatem co 1.0.1+4; versionCode 5,
+    versionName 1.0.2. Windows installer ma FileVersion 1.0.2.5.
+[✓] Stable manifest publikuje 1.0.2+5 z minimum_version nadal 1.0.0;
+    aktualizacja z 1.0.1+4 ma status AVAILABLE, nie REQUIRED.
+[✓] Production Web nie został przebudowany ani wdrożony. Security boundary,
+    gatewaye, Tailscale, CORS i supervisor routing pozostają bez zmian.
+[✓] PRE-RELEASE ADMIN USER LIFECYCLE: DONE. Real users pozostają 4 active,
+    0 inactive; release nie dezaktywował żadnego użytkownika.
+[!] NATIVE RELEASE 1.0.2+5: PUBLISHED / WAITING FOR HUMAN VERIFICATION.
+[!] CHUNK 6D: BLOCKED — WAITING FOR HUMAN VERIFICATION +
+    SUPPORTED-VERSION GATE.
+[ ] POST-RELEASE CANDIDATE AUTO-PROMOTION: PLANNED / NOT STARTED.
+[ ] GOLDEN BACKUP: WAITING FOR HUMAN VALIDATION OF 1.0.2+5.
+
+Release nie jest jeszcze production-validated. Kolejny krok to realne testy
+Android/Windows przez użytkownika; bez automatycznej instalacji urządzeń.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================
