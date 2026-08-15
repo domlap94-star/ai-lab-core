@@ -25,6 +25,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  final ScrollController _listScrollController = ScrollController();
 
   ClientSortOrder _sortOrder = ClientSortOrder.newestFirst;
   ClientWorkflowState? _statusFilter;
@@ -52,6 +53,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     _searchController.dispose();
     _locationController.dispose();
     _searchFocusNode.dispose();
+    _listScrollController.dispose();
     super.dispose();
   }
 
@@ -77,9 +79,74 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     await ref.read(clientsControllerProvider.notifier).refresh();
   }
 
+  Future<void> _showCreateClientDialog(BuildContext context) async {
+    final Client? created = await showDialog<Client>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const ClientFormDialog(),
+    );
+
+    if (!context.mounted || created == null) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text('Dodano klienta: ${created.displayName}')),
+      );
+  }
+
+  Future<void> _resetFilters() async {
+    _locationController.clear();
+    _viewMemory.clearLocation();
+    _viewMemory.workflowStatusFilter = null;
+    _viewMemory.sortOrder = ClientSortOrder.newestFirst;
+    _viewMemory.clientTypeFilter = null;
+    _viewMemory.industryIdFilter = null;
+
+    setState(() {
+      _statusFilter = null;
+      _sortOrder = ClientSortOrder.newestFirst;
+      _clientTypeFilter = null;
+      _industryIdFilter = null;
+    });
+
+    await ref.read(clientsControllerProvider.notifier).setFilters();
+  }
+
+  Future<void> _changePage(Future<void> Function() action) async {
+    await action();
+
+    if (!mounted || ref.read(clientsControllerProvider).value == null) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _listScrollController.hasClients) {
+        _listScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _previousPage() {
+    return _changePage(
+      ref.read(clientsControllerProvider.notifier).previousPage,
+    );
+  }
+
+  Future<void> _nextPage() {
+    return _changePage(ref.read(clientsControllerProvider.notifier).nextPage);
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool compactLayout = MediaQuery.sizeOf(context).width < 600;
     final AsyncValue<ClientPage> clientsValue = ref.watch(
       clientsControllerProvider,
     );
@@ -91,41 +158,32 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
       appBar: AppBar(
         title: const Text('Klienci'),
         actions: <Widget>[
-          OutlinedButton.icon(
-            onPressed: () {
-              context.go('/client-candidates');
-            },
-            icon: const Icon(Icons.manage_accounts_outlined),
-            label: const Text('Kandydaci'),
-          ),
-
-          const SizedBox(width: 12),
-
-          FilledButton.icon(
-            onPressed: () async {
-              final Client? created = await showDialog<Client>(
-                context: context,
-                barrierDismissible: false,
-                builder: (_) => const ClientFormDialog(),
-              );
-
-              if (!context.mounted || created == null) {
-                return;
-              }
-
-              ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar()
-                ..showSnackBar(
-                  SnackBar(
-                    content: Text('Dodano klienta: ${created.displayName}'),
-                  ),
-                );
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('Dodaj klienta'),
-          ),
-
-          const SizedBox(width: 12),
+          if (compactLayout)
+            IconButton(
+              tooltip: 'Kandydaci',
+              onPressed: () => context.go('/client-candidates'),
+              icon: const Icon(Icons.manage_accounts_outlined),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: () => context.go('/client-candidates'),
+              icon: const Icon(Icons.manage_accounts_outlined),
+              label: const Text('Kandydaci'),
+            ),
+          if (!compactLayout) const SizedBox(width: 12),
+          if (compactLayout)
+            IconButton(
+              tooltip: 'Dodaj klienta',
+              onPressed: () => _showCreateClientDialog(context),
+              icon: const Icon(Icons.add),
+            )
+          else
+            FilledButton.icon(
+              onPressed: () => _showCreateClientDialog(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Dodaj klienta'),
+            ),
+          if (!compactLayout) const SizedBox(width: 12),
 
           IconButton(
             tooltip: 'Odśwież listę klientów',
@@ -150,11 +208,22 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: _ServerFilters(
+            child: _ClientFilterPanel(
+              expanded: _filtersExpanded,
               industries: industriesValue.value ?? const <Industry>[],
               clientType: _clientTypeFilter,
               industryId: _industryIdFilter,
               isLoading: clientsValue.isLoading,
+              locationController: _locationController,
+              sortOrder: _sortOrder,
+              workflowStatusFilter: _statusFilter,
+              onExpandedChanged: (bool value) {
+                _viewMemory.filtersExpanded = value;
+
+                setState(() {
+                  _filtersExpanded = value;
+                });
+              },
               onClientTypeChanged: (ClientType? value) async {
                 _viewMemory.clientTypeFilter = value;
                 setState(() => _clientTypeFilter = value);
@@ -174,31 +243,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                       clientType: _clientTypeFilter,
                       industryId: value,
                     );
-              },
-              onReset: () async {
-                _viewMemory.clientTypeFilter = null;
-                _viewMemory.industryIdFilter = null;
-                setState(() {
-                  _clientTypeFilter = null;
-                  _industryIdFilter = null;
-                });
-                await ref.read(clientsControllerProvider.notifier).setFilters();
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-            child: _ClientFilterPanel(
-              expanded: _filtersExpanded,
-              locationController: _locationController,
-              sortOrder: _sortOrder,
-              workflowStatusFilter: _statusFilter,
-              onExpandedChanged: (bool value) {
-                _viewMemory.filtersExpanded = value;
-
-                setState(() {
-                  _filtersExpanded = value;
-                });
               },
               onLocationChanged: () {
                 _viewMemory.locationQuery = _locationController.text;
@@ -223,17 +267,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                   _statusFilter = value;
                 });
               },
-              onReset: () {
-                _locationController.clear();
-                _viewMemory.clearLocation();
-                _viewMemory.workflowStatusFilter = null;
-                _viewMemory.sortOrder = ClientSortOrder.newestFirst;
-
-                setState(() {
-                  _statusFilter = null;
-                  _sortOrder = ClientSortOrder.newestFirst;
-                });
-              },
+              onReset: _resetFilters,
             ),
           ),
           Expanded(
@@ -271,6 +305,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                 return RefreshIndicator(
                   onRefresh: _refresh,
                   child: ListView(
+                    controller: _listScrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                     children: <Widget>[
@@ -286,17 +321,20 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                         },
                       ),
                       const SizedBox(height: 10),
-                      Row(
-                        children: <Widget>[
-                          Text(
-                            'Wyniki: ${page.total} · '
-                            'strona ${page.pageNumber} z ${page.pageCount} · '
-                            '${clients.length} na tej stronie',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'Wyniki: ${page.total} · '
+                        'strona ${page.pageNumber} z ${page.pageCount} · '
+                        '${clients.length} na tej stronie',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ClientPaginationControls(
+                        key: const Key('client-pagination-top'),
+                        page: page,
+                        onPrevious: _previousPage,
+                        onNext: _nextPage,
                       ),
                       const SizedBox(height: 12),
                       ...visibleClients.map<Widget>(
@@ -305,7 +343,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                           child: _ClientCard(
                             client: client,
                             onTap: () {
-                              context.go('/clients/${client.id}');
+                              context.push('/clients/${client.id}');
                             },
                             onStatusChanged: () {
                               setState(() {});
@@ -315,13 +353,10 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                       ),
                       const SizedBox(height: 8),
                       ClientPaginationControls(
+                        key: const Key('client-pagination-bottom'),
                         page: page,
-                        onPrevious: ref
-                            .read(clientsControllerProvider.notifier)
-                            .previousPage,
-                        onNext: ref
-                            .read(clientsControllerProvider.notifier)
-                            .nextPage,
+                        onPrevious: _previousPage,
+                        onNext: _nextPage,
                       ),
                     ],
                   ),
@@ -388,7 +423,6 @@ class _ServerFilters extends StatelessWidget {
     required this.isLoading,
     required this.onClientTypeChanged,
     required this.onIndustryChanged,
-    required this.onReset,
   });
 
   final List<Industry> industries;
@@ -397,7 +431,6 @@ class _ServerFilters extends StatelessWidget {
   final bool isLoading;
   final ValueChanged<ClientType?> onClientTypeChanged;
   final ValueChanged<int?> onIndustryChanged;
-  final VoidCallback onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -409,6 +442,7 @@ class _ServerFilters extends StatelessWidget {
         SizedBox(
           width: 220,
           child: DropdownButtonFormField<ClientType?>(
+            isExpanded: true,
             initialValue: clientType,
             decoration: const InputDecoration(
               labelText: 'Typ klienta',
@@ -422,7 +456,10 @@ class _ServerFilters extends StatelessWidget {
               ...ClientType.values.map(
                 (ClientType type) => DropdownMenuItem<ClientType?>(
                   value: type,
-                  child: Text(type.displayName),
+                  child: Text(
+                    type.displayName,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
@@ -432,6 +469,7 @@ class _ServerFilters extends StatelessWidget {
         SizedBox(
           width: 280,
           child: DropdownButtonFormField<int?>(
+            isExpanded: true,
             initialValue: industryId,
             decoration: const InputDecoration(
               labelText: 'Branża',
@@ -445,19 +483,12 @@ class _ServerFilters extends StatelessWidget {
               ...industries.map(
                 (Industry industry) => DropdownMenuItem<int?>(
                   value: industry.id,
-                  child: Text(industry.name),
+                  child: Text(industry.name, overflow: TextOverflow.ellipsis),
                 ),
               ),
             ],
             onChanged: isLoading ? null : onIndustryChanged,
           ),
-        ),
-        TextButton.icon(
-          onPressed: isLoading || (clientType == null && industryId == null)
-              ? null
-              : onReset,
-          icon: const Icon(Icons.filter_alt_off_outlined),
-          label: const Text('Wyczyść filtry bazy'),
         ),
       ],
     );
@@ -478,17 +509,18 @@ class ClientPaginationControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 8,
       children: <Widget>[
         OutlinedButton.icon(
           onPressed: page.hasPreviousPage ? onPrevious : null,
           icon: const Icon(Icons.chevron_left),
           label: const Text('Poprzednia'),
         ),
-        const SizedBox(width: 16),
         Text('${page.pageNumber} / ${page.pageCount}'),
-        const SizedBox(width: 16),
         FilledButton.icon(
           onPressed: page.hasNextPage ? onNext : null,
           icon: const Icon(Icons.chevron_right),
@@ -555,10 +587,16 @@ class _SearchBar extends StatelessWidget {
 class _ClientFilterPanel extends StatelessWidget {
   const _ClientFilterPanel({
     required this.expanded,
+    required this.industries,
+    required this.clientType,
+    required this.industryId,
+    required this.isLoading,
     required this.locationController,
     required this.sortOrder,
     required this.workflowStatusFilter,
     required this.onExpandedChanged,
+    required this.onClientTypeChanged,
+    required this.onIndustryChanged,
     required this.onLocationChanged,
     required this.onClearLocation,
     required this.onSortChanged,
@@ -567,10 +605,16 @@ class _ClientFilterPanel extends StatelessWidget {
   });
 
   final bool expanded;
+  final List<Industry> industries;
+  final ClientType? clientType;
+  final int? industryId;
+  final bool isLoading;
   final TextEditingController locationController;
   final ClientSortOrder sortOrder;
   final ClientWorkflowState? workflowStatusFilter;
   final ValueChanged<bool> onExpandedChanged;
+  final ValueChanged<ClientType?> onClientTypeChanged;
+  final ValueChanged<int?> onIndustryChanged;
   final VoidCallback onLocationChanged;
   final VoidCallback onClearLocation;
   final ValueChanged<ClientSortOrder> onSortChanged;
@@ -589,6 +633,14 @@ class _ClientFilterPanel extends StatelessWidget {
     }
 
     if (sortOrder != ClientSortOrder.newestFirst) {
+      count++;
+    }
+
+    if (clientType != null) {
+      count++;
+    }
+
+    if (industryId != null) {
       count++;
     }
 
@@ -652,17 +704,21 @@ class _ClientFilterPanel extends StatelessWidget {
               ),
             ),
           ),
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 180),
-            crossFadeState: expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
+          if (expanded)
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {
                   final bool compact = constraints.maxWidth < 900;
+
+                  final Widget serverFilters = _ServerFilters(
+                    industries: industries,
+                    clientType: clientType,
+                    industryId: industryId,
+                    isLoading: isLoading,
+                    onClientTypeChanged: onClientTypeChanged,
+                    onIndustryChanged: onIndustryChanged,
+                  );
 
                   final Widget locationField = TextField(
                     controller: locationController,
@@ -724,6 +780,8 @@ class _ClientFilterPanel extends StatelessWidget {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
+                        serverFilters,
+                        const SizedBox(height: 12),
                         locationField,
                         const SizedBox(height: 12),
                         sortField,
@@ -740,6 +798,11 @@ class _ClientFilterPanel extends StatelessWidget {
 
                   return Column(
                     children: <Widget>[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: serverFilters,
+                      ),
+                      const SizedBox(height: 12),
                       Row(
                         children: <Widget>[
                           Expanded(flex: 2, child: locationField),
@@ -759,7 +822,6 @@ class _ClientFilterPanel extends StatelessWidget {
                 },
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1023,6 +1085,7 @@ class _ClientCard extends StatelessWidget {
 
     return Card(
       child: InkWell(
+        key: ValueKey<String>('client-card-${client.id}'),
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
@@ -1039,20 +1102,39 @@ class _ClientCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            client.displayName,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _ClientTypeBadge(label: client.clientType.displayName),
-                      ],
+                    LayoutBuilder(
+                      builder:
+                          (BuildContext context, BoxConstraints constraints) {
+                            final Widget name = Text(
+                              client.displayName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            );
+                            final Widget badge = _ClientTypeBadge(
+                              label: client.clientType.displayName,
+                            );
+
+                            if (constraints.maxWidth < 320) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  name,
+                                  const SizedBox(height: 8),
+                                  badge,
+                                ],
+                              );
+                            }
+
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                Expanded(child: name),
+                                const SizedBox(width: 12),
+                                badge,
+                              ],
+                            );
+                          },
                     ),
                     if (client.legalName?.isNotEmpty == true &&
                         client.legalName != client.name) ...<Widget>[
@@ -1097,7 +1179,7 @@ class _ClientCard extends StatelessWidget {
                         _ClientInformation(
                           icon: Icons.calendar_today_outlined,
                           value:
-                              'Dodano: ${_formatClientDate(client.createdAt)}',
+                              'Dodano: ${_formatClientDate(client.displayCreatedDate)}',
                         ),
                       ],
                     ),

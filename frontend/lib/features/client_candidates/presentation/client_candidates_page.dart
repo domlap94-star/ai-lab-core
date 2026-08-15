@@ -72,7 +72,7 @@ class ClientCandidatesPage extends ConsumerWidget {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
                       onTap: () {
-                        context.go('/client-candidates/${candidate.id}');
+                        context.push('/client-candidates/${candidate.id}');
                       },
                       child: Padding(
                         padding: const EdgeInsets.all(18),

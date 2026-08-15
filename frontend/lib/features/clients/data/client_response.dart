@@ -9,6 +9,7 @@ class ClientResponse {
     required this.countryCode,
     required this.createdAt,
     required this.updatedAt,
+    this.sourceRecordDate,
     this.legalName,
     this.taxId,
     this.registrationNumber,
@@ -46,6 +47,7 @@ class ClientResponse {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? sourceRecordDate;
   final DateTime? deletedAt;
 
   factory ClientResponse.fromJson(Map<String, dynamic> json) {
@@ -72,6 +74,7 @@ class ClientResponse {
       city: _parseNullableString(json['city']),
       countryCode: json['country_code']?.toString() ?? 'PL',
       notes: _parseNullableString(json['notes']),
+      sourceRecordDate: _parseNullableDateTime(json['source_record_date']),
       createdAt: _parseDateTime(json['created_at']),
       updatedAt: _parseDateTime(json['updated_at']),
       deletedAt: _parseNullableDateTime(json['deleted_at']),
@@ -98,6 +101,7 @@ class ClientResponse {
       city: city,
       countryCode: countryCode,
       notes: notes,
+      sourceRecordDate: sourceRecordDate,
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,

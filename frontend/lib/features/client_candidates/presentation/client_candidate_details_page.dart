@@ -30,112 +30,133 @@ class _ClientCandidateDetailsPageState
       clientCandidateContextProvider(widget.candidateId),
     );
 
-    return Scaffold(
-      appBar: AppBar(title: Text('Kandydat #${widget.candidateId}')),
-      body: value.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (Object error, StackTrace stackTrace) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(error.toString()),
+    return PopScope<Object?>(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) {
+          context.go('/client-candidates');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Wróć do kandydatów',
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/client-candidates');
+              }
+            },
+            icon: const Icon(Icons.arrow_back),
           ),
+          title: Text('Kandydat #${widget.candidateId}'),
         ),
-        data: (ClientCandidateContext data) {
-          final Map<String, dynamic> candidate = data.candidate;
+        body: value.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (Object error, StackTrace stackTrace) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(error.toString()),
+            ),
+          ),
+          data: (ClientCandidateContext data) {
+            final Map<String, dynamic> candidate = data.candidate;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
-            children: <Widget>[
-              _Section(
-                title: 'Dane kandydata',
-                children: <Widget>[
-                  _Row('Nazwa', candidate['name']),
-                  _Row('Typ', candidate['client_type']),
-                  _Row('E-mail', candidate['primary_email']),
-                  _Row('Telefon', candidate['primary_phone']),
-                  _Row('NIP', candidate['tax_id']),
-                  _Row('Miasto', candidate['city']),
-                  _Row(
-                    'Pewność',
-                    '${(((candidate['confidence'] as num?) ?? 0) * 100).round()}%',
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
+              children: <Widget>[
+                _Section(
+                  title: 'Dane kandydata',
+                  children: <Widget>[
+                    _Row('Nazwa', candidate['name']),
+                    _Row('Typ', candidate['client_type']),
+                    _Row('E-mail', candidate['primary_email']),
+                    _Row('Telefon', candidate['primary_phone']),
+                    _Row('NIP', candidate['tax_id']),
+                    _Row('Miasto', candidate['city']),
+                    _Row(
+                      'Pewność',
+                      '${(((candidate['confidence'] as num?) ?? 0) * 100).round()}%',
+                    ),
+                    _Row('Status', candidate['status']),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _Section(
+                  title: 'Źródła',
+                  children: <Widget>[
+                    _Row('Google Sheets', data.sheetsCount),
+                    _Row('Gmail', data.gmailCount),
+                    _Row('Dokumenty', data.documentCount),
+                    _Row('Wszystkie źródła', data.sourceCount),
+                  ],
+                ),
+                if (data.sheetsRows.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 18),
+                  _Section(
+                    title: 'Google Sheets',
+                    children: data.sheetsRows
+                        .map<Widget>(
+                          (Map<String, dynamic> row) =>
+                              _PayloadView(value: row['row_data']),
+                        )
+                        .toList(growable: false),
                   ),
-                  _Row('Status', candidate['status']),
                 ],
-              ),
-              const SizedBox(height: 18),
-              _Section(
-                title: 'Źródła',
-                children: <Widget>[
-                  _Row('Google Sheets', data.sheetsCount),
-                  _Row('Gmail', data.gmailCount),
-                  _Row('Dokumenty', data.documentCount),
-                  _Row('Wszystkie źródła', data.sourceCount),
+                if (data.gmailMessages.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 18),
+                  _Section(
+                    title: 'Gmail',
+                    children: data.gmailMessages
+                        .map<Widget>(
+                          (Map<String, dynamic> message) =>
+                              _PayloadView(value: message),
+                        )
+                        .toList(growable: false),
+                  ),
                 ],
-              ),
-              if (data.sheetsRows.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 18),
-                _Section(
-                  title: 'Google Sheets',
-                  children: data.sheetsRows
-                      .map<Widget>(
-                        (Map<String, dynamic> row) =>
-                            _PayloadView(value: row['row_data']),
-                      )
-                      .toList(growable: false),
-                ),
-              ],
-              if (data.gmailMessages.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 18),
-                _Section(
-                  title: 'Gmail',
-                  children: data.gmailMessages
-                      .map<Widget>(
-                        (Map<String, dynamic> message) =>
-                            _PayloadView(value: message),
-                      )
-                      .toList(growable: false),
-                ),
-              ],
-              if (data.documents.isNotEmpty) ...<Widget>[
-                const SizedBox(height: 18),
-                _Section(
-                  title: 'Dokumenty',
-                  children: data.documents
-                      .map<Widget>(
-                        (Map<String, dynamic> document) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.description_outlined),
-                          title: Text(
-                            document['original_filename']?.toString() ??
-                                document['filename']?.toString() ??
-                                'Dokument',
+                if (data.documents.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 18),
+                  _Section(
+                    title: 'Dokumenty',
+                    children: data.documents
+                        .map<Widget>(
+                          (Map<String, dynamic> document) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.description_outlined),
+                            title: Text(
+                              document['original_filename']?.toString() ??
+                                  document['filename']?.toString() ??
+                                  'Dokument',
+                            ),
+                            subtitle: Text('ID: ${document['id']}'),
                           ),
-                          subtitle: Text('ID: ${document['id']}'),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              ],
-              const SizedBox(height: 24),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: _mutating ? null : () => _accept(data),
-                    icon: const Icon(Icons.person_add_alt_1),
-                    label: const Text('Zatwierdź jako klienta'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _mutating ? null : _reject,
-                    icon: const Icon(Icons.close),
-                    label: const Text('Odrzuć'),
+                        )
+                        .toList(growable: false),
                   ),
                 ],
-              ),
-            ],
-          );
-        },
+                const SizedBox(height: 24),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      onPressed: _mutating ? null : () => _accept(data),
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Zatwierdź jako klienta'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _mutating ? null : _reject,
+                      icon: const Icon(Icons.close),
+                      label: const Text('Odrzuć'),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

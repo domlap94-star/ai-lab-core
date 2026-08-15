@@ -5,6 +5,9 @@ from app.repositories.client_repository import ClientRepository
 from app.repositories.industry_repository import IndustryRepository
 from app.schemas.client import ClientCreate, ClientPage, ClientUpdate
 from app.services.base_service import BaseService
+from app.services.client_source_record_date_service import (
+    ClientSourceRecordDateService,
+)
 
 
 class ClientNotFoundError(Exception):
@@ -24,6 +27,7 @@ class ClientService(BaseService[Client]):
         self.db = db
         self.client_repository = ClientRepository(db)
         self.industry_repository = IndustryRepository(db)
+        self.source_record_date_service = ClientSourceRecordDateService(db)
 
         super().__init__(self.client_repository)
 
@@ -32,6 +36,11 @@ class ClientService(BaseService[Client]):
 
         if client is None:
             raise ClientNotFoundError
+
+        source_dates = self.source_record_date_service.get_for_client_ids(
+            [client.id]
+        )
+        client.source_record_date = source_dates.get(client.id)
 
         return client
 
@@ -51,6 +60,12 @@ class ClientService(BaseService[Client]):
             skip=skip,
             limit=limit,
         )
+
+        source_dates = self.source_record_date_service.get_for_client_ids(
+            [item.id for item in items]
+        )
+        for item in items:
+            item.source_record_date = source_dates.get(item.id)
 
         return ClientPage(
             items=items,

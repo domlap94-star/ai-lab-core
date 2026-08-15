@@ -20,48 +20,58 @@ class ClientDetailsPage extends ConsumerWidget {
       clientDetailsProvider(clientId),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Wróć do klientów',
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go('/clients');
-            }
-          },
-          icon: const Icon(Icons.arrow_back),
-        ),
-        title: const Text('Szczegóły klienta'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Odśwież dane klienta',
-            onPressed: clientValue.isLoading
-                ? null
-                : () {
-                    ref.invalidate(clientDetailsProvider(clientId));
-                  },
-            icon: const Icon(Icons.refresh),
+    return PopScope<Object?>(
+      canPop: context.canPop(),
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) {
+          context.go('/clients');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Wróć do klientów',
+            onPressed: () => _goBack(context),
+            icon: const Icon(Icons.arrow_back),
           ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: clientValue.when(
-        loading: () => const _LoadingView(),
-        error: (Object error, StackTrace stackTrace) {
-          return _ErrorView(
-            message: _friendlyErrorMessage(error),
-            onRetry: () {
-              ref.invalidate(clientDetailsProvider(clientId));
-            },
-          );
-        },
-        data: (Client client) {
-          return _ClientDetails(client: client);
-        },
+          title: const Text('Szczegóły klienta'),
+          actions: <Widget>[
+            IconButton(
+              tooltip: 'Odśwież dane klienta',
+              onPressed: clientValue.isLoading
+                  ? null
+                  : () {
+                      ref.invalidate(clientDetailsProvider(clientId));
+                    },
+              icon: const Icon(Icons.refresh),
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: clientValue.when(
+          loading: () => const _LoadingView(),
+          error: (Object error, StackTrace stackTrace) {
+            return _ErrorView(
+              message: _friendlyErrorMessage(error),
+              onRetry: () {
+                ref.invalidate(clientDetailsProvider(clientId));
+              },
+            );
+          },
+          data: (Client client) {
+            return _ClientDetails(client: client);
+          },
+        ),
       ),
     );
+  }
+
+  void _goBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/clients');
+    }
   }
 
   String _friendlyErrorMessage(Object error) {
@@ -323,9 +333,14 @@ class _ClientDetails extends StatelessWidget {
                 children: <Widget>[
                   _DetailRow(label: 'ID klienta', value: client.id.toString()),
                   _DetailRow(
-                    label: 'Utworzono',
+                    label: 'Utworzono w CRM',
                     value: _formatDateTime(client.createdAt),
                   ),
+                  if (client.sourceRecordDate != null)
+                    _DetailRow(
+                      label: 'Data rekordu źródłowego',
+                      value: _formatDate(client.sourceRecordDate!),
+                    ),
                   _DetailRow(
                     label: 'Ostatnia aktualizacja',
                     value: _formatDateTime(client.updatedAt),
@@ -424,6 +439,12 @@ class _ClientDetails extends StatelessWidget {
 
     return '${twoDigits(local.day)}.${twoDigits(local.month)}.${local.year} '
         '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+  }
+
+  String _formatDate(DateTime value) {
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+
+    return '${twoDigits(value.day)}.${twoDigits(value.month)}.${value.year}';
   }
 }
 

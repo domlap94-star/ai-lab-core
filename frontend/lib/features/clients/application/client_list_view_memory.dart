@@ -30,5 +30,6 @@ class ClientListViewMemory {
     workflowStatusFilter = null;
     clientTypeFilter = null;
     industryIdFilter = null;
+    filtersExpanded = false;
   }
 }

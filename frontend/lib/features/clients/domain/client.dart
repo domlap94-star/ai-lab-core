@@ -42,6 +42,7 @@ class Client {
     required this.countryCode,
     required this.createdAt,
     required this.updatedAt,
+    this.sourceRecordDate,
     this.legalName,
     this.taxId,
     this.registrationNumber,
@@ -79,7 +80,10 @@ class Client {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? sourceRecordDate;
   final DateTime? deletedAt;
+
+  DateTime get displayCreatedDate => sourceRecordDate ?? createdAt;
 
   String get displayName {
     return name.trim().isEmpty ? 'Klient bez nazwy' : name.trim();

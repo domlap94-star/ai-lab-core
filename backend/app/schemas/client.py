@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -223,6 +223,7 @@ class ClientRead(ClientBase):
 
     id: int
     industry: IndustryRead | None
+    source_record_date: date | None = None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
