@@ -6,7 +6,7 @@ Status dokumentu:
 AKTYWNA SPECYFIKACJA PROJEKTOWA
 
 Data aktualizacji:
-2026-08-12
+2026-08-15
 
 Repozytorium:
 ai-lab-core
@@ -4775,6 +4775,92 @@ Mail history, notes cleanup, document matching i upload UI pozostają TODO.
 
 ================================================================================
 END CHECKPOINT 2026-08-15 — CLIENT 360 DOCUMENTS
+================================================================================
+
+================================================================================
+CHECKPOINT 2026-08-15 — CLIENT 360 EMAIL HISTORY
+================================================================================
+
+STATUS: DZIAŁAJĄCY I ZWERYFIKOWANY CHECKPOINT.
+
+[✓] Placeholder Maile zastąpiono prawdziwą historią Gmail Client 360.
+[✓] Źródłem nie są Client.notes ani ClientCandidate.notes.
+[✓] Źródłem są wyłącznie aktywne CandidateSource typu gmail_message, powiązane
+    przez aktywny ClientCandidate.matched_client_id i status accepted, merged
+    albo duplicate.
+[✓] GET /api/v1/clients/{client_id}/emails wymaga JWT i jest addytywny.
+[✓] Kontrakt items/total/skip/limit ma default 20 i maximum 100.
+[✓] SQL wykonuje filtr klienta, count, dedupe i pagination server-side.
+[✓] Stabilne sortowanie: message datetime DESC NULLS LAST, source ID DESC.
+[✓] External Gmail message ID jest stabilnym kluczem deduplikacji.
+[✓] Publiczny model nie ujawnia raw_payload, sekretów ani storage_path.
+[✓] Direction używa jawnego pola lub Gmail SENT/INBOX; brak dowodu daje unknown.
+[✓] Existing GmailMessageBoundaryService wydziela current-message body bez
+    nowego agresywnego regexowego czyszczenia transcriptu.
+[✓] HTML i entities są normalizowane do nieaktywnego, czytelnego tekstu.
+[✓] Załączniki są batchowo wiązane po Documents.gmail_message_id i otwierane
+    przez istniejący DocumentOpenService, bez nowego download endpointu.
+[✓] Panel jest domyślnie zwinięty, wykonuje zero requestów przed pierwszym
+    expand, pamięta wynik po collapse/expand, ma refresh i strony po 10.
+[✓] Pojedynczy mail pokazuje kompaktowy preview; pełne body jest domyślnie
+    zwinięte. Empty/error są izolowane, a szerokość 390 px nie overflowuje.
+[✓] Client.notes nie zostały usunięte, zmienione, przepisane ani ukryte.
+
+RAW PAYLOAD / REAL DATA:
+
+- 4250 gmail_message przeanalizowanych read-only,
+- 4240 rekordów w znormalizowanym wariancie importowym i 10 w wariancie raw
+  Gmail API,
+- 4095 wiadomości eksponowanych dla 1338 klientów,
+- coverage: message_at 4095, from 4095, to 4077, subject 4041, body 3773,
+- direction: sent 2260, received 1818, unknown 17,
+- 14 klientów ma więcej niż jednego prawidłowo powiązanego kandydata,
+- brak duplikatów external Gmail message ID w aktualnych danych,
+- 5897 dokumentów ma gmail_message_id; 5820 wiąże się z aktywnym źródłem.
+
+COVERAGE CLEANUP GATE:
+
+- clients with transcript-like notes: 809,
+- z sourced Gmail history: 809,
+- bez sourced Gmail history: 0,
+- Gmail-linked bez transcript notes: 529,
+- notes cleanup pozostaje osobnym, nieukończonym etapem.
+
+REAL DATA ACCEPTANCE:
+
+- client ID 2504: 127 wiadomości, prawdziwy provenance i newest-first,
+- client ID 1: 200, total 0, pusty items,
+- client ID 2344: 30 wiadomości i 153 attachment documents.
+
+DATA IMPACT: NONE
+MIGRATIONS: NONE
+API COMPATIBILITY: ADDITIVE; legacy clients/documents contracts bez zmian.
+
+================================================================================
+PRE-RELEASE CHUNK — ADMIN USER LIFECYCLE
+================================================================================
+
+STATUS: TODO / MANDATORY BEFORE NEXT NATIVE RELEASE.
+
+Przed następnym Android/Windows release trzeba wykonać osobny checkpoint:
+
+- akcja „Usuń użytkownika” w Admin UI,
+- backend admin-only,
+- preferowana deactivate/soft-delete zamiast hard delete, jeśli model pozwala,
+- zakaz self-delete/self-deactivate,
+- zakaz usunięcia/dezaktywacji ostatniego aktywnego Administratora,
+- potwierdzenie w UI,
+- audit kto/kiedy,
+- brak dalszego logowania,
+- weryfikacja zachowania istniejących JWT,
+- testy 401/403, self, last-admin i zwykłego użytkownika,
+- deployed API compatibility,
+- zero publikacji release bez human approval.
+
+Funkcja nie została zaimplementowana w CHUNK 5.
+
+================================================================================
+END CHECKPOINT 2026-08-15 — CLIENT 360 EMAIL HISTORY
 ================================================================================
 
 KONIEC MASTER PLAN

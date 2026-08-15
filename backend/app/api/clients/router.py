@@ -18,6 +18,7 @@ from app.schemas.client import (
     ClientType,
     ClientUpdate,
 )
+from app.schemas.client_email import ClientEmailPage
 from app.schemas.industry import IndustryRead
 from app.repositories.industry_repository import IndustryRepository
 from app.services.client_service import (
@@ -26,6 +27,7 @@ from app.services.client_service import (
     DuplicateTaxIdError,
     IndustryNotFoundError,
 )
+from app.services.client_email_service import ClientEmailService
 
 router = APIRouter(
     prefix="/clients",
@@ -134,6 +136,29 @@ def get_clients(
         skip=skip,
         limit=limit,
     ).items
+
+
+@router.get(
+    "/{client_id}/emails",
+    response_model=ClientEmailPage,
+)
+def get_client_emails(
+    client_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> ClientEmailPage:
+    try:
+        return ClientEmailService(db).get_emails(
+            client_id=client_id,
+            skip=skip,
+            limit=limit,
+        )
+    except ClientNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Client not found",
+        ) from error
 
 
 @router.get(

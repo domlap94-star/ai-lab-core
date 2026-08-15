@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+
+from sqlalchemy import DateTime, Numeric, case, cast, func
+from sqlalchemy.orm import Session
+
+from app.models.candidate_source import CandidateSource
+from app.models.client_candidate import ClientCandidate
+from app.models.document import Document
+
+
+LINKED_CANDIDATE_STATUSES = (
+    "accepted",
+    "merged",
+    "duplicate",
+)
+
+
+class ClientEmailRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    @staticmethod
+    def _message_at_expression():
+        date_text = CandidateSource.raw_payload.op("->>")("date")
+        internal_date_text = CandidateSource.raw_payload.op("->>")(
+            "internalDate"
+        )
+
+        return case(
+            (
+                date_text.op("~")(
+                    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}"
+                ),
+                cast(date_text, DateTime(timezone=True)),
+            ),
+            (
+                internal_date_text.op("~")(r"^\d{10,16}$"),
+                func.to_timestamp(
+                    cast(internal_date_text, Numeric) / 1000
+                ),
+            ),
+            else_=None,
+        )
+
+    def _deduplicated_sources(self, client_id: int):
+        message_at = self._message_at_expression()
+        row_number = func.row_number().over(
+            partition_by=CandidateSource.external_id,
+            order_by=(
+                message_at.desc().nulls_last(),
+                CandidateSource.id.desc(),
+            ),
+        )
+
+        return (
+            self.db.query(
+                CandidateSource.id.label("source_id"),
+                CandidateSource.external_id,
+                CandidateSource.external_parent_id,
+                CandidateSource.source_url,
+                CandidateSource.extracted_text,
+                CandidateSource.raw_payload,
+                CandidateSource.created_at,
+                message_at.label("message_at"),
+                row_number.label("duplicate_rank"),
+            )
+            .join(
+                ClientCandidate,
+                ClientCandidate.id == CandidateSource.candidate_id,
+            )
+            .filter(
+                CandidateSource.source_type == "gmail_message",
+                CandidateSource.deleted_at.is_(None),
+                ClientCandidate.deleted_at.is_(None),
+                ClientCandidate.matched_client_id == client_id,
+                ClientCandidate.status.in_(LINKED_CANDIDATE_STATUSES),
+            )
+            .subquery()
+        )
+
+    def get_page(
+        self,
+        *,
+        client_id: int,
+        skip: int,
+        limit: int,
+    ) -> tuple[Sequence[object], int]:
+        sources = self._deduplicated_sources(client_id)
+        filtered = self.db.query(sources).filter(
+            sources.c.duplicate_rank == 1
+        )
+
+        total = filtered.count()
+        items = (
+            filtered.order_by(
+                sources.c.message_at.desc().nulls_last(),
+                sources.c.source_id.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return items, total
+
+    def get_attachments(
+        self,
+        message_ids: Sequence[str],
+    ) -> list[Document]:
+        if not message_ids:
+            return []
+
+        return (
+            self.db.query(Document)
+            .filter(
+                Document.source_type == "gmail_attachment",
+                Document.gmail_message_id.in_(message_ids),
+            )
+            .order_by(
+                Document.gmail_message_id.asc(),
+                Document.id.asc(),
+            )
+            .all()
+        )

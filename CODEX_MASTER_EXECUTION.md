@@ -25,7 +25,7 @@ kontraktu.
 | Document Intelligence | DONE | centralny pipeline, pages/assets/OCR/Office/archive oraz testy regresyjne. Batch 30 istnieje; pełny cel jakościowy pozostaje częściowo otwarty. |
 | Chunking / embeddings / Qdrant / semantic retrieval | DONE | migracja chunk 2.0, embedding service, Qdrant store i realny baseline Hit@3/5 3/3. |
 | RAG / citations / evidence | DONE | chroniony `/api/v1/ai/rag`; test 401/200/422 i claim→evidence→source PASS. |
-| CRM frontend | PARTIAL | paginowana lista klientów, repozytorium dokumentów i lazy Client 360 Documents istnieją; Mail i dalsze workspace panels są TODO. |
+| CRM frontend | PARTIAL | paginowana lista klientów, repozytorium dokumentów oraz lazy Client 360 Documents i Email History istnieją; dalsze workspace panels są TODO. |
 | Candidate pipeline | DONE/PARTIAL | review/promotion, duplicate protection i read-only identity projection działają; trwały multi-contact i quality cleanup są otwarte. |
 | Document read API/UI | DONE | bezpieczne auth list/detail/content API oraz responsywne Flutter Documents UI działają na wspólnej sesji i Dio. |
 | Dane CRM | QUALITY DEBT | 3194 aktywnych; 463 email-name, 284 phone-name, 1 file-name, 3193 bez structured address, 809 mail transcripts w notes. |
@@ -162,14 +162,46 @@ kontraktu.
   poprawny empty total 0; Document Read i oba Client List gates PASS.
 - Commit: `Connect client 360 documents`.
 
-### 5. Client 360 email history — TODO
+### 5. Client 360 email history — DONE
 
-- Cel: komunikacja z provenance zamiast `notes`. Zależności: 0, candidate source.
-- Zakres: read API i zwinięta lazy lista Gmail: direction/date/from/to/subject/
-  current body/attachments/evidence. Migracje: możliwe tylko gdy payload nie
-  wystarcza. Ryzyko: quoted-thread leakage i PII. Dane: odczyt.
-- Acceptance: historia pochodzi z CandidateSource, ma paginację i provenance;
-  notes nie są usuwane. Commit: `Add sourced client email history`.
+- Cel: źródłowa komunikacja Gmail z provenance zamiast transcriptów w `notes`.
+- Zakres wykonany: addytywny JWT endpoint
+  `/clients/{client_id}/emails`, SQL pagination/count/dedupe, stabilne sortowanie
+  message datetime DESC NULLS LAST + source ID DESC, publiczny model bez raw
+  payloadu oraz lazy/collapsible Flutter panel po 10 wiadomości.
+- Źródła: wyłącznie aktywne `gmail_message` po relacji CandidateSource →
+  ClientCandidate → matched_client_id dla semantycznie powiązanych statusów
+  accepted/merged/duplicate. Nie użyto dopasowania po nazwie/emailu/telefonie.
+- Normalizacja: istniejący GmailMessageBoundaryService oddziela current body;
+  HTML jest zamieniany na nieaktywny tekst, a SENT/INBOX lub jawny direction
+  daje sent/received/unknown bez zgadywania z treści.
+- Attachments: batchowe powiązanie Document.gmail_message_id z external Gmail
+  message ID; UI otwiera przez istniejący DocumentOpenService.
+- Real data: 4095 wiadomości / 1338 klientów; klient 2504 ma 127 maili;
+  klient 1 ma empty state; klient 2344 ma 153 attachment documents w 30 mailach.
+- Coverage cleanup gate: 809 transcript-like notes, 809 z sourced Gmail, 0 bez;
+  529 Gmail-linked klientów bez transcript notes. Notes pozostały bez zmian.
+- Migracje: brak. Dane: NONE. Kompatybilność: wyłącznie nowy endpoint.
+- Acceptance: backend compile, Email API/normalization, Candidate, deployed +4,
+  Client List, Document Read, auth oraz Flutter analyze/test PASS.
+- Commit: `Add sourced client email history`.
+
+### PRE-RELEASE CHUNK — ADMIN USER LIFECYCLE — TODO
+
+Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
+
+- Akcja „Usuń użytkownika” w Admin UI oraz backend admin-only.
+- Preferowana bezpieczna deactivate/soft-delete zamiast hard delete, jeśli
+  aktualny model pozwala zachować kompatybilność i audit.
+- Zakaz self-delete/self-deactivate oraz usunięcia/dezaktywacji ostatniego
+  aktywnego Administratora.
+- Potwierdzenie operacji w UI i audit kto/kiedy wykonał akcję.
+- Brak dalszego logowania oraz jawna weryfikacja zachowania istniejących JWT.
+- Testy 401/403, self, last-admin i zwykłego użytkownika.
+- Zachowanie deployed API compatibility.
+- Zero publikacji release bez human approval.
+- Ten checkpoint musi być DONE przed następnym Android/Windows release; nie
+  został zaimplementowany w CHUNK 5.
 
 ### 6. Client identity quality dry-run — TODO
 
