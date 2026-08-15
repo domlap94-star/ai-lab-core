@@ -32,7 +32,7 @@ class LocalOllamaClientReconstructionService:
             "model": self.model,
             "stream": False,
             "format": ClientReconstructionProposal.model_json_schema(),
-            "options": {"temperature": 0},
+            "options": {"temperature": 0, "num_ctx": 4096},
             "messages": [
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {
