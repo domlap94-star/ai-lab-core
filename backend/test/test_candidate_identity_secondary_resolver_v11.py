@@ -2,6 +2,8 @@
 
 from collections import Counter
 
+from sqlalchemy import or_
+
 from app.database.session import SessionLocal
 from app.models.client_candidate import ClientCandidate
 from app.services.candidate_identity_secondary_resolver import (
@@ -55,7 +57,10 @@ def main() -> None:
             db.query(ClientCandidate)
             .filter(
                 ClientCandidate.deleted_at.is_(None),
-                ClientCandidate.status == "pending",
+                or_(
+                    ClientCandidate.status == "pending",
+                    ClientCandidate.id.in_(IMPORTANT_IDS),
+                ),
             )
             .order_by(
                 ClientCandidate.id.asc()

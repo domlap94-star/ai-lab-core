@@ -193,6 +193,8 @@ class ClientEntityProjectionService:
     def project(
         self,
         candidate: ClientCandidate,
+        *,
+        include_candidate_name_evidence: bool = True,
     ) -> ClientEntityProjection:
         projection = ClientEntityProjection(
             candidate_id=candidate.id,
@@ -246,6 +248,9 @@ class ClientEntityProjectionService:
                     unit_candidates=unit_candidates,
                     tax_candidates=tax_candidates,
                     projection=projection,
+                    include_candidate_name_evidence=(
+                        include_candidate_name_evidence
+                    ),
                 )
 
             elif (
@@ -286,6 +291,9 @@ class ClientEntityProjectionService:
         self._apply_person_fallback(
             projection,
             candidate,
+            include_candidate_name_evidence=(
+                include_candidate_name_evidence
+            ),
         )
 
         self._finalize(
@@ -308,6 +316,7 @@ class ClientEntityProjectionService:
         unit_candidates,
         tax_candidates,
         projection: ClientEntityProjection,
+        include_candidate_name_evidence: bool,
     ) -> None:
         first_field = self._value(
             payload,
@@ -443,8 +452,10 @@ class ClientEntityProjectionService:
                 )
             )
 
-        current_name = self._clean(
-            projection.current_name
+        current_name = (
+            self._clean(projection.current_name)
+            if include_candidate_name_evidence
+            else ""
         )
 
         current_split = self._split_org_person(
@@ -1380,6 +1391,8 @@ class ClientEntityProjectionService:
         self,
         projection,
         candidate,
+        *,
+        include_candidate_name_evidence: bool = True,
     ) -> None:
         if projection.entity_name:
             return
@@ -1398,6 +1411,9 @@ class ClientEntityProjectionService:
             projection.gmail_relay_messages > 0
             and projection.gmail_direct_messages == 0
         ):
+            return
+
+        if not include_candidate_name_evidence:
             return
 
         current_name = self._clean(

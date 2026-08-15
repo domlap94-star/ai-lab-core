@@ -9,6 +9,15 @@ from sqlalchemy.orm import Session
 from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
+from app.services.client_identity_name_quality_service import (
+    ClientIdentityNameQualityService,
+)
+from app.services.client_entity_projection_policy_service import (
+    ClientEntityProjectionPolicyService,
+)
+from app.services.first_party_identity_registry import (
+    FirstPartyIdentityRegistry,
+)
 
 
 class CandidateNotFoundError(Exception):
@@ -186,6 +195,11 @@ class ClientCandidatePromotionService:
             candidate
         )
 
+        identity_projection = (
+            ClientEntityProjectionPolicyService(self.db).project(candidate)
+        )
+        self._validate_projection_status(identity_projection.status)
+
         existing_client, matched_by = (
             self.find_existing_client(
                 candidate
@@ -307,6 +321,29 @@ class ClientCandidatePromotionService:
                 f"{candidate.id} has no usable name."
             )
 
+        suspicion_types = (
+            ClientIdentityNameQualityService.suspicion_types(
+                candidate.name
+            )
+        )
+
+        if suspicion_types:
+            raise CandidatePromotionError(
+                "Candidate "
+                f"{candidate.id} has a suspicious identity name "
+                f"({', '.join(suspicion_types)}); source-backed "
+                "identity review is required before promotion."
+            )
+
+        if FirstPartyIdentityRegistry.is_first_party_email(
+            candidate.primary_email
+        ):
+            raise CandidatePromotionError(
+                "Candidate "
+                f"{candidate.id} is a first-party internal identity "
+                "and cannot be promoted to a CRM client."
+            )
+
         if candidate.client_type not in (
             "company",
             "person",
@@ -322,16 +359,20 @@ class ClientCandidatePromotionService:
 
         if (
             not candidate.country_code
-            or len(
-                candidate.country_code.strip()
-            )
-            != 2
+            or len(candidate.country_code.strip()) != 2
         ):
             raise CandidatePromotionError(
                 "Candidate "
                 f"{candidate.id} has invalid "
-                f"country_code "
-                f"{candidate.country_code!r}."
+                f"country_code {candidate.country_code!r}."
+            )
+
+    @staticmethod
+    def _validate_projection_status(status: str) -> None:
+        if status in {"relay_container", "first_party_internal"}:
+            raise CandidatePromotionError(
+                "Candidate projection is a first-party or relay "
+                "transport identity and cannot be promoted."
             )
 
     @staticmethod

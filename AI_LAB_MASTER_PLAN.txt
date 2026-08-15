@@ -4863,4 +4863,87 @@ Funkcja nie została zaimplementowana w CHUNK 5.
 END CHECKPOINT 2026-08-15 — CLIENT 360 EMAIL HISTORY
 ================================================================================
 
+===============================================================================
+CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
+===============================================================================
+
+STATUS: DRY-RUN DONE / PRODUCTION CLEANUP NOT APPLIED / HUMAN GATE.
+
+[✓] Aktywni klienci: 3194.
+[✓] EMAIL_AS_NAME: 463.
+[✓] PHONE_AS_NAME: 284.
+[✓] FILE_AS_NAME: 1.
+[✓] Overlap: 0; unikalny union suspicious client_id: 748.
+[✓] Additional quality findings poza apply scope: URL_AS_NAME 3.
+[✓] Wszystkie 748 mają aktywny matched candidate; 18 ma wielu kandydatów.
+[✓] Semantycznie powiązane statusy w danych: accepted 748, merged 18.
+[✓] Projection wykonano per candidate przez existing Client Entity Projection
+    Policy/Semantic Service 1.4.6, GmailMessageBoundaryService oraz
+    FirstPartyIdentityRegistry.
+[✓] Client.notes i transcript prezentacyjny nie są identity source.
+[✓] Dry-run wyłącza candidate_name_entity, person fallback z candidate.name i
+    base_fallback. Podejrzana nazwa nie może potwierdzić sama siebie.
+[✓] Consensus zachowuje projekcje per candidate; rozbieżne normalized identity
+    są konfliktem, a first-party/relay nie są customer identity.
+[✓] Duplicate risk używa normalized name/legal_name oraz tax/email/phone z
+    klienta i source-backed proposal; sama zgodność nazwy daje tylko POSSIBLE.
+
+ACTION SUMMARY:
+
+- SAFE_RENAME_CANDIDATE: 8,
+- REVIEW_REQUIRED: 1,
+- INSUFFICIENT_EVIDENCE: 738,
+- POTENTIAL_DUPLICATE_OR_MERGE: 1,
+- FIRST_PARTY_OR_RELAY_REVIEW: 0,
+- NO_CHANGE: 0.
+
+EVIDENCE / TYPE / DUPLICATES:
+
+- Gmail-backed: 6,
+- Sheets-backed: 4,
+- both: 0,
+- no reliable identity evidence: 738,
+- proposed client_type changes: 10,
+- duplicate POSSIBLE: 1,
+- duplicate STRONG: 1.
+
+FUTURE REGRESSION PROTECTION:
+
+- Candidate promotion odrzuca email/phone/filename jako Client.name.
+- First-party internal i relay-container projection nie mogą zostać klientem.
+- Prawidłowe person/company oraz normalny promotion nadal działają.
+- Historyczne źródła problemu: import fallback data.name → legal_name → email →
+  website → phone → placeholder oraz dawny gmail_candidate_repair name=email.
+- Surowy candidate może pozostać do review, ale suspicious identity nie jest już
+  kopiowana do nowego Client przez promotion boundary.
+
+REPORTS (LOCAL / IGNORED / NOT COMMITTED):
+
+- backend/test/reports/client_identity_cleanup_dry_run.jsonl,
+- backend/test/reports/client_identity_cleanup_summary.json,
+- backend/test/reports/client_identity_cleanup_summary.txt.
+
+Raport nie zawiera raw_payload, body maili, sekretów ani tokenów.
+Transakcja generatora ma PostgreSQL READ ONLY. PRODUCTION WRITES: 0.
+DATA IMPACT: DRY-RUN ONLY. MIGRATIONS: NONE. API CONTRACT: UNCHANGED.
+
+QUALITY DEBT:
+
+- 20 Gmail attachment documents bez client_id/candidate_id pozostaje do
+  przyszłego CHUNK 8 matching workspace; w CHUNK 6 nie wykonano przypisań.
+- Notes cleanup pozostaje osobnym human-gated etapem (809/809 coverage z
+  CHUNK 5); notes nie zostały zmienione.
+- PRE-RELEASE ADMIN USER LIFECYCLE pozostaje TODO / MANDATORY BEFORE NEXT
+  NATIVE RELEASE i nie został zaimplementowany.
+
+HUMAN GATE:
+
+PRODUCTION IDENTITY CLEANUP: NOT APPLIED.
+CHUNK 6B może powstać wyłącznie po jawnej akceptacji pełnego dry-run report.
+CHUNK 7 pozostaje nierozpoczęty.
+
+===============================================================================
+END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
+===============================================================================
+
 KONIEC MASTER PLAN

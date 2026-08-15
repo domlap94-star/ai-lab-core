@@ -8,7 +8,11 @@ from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.services.client_candidate_promotion_service import (
+    CandidatePromotionError,
     ClientCandidatePromotionService,
+)
+from app.services.client_entity_projection_policy_service import (
+    ClientEntityProjectionPolicyService,
 )
 
 
@@ -33,8 +37,17 @@ def main() -> None:
         )
 
         candidate = None
+        policy = ClientEntityProjectionPolicyService(db)
 
         for candidate_item in candidates:
+            try:
+                service._validate_candidate(candidate_item)
+                service._validate_projection_status(
+                    policy.project(candidate_item).status
+                )
+            except CandidatePromotionError:
+                continue
+
             existing_client, matched_by = (
                 service.find_existing_client(
                     candidate_item

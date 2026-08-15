@@ -71,3 +71,8 @@ release-channel/**/*.zip
 operations/gateway/gateway.js
 frontend/ios/
 frontend/macos/
+
+# Local client identity cleanup dry-run reports (contain CRM data)
+backend/test/reports/client_identity_cleanup_dry_run.jsonl
+backend/test/reports/client_identity_cleanup_summary.json
+backend/test/reports/client_identity_cleanup_summary.txt

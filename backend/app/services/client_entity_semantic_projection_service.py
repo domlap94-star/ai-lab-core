@@ -338,9 +338,14 @@ class ClientEntitySemanticProjectionService:
     def project(
         self,
         candidate: ClientCandidate,
+        *,
+        include_candidate_name_evidence: bool = True,
     ) -> ClientEntitySemanticProjection:
         base = self.base_service.project(
-            candidate
+            candidate,
+            include_candidate_name_evidence=(
+                include_candidate_name_evidence
+            ),
         )
 
         result = ClientEntitySemanticProjection(
@@ -409,8 +414,10 @@ class ClientEntitySemanticProjectionService:
                     unit_candidates=unit_candidates,
                 )
 
-        base_entity = self._sanitize_base_entity(
-            base.entity_name
+        base_entity = (
+            self._sanitize_base_entity(base.entity_name)
+            if include_candidate_name_evidence
+            else ""
         )
 
         if base_entity:
@@ -457,6 +464,17 @@ class ClientEntitySemanticProjectionService:
             # has stronger evidence.
             result.entity_name = contacts[0].name
             result.entity_type = "person"
+
+            for source_id in contacts[0].source_ids:
+                entity_candidates.append(
+                    SemanticEntityEvidence(
+                        name=contacts[0].name,
+                        entity_type="person",
+                        method="person_contact_fallback",
+                        source_id=source_id,
+                        confidence=contacts[0].confidence,
+                    )
+                )
 
         result.entity_evidence = (
             sorted(

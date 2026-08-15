@@ -59,10 +59,15 @@ class ClientEntityProjectionPolicyService:
     def project(
         self,
         candidate: ClientCandidate,
+        *,
+        include_candidate_name_evidence: bool = True,
     ) -> ClientEntityProjection:
         projection = (
             self.projection_service.project(
-                candidate
+                candidate,
+                include_candidate_name_evidence=(
+                    include_candidate_name_evidence
+                ),
             )
         )
 

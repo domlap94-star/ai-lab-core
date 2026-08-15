@@ -3,6 +3,8 @@ from __future__ import annotations
 import unicodedata
 from collections import Counter
 
+from sqlalchemy import or_
+
 from app.database.session import SessionLocal
 from app.models.client_candidate import ClientCandidate
 from app.services.client_entity_projection_policy_service import (
@@ -105,7 +107,10 @@ def main():
             db.query(ClientCandidate)
             .filter(
                 ClientCandidate.deleted_at.is_(None),
-                ClientCandidate.status == "pending",
+                or_(
+                    ClientCandidate.status == "pending",
+                    ClientCandidate.id.in_(CONTROL_IDS),
+                ),
             )
             .order_by(
                 ClientCandidate.id.asc()

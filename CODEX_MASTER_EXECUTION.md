@@ -219,13 +219,30 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 - Publiczny Email API contract, CHUNK 5 DONE i Client.notes pozostają bez zmian.
 - Commit: `Harden client email attachment scope`.
 
-### 6. Client identity quality dry-run — TODO
+### 6. Client identity quality dry-run — DONE
 
-- Cel: odzyskać tożsamość bez automatycznego zgadywania. Zależności: 5.
-- Zakres: read-only projection dla 463/284/1, provenance-ranked old→new,
-  confidence/conflicts i reguły zapobiegające regresji. Migracje: brak.
-- Ryzyko/dane: DRY-RUN, późniejszy apply ma HUMAN GATE.
-- Acceptance: pełny raport i zero writes; testy regresji promotion/import.
+- Baseline read-only: 3194 aktywnych klientów; email-as-name 463,
+  phone-as-name 284, file-as-name 1, overlap 0, unikalny union 748.
+- Linkage: 748/748 ma co najmniej jednego aktywnego, semantycznie powiązanego
+  kandydata; 18 ma wielu kandydatów (accepted/merged).
+- Existing Client Entity Projection 1.4.6 jest wykonywany osobno per candidate.
+  Dry-run jawnie wyłącza candidate_name_entity, candidate-name person fallback
+  i base_fallback, więc podejrzana wartość nie jest własnym dowodem.
+- Wynik: SAFE_RENAME_CANDIDATE 8, REVIEW_REQUIRED 1,
+  INSUFFICIENT_EVIDENCE 738, POTENTIAL_DUPLICATE_OR_MERGE 1,
+  FIRST_PARTY_OR_RELAY_REVIEW 0, NO_CHANGE 0.
+- Evidence: Gmail-backed 6, Sheets-backed 4, both 0; 738 bez wiarygodnego
+  source-backed identity. Proposed client_type zmienia się w 10 dry-runach.
+- Duplicate risk: POSSIBLE 1, STRONG 1. STRONG nigdy nie jest SAFE i wymaga
+  osobnego merge gate.
+- Future promotion hardening blokuje email/phone/filename jako Client.name oraz
+  first-party/relay projection; prawidłowe person/company i zwykły promotion
+  nadal działają. Import może zachować surowy candidate do review, ale nie może
+  już wypromować podejrzanej nazwy do klienta.
+- Lokalne raporty JSONL/JSON/TXT są ignorowane i nie są commitowane. Raport nie
+  zawiera raw_payload, całych body, sekretów ani tokenów.
+- Dane: DRY-RUN ONLY, production writes 0. Migracje: brak. API: bez zmian.
+- PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE.
 - Commit: `Add client identity cleanup dry run`.
 
 ### 7. Contact and address model — TODO
@@ -240,6 +257,8 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 
 - Cel: rozstrzygnąć 99 unmatched i 161 candidate-only. Zależności: 2–4.
 - Zakres: suggestions/confidence, manual link/unlink/move, audit trail, UI.
+- Quality debt: osobno rozstrzygnąć 20 Gmail attachment documents bez
+  client_id/candidate_id wykrytych w MICRO-FIX 5A; CHUNK 6 nie przypisuje ich.
 - Migracje: audit model prawdopodobny. Ryzyko: błędne przypisanie. Dane: jawne
   pojedyncze mutacje; medium confidence wymaga approval.
 - Acceptance: każda zmiana audytowalna i odwracalna. Commit: `Add document matching workspace`.
