@@ -76,3 +76,4 @@ frontend/macos/
 backend/test/reports/client_identity_cleanup_dry_run.jsonl
 backend/test/reports/client_identity_cleanup_summary.json
 backend/test/reports/client_identity_cleanup_summary.txt
+backend/test/reports/client_identity_cleanup_human_review.json

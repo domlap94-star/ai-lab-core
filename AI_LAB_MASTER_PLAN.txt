@@ -4942,6 +4942,33 @@ PRODUCTION IDENTITY CLEANUP: NOT APPLIED.
 CHUNK 6B może powstać wyłącznie po jawnej akceptacji pełnego dry-run report.
 CHUNK 7 pozostaje nierozpoczęty.
 
+MICRO-FIX 6A — IDENTITY EVIDENCE ATTRIBUTION:
+
+[✓] General projection/contact evidence oddzielono od
+    identity_support_evidence wspierającego dokładnie proposed_name.
+[✓] Zgodność jest exact po deterministic normalization; substring nie wspiera
+    identity.
+[✓] Proposal confidence i ranking candidate consensus używają wyłącznie
+    identity-specific confidence.
+[✓] Kontakt 0.95 nie może uczynić SAFE organizacji mającej identity evidence
+    0.88; dokładny person_contact_fallback 0.95 pozostaje prawidłowym support.
+[✓] Wszystkie SAFE wymagają identity support >= 0.90, duplicate risk NONE,
+    braku conflict oraz przejścia first-party/relay/name-quality gates.
+[✓] Real-data AFTER: SAFE 8, REVIEW 1, INSUFFICIENT 738,
+    POTENTIAL_DUPLICATE_OR_MERGE 1; wszystkie 8 SAFE ma strong support dla
+    dokładnie proponowanej identity.
+[✓] Lokalny human-review bundle zawiera wszystkie 10 actionable records oraz
+    osobno identity support i other evidence; brak raw payload/body/secrets.
+[✓] Insufficient diagnostics: Gmail 370, Sheets 393, oba 25, quoted boundary
+    127, self-only 738; 326 klientów / 1015 dokumentów do przyszłego audytu
+    metadata/OCR, bez wdrażania heurystyk.
+[✓] DATA IMPACT: DRY-RUN ONLY; PRODUCTION WRITES 0; MIGRATIONS NONE;
+    API CONTRACT UNCHANGED.
+
+CHUNK 6: DRY-RUN DONE.
+PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
+CHUNK 6B, CHUNK 7 i ADMIN USER LIFECYCLE nie zostały rozpoczęte.
+
 ===============================================================================
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================

@@ -4,11 +4,13 @@ from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
+from app.models.document import Document
 from app.services.client_entity_semantic_projection_service import (
     ClientEntitySemanticProjectionService,
 )
@@ -53,8 +55,11 @@ class CandidateCleanupProjection:
     tax_id: str | None
     status: str
     reason: str
-    confidence: float
+    identity_confidence: float
     evidence: list[CleanupEvidence] = field(default_factory=list)
+    identity_support_evidence: list[CleanupEvidence] = field(default_factory=list)
+    gmail_quoted_boundaries: int = 0
+    gmail_relay_messages: int = 0
 
 
 @dataclass
@@ -63,6 +68,8 @@ class ClientIdentityCleanupProposal:
     suspicion_types: list[str]
     current_name: str
     current_client_type: str
+    primary_email: str | None
+    primary_phone: str | None
     proposed_name: str | None
     proposed_client_type: str | None
     legal_name: str | None
@@ -74,7 +81,9 @@ class ClientIdentityCleanupProposal:
     candidate_ids: list[int]
     conflicts: list[str]
     evidence: list[CleanupEvidence]
+    identity_support_evidence: list[CleanupEvidence]
     candidate_projections: list[CandidateCleanupProjection]
+    diagnostics: dict[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -122,6 +131,7 @@ class ClientIdentityCleanupDryRunService:
             candidates_by_client[candidate.matched_client_id].append(candidate)
 
         source_ids_by_candidate = self._source_types_by_candidate(candidates)
+        document_counts = self._document_counts_by_candidate(candidates)
         indexes = self._build_duplicate_indexes(clients)
 
         proposals = [
@@ -129,6 +139,7 @@ class ClientIdentityCleanupDryRunService:
                 client=client,
                 candidates=candidates_by_client.get(client.id, []),
                 source_types=source_ids_by_candidate,
+                document_counts=document_counts,
                 duplicate_indexes=indexes,
             )
             for client in suspicious
@@ -142,6 +153,7 @@ class ClientIdentityCleanupDryRunService:
         client: Client,
         candidates: list[ClientCandidate],
         source_types: dict[int, dict[int, str]],
+        document_counts: dict[int, int],
         duplicate_indexes: dict[str, dict[str, set[int]]],
     ) -> ClientIdentityCleanupProposal:
         projections = [
@@ -175,19 +187,30 @@ class ClientIdentityCleanupDryRunService:
                 grouped.values(),
                 key=lambda group: (
                     -len(group),
-                    -max(item.confidence for item in group),
+                    -max(item.identity_confidence for item in group),
                     self.quality.normalize_identity(group[0].proposed_name),
                 ),
             )
             winning = sorted(
                 ranked_groups[0],
-                key=lambda item: (-item.confidence, item.candidate_id),
+                key=lambda item: (-item.identity_confidence, item.candidate_id),
             )[0]
+            winning_group = ranked_groups[0]
+        else:
+            winning_group = []
 
         proposed_name = winning.proposed_name if winning else None
         proposed_type = winning.proposed_client_type if winning else None
         legal_name = winning.legal_name if winning else None
-        confidence = winning.confidence if winning else 0.0
+        identity_support_evidence = self._dedupe_evidence(
+            evidence
+            for projection in winning_group
+            for evidence in projection.identity_support_evidence
+        )
+        confidence = max(
+            (item.confidence for item in identity_support_evidence),
+            default=0.0,
+        )
         all_evidence = self._dedupe_evidence(
             item for projection in projections for item in projection.evidence
         )
@@ -213,7 +236,7 @@ class ClientIdentityCleanupDryRunService:
                 "candidate_name_entity",
                 "candidate_name_combined_entity_contact",
             }
-            for evidence in winning.evidence
+            for evidence in identity_support_evidence
         )
 
         if boundary_only:
@@ -246,11 +269,23 @@ class ClientIdentityCleanupDryRunService:
                 "deterministic duplicate risk."
             )
 
+        diagnostics = self._build_diagnostics(
+            candidates=candidates,
+            projections=projections,
+            source_types=source_types,
+            document_counts=document_counts,
+            action=action,
+            identity_support_evidence=identity_support_evidence,
+            conflicts=conflicts,
+        )
+
         return ClientIdentityCleanupProposal(
             client_id=client.id,
             suspicion_types=list(self.quality.suspicion_types(client.name)),
             current_name=client.name,
             current_client_type=client.client_type,
+            primary_email=client.primary_email,
+            primary_phone=client.primary_phone,
             proposed_name=proposed_name,
             proposed_client_type=proposed_type,
             legal_name=legal_name,
@@ -262,7 +297,9 @@ class ClientIdentityCleanupDryRunService:
             candidate_ids=[candidate.id for candidate in candidates],
             conflicts=conflicts,
             evidence=all_evidence,
+            identity_support_evidence=identity_support_evidence,
             candidate_projections=projections,
+            diagnostics=diagnostics,
         )
 
     def _project_candidate(
@@ -304,7 +341,15 @@ class ClientIdentityCleanupDryRunService:
                 )
 
         evidence = self._dedupe_evidence(evidence)
-        confidence = max((item.confidence for item in evidence), default=0.0)
+        identity_support = self._identity_support_evidence(
+            projection.entity_name,
+            evidence,
+        )
+        identity_confidence = max(
+            (item.confidence for item in identity_support),
+            default=0.0,
+        )
+        base_projection = projection.base_projection
 
         return CandidateCleanupProjection(
             candidate_id=candidate.id,
@@ -318,8 +363,19 @@ class ClientIdentityCleanupDryRunService:
             tax_id=projection.tax_id,
             status=projection.status,
             reason=projection.reason,
-            confidence=round(confidence, 4),
+            identity_confidence=round(identity_confidence, 4),
             evidence=evidence,
+            identity_support_evidence=identity_support,
+            gmail_quoted_boundaries=(
+                base_projection.gmail_quoted_boundaries
+                if base_projection is not None
+                else 0
+            ),
+            gmail_relay_messages=(
+                base_projection.gmail_relay_messages
+                if base_projection is not None
+                else 0
+            ),
         )
 
     def _duplicate_risk(
@@ -411,6 +467,108 @@ class ClientIdentityCleanupDryRunService:
             result[source.candidate_id][source.id] = source.source_type
         return result
 
+    def _document_counts_by_candidate(
+        self,
+        candidates: list[ClientCandidate],
+    ) -> dict[int, int]:
+        candidate_ids = [candidate.id for candidate in candidates]
+        if not candidate_ids:
+            return {}
+        rows = (
+            self.db.query(Document.candidate_id, func.count(Document.id))
+            .filter(Document.candidate_id.in_(candidate_ids))
+            .group_by(Document.candidate_id)
+            .all()
+        )
+        return {candidate_id: count for candidate_id, count in rows}
+
+    def _build_diagnostics(
+        self,
+        *,
+        candidates: list[ClientCandidate],
+        projections: list[CandidateCleanupProjection],
+        source_types: dict[int, dict[int, str]],
+        document_counts: dict[int, int],
+        action: str,
+        identity_support_evidence: list[CleanupEvidence],
+        conflicts: list[str],
+    ) -> dict[str, Any]:
+        candidate_ids = [candidate.id for candidate in candidates]
+        all_source_types = [
+            source_type
+            for candidate_id in candidate_ids
+            for source_type in source_types.get(candidate_id, {}).values()
+        ]
+        source_type_set = set(all_source_types)
+        has_gmail = "gmail_message" in source_type_set
+        has_sheets = "google_sheets_row" in source_type_set
+        all_evidence = [
+            evidence
+            for projection in projections
+            for evidence in projection.evidence
+        ]
+        reasons: list[str] = []
+
+        if action == "INSUFFICIENT_EVIDENCE":
+            if not all_source_types:
+                reasons.append("no_candidate_source")
+            if has_gmail:
+                reasons.append("gmail_sources_no_usable_identity_evidence")
+            if has_sheets:
+                reasons.append("sheets_sources_no_usable_identity_evidence")
+            if has_gmail and has_sheets:
+                reasons.append("gmail_and_sheets_no_usable_identity_evidence")
+            if not all_evidence and any(candidate.name.strip() for candidate in candidates):
+                reasons.append("only_candidate_self_identity_existed")
+            if any(
+                projection.status == "first_party_internal"
+                for projection in projections
+            ):
+                reasons.append("rejected_by_first_party_policy")
+            if any(
+                projection.status == "relay_container"
+                or projection.gmail_relay_messages > 0
+                for projection in projections
+            ):
+                reasons.append("rejected_as_relay")
+            if any(
+                projection.gmail_quoted_boundaries > 0
+                for projection in projections
+            ):
+                reasons.append("quoted_history_excluded_by_boundary")
+            if all_evidence and (
+                not identity_support_evidence
+                or max(
+                    evidence.confidence
+                    for evidence in identity_support_evidence
+                )
+                < 0.90
+            ):
+                reasons.append("weak_or_unrelated_evidence")
+            if conflicts:
+                reasons.append("ambiguous_or_conflicting_identity")
+            if not reasons:
+                reasons.append("other_deterministic_no_identity")
+
+        return {
+            "source_types": sorted(source_type_set),
+            "source_count": len(all_source_types),
+            "has_gmail_source": has_gmail,
+            "has_sheets_source": has_sheets,
+            "candidate_has_primary_email": any(
+                bool(candidate.primary_email) for candidate in candidates
+            ),
+            "candidate_has_primary_phone": any(
+                bool(candidate.primary_phone) for candidate in candidates
+            ),
+            "candidate_has_tax_id": any(bool(candidate.tax_id) for candidate in candidates),
+            "document_count": sum(
+                document_counts.get(candidate_id, 0)
+                for candidate_id in candidate_ids
+            ),
+            "why_insufficient": reasons,
+        }
+
     def _build_summary(
         self,
         clients: list[Client],
@@ -426,13 +584,27 @@ class ClientIdentityCleanupDryRunService:
         )
         actions = Counter(proposal.action for proposal in proposals)
         evidence_sets = [
-            {evidence.source_type for evidence in proposal.evidence}
+            {
+                evidence.source_type
+                for evidence in proposal.identity_support_evidence
+            }
             for proposal in proposals
         ]
         additional = Counter(
             finding
             for client in clients
             for finding in self.quality.additional_findings(client.name)
+        )
+
+        insufficient = [
+            proposal
+            for proposal in proposals
+            if proposal.action == "INSUFFICIENT_EVIDENCE"
+        ]
+        reason_counts = Counter(
+            reason
+            for proposal in insufficient
+            for reason in proposal.diagnostics["why_insufficient"]
         )
 
         return {
@@ -473,7 +645,92 @@ class ClientIdentityCleanupDryRunService:
                 "possible": sum(p.duplicate_risk == "POSSIBLE" for p in proposals),
                 "strong": sum(p.duplicate_risk == "STRONG" for p in proposals),
             },
+            "insufficient_diagnostics": {
+                "categories_overlap": True,
+                "no_candidate_source": reason_counts["no_candidate_source"],
+                "gmail_no_usable_identity": reason_counts[
+                    "gmail_sources_no_usable_identity_evidence"
+                ],
+                "sheets_no_usable_identity": reason_counts[
+                    "sheets_sources_no_usable_identity_evidence"
+                ],
+                "both_no_usable_identity": reason_counts[
+                    "gmail_and_sheets_no_usable_identity_evidence"
+                ],
+                "only_candidate_self_identity": reason_counts[
+                    "only_candidate_self_identity_existed"
+                ],
+                "rejected_first_party": reason_counts[
+                    "rejected_by_first_party_policy"
+                ],
+                "rejected_relay": reason_counts["rejected_as_relay"],
+                "quoted_history_excluded": reason_counts[
+                    "quoted_history_excluded_by_boundary"
+                ],
+                "weak_or_unrelated_evidence": reason_counts[
+                    "weak_or_unrelated_evidence"
+                ],
+                "ambiguous_or_conflicting": reason_counts[
+                    "ambiguous_or_conflicting_identity"
+                ],
+                "other_deterministic_reason": reason_counts[
+                    "other_deterministic_no_identity"
+                ],
+                "candidate_has_primary_email": sum(
+                    p.diagnostics["candidate_has_primary_email"]
+                    for p in insufficient
+                ),
+                "candidate_has_primary_phone": sum(
+                    p.diagnostics["candidate_has_primary_phone"]
+                    for p in insufficient
+                ),
+                "candidate_has_tax_id": sum(
+                    p.diagnostics["candidate_has_tax_id"]
+                    for p in insufficient
+                ),
+                "candidate_has_documents": sum(
+                    p.diagnostics["document_count"] > 0
+                    for p in insufficient
+                ),
+                "documents_total": sum(
+                    p.diagnostics["document_count"]
+                    for p in insufficient
+                ),
+            },
+            "future_evidence_opportunities": {
+                "gmail_header_or_display_name_review": sum(
+                    p.diagnostics["has_gmail_source"] for p in insufficient
+                ),
+                "sheets_structure_review": sum(
+                    p.diagnostics["has_sheets_source"] for p in insufficient
+                ),
+                "document_metadata_or_ocr_review": sum(
+                    p.diagnostics["document_count"] > 0
+                    for p in insufficient
+                ),
+                "contact_or_address_model_review": sum(
+                    p.diagnostics["candidate_has_primary_email"]
+                    or p.diagnostics["candidate_has_primary_phone"]
+                    for p in insufficient
+                ),
+                "manual_review": len(insufficient),
+            },
         }
+
+    def _identity_support_evidence(
+        self,
+        proposed_name: str | None,
+        evidence: list[CleanupEvidence],
+    ) -> list[CleanupEvidence]:
+        normalized_proposed = self.quality.normalize_identity(proposed_name)
+        if not normalized_proposed:
+            return []
+        return self._dedupe_evidence(
+            item
+            for item in evidence
+            if self.quality.normalize_identity(item.value)
+            == normalized_proposed
+        )
 
     @staticmethod
     def _dedupe_evidence(items) -> list[CleanupEvidence]:

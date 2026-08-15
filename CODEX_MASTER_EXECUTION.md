@@ -245,6 +245,29 @@ Status: MANDATORY BEFORE NEXT NATIVE RELEASE.
 - PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE.
 - Commit: `Add client identity cleanup dry run`.
 
+### 6A. Identity evidence attribution + human review bundle — DONE
+
+- `identity_support_evidence` jest oddzielone od ogólnego projection/contact
+  evidence i wymaga dokładnej zgodności normalized evidence.value z
+  proposed_name; substring matching jest zabroniony.
+- Proposal confidence i ranking candidate groups używają wyłącznie
+  identity-specific confidence. Silny evidence osoby kontaktowej nie podnosi
+  confidence innej proponowanej organizacji.
+- SAFE wymaga jawnego identity support >= 0.90, braku conflict, duplicate risk
+  NONE oraz przejścia first-party/relay/name-quality policy.
+- Krytyczna regresja: organizacja 0.88 + niezwiązany kontakt 0.95 pozostaje
+  REVIEW; dokładny person_contact_fallback 0.95 może być SAFE.
+- Real-data wynik nie zmienił się: SAFE 8, REVIEW 1, INSUFFICIENT 738,
+  POTENTIAL_DUPLICATE_OR_MERGE 1. Wszystkie 8 SAFE ma dokładny strong identity
+  support; actionable human-review bundle zawiera 10 rekordów.
+- Diagnostyka insufficient jest overlap-aware: Gmail 370, Sheets 393, oba 25,
+  quoted boundary 127, candidate-self-only 738; 326 klientów ma łącznie 1015
+  dokumentów mogących stanowić przyszły, osobno walidowany evidence source.
+- Raporty JSONL/summary/TXT/human-review są lokalne, ignorowane i niecommitowane.
+  Dane: DRY-RUN ONLY, production writes 0. Migracje/API: brak zmian.
+- PRODUCTION IDENTITY CLEANUP: NOT APPLIED / HUMAN GATE STILL CLOSED.
+- Commit: `Bind cleanup confidence to identity evidence`.
+
 ### 7. Contact and address model — TODO
 
 - Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.
