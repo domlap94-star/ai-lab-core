@@ -4,10 +4,22 @@ import json
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.schemas.client_reconstruction import ClientReconstructionProposal
 from app.services.openai_client_reconstruction_service import SYSTEM_INSTRUCTION
+
+
+class LocalOllamaStructuredOutputError(ValueError):
+    """Preserves a private malformed response for durable calibration diagnostics."""
+
+    def __init__(self, *, raw_content: str, usage: dict[str, int | float],
+                 validation_error: ValidationError) -> None:
+        super().__init__("Ollama structured output validation failed")
+        self.raw_content = raw_content
+        self.usage = usage
+        self.validation_error = str(validation_error)
 
 
 class LocalOllamaClientReconstructionService:
@@ -48,11 +60,10 @@ class LocalOllamaClientReconstructionService:
         response.raise_for_status()
         body = response.json()
         content = str((body.get("message") or {}).get("content") or "")
-        proposal = ClientReconstructionProposal.model_validate_json(content)
         prompt_count = int(body.get("prompt_eval_count") or 0)
         eval_count = int(body.get("eval_count") or 0)
         eval_duration = int(body.get("eval_duration") or 0)
-        return proposal, {
+        usage = {
             "input_tokens": prompt_count,
             "output_tokens": eval_count,
             "load_duration_ns": int(body.get("load_duration") or 0),
@@ -64,3 +75,10 @@ class LocalOllamaClientReconstructionService:
                 if eval_duration else 0.0
             ),
         }
+        try:
+            proposal = ClientReconstructionProposal.model_validate_json(content)
+        except ValidationError as error:
+            raise LocalOllamaStructuredOutputError(
+                raw_content=content, usage=usage, validation_error=error,
+            ) from error
+        return proposal, usage

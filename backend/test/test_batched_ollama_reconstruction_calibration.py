@@ -11,6 +11,7 @@ from run_batched_ollama_reconstruction_calibration import (
     selected_records,
     should_reset_memory,
     update_checkpoint,
+    unload_model,
     validate_checkpoint,
 )
 
@@ -109,6 +110,40 @@ def verify_one_attempt_failure_persistence_contract() -> None:
     assert "atomic_json(checkpoint_path, checkpoint)" in source
 
 
+def verify_unload_timeout_is_180_seconds_and_fail_closed() -> None:
+    import inspect
+    import run_batched_ollama_reconstruction_calibration as module
+
+    assert inspect.signature(unload_model).parameters["timeout_seconds"].default == 180
+    original_state = module.read_ollama_state
+    original_post = module.httpx.post
+    original_monotonic = module.time.monotonic
+    original_sleep = module.time.sleep
+    ticks = iter((0.0, 181.0))
+
+    class Response:
+        def raise_for_status(self): pass
+
+    module.read_ollama_state = lambda base_url: {
+        "resident_models": ["qwen3.5:9b"], "ollama_model_bytes": 1,
+    }
+    module.httpx.post = lambda *args, **kwargs: Response()
+    module.time.monotonic = lambda: next(ticks)
+    module.time.sleep = lambda seconds: None
+    try:
+        try:
+            unload_model("qwen3.5:9b")
+        except RuntimeError as error:
+            assert "did not unload" in str(error)
+        else:
+            raise AssertionError("unconfirmed unload was accepted")
+    finally:
+        module.read_ollama_state = original_state
+        module.httpx.post = original_post
+        module.time.monotonic = original_monotonic
+        module.time.sleep = original_sleep
+
+
 if __name__ == "__main__":
     verify_first_batch_selection()
     verify_atomic_checkpoint_and_resume_skip()
@@ -117,4 +152,5 @@ if __name__ == "__main__":
     verify_no_apply_path_and_read_only_contract()
     verify_final_unload_and_zero_call_resume_contract()
     verify_one_attempt_failure_persistence_contract()
+    verify_unload_timeout_is_180_seconds_and_fail_closed()
     print("BATCHED OLLAMA RECONSTRUCTION CALIBRATION TESTS: OK")

@@ -251,8 +251,12 @@ def run_batch(*, model: str, batch_size: int, start_offset: int,
             except Exception as error:
                 failed = True
                 row.update({"status": "failed", "error_type": type(error).__name__,
-                            "error": str(error)[:500], "proposal": None,
-                            "policy": None, "usage": {}})
+                            "error": getattr(error, "validation_error", str(error))[:2000],
+                            "proposal": None, "policy": None,
+                            "usage": getattr(error, "usage", {})})
+                if hasattr(error, "raw_content"):
+                    # This report is private/ignored; never emit the content to logs.
+                    row["raw_response"] = error.raw_content
             row["latency_seconds"] = time.perf_counter() - started_record
             after = telemetry_reader(evaluator.base_url)
             row["telemetry"] = {"before": before, "after": after}
