@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
@@ -14,6 +15,65 @@ class DocumentsApi {
   final Dio _dio;
 
   static const String _path = '/api/v1/documents';
+
+  Future<void> uploadUserDocument({
+    required String accessToken,
+    required String tokenType,
+    required String name,
+    String? path,
+    Uint8List? bytes,
+    int? clientId,
+    String origin = 'manual_upload',
+    DateTime? capturedAt,
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+    String? deviceModel,
+    String? comment,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    if (path == null && bytes == null) {
+      throw ArgumentError('Upload requires a path or bytes.');
+    }
+    final file = path != null
+        ? await MultipartFile.fromFile(path, filename: name)
+        : MultipartFile.fromBytes(bytes!, filename: name);
+    final sourceType = origin == 'camera_capture'
+        ? 'camera_photo'
+        : 'manual_upload';
+    final fields = <String, dynamic>{
+      'file': file,
+      'source_type': sourceType,
+      'intake_metadata': jsonEncode(<String, dynamic>{
+        'origin': origin,
+        'platform': 'flutter',
+        'device_model': ?deviceModel,
+        'user_comment': ?(comment != null && comment.trim().isNotEmpty
+            ? comment.trim()
+            : null),
+      }),
+    };
+    if (clientId != null) fields['client_id'] = clientId;
+    if (capturedAt != null) {
+      fields['captured_at'] = capturedAt.toUtc().toIso8601String();
+    }
+    if (latitude != null) {
+      fields['latitude'] = latitude;
+      fields['location_source'] = 'device_gps';
+    }
+    if (longitude != null) fields['longitude'] = longitude;
+    if (accuracy != null) fields['location_accuracy_m'] = accuracy;
+    final form = FormData.fromMap(fields);
+    await _dio.post<Map<String, dynamic>>(
+      '$_path/user-upload',
+      data: form,
+      options: Options(
+        headers: _headers(accessToken, tokenType),
+        sendTimeout: const Duration(minutes: 5),
+      ),
+      onSendProgress: onProgress,
+    );
+  }
 
   Future<DocumentPageResponse> fetchDocuments({
     required String accessToken,

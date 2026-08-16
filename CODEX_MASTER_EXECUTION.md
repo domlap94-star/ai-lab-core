@@ -461,15 +461,22 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Backend matching/audit/undo suite, required regressions, Flutter analyze and
   full 56-test suite PASS. Synthetic link/move/unlink/undo was rolled back;
   production durable test writes 0 and audit rows remained 0.
-- CHUNK 8: DONE. CHUNK 7B: NOT STARTED. CHUNK 9: NOT STARTED.
+- CHUNK 8: DONE. CHUNK 7B: NOT STARTED.
 
-### 9. Upload, photos, mobile field data — TODO
+### 9. Upload, photos, mobile field data — DONE
 
 - Cel: bezpieczny terenowy intake. Zależności: 2, 7–8.
 - Zakres: user-auth upload/multi/camera, captured/GPS/accuracy/link/session UI.
-- Migracje: możliwe dla sesji/metadata. Ryzyko: privacy, rozmiar, offline retry.
-- Dane: jawne uploady użytkownika. Acceptance: Android capture/upload i
-  idempotent retry. Commit: `Add mobile field document capture`.
+- Implemented shared JWT per-file intake with optional Client linkage, bounded
+  JSON provenance, 250 MB limit, checksum dedupe and existing processing/EXIF
+  pipeline. Import API-key upload remains unchanged.
+- Flutter supports multi-file partial success, gallery, Android-only camera,
+  optional foreground GPS (denial does not block upload), per-file progress and
+  retry in Client 360 and global Documents. Original bytes are preserved.
+- Existing nullable inspection session and metadata JSON provide additive
+  future linkage without fake Project/Inspection foreign keys. No migration,
+  AI image analysis or offline synchronization was added.
+- Backend intake/regression tests, Flutter analyze and full 57-test suite PASS.
 
 ### 10. Projects / realizations / inspections / timeline — TODO
 

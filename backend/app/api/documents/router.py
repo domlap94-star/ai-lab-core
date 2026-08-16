@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 
 from fastapi import (
     APIRouter,
@@ -55,6 +56,81 @@ router = APIRouter(
     prefix="/documents",
     tags=["Documents"],
 )
+
+MAX_USER_UPLOAD_BYTES = 250 * 1024 * 1024
+
+
+def _parse_intake_metadata(value: str | None) -> dict[str, object]:
+    if value is None or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise HTTPException(status_code=422, detail="Invalid intake metadata JSON") from error
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=422, detail="Intake metadata must be an object")
+    allowed = {"origin", "device_model", "platform", "orientation", "user_comment", "project_id", "realization_id"}
+    return {key: parsed[key] for key in allowed if key in parsed}
+
+
+@router.post("/user-upload", response_model=DocumentUploadResponse)
+async def upload_user_document(
+    file: UploadFile = File(...),
+    client_id: int | None = Form(default=None),
+    source_type: str = Form(default="manual_upload"),
+    captured_at: datetime | None = Form(default=None),
+    latitude: float | None = Form(default=None),
+    longitude: float | None = Form(default=None),
+    location_accuracy_m: float | None = Form(default=None),
+    location_source: str | None = Form(default=None),
+    inspection_session_id: str | None = Form(default=None),
+    intake_metadata: str | None = Form(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentUploadResponse:
+    content = await file.read(MAX_USER_UPLOAD_BYTES + 1)
+    if len(content) > MAX_USER_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds the 250 MB upload limit")
+    if client_id is not None:
+        from app.services.client_service import ClientNotFoundError, ClientService
+        try:
+            ClientService(db).get_client(client_id)
+        except ClientNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Client not found") from error
+    metadata = _parse_intake_metadata(intake_metadata)
+    metadata.update({
+        "actor_user_id": current_user.id,
+        "client_id": client_id,
+        "captured_at": captured_at.isoformat() if captured_at else None,
+        "latitude": latitude,
+        "longitude": longitude,
+        "gps_accuracy": location_accuracy_m,
+        "location_source": location_source,
+    })
+    try:
+        result = DocumentService(db).store_document(
+            content=content,
+            original_filename=file.filename or "document.bin",
+            content_type=file.content_type or "application/octet-stream",
+            source_type=source_type,
+            client_id=client_id,
+            captured_at=captured_at,
+            latitude=latitude,
+            longitude=longitude,
+            location_accuracy_m=location_accuracy_m,
+            location_source=location_source,
+            inspection_session_id=inspection_session_id,
+            intake_metadata=metadata,
+        )
+        if client_id is not None and result.document.client_id != client_id:
+            raise HTTPException(status_code=409, detail="Identical document belongs to another client")
+        return DocumentUploadResponse(document=DocumentRead.model_validate(result.document), created=result.created, matched_by=result.matched_by)
+    except EmptyDocumentError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except (InvalidDocumentSourceTypeError, InvalidLocationMetadataError, MissingLocationMetadataError) as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except DocumentStorageError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 
 def _matching_error(error: Exception) -> HTTPException:

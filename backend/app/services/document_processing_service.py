@@ -457,9 +457,14 @@ class DocumentProcessingService:
             result.status
         )
 
-        document.metadata_raw = (
-            result.raw_metadata
+        intake_metadata = (
+            document.metadata_raw.get("intake")
+            if isinstance(document.metadata_raw, dict)
+            else None
         )
+        document.metadata_raw = dict(result.raw_metadata or {})
+        if intake_metadata is not None:
+            document.metadata_raw["intake"] = intake_metadata
 
         document.metadata_normalized = (
             result.normalized_metadata

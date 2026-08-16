@@ -16,6 +16,7 @@ import '../domain/document_client_match.dart';
 import '../domain/document_filters.dart';
 import '../domain/document_page.dart';
 import 'document_presentation.dart';
+import 'document_intake_dialog.dart';
 
 class DocumentsPage extends ConsumerStatefulWidget {
   const DocumentsPage({super.key});
@@ -51,6 +52,12 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
         title: const Text('Repozytorium dokumentów'),
         actions: <Widget>[
           IconButton(
+            key: const Key('global-document-upload'),
+            tooltip: 'Dodaj dokumenty',
+            onPressed: _showUpload,
+            icon: const Icon(Icons.upload_file),
+          ),
+          IconButton(
             tooltip: 'Odśwież',
             onPressed: controller.refresh,
             icon: const Icon(Icons.refresh),
@@ -74,6 +81,20 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showUpload() async {
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => DocumentIntakeDialog(
+        repository: ref.read(documentsRepositoryProvider),
+        session: session,
+        onCompleted: () =>
+            ref.read(documentsControllerProvider.notifier).refresh(),
       ),
     );
   }

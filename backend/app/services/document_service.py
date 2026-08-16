@@ -90,6 +90,7 @@ class DocumentService:
         location_accuracy_m: float | None = None,
         location_source: str | None = None,
         inspection_session_id: str | None = None,
+        intake_metadata: dict[str, object] | None = None,
     ) -> StoredDocumentResult:
         self._validate_source_type(source_type)
 
@@ -137,6 +138,8 @@ class DocumentService:
         if (
             source_type in self.CAMERA_SOURCE_TYPES
             and normalized_location_source is None
+            and latitude is not None
+            and longitude is not None
         ):
             normalized_location_source = "device_gps"
 
@@ -259,6 +262,11 @@ class DocumentService:
             location_accuracy_m=location_accuracy_m,
             location_source=normalized_location_source,
             inspection_session_id=normalized_inspection_session_id,
+            metadata_raw=(
+                {"intake": dict(intake_metadata)}
+                if intake_metadata
+                else None
+            ),
             processing_status="stored",
             processing_error=None,
             match_status=(
@@ -369,15 +377,15 @@ class DocumentService:
         location_accuracy_m: float | None,
     ) -> None:
         if source_type in self.CAMERA_SOURCE_TYPES:
-            if (
-                captured_at is None
-                or latitude is None
-                or longitude is None
-            ):
+            if captured_at is None:
                 raise MissingLocationMetadataError(
-                    "Camera uploads require captured_at, "
-                    "latitude and longitude."
+                    "Camera uploads require captured_at."
                 )
+
+        if (latitude is None) != (longitude is None):
+            raise InvalidLocationMetadataError(
+                "Latitude and longitude must be provided together."
+            )
 
         if latitude is not None:
             if latitude < -90 or latitude > 90:

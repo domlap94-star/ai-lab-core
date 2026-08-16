@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/application/auth_controller.dart';
@@ -9,8 +8,8 @@ import '../../documents/application/client_documents_provider.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/domain/document_page.dart';
+import '../../documents/presentation/document_intake_dialog.dart';
 import '../../documents/presentation/document_presentation.dart';
-import '../application/clients_providers.dart';
 import 'client_emails_panel.dart';
 
 class ClientWorkspacePanels extends StatelessWidget {
@@ -58,7 +57,6 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
   int _skip = 0;
   final Set<int> _openingIds = <int>{};
   final Map<int, double?> _openingProgress = <int, double?>{};
-  bool _uploading = false;
 
   ClientDocumentsPageRequest get _request => ClientDocumentsPageRequest(
     clientId: widget.clientId,
@@ -129,15 +127,9 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
                   key: const Key('client-document-upload'),
-                  onPressed: _uploading ? null : _upload,
-                  icon: _uploading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.upload_file),
-                  label: Text(_uploading ? 'Przesyłanie...' : 'Dodaj dokument'),
+                  onPressed: _upload,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Dodaj dokumenty'),
                 ),
               ),
             ),
@@ -159,40 +151,20 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
   }
 
   Future<void> _upload() async {
-    final selectedFile = await FilePicker.pickFile();
-    final path = selectedFile?.path;
-    if (path == null || !mounted) return;
-    setState(() => _uploading = true);
-    try {
-      final session = ref.read(authControllerProvider).value?.session;
-      if (session == null) {
-        throw StateError('Brak aktywnej sesji.');
-      }
-      await ref
-          .read(clientsRepositoryProvider)
-          .uploadClientDocument(
-            session: session,
-            clientId: widget.clientId,
-            path: path,
-          );
-      _hasLoaded = true;
-      _refresh();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Dodano dokument ${selectedFile!.name}.')),
-        );
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(friendlyDocumentError(error))));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _uploading = false);
-      }
-    }
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null || !mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => DocumentIntakeDialog(
+        repository: ref.read(documentsRepositoryProvider),
+        session: session,
+        clientId: widget.clientId,
+        onCompleted: () {
+          _hasLoaded = true;
+          _refresh();
+        },
+      ),
+    );
   }
 
   Widget _buildLoaded(DocumentPage page) {

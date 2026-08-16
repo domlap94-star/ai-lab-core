@@ -1,4 +1,5 @@
 import '../../auth/domain/auth_session.dart';
+import 'dart:typed_data';
 import '../data/document_content.dart';
 import '../data/documents_api.dart';
 import '../domain/document.dart';
@@ -7,6 +8,21 @@ import '../domain/document_client_match.dart';
 import '../domain/document_page.dart';
 
 abstract class DocumentsRepository {
+  Future<void> upload({
+    required AuthSession session,
+    required String name,
+    String? path,
+    Uint8List? bytes,
+    int? clientId,
+    String origin = 'manual_upload',
+    DateTime? capturedAt,
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+    String? deviceModel,
+    String? comment,
+    void Function(int, int)? onProgress,
+  }) => throw UnsupportedError('Document upload is not implemented.');
   Future<DocumentPage> fetchDocuments({
     required AuthSession session,
     required DocumentFilters filters,
@@ -53,6 +69,38 @@ class ApiDocumentsRepository implements DocumentsRepository {
   const ApiDocumentsRepository(this._api);
 
   final DocumentsApi _api;
+
+  @override
+  Future<void> upload({
+    required AuthSession session,
+    required String name,
+    String? path,
+    Uint8List? bytes,
+    int? clientId,
+    String origin = 'manual_upload',
+    DateTime? capturedAt,
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+    String? deviceModel,
+    String? comment,
+    void Function(int, int)? onProgress,
+  }) => _api.uploadUserDocument(
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+    name: name,
+    path: path,
+    bytes: bytes,
+    clientId: clientId,
+    origin: origin,
+    capturedAt: capturedAt,
+    latitude: latitude,
+    longitude: longitude,
+    accuracy: accuracy,
+    deviceModel: deviceModel,
+    comment: comment,
+    onProgress: onProgress,
+  );
 
   @override
   Future<DocumentPage> fetchDocuments({

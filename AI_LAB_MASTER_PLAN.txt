@@ -377,17 +377,17 @@ SYSTEM JUŻ POTRAFI:
 
 DOCELOWO:
 
-[ ] upload pliku z aplikacji Flutter
+[✓] upload pliku z aplikacji Flutter
 
 [ ] drag & drop na desktop
 
-[ ] upload wielu plików
+[✓] upload wielu plików
 
 [ ] upload całego folderu
 
-[ ] upload zdjęcia
+[✓] upload zdjęcia
 
-[ ] wykonanie zdjęcia bezpośrednio w aplikacji
+[✓] wykonanie zdjęcia bezpośrednio w aplikacji
 
 [ ] import dokumentu z Gmaila
 
@@ -412,19 +412,19 @@ podczas wizji lokalnej / inspekcji.
 
 Przy wykonaniu zdjęcia należy — jeśli użytkownik udzielił zgody — zapisać:
 
-[ ] zdjęcie w oryginalnej jakości
+[✓] zdjęcie w oryginalnej jakości
 
-[ ] datę wykonania
+[✓] datę wykonania
 
-[ ] godzinę wykonania
+[✓] godzinę wykonania
 
-[ ] latitude
+[✓] latitude — optional foreground consent
 
-[ ] longitude
+[✓] longitude — optional foreground consent
 
-[ ] accuracy GPS
+[✓] accuracy GPS — optional foreground consent
 
-[ ] źródło lokalizacji
+[✓] źródło lokalizacji
 
 [ ] orientation
 
@@ -432,11 +432,11 @@ Przy wykonaniu zdjęcia należy — jeśli użytkownik udzielił zgody — zapis
 
 [ ] inspection_session_id
 
-[ ] client_id
+[✓] client_id
 
 [ ] project_id / realization_id
 
-[ ] opcjonalny komentarz użytkownika
+[✓] opcjonalny komentarz użytkownika
 
 
 Zdjęcia powinny być później widoczne:
@@ -5264,6 +5264,12 @@ CHUNK 8 — DOCUMENT-CLIENT MATCHING WORKSPACE — DONE:
 [✓] Post-migration audit preserved all 5899 documents and associations; audit
     rows were 0 before and after rollback-only acceptance testing.
 [✓] Backend matching/regression tests, Flutter analyze and 56/56 tests: PASS.
-[✓] CHUNK 8 DONE. CHUNK 9: NOT STARTED. CHUNK 7B: NOT STARTED.
+[✓] CHUNK 8 DONE. CHUNK 9 DONE. CHUNK 7B: NOT STARTED.
+[✓] CHUNK 9 uses JWT user upload, multi-file partial success, gallery,
+    Android camera, optional foreground GPS, bounded intake provenance and
+    Client linkage. No schema migration was required; existing metadata JSON,
+    captured/GPS fields and nullable inspection_session_id were reused.
+[ ] Offline synchronization, Project/realization foreign keys and AI image
+    analysis remain future work and were not started.
 
 KONIEC MASTER PLAN
