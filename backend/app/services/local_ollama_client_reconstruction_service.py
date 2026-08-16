@@ -31,6 +31,7 @@ class LocalOllamaClientReconstructionService:
         request = {
             "model": self.model,
             "stream": False,
+            "think": False,
             "format": ClientReconstructionProposal.model_json_schema(),
             "options": {"temperature": 0, "num_ctx": 4096},
             "messages": [

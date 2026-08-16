@@ -39,6 +39,7 @@ def verify_local_ollama_adapter() -> None:
     assert result.client_id == 1
     assert captured["url"] == "http://ollama:11434/api/chat"
     assert captured["payload"]["stream"] is False
+    assert captured["payload"]["think"] is False
     assert captured["payload"]["options"] == {
         "temperature": 0,
         "num_ctx": 4096,
