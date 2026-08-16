@@ -525,6 +525,14 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
 
+### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
+
+- Edit/Delete actions are outside and above the client header card in a
+  responsive Wrap; long client names retain the available card width.
+- Android and Windows 1.0.2+9: PUBLISHED. `minimum_version` remains 1.0.0.
+- Backend, DB, migration and ingestion: UNCHANGED.
+- NEXT STEP: NEW SOURCE INGESTION CORRECTNESS — NOT STARTED.
+
 ### CLIENT MANAGEMENT PATCH — NEXT STABIL 1.0.2+8 — PUBLISHED
 
 - Client edit and separate notes edit: DONE.
