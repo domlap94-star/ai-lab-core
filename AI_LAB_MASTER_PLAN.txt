@@ -5189,4 +5189,19 @@ FINAL PRE-BACKUP PATCH — NEXT STABIL 1.0.2+7:
 END CHECKPOINT 2026-08-15 — CLIENT IDENTITY QUALITY DRY-RUN
 ===============================================================================
 
+AI CLIENT RECONSTRUCTION — RESUMABLE LARGE-MODEL BATCH FOUNDATION:
+
+[✓] Per-record private JSONL uses flush/fsync and an atomic checkpoint.
+[✓] Resume validates model/manifest/window and skips completed indices.
+[✓] First Qwen 3.5 9B proof was bounded to manifest indices 0–9; record 11
+    was not processed, and same-window resume made zero inference calls.
+[✓] Read-only DB transaction, single-attempt failure persistence, memory gate
+    and mandatory final model unload are implemented; no apply path exists.
+[ ] FUTURE ONLY: SMALL MODEL FIRST -> capability gate -> LARGE MODEL
+    ESCALATION -> chunked processing -> persisted partial results ->
+    unload/reload -> aggregate conclusions -> small-model finalization when
+    capable, otherwise large-model conclusion pass.
+[ ] Capability router, document-analysis pipeline, 128/full historical run and
+    automatic apply: NOT IMPLEMENTED / NOT STARTED.
+
 KONIEC MASTER PLAN

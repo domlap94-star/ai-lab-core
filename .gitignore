@@ -96,5 +96,7 @@ backend/test/reports/ai_client_reconstruction_human_review.jsonl
 backend/test/reports/private/ai_client_reconstruction_pilot_results.jsonl
 backend/test/reports/private/ai_client_reconstruction_pilot_failures.jsonl
 backend/test/reports/private/ollama_client_reconstruction_*.jsonl
+backend/test/reports/private/ollama_batched_*.json
+backend/test/reports/private/ollama_batched_*.jsonl
 backend/test/reports/ollama_client_reconstruction_*.json
 backend/test/reports/ollama_client_reconstruction_*.txt

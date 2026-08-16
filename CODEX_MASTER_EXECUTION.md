@@ -525,6 +525,21 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
 
+### AI CLIENT RECONSTRUCTION — RESUMABLE LARGE-MODEL BATCH FOUNDATION — DONE
+
+- Added per-record durable private JSONL, atomic checkpoints, fail-closed
+  resume, bounded manifest windows, single-attempt failures, PostgreSQL READ
+  ONLY transactions, memory gates and mandatory final model unload.
+- Qwen 3.5 9B proof was strictly limited to manifest indices 0–9. Resume with
+  the same ten-record window made 0 new inference calls and did not process
+  record 11.
+- Future direction only: SMALL MODEL FIRST -> capability gate -> LARGE MODEL
+  ESCALATION -> chunked processing -> persisted partial results ->
+  unload/reload -> aggregate conclusions -> small-model finalization if
+  capable, otherwise large-model conclusion pass.
+- Capability router, document pipeline, full 128/historical runs and apply:
+  NOT IMPLEMENTED. Production DB writes 0; Qdrant writes 0.
+
 ### GOLDEN BACKUP — NEXT STABIL 1.0.2+7 — HUMAN ACCEPTED
 
 - HUMAN ACCEPTED WITH KNOWN QDRANT OFFICIAL SNAPSHOT LIMITATION.
