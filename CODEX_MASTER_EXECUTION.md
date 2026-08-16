@@ -525,6 +525,20 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
 
+### CLIENT MANAGEMENT PATCH — NEXT STABIL 1.0.2+8 — PUBLISHED
+
+- Client edit and separate notes edit: DONE.
+- Multiple e-mails and phones with synchronized legacy primary fields: DONE.
+- Client soft-delete: DONE; historical documents, mail and provenance remain;
+  physical client delete is not used.
+- Direct document upload to the current client: DONE.
+- Additive `contact_20260816` migration applied; 3194 clients preserved and
+  4981 contact points backfilled without splitting or cleaning legacy values.
+- Android and Windows 1.0.2+8: PUBLISHED. `minimum_version` remains 1.0.0.
+- NEXT STEP: NEW SOURCE INGESTION CORRECTNESS — NOT STARTED.
+- Historical AI cleanup: ABANDONED / NOT PURSUED. Local 4B assistance:
+  FUTURE, NEW RECORDS ONLY.
+
 ### AI CLIENT RECONSTRUCTION — RESUMABLE LARGE-MODEL BATCH FOUNDATION — DONE
 
 - Added per-record durable private JSONL, atomic checkpoints, fail-closed
