@@ -57,6 +57,69 @@ void main() {
     expect(find.text('Dodaj e-mail'), findsOneWidget);
     expect(find.text('Dodaj telefon'), findsOneWidget);
   });
+
+  testWidgets('shows multiple addresses and supports add remove and primary', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDialog(
+      tester,
+      _client(
+        addresses: const <ClientAddress>[
+          ClientAddress(
+            id: 10,
+            label: 'Siedziba',
+            street: 'Pierwsza',
+            city: 'Warszawa',
+            countryCode: 'PL',
+            isPrimary: true,
+          ),
+          ClientAddress(
+            id: 11,
+            label: 'Korespondencja',
+            street: 'Druga',
+            city: 'Kraków',
+            countryCode: 'PL',
+            isPrimary: false,
+          ),
+        ],
+      ),
+    );
+
+    expect(find.byKey(const Key('client-address-editor-0')), findsOneWidget);
+    expect(find.byKey(const Key('client-address-editor-1')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('add-client-address')));
+    await tester.tap(find.byKey(const Key('add-client-address')));
+    await tester.pump();
+    expect(find.byKey(const Key('client-address-editor-2')), findsOneWidget);
+  });
+
+  testWidgets('long address editor does not overflow at mobile width', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pumpDialog(
+      tester,
+      _client(
+        addresses: const <ClientAddress>[
+          ClientAddress(
+            id: 12,
+            label: 'Bardzo długi opis adresu korespondencyjnego klienta',
+            street: 'Aleja Bardzo Długiej Nazwy Ulicy Przemysłowej',
+            buildingNumber: '123A',
+            unitNumber: '456',
+            postalCode: '00-001',
+            city: 'Warszawa',
+            countryCode: 'PL',
+            isPrimary: true,
+          ),
+        ],
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Future<void> _pumpDialog(WidgetTester tester, Client client) async {
@@ -73,6 +136,7 @@ Client _client({
   String? primaryPhone,
   List<ClientContactPoint> emails = const <ClientContactPoint>[],
   List<ClientContactPoint> phones = const <ClientContactPoint>[],
+  List<ClientAddress> addresses = const <ClientAddress>[],
 }) {
   return Client(
     id: 7,
@@ -83,6 +147,7 @@ Client _client({
     primaryPhone: primaryPhone,
     emails: emails,
     phones: phones,
+    addresses: addresses,
     createdAt: DateTime.utc(2026, 8, 16),
     updatedAt: DateTime.utc(2026, 8, 16),
   );

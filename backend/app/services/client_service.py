@@ -1,6 +1,9 @@
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
+from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
 from app.repositories.client_repository import ClientRepository
 from app.repositories.industry_repository import IndustryRepository
@@ -142,7 +145,7 @@ class ClientService(BaseService[Client]):
         self,
         data: ClientCreate,
     ) -> Client:
-        payload = data.model_dump(exclude={"emails", "phones"})
+        payload = data.model_dump(exclude={"emails", "phones", "addresses"})
         if data.emails is not None:
             payload["primary_email"] = self._primary_value(data.emails)
         if data.phones is not None:
@@ -163,6 +166,11 @@ class ClientService(BaseService[Client]):
             self._replace_contacts(client, "phone", data.phones)
         elif client.primary_phone:
             self._replace_contacts(client, "phone", [{"value": client.primary_phone, "is_primary": True}])
+        if data.addresses is not None:
+            self._replace_addresses(client, data.addresses)
+            self._sync_primary_address_scalars(client)
+        elif self._has_scalar_address(client):
+            self._replace_addresses(client, [self._scalar_address_payload(client)])
         self.db.commit()
 
         return self.get_client(client.id)
@@ -176,7 +184,7 @@ class ClientService(BaseService[Client]):
 
         payload = data.model_dump(
             exclude_unset=True,
-            exclude={"emails", "phones"},
+            exclude={"emails", "phones", "addresses"},
         )
 
         if "industry_id" in payload:
@@ -203,6 +211,16 @@ class ClientService(BaseService[Client]):
             client.primary_phone = self._primary_value(data.phones or [])
         elif "primary_phone" in payload:
             self._set_legacy_primary(client, "phone", payload["primary_phone"])
+        if "addresses" in data.model_fields_set:
+            self._replace_addresses(client, data.addresses or [])
+            self._sync_primary_address_scalars(client)
+        elif any(
+            field in payload
+            for field in (
+                "street", "building_number", "unit_number", "postal_code", "city", "country_code"
+            )
+        ):
+            self._set_legacy_primary_address(client)
 
         self.client_repository.update(client)
 
@@ -224,8 +242,67 @@ class ClientService(BaseService[Client]):
             client.contact_points.append(ClientContactPoint(
                 kind=kind, value=value.strip(),
                 normalized_value=self._normalize_contact(kind, value),
-                is_primary=primary, position=position,
+                is_primary=primary, position=position, origin="manual",
             ))
+
+    def _replace_addresses(self, client: Client, addresses: list) -> None:
+        for existing in client.address_records:
+            if existing.deleted_at is None:
+                existing.deleted_at = datetime.now(timezone.utc)
+        self.db.flush()
+        for position, raw in enumerate(addresses):
+            get = lambda name, default=None: (
+                getattr(raw, name, default)
+                if hasattr(raw, name)
+                else raw.get(name, default)
+            )
+            client.address_records.append(
+                ClientAddress(
+                    label=get("label", "Adres"),
+                    street=get("street"),
+                    building_number=get("building_number"),
+                    unit_number=get("unit_number"),
+                    postal_code=get("postal_code"),
+                    city=get("city"),
+                    country_code=get("country_code", "PL"),
+                    is_primary=get("is_primary", False),
+                    position=position,
+                    origin="manual",
+                )
+            )
+
+    def _sync_primary_address_scalars(self, client: Client) -> None:
+        primary = next((item for item in client.addresses if item.is_primary), None)
+        for field in (
+            "street", "building_number", "unit_number", "postal_code", "city", "country_code"
+        ):
+            setattr(client, field, getattr(primary, field) if primary else ("PL" if field == "country_code" else None))
+
+    def _set_legacy_primary_address(self, client: Client) -> None:
+        primary = next((item for item in client.addresses if item.is_primary), None)
+        if primary is None and self._has_scalar_address(client):
+            client.address_records.append(ClientAddress(**self._scalar_address_payload(client), origin="manual", position=len(client.address_records)))
+            return
+        if primary is not None:
+            for field in ("street", "building_number", "unit_number", "postal_code", "city", "country_code"):
+                setattr(primary, field, getattr(client, field))
+
+    @staticmethod
+    def _has_scalar_address(client: Client) -> bool:
+        return any(getattr(client, field) for field in ("street", "building_number", "unit_number", "postal_code", "city"))
+
+    @staticmethod
+    def _scalar_address_payload(client: Client) -> dict:
+        return {
+            "label": "Adres główny",
+            "street": client.street,
+            "building_number": client.building_number,
+            "unit_number": client.unit_number,
+            "postal_code": client.postal_code,
+            "city": client.city,
+            "country_code": client.country_code,
+            "is_primary": True,
+        }
 
     def _set_legacy_primary(self, client: Client, kind: str, value: str | None) -> None:
         normalized = self._normalize_contact(kind, value) if value else None
@@ -238,7 +315,7 @@ class ClientService(BaseService[Client]):
         if value and matching is None:
             matching = ClientContactPoint(
                 kind=kind, value=value, normalized_value=normalized,
-                is_primary=True, position=len(client.contact_points),
+                is_primary=True, position=len(client.contact_points), origin="manual",
             )
             client.contact_points.append(matching)
         elif matching is not None:

@@ -19,6 +19,9 @@ class ForwardClientContactService:
         cls,
         client: Client,
         payloads: Iterable[dict[str, Any] | None],
+        *,
+        source_id: int | None = None,
+        source_type: str | None = None,
     ) -> int:
         incoming = {"email": [], "phone": []}
         for payload in payloads:
@@ -50,6 +53,8 @@ class ForwardClientContactService:
                             normalized_value=normalized,
                             is_primary=True,
                             position=0,
+                            origin="migration",
+                            source_type="legacy_client_scalar",
                         )
                     )
                     existing = [client.contact_points[-1]]
@@ -68,6 +73,9 @@ class ForwardClientContactService:
                         normalized_value=normalized,
                         is_primary=is_primary,
                         position=len(existing),
+                        origin=cls._origin(source_type),
+                        source_type=source_type,
+                        source_id=source_id,
                     )
                 )
                 existing.append(client.contact_points[-1])
@@ -77,6 +85,14 @@ class ForwardClientContactService:
                     setattr(client, scalar_name, value.strip())
                     has_primary = True
         return added
+
+    @staticmethod
+    def _origin(source_type: str | None) -> str:
+        if source_type == "gmail_message" or source_type == "gmail_thread":
+            return "gmail"
+        if source_type == "google_sheets_row":
+            return "sheets"
+        return "other" if source_type else "manual"
 
     @staticmethod
     def _normalize(kind: str, value: str) -> str:

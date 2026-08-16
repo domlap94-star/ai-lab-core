@@ -150,6 +150,14 @@ class Client(BusinessBase):
         passive_deletes=True,
     )
 
+    address_records: Mapped[list["ClientAddress"]] = relationship(
+        "ClientAddress",
+        back_populates="client",
+        order_by="ClientAddress.position, ClientAddress.id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
     @property
     def emails(self):
         return [item for item in self.contact_points if item.kind == "email" and item.deleted_at is None]
@@ -157,3 +165,7 @@ class Client(BusinessBase):
     @property
     def phones(self):
         return [item for item in self.contact_points if item.kind == "phone" and item.deleted_at is None]
+
+    @property
+    def addresses(self):
+        return [item for item in self.address_records if item.deleted_at is None]

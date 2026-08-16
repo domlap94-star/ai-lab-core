@@ -387,7 +387,8 @@ class _ClientDetails extends StatelessWidget {
                             ])
                       .map(
                         (item) => _DetailRow(
-                          label: item.isPrimary ? 'E-mail (główny)' : 'E-mail',
+                          label:
+                              '${item.isPrimary ? 'E-mail (główny)' : 'E-mail'} • ${_originLabel(item.origin)}',
                           value: item.value,
                         ),
                       ),
@@ -404,8 +405,8 @@ class _ClientDetails extends StatelessWidget {
                       .map(
                         (item) => _DetailRow(
                           label: item.isPrimary
-                              ? 'Telefon (główny)'
-                              : 'Telefon',
+                              ? 'Telefon (główny) • ${_originLabel(item.origin)}'
+                              : 'Telefon • ${_originLabel(item.origin)}',
                           value: item.value,
                         ),
                       ),
@@ -435,8 +436,44 @@ class _ClientDetails extends StatelessWidget {
                 title: 'Adres',
                 icon: Icons.location_on_outlined,
                 children: <Widget>[
-                  if (client.availableAddress?.trim().isNotEmpty ==
-                      true) ...<Widget>[
+                  if (client.addresses.isNotEmpty)
+                    ...client.addresses.map(
+                      (address) => Card(
+                        key: Key('client-address-${address.id}'),
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                address.isPrimary
+                                    ? '${address.label} (główny)'
+                                    : address.label,
+                                style: theme.textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 6),
+                              SelectableText(address.formatted),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Pochodzenie: ${_originLabel(address.origin)}',
+                                style: theme.textTheme.labelSmall,
+                              ),
+                              const SizedBox(height: 8),
+                              FilledButton.icon(
+                                onPressed: () =>
+                                    _openGoogleMaps(context, address.formatted),
+                                icon: const Icon(Icons.directions_outlined),
+                                label: const Text('Trasa w Google Maps'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (client.addresses.isEmpty &&
+                      client.availableAddress?.trim().isNotEmpty ==
+                          true) ...<Widget>[
                     Card(
                       color: theme.colorScheme.surfaceContainerHighest,
                       child: Padding(
@@ -473,22 +510,25 @@ class _ClientDetails extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                   ],
-                  if (!client.hasStructuredAddressData &&
+                  if (client.addresses.isEmpty &&
+                      !client.hasStructuredAddressData &&
                       client.addressFromNotes?.trim().isNotEmpty == true)
                     _DetailRow(
                       label: 'Dostępny adres ze źródła',
                       value: client.addressFromNotes,
                       multiline: true,
                     ),
-                  _DetailRow(label: 'Ulica', value: client.street),
-                  _DetailRow(
-                    label: 'Numer budynku',
-                    value: client.buildingNumber,
-                  ),
-                  _DetailRow(label: 'Numer lokalu', value: client.unitNumber),
-                  _DetailRow(label: 'Kod pocztowy', value: client.postalCode),
-                  _DetailRow(label: 'Miejscowość', value: client.city),
-                  _DetailRow(label: 'Kod kraju', value: client.countryCode),
+                  if (client.addresses.isEmpty) ...<Widget>[
+                    _DetailRow(label: 'Ulica', value: client.street),
+                    _DetailRow(
+                      label: 'Numer budynku',
+                      value: client.buildingNumber,
+                    ),
+                    _DetailRow(label: 'Numer lokalu', value: client.unitNumber),
+                    _DetailRow(label: 'Kod pocztowy', value: client.postalCode),
+                    _DetailRow(label: 'Miejscowość', value: client.city),
+                    _DetailRow(label: 'Kod kraju', value: client.countryCode),
+                  ],
                 ],
               ),
               const SizedBox(height: 20),
@@ -631,6 +671,14 @@ class _ClientDetails extends StatelessWidget {
 
     return '${twoDigits(value.day)}.${twoDigits(value.month)}.${value.year}';
   }
+
+  String _originLabel(String origin) => switch (origin) {
+    'gmail' => 'Gmail',
+    'sheets' => 'Google Sheets',
+    'migration' => 'dane zastane',
+    'manual' => 'ręcznie',
+    _ => 'inne',
+  };
 }
 
 class _DetailsSection extends StatelessWidget {

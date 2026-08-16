@@ -413,13 +413,24 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Release nie jest production-validated; użytkownik musi zweryfikować Android
   i Windows. Brak auto-install, notes cleanup, auto-promotion i golden backup.
 
-### 7. Contact and address model — TODO
+### 7. Contact and address model — DONE
 
-- Cel: wiele kontaktów/emaili/telefonów/adresów z provenance. Zależności: 6.
-- Zakres: modele/API/UI, Alembic additive migrations, read-only backfill plan.
-- Ryzyko: konflikty i kompatybilność scalar fields. Dane: DRY-RUN; backfill gate.
-- Acceptance: CRUD i provenance testowane, downgrade/rollback migracji, audit.
-- Commit: `Add provenance-aware client contact model`.
+- Reconciliation: multi-email, multi-phone, primary scalar synchronization,
+  CRUD, Flutter contact UI and forward ingestion are already DONE.
+- Implemented: provenance-aware `ClientAddress`, contact provenance references,
+  additive `chunk7addr_20260816` migration, legacy-compatible ClientRead/PATCH
+  projection and responsive Flutter address edit/details.
+- Production audit: 3194 total/active clients, 2 clients with any scalar address,
+  4981 active contact points; no existing address/contact-person tables.
+- Backfill was direct field-for-field for only those 2 scalar-address clients;
+  no parsing, cleanup, guessing or geocoding. Migration
+  `chunk7addr_20260816` applied; post-audit has 0 scalar/primary mismatches.
+- Backend regressions, Flutter analyze and 53/53 Flutter tests PASS.
+- Contact persons are a separate CHUNK 7B: introduce ClientContactPerson and
+  explicit optional contact-person ownership without overloading client-level
+  contact points. Not implemented in this migration.
+- CHUNK 7 COMPLETE EXCEPT SEPARATE 7B CONTACT PERSON MODEL.
+- CHUNK 7B: NOT STARTED. CHUNK 8: NOT STARTED.
 
 ### 8. Document-client matching workspace — TODO
 

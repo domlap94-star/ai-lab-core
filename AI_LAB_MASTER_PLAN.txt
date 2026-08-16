@@ -183,11 +183,11 @@ DOCELOWO MODEL DANYCH POWINIEN OBSŁUGIWAĆ TAKŻE:
 
 [ ] osoby kontaktowe klienta
 
-[ ] wiele adresów klienta
+[✓] wiele adresów klienta
 
-[ ] wiele numerów telefonu
+[✓] wiele numerów telefonu
 
-[ ] wiele adresów e-mail
+[✓] wiele adresów e-mail
 
 [ ] lokalizacje realizacji
 
@@ -285,9 +285,9 @@ Użytkownik musi mieć możliwość:
 
 [ ] ręcznego dodania klienta
 
-[ ] ręcznej edycji klienta
+[✓] ręcznej edycji klienta
 
-[ ] usunięcia / archiwizacji klienta
+[✓] usunięcia / archiwizacji klienta
 
 [ ] dodania firmy
 
@@ -299,9 +299,9 @@ Użytkownik musi mieć możliwość:
 
 [ ] wpisania NIP
 
-[ ] wpisania danych adresowych
+[✓] wpisania danych adresowych
 
-[ ] dodania wielu kontaktów
+[✓] dodania wielu kontaktów
 
 [ ] dodania notatek
 
@@ -5238,5 +5238,17 @@ NEW SOURCE INGESTION CORRECTNESS — FORWARD ONLY:
 [✓] Optional local 4B helper: NOT USED — deterministic rules were sufficient.
 [✓] Production CRM writes: 0. Qdrant writes: 0.
 [ ] Human verification: next real incoming Gmail and Google Sheets record.
+
+CHUNK 7 — CONTACT AND ADDRESS MODEL — DONE:
+
+[✓] Multiple e-mails, multiple phones, primary scalar synchronization, CRUD,
+    Flutter edit/details and forward ingestion already existed and were reused.
+[✓] Provenance-aware ClientAddress model, contact provenance columns,
+    additive migration, API projection and Flutter address CRUD are active.
+[✓] Migration `chunk7addr_20260816` applied; 3194 clients, 4981 contacts and
+    scalar address fields preserved; 2 direct structured backfill rows.
+[✓] Backend regressions and Flutter analyze/tests: PASS.
+[ ] ClientContactPerson: deferred to CHUNK 7B; requires an explicit person-to-
+    contact relationship and must not be improvised in the address migration.
 
 KONIEC MASTER PLAN

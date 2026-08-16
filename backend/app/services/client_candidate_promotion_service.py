@@ -249,22 +249,22 @@ class ClientCandidatePromotionService:
 
         self.db.flush()
 
-        source_payloads = [
-            source.raw_payload
-            for source in (
-                self.db.query(CandidateSource)
-                .filter(
-                    CandidateSource.candidate_id == candidate.id,
-                    CandidateSource.deleted_at.is_(None),
-                )
-                .order_by(CandidateSource.id.asc())
-                .all()
+        sources = (
+            self.db.query(CandidateSource)
+            .filter(
+                CandidateSource.candidate_id == candidate.id,
+                CandidateSource.deleted_at.is_(None),
             )
-        ]
-        ForwardClientContactService.add_from_payloads(
-            client,
-            source_payloads,
+            .order_by(CandidateSource.id.asc())
+            .all()
         )
+        for source in sources:
+            ForwardClientContactService.add_from_payloads(
+                client,
+                [source.raw_payload],
+                source_id=source.id,
+                source_type=source.source_type,
+            )
 
         candidate.status = "accepted"
         candidate.matched_client_id = client.id

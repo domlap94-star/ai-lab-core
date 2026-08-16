@@ -15,7 +15,11 @@ class ClientRepository(BaseRepository[Client]):
     def get(self, object_id: int) -> Client | None:
         return (
             self.db.query(Client)
-            .options(joinedload(Client.industry), selectinload(Client.contact_points))
+            .options(
+                joinedload(Client.industry),
+                selectinload(Client.contact_points),
+                selectinload(Client.address_records),
+            )
             .filter(
                 Client.id == object_id,
                 Client.deleted_at.is_(None),
@@ -42,7 +46,11 @@ class ClientRepository(BaseRepository[Client]):
 
         items = (
             filtered_query
-            .options(joinedload(Client.industry), selectinload(Client.contact_points))
+            .options(
+                joinedload(Client.industry),
+                selectinload(Client.contact_points),
+                selectinload(Client.address_records),
+            )
             .order_by(
                 func.lower(Client.name).asc(),
                 Client.id.asc(),
@@ -77,7 +85,11 @@ class ClientRepository(BaseRepository[Client]):
 
         return (
             self.db.query(Client)
-            .options(joinedload(Client.industry), selectinload(Client.contact_points))
+            .options(
+                joinedload(Client.industry),
+                selectinload(Client.contact_points),
+                selectinload(Client.address_records),
+            )
             .filter(
                 Client.id.in_(client_ids),
                 Client.deleted_at.is_(None),

@@ -313,6 +313,29 @@ void main() {
       legalName:
           'Bardzo Długa Nazwa Prawna Spółki z Ograniczoną Odpowiedzialnością',
       countryCode: 'PL',
+      addresses: const <ClientAddress>[
+        ClientAddress(
+          id: 901,
+          label: 'Siedziba',
+          street: 'Aleja Bardzo Długiej Nazwy Ulicy Przemysłowej',
+          buildingNumber: '123A',
+          postalCode: '00-001',
+          city: 'Warszawa',
+          countryCode: 'PL',
+          isPrimary: true,
+          origin: 'migration',
+        ),
+        ClientAddress(
+          id: 902,
+          label: 'Korespondencja',
+          street: 'Druga',
+          buildingNumber: '2',
+          city: 'Kraków',
+          countryCode: 'PL',
+          isPrimary: false,
+          origin: 'manual',
+        ),
+      ],
       createdAt: DateTime.utc(2026, 8, 16),
       updatedAt: DateTime.utc(2026, 8, 16),
     );
@@ -363,6 +386,9 @@ void main() {
       tester.getTopLeft(actions).dy,
       lessThan(tester.getTopLeft(headerCard).dy),
     );
+    expect(find.byKey(const Key('client-address-901')), findsOneWidget);
+    expect(find.byKey(const Key('client-address-902')), findsOneWidget);
+    expect(find.text('Pochodzenie: dane zastane'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

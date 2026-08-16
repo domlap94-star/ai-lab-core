@@ -27,6 +27,7 @@ class ClientResponse {
     this.deletedAt,
     this.emails = const <Map<String, dynamic>>[],
     this.phones = const <Map<String, dynamic>>[],
+    this.addresses = const <Map<String, dynamic>>[],
   });
 
   final int id;
@@ -53,6 +54,7 @@ class ClientResponse {
   final DateTime? deletedAt;
   final List<Map<String, dynamic>> emails;
   final List<Map<String, dynamic>> phones;
+  final List<Map<String, dynamic>> addresses;
 
   factory ClientResponse.fromJson(Map<String, dynamic> json) {
     final dynamic industryJson = json['industry'];
@@ -84,6 +86,7 @@ class ClientResponse {
       deletedAt: _parseNullableDateTime(json['deleted_at']),
       emails: _parseContacts(json['emails']),
       phones: _parseContacts(json['phones']),
+      addresses: _parseContacts(json['addresses']),
     );
   }
 
@@ -111,14 +114,48 @@ class ClientResponse {
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,
-      emails: emails.map((item) => ClientContactPoint(
-        id: _parseInt(item['id']), value: item['value']?.toString() ?? '',
-        isPrimary: item['is_primary'] == true,
-      )).toList(growable: false),
-      phones: phones.map((item) => ClientContactPoint(
-        id: _parseInt(item['id']), value: item['value']?.toString() ?? '',
-        isPrimary: item['is_primary'] == true,
-      )).toList(growable: false),
+      emails: emails
+          .map(
+            (item) => ClientContactPoint(
+              id: _parseInt(item['id']),
+              value: item['value']?.toString() ?? '',
+              isPrimary: item['is_primary'] == true,
+              origin: item['origin']?.toString() ?? 'manual',
+              sourceType: _parseNullableString(item['source_type']),
+              sourceId: _parseNullableInt(item['source_id']),
+            ),
+          )
+          .toList(growable: false),
+      phones: phones
+          .map(
+            (item) => ClientContactPoint(
+              id: _parseInt(item['id']),
+              value: item['value']?.toString() ?? '',
+              isPrimary: item['is_primary'] == true,
+              origin: item['origin']?.toString() ?? 'manual',
+              sourceType: _parseNullableString(item['source_type']),
+              sourceId: _parseNullableInt(item['source_id']),
+            ),
+          )
+          .toList(growable: false),
+      addresses: addresses
+          .map(
+            (item) => ClientAddress(
+              id: _parseInt(item['id']),
+              label: item['label']?.toString() ?? 'Adres',
+              street: _parseNullableString(item['street']),
+              buildingNumber: _parseNullableString(item['building_number']),
+              unitNumber: _parseNullableString(item['unit_number']),
+              postalCode: _parseNullableString(item['postal_code']),
+              city: _parseNullableString(item['city']),
+              countryCode: item['country_code']?.toString() ?? 'PL',
+              isPrimary: item['is_primary'] == true,
+              origin: item['origin']?.toString() ?? 'manual',
+              sourceType: _parseNullableString(item['source_type']),
+              sourceId: _parseNullableInt(item['source_id']),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -166,7 +203,11 @@ class ClientResponse {
     return parsed;
   }
 
-  static List<Map<String, dynamic>> _parseContacts(dynamic value) => value is List
-      ? value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+  static List<Map<String, dynamic>> _parseContacts(dynamic value) =>
+      value is List
+      ? value
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList()
       : const <Map<String, dynamic>>[];
 }

@@ -1,10 +1,66 @@
 import 'industry.dart';
 
 class ClientContactPoint {
-  const ClientContactPoint({required this.id, required this.value, required this.isPrimary});
+  const ClientContactPoint({
+    required this.id,
+    required this.value,
+    required this.isPrimary,
+    this.origin = 'manual',
+    this.sourceType,
+    this.sourceId,
+  });
   final int id;
   final String value;
   final bool isPrimary;
+  final String origin;
+  final String? sourceType;
+  final int? sourceId;
+}
+
+class ClientAddress {
+  const ClientAddress({
+    required this.id,
+    required this.label,
+    required this.countryCode,
+    required this.isPrimary,
+    this.street,
+    this.buildingNumber,
+    this.unitNumber,
+    this.postalCode,
+    this.city,
+    this.origin = 'manual',
+    this.sourceType,
+    this.sourceId,
+  });
+
+  final int id;
+  final String label;
+  final String? street;
+  final String? buildingNumber;
+  final String? unitNumber;
+  final String? postalCode;
+  final String? city;
+  final String countryCode;
+  final bool isPrimary;
+  final String origin;
+  final String? sourceType;
+  final int? sourceId;
+
+  String get formatted {
+    final parts = <String>[
+      [
+        street,
+        buildingNumber,
+        if (unitNumber?.isNotEmpty == true) 'lok. $unitNumber',
+      ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' '),
+      [
+        postalCode,
+        city,
+      ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' '),
+      countryCode,
+    ].where((value) => value.trim().isNotEmpty).toList();
+    return parts.join(', ');
+  }
 }
 
 enum ClientType {
@@ -67,6 +123,7 @@ class Client {
     this.deletedAt,
     this.emails = const <ClientContactPoint>[],
     this.phones = const <ClientContactPoint>[],
+    this.addresses = const <ClientAddress>[],
   });
 
   final int id;
@@ -93,6 +150,7 @@ class Client {
   final DateTime? deletedAt;
   final List<ClientContactPoint> emails;
   final List<ClientContactPoint> phones;
+  final List<ClientAddress> addresses;
 
   DateTime get displayCreatedDate => sourceRecordDate ?? createdAt;
 
@@ -152,6 +210,16 @@ class Client {
   }
 
   String? get availableAddress {
+    ClientAddress? primaryAddress;
+    for (final item in addresses) {
+      if (item.isPrimary) {
+        primaryAddress = item;
+        break;
+      }
+    }
+    if (primaryAddress != null && primaryAddress.formatted.isNotEmpty) {
+      return primaryAddress.formatted;
+    }
     final String structured = structuredAddress.trim();
 
     if (structured.isNotEmpty) {

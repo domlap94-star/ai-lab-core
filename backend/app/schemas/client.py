@@ -30,6 +30,50 @@ class ClientContactInput(BaseModel):
 class ClientContactRead(ClientContactInput):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    origin: Literal["manual", "gmail", "sheets", "migration", "other"]
+    source_type: str | None = None
+    source_id: int | None = None
+
+
+class ClientAddressInput(BaseModel):
+    label: str = Field(default="Adres", min_length=1, max_length=100)
+    street: str | None = Field(default=None, max_length=255)
+    building_number: str | None = Field(default=None, max_length=50)
+    unit_number: str | None = Field(default=None, max_length=50)
+    postal_code: str | None = Field(default=None, max_length=20)
+    city: str | None = Field(default=None, max_length=150)
+    country_code: str = Field(default="PL", min_length=2, max_length=2)
+    is_primary: bool = False
+
+    @field_validator(
+        "label", "street", "building_number", "unit_number", "postal_code", "city",
+        mode="before",
+    )
+    @classmethod
+    def strip_address_values(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    @field_validator("country_code")
+    @classmethod
+    def normalize_address_country(cls, value: str) -> str:
+        return value.strip().upper()
+
+    @model_validator(mode="after")
+    def require_address_content(self):
+        if not any((self.street, self.building_number, self.unit_number, self.postal_code, self.city)):
+            raise ValueError("Address must contain at least one address field")
+        return self
+
+
+class ClientAddressRead(ClientAddressInput):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    origin: Literal["manual", "gmail", "sheets", "migration", "other"]
+    source_type: str | None = None
+    source_id: int | None = None
 
 
 def _validate_contacts(contacts: list[ClientContactInput] | None, *, kind: str):
@@ -56,6 +100,34 @@ def _validate_contacts(contacts: list[ClientContactInput] | None, *, kind: str):
     if contacts and primary_count == 0:
         contacts[0].is_primary = True
     return contacts
+
+
+def _validate_addresses(addresses: list[ClientAddressInput] | None):
+    if addresses is None:
+        return None
+    seen: set[tuple[str, ...]] = set()
+    primary_count = 0
+    for address in addresses:
+        key = tuple(
+            (value or "").casefold().strip()
+            for value in (
+                address.street,
+                address.building_number,
+                address.unit_number,
+                address.postal_code,
+                address.city,
+                address.country_code,
+            )
+        )
+        if key in seen:
+            raise ValueError("Duplicate client address")
+        seen.add(key)
+        primary_count += int(address.is_primary)
+    if primary_count > 1:
+        raise ValueError("At most one primary address is allowed")
+    if addresses and primary_count == 0:
+        addresses[0].is_primary = True
+    return addresses
 
 
 class ClientBase(BaseModel):
@@ -165,11 +237,13 @@ class ClientBase(BaseModel):
 class ClientCreate(ClientBase):
     emails: list[ClientContactInput] | None = None
     phones: list[ClientContactInput] | None = None
+    addresses: list[ClientAddressInput] | None = None
 
     @model_validator(mode="after")
     def validate_contact_lists(self):
         self.emails = _validate_contacts(self.emails, kind="email")
         self.phones = _validate_contacts(self.phones, kind="phone")
+        self.addresses = _validate_addresses(self.addresses)
         return self
 
 
@@ -233,6 +307,7 @@ class ClientUpdate(BaseModel):
     notes: str | None = None
     emails: list[ClientContactInput] | None = None
     phones: list[ClientContactInput] | None = None
+    addresses: list[ClientAddressInput] | None = None
 
     @field_validator(
         "name",
@@ -277,6 +352,8 @@ class ClientUpdate(BaseModel):
             self.emails = _validate_contacts(self.emails or [], kind="email")
         if "phones" in self.model_fields_set:
             self.phones = _validate_contacts(self.phones or [], kind="phone")
+        if "addresses" in self.model_fields_set:
+            self.addresses = _validate_addresses(self.addresses or [])
         return self
 
 
@@ -291,6 +368,7 @@ class ClientRead(ClientBase):
     deleted_at: datetime | None
     emails: list[ClientContactRead] = Field(default_factory=list)
     phones: list[ClientContactRead] = Field(default_factory=list)
+    addresses: list[ClientAddressRead] = Field(default_factory=list)
 
 
 class ClientPage(BaseModel):

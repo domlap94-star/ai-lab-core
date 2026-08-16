@@ -10,6 +10,10 @@ class ClientContactPoint(BusinessBase):
     __tablename__ = "client_contact_points"
     __table_args__ = (
         CheckConstraint("kind IN ('email', 'phone')", name="ck_client_contact_points_kind"),
+        CheckConstraint(
+            "origin IN ('manual', 'gmail', 'sheets', 'migration', 'other')",
+            name="ck_client_contact_points_origin",
+        ),
         Index(
             "uq_client_contact_points_client_kind_normalized",
             "client_id",
@@ -18,6 +22,7 @@ class ClientContactPoint(BusinessBase):
             unique=True,
         ),
         Index("ix_client_contact_points_client_kind", "client_id", "kind"),
+        Index("ix_client_contact_points_source_id", "source_id"),
     )
 
     client_id: Mapped[int] = mapped_column(
@@ -30,5 +35,12 @@ class ClientContactPoint(BusinessBase):
         Boolean, nullable=False, default=False, server_default="false"
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    origin: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="manual", server_default="manual"
+    )
+    source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_id: Mapped[int | None] = mapped_column(
+        ForeignKey("candidate_sources.id", ondelete="RESTRICT"), nullable=True
+    )
 
     client: Mapped["Client"] = relationship("Client", back_populates="contact_points")

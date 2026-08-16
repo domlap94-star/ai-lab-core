@@ -140,6 +140,8 @@ class ImportIngestService:
                 ForwardClientContactService.add_from_payloads(
                     match.matched_client,
                     [request.source.raw_payload],
+                    source_id=candidate_source.id,
+                    source_type=candidate_source.source_type,
                 )
 
             if import_run is not None:
