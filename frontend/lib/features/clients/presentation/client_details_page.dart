@@ -74,48 +74,116 @@ class ClientDetailsPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _editClient(BuildContext context, WidgetRef ref, Client client) async {
-    final data = await showDialog<Map<String, dynamic>>(context: context, builder: (_) => ClientEditDialog(client: client));
+  Future<void> _editClient(
+    BuildContext context,
+    WidgetRef ref,
+    Client client,
+  ) async {
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => ClientEditDialog(client: client),
+    );
     if (data == null || !context.mounted) return;
     await _update(context, ref, client.id, data, 'Dane klienta zapisane.');
   }
 
-  Future<void> _editNotes(BuildContext context, WidgetRef ref, Client client) async {
+  Future<void> _editNotes(
+    BuildContext context,
+    WidgetRef ref,
+    Client client,
+  ) async {
     final controller = TextEditingController(text: client.notes);
-    final value = await showDialog<String?>(context: context, builder: (dialogContext) => AlertDialog(
-      title: const Text('Edytuj notatki'),
-      content: TextField(controller: controller, minLines: 6, maxLines: 14, decoration: const InputDecoration(border: OutlineInputBorder())),
-      actions: <Widget>[TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Anuluj')),
-        FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('Zapisz'))],
-    ));
+    final value = await showDialog<String?>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edytuj notatki'),
+        content: TextField(
+          controller: controller,
+          minLines: 6,
+          maxLines: 14,
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Zapisz'),
+          ),
+        ],
+      ),
+    );
     controller.dispose();
     if (value == null || !context.mounted) return;
-    await _update(context, ref, client.id, <String, dynamic>{'notes': value.trim().isEmpty ? null : value}, 'Notatki zapisane.');
+    await _update(context, ref, client.id, <String, dynamic>{
+      'notes': value.trim().isEmpty ? null : value,
+    }, 'Notatki zapisane.');
   }
 
-  Future<void> _update(BuildContext context, WidgetRef ref, int id, Map<String, dynamic> data, String message) async {
+  Future<void> _update(
+    BuildContext context,
+    WidgetRef ref,
+    int id,
+    Map<String, dynamic> data,
+    String message,
+  ) async {
     try {
       final session = ref.read(authControllerProvider).value?.session;
-      if (session == null) throw const ClientsAuthenticationException('Brak aktywnej sesji użytkownika.');
-      await ref.read(clientsRepositoryProvider).updateClient(session: session, clientId: id, data: data);
+      if (session == null) {
+        throw const ClientsAuthenticationException(
+          'Brak aktywnej sesji użytkownika.',
+        );
+      }
+      await ref
+          .read(clientsRepositoryProvider)
+          .updateClient(session: session, clientId: id, data: data);
       ref.invalidate(clientDetailsProvider(id));
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
     } catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(error))));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_friendlyErrorMessage(error))));
+      }
     }
   }
 
-  Future<void> _deleteClient(BuildContext context, WidgetRef ref, Client client) async {
-    final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
-      title: const Text('Czy na pewno chcesz usunąć klienta?'),
-      content: const Text('Klient zniknie z aktywnej listy.\nDane historyczne pozostaną zachowane.'),
-      actions: <Widget>[TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Anuluj')),
-        FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Usuń klienta'))],
-    ));
+  Future<void> _deleteClient(
+    BuildContext context,
+    WidgetRef ref,
+    Client client,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Czy na pewno chcesz usunąć klienta?'),
+        content: const Text(
+          'Klient zniknie z aktywnej listy.\nDane historyczne pozostaną zachowane.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Usuń klienta'),
+          ),
+        ],
+      ),
+    );
     if (confirmed != true || !context.mounted) return;
     final session = ref.read(authControllerProvider).value?.session;
     if (session == null) return;
-    await ref.read(clientsRepositoryProvider).deleteClient(session: session, clientId: client.id);
+    await ref
+        .read(clientsRepositoryProvider)
+        .deleteClient(session: session, clientId: client.id);
     ref.invalidate(clientsControllerProvider);
     if (context.mounted) context.go('/clients');
   }
@@ -181,7 +249,12 @@ class ClientDetailsPage extends ConsumerWidget {
 }
 
 class _ClientDetails extends StatelessWidget {
-  const _ClientDetails({required this.client, required this.onEdit, required this.onEditNotes, required this.onDelete});
+  const _ClientDetails({
+    required this.client,
+    required this.onEdit,
+    required this.onEditNotes,
+    required this.onDelete,
+  });
 
   final Client client;
   final VoidCallback onEdit;
@@ -200,10 +273,30 @@ class _ClientDetails extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
+              Wrap(
+                key: const Key('client-details-actions'),
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  OutlinedButton.icon(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edytuj'),
+                  ),
+                  TextButton.icon(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Usuń klienta'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Card(
+                key: const Key('client-header-card'),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Row(
+                    key: const Key('client-header-row'),
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       CircleAvatar(
@@ -244,10 +337,6 @@ class _ClientDetails extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Wrap(spacing: 8, children: <Widget>[
-                        OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('Edytuj')),
-                        TextButton.icon(onPressed: onDelete, icon: const Icon(Icons.delete_outline), label: const Text('Usuń klienta')),
-                      ]),
                     ],
                   ),
                 ),
@@ -286,10 +375,40 @@ class _ClientDetails extends StatelessWidget {
                 title: 'Kontakt',
                 icon: Icons.contact_phone_outlined,
                 children: <Widget>[
-                  ...(client.emails.isNotEmpty ? client.emails : <ClientContactPoint>[if (client.primaryEmail != null) ClientContactPoint(id: 0, value: client.primaryEmail!, isPrimary: true)])
-                      .map((item) => _DetailRow(label: item.isPrimary ? 'E-mail (główny)' : 'E-mail', value: item.value)),
-                  ...(client.phones.isNotEmpty ? client.phones : <ClientContactPoint>[if (client.primaryPhone != null) ClientContactPoint(id: 0, value: client.primaryPhone!, isPrimary: true)])
-                      .map((item) => _DetailRow(label: item.isPrimary ? 'Telefon (główny)' : 'Telefon', value: item.value)),
+                  ...(client.emails.isNotEmpty
+                          ? client.emails
+                          : <ClientContactPoint>[
+                              if (client.primaryEmail != null)
+                                ClientContactPoint(
+                                  id: 0,
+                                  value: client.primaryEmail!,
+                                  isPrimary: true,
+                                ),
+                            ])
+                      .map(
+                        (item) => _DetailRow(
+                          label: item.isPrimary ? 'E-mail (główny)' : 'E-mail',
+                          value: item.value,
+                        ),
+                      ),
+                  ...(client.phones.isNotEmpty
+                          ? client.phones
+                          : <ClientContactPoint>[
+                              if (client.primaryPhone != null)
+                                ClientContactPoint(
+                                  id: 0,
+                                  value: client.primaryPhone!,
+                                  isPrimary: true,
+                                ),
+                            ])
+                      .map(
+                        (item) => _DetailRow(
+                          label: item.isPrimary
+                              ? 'Telefon (główny)'
+                              : 'Telefon',
+                          value: item.value,
+                        ),
+                      ),
                   if (_canCall(client.primaryPhone)) ...<Widget>[
                     Padding(
                       padding: const EdgeInsets.only(top: 2, bottom: 18),
@@ -377,7 +496,14 @@ class _ClientDetails extends StatelessWidget {
                 title: 'Notatki',
                 icon: Icons.notes_outlined,
                 children: <Widget>[
-                  Align(alignment: Alignment.centerRight, child: TextButton.icon(onPressed: onEditNotes, icon: const Icon(Icons.edit_note), label: const Text('Edytuj'))),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: onEditNotes,
+                      icon: const Icon(Icons.edit_note),
+                      label: const Text('Edytuj'),
+                    ),
+                  ),
                   _DetailRow(
                     label: 'Dodatkowe informacje',
                     value: client.displayNotes,
@@ -532,10 +658,12 @@ class _DetailsSection extends StatelessWidget {
               children: <Widget>[
                 Icon(icon, color: theme.colorScheme.primary),
                 const SizedBox(width: 10),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],

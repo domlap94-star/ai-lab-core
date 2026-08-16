@@ -296,6 +296,75 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/clients');
     router.dispose();
   });
+
+  testWidgets('client actions stay above header and long name fits mobile', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final Client longNameClient = Client(
+      id: 123,
+      clientType: ClientType.company,
+      name:
+          'Bardzo Długa Pełna Nazwa Przedsiębiorstwa Budowlanego i Projektowego',
+      legalName:
+          'Bardzo Długa Nazwa Prawna Spółki z Ograniczoną Odpowiedzialnością',
+      countryCode: 'PL',
+      createdAt: DateTime.utc(2026, 8, 16),
+      updatedAt: DateTime.utc(2026, 8, 16),
+    );
+    final ProviderContainer container = ProviderContainer(
+      overrides: [
+        clientDetailsProvider.overrideWith(
+          (Ref ref, int clientId) async => longNameClient,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final GoRouter router = GoRouter(
+      initialLocation: '/clients/123',
+      routes: <RouteBase>[
+        GoRoute(path: '/clients', builder: (_, _) => const ClientsPage()),
+        GoRoute(
+          path: '/clients/:clientId',
+          builder: (_, GoRouterState state) => ClientDetailsPage(
+            clientId: int.parse(state.pathParameters['clientId']!),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder actions = find.byKey(const Key('client-details-actions'));
+    final Finder headerCard = find.byKey(const Key('client-header-card'));
+    final Finder headerRow = find.byKey(const Key('client-header-row'));
+    expect(
+      find.descendant(of: actions, matching: find.text('Edytuj')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: actions, matching: find.text('Usuń klienta')),
+      findsOneWidget,
+    );
+    expect(find.descendant(of: headerCard, matching: actions), findsNothing);
+    expect(find.descendant(of: headerRow, matching: actions), findsNothing);
+    expect(
+      tester.getTopLeft(actions).dy,
+      lessThan(tester.getTopLeft(headerCard).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 GoRouter _router({required String initialLocation}) {
