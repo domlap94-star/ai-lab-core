@@ -19,6 +19,12 @@ from app.schemas.import_ingest import (
     ImportIngestRequest,
     ImportIngestResponse,
 )
+from app.services.forward_client_contact_service import (
+    ForwardClientContactService,
+)
+from app.services.forward_source_ingestion_service import (
+    ForwardSourceIngestionService,
+)
 
 
 class ImportSourceNotFoundError(Exception):
@@ -47,6 +53,7 @@ class CandidateMatch:
 class ImportIngestService:
     def __init__(self, db: Session) -> None:
         self.repository = ImportRepository(db)
+        self.forward_normalizer = ForwardSourceIngestionService()
 
     def ingest(
         self,
@@ -88,6 +95,10 @@ class ImportIngestService:
                 matched_client_id=None,
             )
 
+        # Forward-only boundary: existing historical CandidateSource rows are
+        # never reinterpreted by this normalization layer.
+        request = self.forward_normalizer.prepare(request)
+
         try:
             if import_run is not None:
                 self.repository.increment_import_run_counters(
@@ -124,6 +135,12 @@ class ImportIngestService:
                 import_run=import_run,
                 source=request.source,
             )
+
+            if match.matched_client is not None:
+                ForwardClientContactService.add_from_payloads(
+                    match.matched_client,
+                    [request.source.raw_payload],
+                )
 
             if import_run is not None:
                 self.repository.increment_import_run_counters(
@@ -401,6 +418,27 @@ class ImportIngestService:
                     candidate=candidate,
                     matched_client=None,
                     matched_by="candidate_email",
+                )
+
+        if data.primary_phone:
+            client = self.repository.find_client_by_phone(data.primary_phone)
+            if client is not None:
+                candidate = self.repository.find_candidate_by_phone(
+                    data.primary_phone
+                )
+                return CandidateMatch(
+                    candidate=candidate,
+                    matched_client=client,
+                    matched_by="phone",
+                )
+            candidate = self.repository.find_candidate_by_phone(
+                data.primary_phone
+            )
+            if candidate is not None:
+                return CandidateMatch(
+                    candidate=candidate,
+                    matched_client=None,
+                    matched_by="candidate_phone",
                 )
 
         return CandidateMatch(
@@ -975,9 +1013,6 @@ class ImportIngestService:
         for value in (
             data.name,
             data.legal_name,
-            data.primary_email,
-            data.website,
-            data.primary_phone,
         ):
             if value:
                 return value

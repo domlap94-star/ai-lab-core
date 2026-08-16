@@ -533,6 +533,21 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Backend, DB, migration and ingestion: UNCHANGED.
 - NEXT STEP: NEW SOURCE INGESTION CORRECTNESS — NOT STARTED.
 
+### NEW SOURCE INGESTION CORRECTNESS — FORWARD ONLY — DONE
+
+- New Gmail/Google Sheets sources use deterministic current-author boundaries,
+  identity artifact guards and multi-contact parsing before promotion.
+- Gmail body is retained in CandidateSource / Email History provenance and is
+  not copied into Client.notes for newly ingested sources.
+- Existing valid Client.name and primary contacts are protected; new unique
+  secondary contacts may be appended without weakening existing identity.
+- Historical source reprocessing, historical client/notes cleanup, Qwen 9B,
+  Vertex AI and optional local 4B inference were not performed.
+- Synthetic/rollback smoke and ingestion regressions: PASS. Production CRM
+  writes 0; Qdrant writes 0.
+- NEXT STEP: human verification on the next real incoming Gmail and Google
+  Sheets record.
+
 ### CLIENT MANAGEMENT PATCH — NEXT STABIL 1.0.2+8 — PUBLISHED
 
 - Client edit and separate notes edit: DONE.

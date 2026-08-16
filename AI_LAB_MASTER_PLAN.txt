@@ -5224,4 +5224,19 @@ CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9:
 [✓] Android and Windows 1.0.2+9: PUBLISHED; minimum_version remains 1.0.0.
 [ ] NEW SOURCE INGESTION CORRECTNESS: NEXT STEP / NOT STARTED.
 
+NEW SOURCE INGESTION CORRECTNESS — FORWARD ONLY:
+
+[✓] New Gmail and Google Sheets sources pass through deterministic boundary,
+    identity, artifact and multi-contact normalization before promotion.
+[✓] Gmail message bodies remain in source provenance / Email History and are
+    no longer projected into Client.notes for newly ingested sources.
+[✓] Current-author/signature identity is isolated from quoted history; weak
+    identity evidence cannot overwrite an existing valid Client.name.
+[✓] Multiple e-mails and phones are normalized into separate contact points;
+    legacy primary fields remain synchronized and existing primaries win.
+[✓] Historical clients, historical notes and historical sources: UNCHANGED.
+[✓] Optional local 4B helper: NOT USED — deterministic rules were sufficient.
+[✓] Production CRM writes: 0. Qdrant writes: 0.
+[ ] Human verification: next real incoming Gmail and Google Sheets record.
+
 KONIEC MASTER PLAN

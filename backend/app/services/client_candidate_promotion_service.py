@@ -3,12 +3,17 @@
 import re
 from datetime import datetime, timezone
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
+from app.models.client_contact_point import ClientContactPoint
+from app.models.candidate_source import CandidateSource
 from app.models.document import Document
+from app.services.forward_client_contact_service import (
+    ForwardClientContactService,
+)
 from app.services.client_identity_name_quality_service import (
     ClientIdentityNameQualityService,
 )
@@ -141,12 +146,18 @@ class ClientCandidatePromotionService:
                 self.db.query(Client)
                 .filter(
                     Client.deleted_at.is_(None),
-                    func.lower(
-                        func.trim(
-                            Client.primary_email
-                        )
-                    )
-                    == normalized_email,
+                    or_(
+                        func.lower(func.trim(Client.primary_email))
+                        == normalized_email,
+                        Client.contact_points.any(
+                            and_(
+                                ClientContactPoint.deleted_at.is_(None),
+                                ClientContactPoint.kind == "email",
+                                ClientContactPoint.normalized_value
+                                == normalized_email,
+                            )
+                        ),
+                    ),
                 )
                 .first()
             )
@@ -160,26 +171,32 @@ class ClientCandidatePromotionService:
             )
 
             if normalized_phone:
-                clients = (
+                client = (
                     self.db.query(Client)
                     .filter(
                         Client.deleted_at.is_(None),
-                        Client.primary_phone.isnot(None),
+                        or_(
+                            func.regexp_replace(
+                                Client.primary_phone,
+                                r"[^0-9]",
+                                "",
+                                "g",
+                            ).in_((normalized_phone, f"48{normalized_phone}")),
+                            Client.contact_points.any(
+                                and_(
+                                    ClientContactPoint.deleted_at.is_(None),
+                                    ClientContactPoint.kind == "phone",
+                                    ClientContactPoint.normalized_value.in_(
+                                        (normalized_phone, f"48{normalized_phone}")
+                                    ),
+                                )
+                            ),
+                        ),
                     )
-                    .all()
+                    .first()
                 )
-
-                for client in clients:
-                    client_phone = self._normalize_phone(
-                        client.primary_phone
-                    )
-
-                    if (
-                        client_phone
-                        and client_phone
-                        == normalized_phone
-                    ):
-                        return client, "phone"
+                if client is not None:
+                    return client, "phone"
 
         return None, None
 
@@ -231,6 +248,23 @@ class ClientCandidatePromotionService:
         )
 
         self.db.flush()
+
+        source_payloads = [
+            source.raw_payload
+            for source in (
+                self.db.query(CandidateSource)
+                .filter(
+                    CandidateSource.candidate_id == candidate.id,
+                    CandidateSource.deleted_at.is_(None),
+                )
+                .order_by(CandidateSource.id.asc())
+                .all()
+            )
+        ]
+        ForwardClientContactService.add_from_payloads(
+            client,
+            source_payloads,
+        )
 
         candidate.status = "accepted"
         candidate.matched_client_id = client.id

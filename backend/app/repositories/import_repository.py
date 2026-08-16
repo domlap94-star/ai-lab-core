@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
+from app.models.client_contact_point import ClientContactPoint
 from app.models.import_run import ImportRun
 from app.models.import_source import ImportSource
 
@@ -108,8 +109,17 @@ class ImportRepository:
             self.db.query(Client)
             .filter(
                 Client.deleted_at.is_(None),
-                func.lower(func.trim(Client.primary_email))
-                == normalized_email,
+                or_(
+                    func.lower(func.trim(Client.primary_email))
+                    == normalized_email,
+                    Client.contact_points.any(
+                        and_(
+                            ClientContactPoint.deleted_at.is_(None),
+                            ClientContactPoint.kind == "email",
+                            ClientContactPoint.normalized_value == normalized_email,
+                        )
+                    ),
+                ),
             )
             .first()
         )
@@ -182,6 +192,23 @@ class ImportRepository:
 
         return candidate
 
+    def find_candidate_by_phone(self, phone: str) -> ClientCandidate | None:
+        normalized_phone = self._normalize_phone(phone)
+        if not normalized_phone:
+            return None
+        return (
+            self.db.query(ClientCandidate)
+            .filter(
+                ClientCandidate.deleted_at.is_(None),
+                ClientCandidate.status.in_(("pending", "duplicate")),
+                func.regexp_replace(
+                    ClientCandidate.primary_phone, r"[^0-9]", "", "g"
+                ).in_((normalized_phone, f"48{normalized_phone}")),
+            )
+            .order_by(ClientCandidate.created_at.asc())
+            .first()
+        )
+
     def create_candidate_source(
         self,
         source: CandidateSource,
@@ -244,6 +271,15 @@ class ImportRepository:
         return value.strip().lower()
 
     @staticmethod
+    def _normalize_phone(value: str | None) -> str:
+        if value is None:
+            return ""
+        digits = "".join(character for character in value if character.isdigit())
+        if len(digits) == 11 and digits.startswith("48"):
+            digits = digits[2:]
+        return digits if len(digits) == 9 else ""
+
+    @staticmethod
     def _normalize_identifier(value: str | None) -> str:
         if value is None:
             return ""
@@ -252,4 +288,30 @@ class ImportRepository:
             character.lower()
             for character in value.strip()
             if character.isalnum()
+        )
+
+    def find_client_by_phone(self, phone: str) -> Client | None:
+        normalized_phone = self._normalize_phone(phone)
+        if not normalized_phone:
+            return None
+        return (
+            self.db.query(Client)
+            .filter(
+                Client.deleted_at.is_(None),
+                or_(
+                    func.regexp_replace(
+                        Client.primary_phone, r"[^0-9]", "", "g"
+                    ).in_((normalized_phone, f"48{normalized_phone}")),
+                    Client.contact_points.any(
+                        and_(
+                            ClientContactPoint.deleted_at.is_(None),
+                            ClientContactPoint.kind == "phone",
+                            ClientContactPoint.normalized_value.in_(
+                                (normalized_phone, f"48{normalized_phone}")
+                            ),
+                        )
+                    ),
+                ),
+            )
+            .first()
         )
