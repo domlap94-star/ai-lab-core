@@ -3,6 +3,7 @@ import '../data/document_content.dart';
 import '../data/documents_api.dart';
 import '../domain/document.dart';
 import '../domain/document_filters.dart';
+import '../domain/document_client_match.dart';
 import '../domain/document_page.dart';
 
 abstract class DocumentsRepository {
@@ -24,6 +25,28 @@ abstract class DocumentsRepository {
     required RepositoryDocument document,
     void Function(int received, int total)? onProgress,
   });
+  Future<DocumentClientMatch> fetchClientMatch({
+    required AuthSession session,
+    required int documentId,
+  }) => throw UnsupportedError('Document matching is not implemented.');
+
+  Future<void> linkClient({
+    required AuthSession session,
+    required int documentId,
+    required int clientId,
+    required bool move,
+    required bool confirmConflict,
+  }) => throw UnsupportedError('Document matching is not implemented.');
+
+  Future<void> unlinkClient({
+    required AuthSession session,
+    required int documentId,
+  }) => throw UnsupportedError('Document matching is not implemented.');
+
+  Future<void> undoClientLink({
+    required AuthSession session,
+    required int documentId,
+  }) => throw UnsupportedError('Document matching is not implemented.');
 }
 
 class ApiDocumentsRepository implements DocumentsRepository {
@@ -85,4 +108,50 @@ class ApiDocumentsRepository implements DocumentsRepository {
       onProgress: onProgress,
     );
   }
+
+  @override
+  Future<DocumentClientMatch> fetchClientMatch({
+    required AuthSession session,
+    required int documentId,
+  }) => _api.fetchClientMatch(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<void> linkClient({
+    required AuthSession session,
+    required int documentId,
+    required int clientId,
+    required bool move,
+    required bool confirmConflict,
+  }) => _api.linkClient(
+    documentId: documentId,
+    clientId: clientId,
+    move: move,
+    confirmConflict: confirmConflict,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<void> unlinkClient({
+    required AuthSession session,
+    required int documentId,
+  }) => _api.unlinkClient(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<void> undoClientLink({
+    required AuthSession session,
+    required int documentId,
+  }) => _api.undoClientLink(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
 }

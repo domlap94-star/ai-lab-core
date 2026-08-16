@@ -5251,4 +5251,19 @@ CHUNK 7 — CONTACT AND ADDRESS MODEL — DONE:
 [ ] ClientContactPerson: deferred to CHUNK 7B; requires an explicit person-to-
     contact relationship and must not be improvised in the address migration.
 
+CHUNK 8 — DOCUMENT-CLIENT MATCHING WORKSPACE — DONE:
+
+[✓] Reconciled existing Document client/candidate relation, match metadata,
+    Repository UI and Client 360 reads; no duplicate document model created.
+[✓] Current read-only audit: 5899 total, 5639 client-linked, 161 candidate-only,
+    99 unmatched, 97 unmatched Gmail attachments and 0 current relation conflicts.
+[✓] Deterministic explainable suggestions and single-document manual
+    link/unlink/move/undo with conflict confirmation; bulk and AI matching: NO.
+[✓] Applied additive `chunk8doclink_20260817` audit migration with RESTRICT
+    history FKs, actor and old/new assignment; destructive operations: 0.
+[✓] Post-migration audit preserved all 5899 documents and associations; audit
+    rows were 0 before and after rollback-only acceptance testing.
+[✓] Backend matching/regression tests, Flutter analyze and 56/56 tests: PASS.
+[✓] CHUNK 8 DONE. CHUNK 9: NOT STARTED. CHUNK 7B: NOT STARTED.
+
 KONIEC MASTER PLAN

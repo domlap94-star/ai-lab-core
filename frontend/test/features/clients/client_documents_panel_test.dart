@@ -244,7 +244,7 @@ class _RepositoryCall {
   final int limit;
 }
 
-class _PanelRepository implements DocumentsRepository {
+class _PanelRepository extends DocumentsRepository {
   _PanelRepository({this.empty = false, this.failList = false});
 
   final bool empty;

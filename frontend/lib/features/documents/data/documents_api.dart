@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../domain/document_filters.dart';
+import '../domain/document_client_match.dart';
 import 'document_content.dart';
 import 'document_page_response.dart';
 import 'document_response.dart';
@@ -94,6 +95,63 @@ class DocumentsApi {
       fileName: fileName,
       contentType:
           response.headers.value(Headers.contentTypeHeader) ?? contentType,
+    );
+  }
+
+  Future<DocumentClientMatch> fetchClientMatch({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_path/$documentId/client-match',
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+    if (response.data == null) {
+      throw const FormatException('Pusta odpowiedź dopasowania.');
+    }
+    return DocumentClientMatch.fromJson(response.data!);
+  }
+
+  Future<void> linkClient({
+    required int documentId,
+    required int clientId,
+    required bool move,
+    required bool confirmConflict,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '$_path/$documentId/${move ? 'move-client' : 'link-client'}',
+      data: <String, dynamic>{
+        'client_id': clientId,
+        'reason': 'manual UI',
+        'confirm_conflict': confirmConflict,
+      },
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+  }
+
+  Future<void> unlinkClient({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '$_path/$documentId/unlink-client',
+      data: const <String, dynamic>{'reason': 'manual UI', 'confirm': true},
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+  }
+
+  Future<void> undoClientLink({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '$_path/$documentId/undo-client-link',
+      options: Options(headers: _headers(accessToken, tokenType)),
     );
   }
 

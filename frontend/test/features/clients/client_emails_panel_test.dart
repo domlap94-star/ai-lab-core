@@ -272,7 +272,7 @@ ClientEmail _email(int id) {
   );
 }
 
-class _DocumentRepository implements DocumentsRepository {
+class _DocumentRepository extends DocumentsRepository {
   int detailCalls = 0;
   int contentCalls = 0;
 

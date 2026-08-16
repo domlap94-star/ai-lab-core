@@ -5,9 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
+import '../../clients/application/clients_providers.dart';
+import '../../clients/application/clients_repository.dart';
+import '../../clients/domain/client.dart';
 import '../application/documents_controller.dart';
 import '../application/documents_providers.dart';
+import '../application/documents_repository.dart';
 import '../domain/document.dart';
+import '../domain/document_client_match.dart';
 import '../domain/document_filters.dart';
 import '../domain/document_page.dart';
 import 'document_presentation.dart';
@@ -704,6 +709,8 @@ class _DocumentDetailsDialog extends ConsumerWidget {
                   ),
                 if (document.archiveMemberPath != null)
                   _DetailRow('Ścieżka w archiwum', document.archiveMemberPath!),
+                const Divider(height: 28),
+                DocumentClientMatchPanel(document: document),
               ],
             ),
           ),
@@ -723,6 +730,368 @@ class _DocumentDetailsDialog extends ConsumerWidget {
             icon: const Icon(Icons.open_in_new),
             label: const Text('Otwórz plik'),
           ),
+      ],
+    );
+  }
+}
+
+class DocumentClientMatchPanel extends ConsumerStatefulWidget {
+  const DocumentClientMatchPanel({required this.document, super.key});
+  final RepositoryDocument document;
+
+  @override
+  ConsumerState<DocumentClientMatchPanel> createState() =>
+      _DocumentClientMatchPanelState();
+}
+
+class _DocumentClientMatchPanelState
+    extends ConsumerState<DocumentClientMatchPanel> {
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final match = ref.watch(documentClientMatchProvider(widget.document.id));
+    return match.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (Object error, StackTrace _) => Text(
+        'Nie udało się pobrać dopasowania: ${friendlyDocumentError(error)}',
+      ),
+      data: (DocumentClientMatch value) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(
+            'Powiązanie z klientem',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          _DetailRow('Status', _matchStatus(value.status)),
+          _DetailRow('Obecny klient', value.currentClientName ?? 'Brak'),
+          _DetailRow('Pewność', value.confidence),
+          if (value.suggestions.isNotEmpty) ...<Widget>[
+            Text('Sugestie', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 6),
+            ...value.suggestions.map(
+              (suggestion) => Card(
+                color: value.conflict
+                    ? Theme.of(context).colorScheme.errorContainer
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        '${suggestion.clientName} • ${suggestion.confidence}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      ...suggestion.evidence.map(
+                        (item) => Text('• ${item.description}'),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _saving
+                              ? null
+                              : () => _link(
+                                  suggestion.clientId,
+                                  value,
+                                  suggested: true,
+                                ),
+                          child: Text(
+                            value.currentClientId == null
+                                ? 'Przypisz'
+                                : 'Przenieś tutaj',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ] else
+            const Text('Brak deterministycznej sugestii.'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              OutlinedButton.icon(
+                onPressed: _saving ? null : () => _chooseClient(value),
+                icon: const Icon(Icons.person_search),
+                label: Text(
+                  value.currentClientId == null
+                      ? 'Przypisz klienta'
+                      : 'Zmień klienta',
+                ),
+              ),
+              if (value.currentClientId != null)
+                OutlinedButton.icon(
+                  onPressed: _saving ? null : () => _unlink(value),
+                  icon: const Icon(Icons.link_off),
+                  label: const Text('Odepnij'),
+                ),
+              if (value.history.isNotEmpty)
+                TextButton.icon(
+                  onPressed: _saving ? null : _undo,
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Cofnij ostatnią zmianę'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _chooseClient(DocumentClientMatch match) async {
+    final AuthSession session = requireDocumentSessionFromAuth(
+      ref.read(authControllerProvider),
+    );
+    final Client? client = await showDialog<Client>(
+      context: context,
+      builder: (BuildContext dialogContext) => _DocumentClientPickerDialog(
+        repository: ref.read(clientsRepositoryProvider),
+        session: session,
+        title: match.currentClientId == null
+            ? 'Przypisz klienta'
+            : 'Zmień klienta',
+      ),
+    );
+    if (client != null && mounted) {
+      await _link(client.id, match, suggested: false);
+    }
+  }
+
+  Future<void> _link(
+    int clientId,
+    DocumentClientMatch match, {
+    required bool suggested,
+  }) async {
+    final bool conflict =
+        match.conflict ||
+        (!suggested &&
+            match.suggestions.any((item) => item.clientId != clientId));
+    if (!await _confirm(
+      conflict
+          ? 'Dowody wskazują innego klienta. Czy mimo to zatwierdzić operację?'
+          : match.currentClientId == null
+          ? 'Przypisać dokument do wybranego klienta?'
+          : 'Przenieść dokument do wybranego klienta?',
+    )) {
+      return;
+    }
+    await _mutate(
+      (repository, session) => repository.linkClient(
+        session: session,
+        documentId: widget.document.id,
+        clientId: clientId,
+        move: match.currentClientId != null,
+        confirmConflict: conflict,
+      ),
+    );
+  }
+
+  Future<void> _unlink(DocumentClientMatch match) async {
+    if (!await _confirm(
+      'Odpiąć dokument od ${match.currentClientName}? Plik i jego historia pozostaną zachowane.',
+    )) {
+      return;
+    }
+    await _mutate(
+      (repository, session) => repository.unlinkClient(
+        session: session,
+        documentId: widget.document.id,
+      ),
+    );
+  }
+
+  Future<void> _undo() async {
+    if (!await _confirm('Cofnąć ostatnią zmianę powiązania dokumentu?')) {
+      return;
+    }
+    await _mutate(
+      (repository, session) => repository.undoClientLink(
+        session: session,
+        documentId: widget.document.id,
+      ),
+    );
+  }
+
+  Future<bool> _confirm(String message) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dialogContext) => AlertDialog(
+          title: const Text('Potwierdzenie'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Potwierdź'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
+  Future<void> _mutate(
+    Future<void> Function(DocumentsRepository repository, AuthSession session)
+    action,
+  ) async {
+    setState(() => _saving = true);
+    try {
+      await action(
+        ref.read(documentsRepositoryProvider),
+        requireDocumentSessionFromAuth(ref.read(authControllerProvider)),
+      );
+      ref.invalidate(documentClientMatchProvider(widget.document.id));
+      ref.invalidate(documentDetailsProvider(widget.document.id));
+      await ref.read(documentsControllerProvider.notifier).refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Powiązanie dokumentu zostało zapisane.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyDocumentError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  static String _matchStatus(String value) => switch (value) {
+    'ASSIGNED' => 'Przypisany',
+    'CANDIDATE' => 'Kandydat',
+    'CONFLICT' => 'Konflikt',
+    _ => 'Nieprzypisany',
+  };
+}
+
+class _DocumentClientPickerDialog extends StatefulWidget {
+  const _DocumentClientPickerDialog({
+    required this.repository,
+    required this.session,
+    required this.title,
+  });
+  final ClientsRepository repository;
+  final AuthSession session;
+  final String title;
+
+  @override
+  State<_DocumentClientPickerDialog> createState() =>
+      _DocumentClientPickerDialogState();
+}
+
+class _DocumentClientPickerDialogState
+    extends State<_DocumentClientPickerDialog> {
+  final TextEditingController _search = TextEditingController();
+  late Future<List<Client>> _results;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  void _load() {
+    _results = widget.repository
+        .fetchClients(
+          session: widget.session,
+          search: _search.text.trim(),
+          limit: 20,
+        )
+        .then((page) => page.items);
+  }
+
+  void _searchClients() => setState(_load);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 520,
+        height: 430,
+        child: Column(
+          children: <Widget>[
+            TextField(
+              key: const Key('document-client-search'),
+              controller: _search,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Szukaj klienta',
+                suffixIcon: IconButton(
+                  tooltip: 'Szukaj',
+                  onPressed: _searchClients,
+                  icon: const Icon(Icons.search),
+                ),
+              ),
+              onSubmitted: (_) => _searchClients(),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: FutureBuilder<List<Client>>(
+                future: _results,
+                builder:
+                    (
+                      BuildContext context,
+                      AsyncSnapshot<List<Client>> snapshot,
+                    ) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snapshot.hasError) {
+                        return Text(friendlyDocumentError(snapshot.error!));
+                      }
+                      final List<Client> clients =
+                          snapshot.data ?? const <Client>[];
+                      if (clients.isEmpty) {
+                        return const Center(
+                          child: Text('Nie znaleziono klientów.'),
+                        );
+                      }
+                      return ListView.builder(
+                        itemCount: clients.length,
+                        itemBuilder: (BuildContext context, int index) {
+                          final Client client = clients[index];
+                          return ListTile(
+                            title: Text(client.name),
+                            subtitle: Text(
+                              '${client.clientType.displayName} • ID ${client.id}',
+                            ),
+                            onTap: () => Navigator.pop(context, client),
+                          );
+                        },
+                      );
+                    },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Anuluj'),
+        ),
       ],
     );
   }

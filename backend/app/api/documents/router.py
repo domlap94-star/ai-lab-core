@@ -19,6 +19,10 @@ from app.api.imports.dependencies import require_import_api_key
 from app.api.auth import get_current_user
 from app.database.session import get_db
 from app.schemas.document import (
+    DocumentClientLinkRequest,
+    DocumentClientLinkResult,
+    DocumentClientMatchRead,
+    DocumentClientUnlinkRequest,
     DocumentRead,
     DocumentLinkState,
     DocumentPublicPage,
@@ -35,6 +39,13 @@ from app.services.document_service import (
     DocumentContentUnavailableError,
     UnsafeDocumentStoragePathError,
 )
+from app.models.user import User
+from app.services.document_client_matching_service import (
+    DocumentClientMatchingService,
+    DocumentMatchConflictError,
+    DocumentMatchInvalidOperationError,
+    DocumentMatchNotFoundError,
+)
 from app.services.document_read_service import (
     DocumentNotFoundError,
     DocumentReadService,
@@ -44,6 +55,100 @@ router = APIRouter(
     prefix="/documents",
     tags=["Documents"],
 )
+
+
+def _matching_error(error: Exception) -> HTTPException:
+    if isinstance(error, DocumentMatchNotFoundError):
+        return HTTPException(status_code=404, detail=str(error))
+    if isinstance(error, DocumentMatchConflictError):
+        return HTTPException(status_code=409, detail=str(error))
+    return HTTPException(status_code=422, detail=str(error))
+
+
+@router.get("/{document_id}/client-match", response_model=DocumentClientMatchRead)
+def get_document_client_match(
+    document_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentClientMatchRead:
+    try:
+        return DocumentClientMatchingService(db).get_match(document_id)
+    except DocumentMatchNotFoundError as error:
+        raise _matching_error(error) from error
+
+
+@router.post("/{document_id}/link-client", response_model=DocumentClientLinkResult)
+def link_document_client(
+    document_id: int,
+    request: DocumentClientLinkRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentClientLinkResult:
+    try:
+        _, event = DocumentClientMatchingService(db).link(document_id, current_user, request)
+        document = DocumentReadService(db).get_document(document_id)
+        result = DocumentClientLinkResult(document=document, event=event)
+        db.commit()
+        return result
+    except (DocumentMatchNotFoundError, DocumentMatchConflictError, DocumentMatchInvalidOperationError) as error:
+        db.rollback()
+        raise _matching_error(error) from error
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.post("/{document_id}/move-client", response_model=DocumentClientLinkResult)
+def move_document_client(
+    document_id: int,
+    request: DocumentClientLinkRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentClientLinkResult:
+    return link_document_client(document_id, request, current_user, db)
+
+
+@router.post("/{document_id}/unlink-client", response_model=DocumentClientLinkResult)
+def unlink_document_client(
+    document_id: int,
+    request: DocumentClientUnlinkRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentClientLinkResult:
+    try:
+        _, event = DocumentClientMatchingService(db).unlink(
+            document_id, current_user, request.reason, confirm=request.confirm
+        )
+        document = DocumentReadService(db).get_document(document_id)
+        result = DocumentClientLinkResult(document=document, event=event)
+        db.commit()
+        return result
+    except (DocumentMatchNotFoundError, DocumentMatchInvalidOperationError) as error:
+        db.rollback()
+        raise _matching_error(error) from error
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.post("/{document_id}/undo-client-link", response_model=DocumentClientLinkResult)
+def undo_document_client_link(
+    document_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DocumentClientLinkResult:
+    try:
+        _, event = DocumentClientMatchingService(db).undo(document_id, current_user)
+        document = DocumentReadService(db).get_document(document_id)
+        result = DocumentClientLinkResult(document=document, event=event)
+        db.commit()
+        return result
+    except (DocumentMatchNotFoundError, DocumentMatchInvalidOperationError) as error:
+        db.rollback()
+        raise _matching_error(error) from error
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get(

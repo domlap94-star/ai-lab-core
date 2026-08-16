@@ -432,15 +432,36 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 7 COMPLETE EXCEPT SEPARATE 7B CONTACT PERSON MODEL.
 - CHUNK 7B: NOT STARTED. CHUNK 8: NOT STARTED.
 
-### 8. Document-client matching workspace — TODO
+### 8. Document-client matching workspace — DONE
 
 - Cel: rozstrzygnąć 99 unmatched i 161 candidate-only. Zależności: 2–4.
 - Zakres: suggestions/confidence, manual link/unlink/move, audit trail, UI.
-- Quality debt: osobno rozstrzygnąć 20 Gmail attachment documents bez
-  client_id/candidate_id wykrytych w MICRO-FIX 5A; CHUNK 6 nie przypisuje ich.
+- Quality debt: aktualny audit wykazuje 97 Gmail attachment documents bez
+  client_id/candidate_id; workspace nie wykonuje automatycznego przypisania.
 - Migracje: audit model prawdopodobny. Ryzyko: błędne przypisanie. Dane: jawne
   pojedyncze mutacje; medium confidence wymaga approval.
 - Acceptance: każda zmiana audytowalna i odwracalna. Commit: `Add document matching workspace`.
+
+#### CHUNK 8 completion checkpoint
+
+- Reconciliation: Document already has `client_id`, `candidate_id`,
+  match status/confidence and repository/client-360 reads. Manual link,
+  unlink, atomic move, deterministic explainable suggestions and durable
+  operator audit were missing.
+- Read-only production audit: 5899 total; 5639 client-linked (also retaining
+  candidate provenance), 161 candidate-only, 99 unmatched, 97 unmatched Gmail
+  attachments; 0 current client/candidate association conflicts.
+- Applied additive revision `chunk8doclink_20260817` with RESTRICT foreign
+  keys and no destructive alteration. It records LINK/UNLINK/MOVE, actor,
+  old/new client, candidate provenance, bounded evidence metadata and explicit
+  reversals. Existing document associations remained unchanged.
+- Deterministic candidate/exact-contact/checksum suggestions,
+  explicit conflict confirmation, transactional single-document operations,
+  undo endpoint and responsive Flutter matching controls. No bulk/AI apply.
+- Backend matching/audit/undo suite, required regressions, Flutter analyze and
+  full 56-test suite PASS. Synthetic link/move/unlink/undo was rolled back;
+  production durable test writes 0 and audit rows remained 0.
+- CHUNK 8: DONE. CHUNK 7B: NOT STARTED. CHUNK 9: NOT STARTED.
 
 ### 9. Upload, photos, mobile field data — TODO
 

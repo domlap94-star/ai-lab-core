@@ -127,7 +127,7 @@ class _Call {
   final int skip;
 }
 
-class _FakeDocumentsRepository implements DocumentsRepository {
+class _FakeDocumentsRepository extends DocumentsRepository {
   final List<_Call> calls = <_Call>[];
   AuthSession? contentSession;
 

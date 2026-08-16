@@ -6,6 +6,7 @@ import '../../auth/application/auth_state.dart';
 import '../../auth/domain/auth_session.dart';
 import '../data/documents_api.dart';
 import '../domain/document.dart';
+import '../domain/document_client_match.dart';
 import 'document_open_service.dart';
 import 'documents_repository.dart';
 
@@ -32,6 +33,19 @@ final documentDetailsProvider = FutureProvider.family<RepositoryDocument, int>((
         documentId: documentId,
       );
 });
+
+final documentClientMatchProvider =
+    FutureProvider.family<DocumentClientMatch, int>((
+      Ref ref,
+      int documentId,
+    ) async {
+      return ref
+          .watch(documentsRepositoryProvider)
+          .fetchClientMatch(
+            session: requireDocumentSession(ref),
+            documentId: documentId,
+          );
+    });
 
 AuthSession requireDocumentSession(Ref ref) {
   return requireDocumentSessionFromAuth(ref.read(authControllerProvider));

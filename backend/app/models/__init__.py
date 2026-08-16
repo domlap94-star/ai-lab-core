@@ -5,6 +5,7 @@ from app.models.client_contact_point import ClientContactPoint
 from app.models.client_candidate import ClientCandidate
 from app.models.conversation import Conversation
 from app.models.document import Document
+from app.models.document_client_link_event import DocumentClientLinkEvent
 from app.models.document_asset import DocumentAsset
 from app.models.document_chunk import DocumentChunk
 from app.models.document_page import DocumentPage
@@ -24,6 +25,7 @@ __all__ = [
     "ClientCandidate",
     "Conversation",
     "Document",
+    "DocumentClientLinkEvent",
     "DocumentAsset",
     "DocumentChunk",
     "DocumentPage",
