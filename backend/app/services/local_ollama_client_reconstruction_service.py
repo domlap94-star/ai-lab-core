@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -22,6 +24,64 @@ class LocalOllamaStructuredOutputError(ValueError):
         self.validation_error = str(validation_error)
 
 
+class ReconstructionPromptTooLargeError(ValueError):
+    """Neutral hook for future chunked processing; no model call was made."""
+
+    def __init__(self, estimated_input_tokens: int) -> None:
+        super().__init__("PROMPT_TOO_LARGE")
+        self.estimated_input_tokens = estimated_input_tokens
+
+
+MIN_OUTPUT_RESERVE = 1024
+NORMAL_CONTEXT = 4096
+EXPANDED_CONTEXT = 8192
+ESTIMATED_BYTES_PER_TOKEN = 2.5
+TOKEN_ESTIMATE_OVERHEAD = 256
+
+
+def dynamic_proposal_schema(packet: dict[str, Any]) -> dict[str, Any]:
+    schema = deepcopy(ClientReconstructionProposal.model_json_schema())
+    references = []
+    seen: set[tuple[str, str]] = set()
+    for source in packet.get("source_evidence", []):
+        source_type = str(source["source_type"])
+        source_id = source["source_id"]
+        key = (source_type, str(source_id))
+        if key in seen:
+            continue
+        seen.add(key)
+        references.append({
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "source_type": {"const": source_type},
+                "source_id": {"const": source_id},
+                "field": {"type": "string"},
+            },
+            "required": ["source_type", "source_id", "field"],
+        })
+    evidence = schema["properties"]["evidence_refs"]
+    if references:
+        evidence["items"] = {"oneOf": references}
+    else:
+        evidence["items"] = False
+        evidence["maxItems"] = 0
+    return schema
+
+
+def estimate_prompt_tokens(*, messages: list[dict[str, str]], schema: dict[str, Any]) -> int:
+    serialized = json.dumps({"messages": messages, "format": schema}, ensure_ascii=False)
+    return math.ceil(len(serialized.encode("utf-8")) / ESTIMATED_BYTES_PER_TOKEN) + TOKEN_ESTIMATE_OVERHEAD
+
+
+def select_context(estimated_input_tokens: int) -> int:
+    if estimated_input_tokens + MIN_OUTPUT_RESERVE <= NORMAL_CONTEXT:
+        return NORMAL_CONTEXT
+    if estimated_input_tokens + MIN_OUTPUT_RESERVE <= EXPANDED_CONTEXT:
+        return EXPANDED_CONTEXT
+    raise ReconstructionPromptTooLargeError(estimated_input_tokens)
+
+
 class LocalOllamaClientReconstructionService:
     """Toolless local evaluator using the same Phase 1A schema and policy."""
 
@@ -40,20 +100,24 @@ class LocalOllamaClientReconstructionService:
         self,
         packet: dict[str, Any],
     ) -> tuple[ClientReconstructionProposal, dict[str, int | float]]:
+        schema = dynamic_proposal_schema(packet)
+        messages = [
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {
+                "role": "user",
+                "content": "SOURCE_EVIDENCE:\n" + json.dumps(packet, ensure_ascii=False),
+            },
+        ]
+        estimated_input_tokens = estimate_prompt_tokens(messages=messages, schema=schema)
+        effective_num_ctx = select_context(estimated_input_tokens)
         request = {
             "model": self.model,
             "stream": False,
             "think": False,
-            "format": ClientReconstructionProposal.model_json_schema(),
-            "options": {"temperature": 0, "num_ctx": 4096},
-            "messages": [
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {
-                    "role": "user",
-                    "content": "SOURCE_EVIDENCE:\n"
-                    + json.dumps(packet, ensure_ascii=False),
-                },
-            ],
+            "format": schema,
+            "options": {"temperature": 0, "num_ctx": effective_num_ctx,
+                        "num_predict": MIN_OUTPUT_RESERVE},
+            "messages": messages,
         }
         with httpx.Client(timeout=self.timeout) as client:
             response = client.post(f"{self.base_url}/api/chat", json=request)
@@ -74,6 +138,8 @@ class LocalOllamaClientReconstructionService:
                 eval_count / (eval_duration / 1_000_000_000)
                 if eval_duration else 0.0
             ),
+            "estimated_input_tokens": estimated_input_tokens,
+            "effective_num_ctx": effective_num_ctx,
         }
         try:
             proposal = ClientReconstructionProposal.model_validate_json(content)
