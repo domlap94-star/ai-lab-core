@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/application/auth_controller.dart';
@@ -9,6 +10,7 @@ import '../../documents/application/documents_providers.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/domain/document_page.dart';
 import '../../documents/presentation/document_presentation.dart';
+import '../application/clients_providers.dart';
 import 'client_emails_panel.dart';
 
 class ClientWorkspacePanels extends StatelessWidget {
@@ -56,6 +58,7 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
   int _skip = 0;
   final Set<int> _openingIds = <int>{};
   final Map<int, double?> _openingProgress = <int, double?>{};
+  bool _uploading = false;
 
   ClientDocumentsPageRequest get _request => ClientDocumentsPageRequest(
     clientId: widget.clientId,
@@ -121,6 +124,24 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
           if (_expanded) ...<Widget>[
             const Divider(height: 1),
             Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  key: const Key('client-document-upload'),
+                  onPressed: _uploading ? null : _upload,
+                  icon: _uploading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.upload_file),
+                  label: Text(_uploading ? 'Przesyłanie...' : 'Dodaj dokument'),
+                ),
+              ),
+            ),
+            Padding(
               padding: const EdgeInsets.all(16),
               child: documents!.when(
                 loading: () => const _PanelLoading(),
@@ -135,6 +156,43 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
         ],
       ),
     );
+  }
+
+  Future<void> _upload() async {
+    final selectedFile = await FilePicker.pickFile();
+    final path = selectedFile?.path;
+    if (path == null || !mounted) return;
+    setState(() => _uploading = true);
+    try {
+      final session = ref.read(authControllerProvider).value?.session;
+      if (session == null) {
+        throw StateError('Brak aktywnej sesji.');
+      }
+      await ref
+          .read(clientsRepositoryProvider)
+          .uploadClientDocument(
+            session: session,
+            clientId: widget.clientId,
+            path: path,
+          );
+      _hasLoaded = true;
+      _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Dodano dokument ${selectedFile!.name}.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(friendlyDocumentError(error))));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
+    }
   }
 
   Widget _buildLoaded(DocumentPage page) {

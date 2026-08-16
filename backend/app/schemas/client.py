@@ -1,7 +1,9 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+import re
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.industry import IndustryRead
 
@@ -13,6 +15,47 @@ ClientType = Literal[
 ]
 
 ClientPageSortOrder = Literal["newest", "oldest"]
+
+
+class ClientContactInput(BaseModel):
+    value: str = Field(min_length=1, max_length=255)
+    is_primary: bool = False
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def strip_value(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class ClientContactRead(ClientContactInput):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+
+
+def _validate_contacts(contacts: list[ClientContactInput] | None, *, kind: str):
+    if contacts is None:
+        return None
+    seen: set[str] = set()
+    primary_count = 0
+    for contact in contacts:
+        value = contact.value.strip()
+        if kind == "email":
+            if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+                raise ValueError("Invalid email address")
+            key = value.casefold()
+        else:
+            key = re.sub(r"[^0-9+]", "", value)
+            if len(re.sub(r"\D", "", key)) < 6 or not re.fullmatch(r"\+?[0-9]+", key):
+                raise ValueError("Invalid phone number")
+        if key in seen:
+            raise ValueError(f"Duplicate {kind} contact")
+        seen.add(key)
+        primary_count += int(contact.is_primary)
+    if primary_count > 1:
+        raise ValueError(f"At most one primary {kind} is allowed")
+    if contacts and primary_count == 0:
+        contacts[0].is_primary = True
+    return contacts
 
 
 class ClientBase(BaseModel):
@@ -120,7 +163,14 @@ class ClientBase(BaseModel):
 
 
 class ClientCreate(ClientBase):
-    pass
+    emails: list[ClientContactInput] | None = None
+    phones: list[ClientContactInput] | None = None
+
+    @model_validator(mode="after")
+    def validate_contact_lists(self):
+        self.emails = _validate_contacts(self.emails, kind="email")
+        self.phones = _validate_contacts(self.phones, kind="phone")
+        return self
 
 
 class ClientUpdate(BaseModel):
@@ -181,6 +231,8 @@ class ClientUpdate(BaseModel):
         max_length=2,
     )
     notes: str | None = None
+    emails: list[ClientContactInput] | None = None
+    phones: list[ClientContactInput] | None = None
 
     @field_validator(
         "name",
@@ -219,6 +271,14 @@ class ClientUpdate(BaseModel):
 
         return value.strip().upper()
 
+    @model_validator(mode="after")
+    def validate_contact_lists(self):
+        if "emails" in self.model_fields_set:
+            self.emails = _validate_contacts(self.emails or [], kind="email")
+        if "phones" in self.model_fields_set:
+            self.phones = _validate_contacts(self.phones or [], kind="phone")
+        return self
+
 
 class ClientRead(ClientBase):
     model_config = ConfigDict(from_attributes=True)
@@ -229,6 +289,8 @@ class ClientRead(ClientBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
+    emails: list[ClientContactRead] = Field(default_factory=list)
+    phones: list[ClientContactRead] = Field(default_factory=list)
 
 
 class ClientPage(BaseModel):

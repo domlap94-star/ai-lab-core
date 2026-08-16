@@ -25,6 +25,8 @@ class ClientResponse {
     this.city,
     this.notes,
     this.deletedAt,
+    this.emails = const <Map<String, dynamic>>[],
+    this.phones = const <Map<String, dynamic>>[],
   });
 
   final int id;
@@ -49,6 +51,8 @@ class ClientResponse {
   final DateTime updatedAt;
   final DateTime? sourceRecordDate;
   final DateTime? deletedAt;
+  final List<Map<String, dynamic>> emails;
+  final List<Map<String, dynamic>> phones;
 
   factory ClientResponse.fromJson(Map<String, dynamic> json) {
     final dynamic industryJson = json['industry'];
@@ -78,6 +82,8 @@ class ClientResponse {
       createdAt: _parseDateTime(json['created_at']),
       updatedAt: _parseDateTime(json['updated_at']),
       deletedAt: _parseNullableDateTime(json['deleted_at']),
+      emails: _parseContacts(json['emails']),
+      phones: _parseContacts(json['phones']),
     );
   }
 
@@ -105,6 +111,14 @@ class ClientResponse {
       createdAt: createdAt,
       updatedAt: updatedAt,
       deletedAt: deletedAt,
+      emails: emails.map((item) => ClientContactPoint(
+        id: _parseInt(item['id']), value: item['value']?.toString() ?? '',
+        isPrimary: item['is_primary'] == true,
+      )).toList(growable: false),
+      phones: phones.map((item) => ClientContactPoint(
+        id: _parseInt(item['id']), value: item['value']?.toString() ?? '',
+        isPrimary: item['is_primary'] == true,
+      )).toList(growable: false),
     );
   }
 
@@ -151,4 +165,8 @@ class ClientResponse {
 
     return parsed;
   }
+
+  static List<Map<String, dynamic>> _parseContacts(dynamic value) => value is List
+      ? value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+      : const <Map<String, dynamic>>[];
 }

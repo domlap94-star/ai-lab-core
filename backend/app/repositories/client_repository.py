@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.client import Client
 from app.repositories.base_repository import BaseRepository
@@ -15,7 +15,7 @@ class ClientRepository(BaseRepository[Client]):
     def get(self, object_id: int) -> Client | None:
         return (
             self.db.query(Client)
-            .options(joinedload(Client.industry))
+            .options(joinedload(Client.industry), selectinload(Client.contact_points))
             .filter(
                 Client.id == object_id,
                 Client.deleted_at.is_(None),
@@ -42,7 +42,7 @@ class ClientRepository(BaseRepository[Client]):
 
         items = (
             filtered_query
-            .options(joinedload(Client.industry))
+            .options(joinedload(Client.industry), selectinload(Client.contact_points))
             .order_by(
                 func.lower(Client.name).asc(),
                 Client.id.asc(),
@@ -77,7 +77,7 @@ class ClientRepository(BaseRepository[Client]):
 
         return (
             self.db.query(Client)
-            .options(joinedload(Client.industry))
+            .options(joinedload(Client.industry), selectinload(Client.contact_points))
             .filter(
                 Client.id.in_(client_ids),
                 Client.deleted_at.is_(None),

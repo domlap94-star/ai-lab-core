@@ -1,5 +1,12 @@
 import 'industry.dart';
 
+class ClientContactPoint {
+  const ClientContactPoint({required this.id, required this.value, required this.isPrimary});
+  final int id;
+  final String value;
+  final bool isPrimary;
+}
+
 enum ClientType {
   company,
   person,
@@ -58,6 +65,8 @@ class Client {
     this.city,
     this.notes,
     this.deletedAt,
+    this.emails = const <ClientContactPoint>[],
+    this.phones = const <ClientContactPoint>[],
   });
 
   final int id;
@@ -82,6 +91,8 @@ class Client {
   final DateTime updatedAt;
   final DateTime? sourceRecordDate;
   final DateTime? deletedAt;
+  final List<ClientContactPoint> emails;
+  final List<ClientContactPoint> phones;
 
   DateTime get displayCreatedDate => sourceRecordDate ?? createdAt;
 

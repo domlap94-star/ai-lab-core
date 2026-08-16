@@ -76,4 +76,13 @@ class ClientsRepository {
 
     return response.toDomain();
   }
+
+  Future<Client> updateClient({required AuthSession session, required int clientId, required Map<String, dynamic> data}) async =>
+      (await _api.updateClient(clientId: clientId, data: data, accessToken: session.accessToken, tokenType: session.tokenType)).toDomain();
+
+  Future<void> deleteClient({required AuthSession session, required int clientId}) =>
+      _api.deleteClient(clientId: clientId, accessToken: session.accessToken, tokenType: session.tokenType);
+
+  Future<void> uploadClientDocument({required AuthSession session, required int clientId, required String path}) =>
+      _api.uploadClientDocument(clientId: clientId, path: path, accessToken: session.accessToken, tokenType: session.tokenType);
 }

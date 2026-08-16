@@ -136,6 +136,35 @@ class ClientsApi {
     return ClientResponse.fromJson(data);
   }
 
+  Future<ClientResponse> updateClient({
+    required int clientId, required Map<String, dynamic> data,
+    required String accessToken, required String tokenType,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '$_clientsPath/$clientId', data: data,
+      options: Options(headers: _authorizationHeaders(accessToken: accessToken, tokenType: tokenType)),
+    );
+    if (response.data == null) throw const FormatException('Pusta odpowiedź aktualizacji klienta.');
+    return ClientResponse.fromJson(response.data!);
+  }
+
+  Future<void> deleteClient({required int clientId, required String accessToken, required String tokenType}) async {
+    await _dio.delete<void>('$_clientsPath/$clientId',
+      options: Options(headers: _authorizationHeaders(accessToken: accessToken, tokenType: tokenType)));
+  }
+
+  Future<void> uploadClientDocument({
+    required int clientId, required String path,
+    required String accessToken, required String tokenType,
+  }) async {
+    final name = path.replaceAll('\\', '/').split('/').last;
+    final form = FormData.fromMap(<String, dynamic>{
+      'file': await MultipartFile.fromFile(path, filename: name),
+    });
+    await _dio.post<Map<String, dynamic>>('$_clientsPath/$clientId/documents/upload',
+      data: form, options: Options(headers: _authorizationHeaders(accessToken: accessToken, tokenType: tokenType)));
+  }
+
   Map<String, Object> _authorizationHeaders({
     required String accessToken,
     required String tokenType,

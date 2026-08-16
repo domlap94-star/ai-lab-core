@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
+from app.models.client_contact_point import ClientContactPoint
 from app.repositories.client_repository import ClientRepository
 from app.repositories.industry_repository import IndustryRepository
 from app.schemas.client import (
@@ -141,7 +142,11 @@ class ClientService(BaseService[Client]):
         self,
         data: ClientCreate,
     ) -> Client:
-        payload = data.model_dump()
+        payload = data.model_dump(exclude={"emails", "phones"})
+        if data.emails is not None:
+            payload["primary_email"] = self._primary_value(data.emails)
+        if data.phones is not None:
+            payload["primary_phone"] = self._primary_value(data.phones)
 
         self._validate_industry(payload.get("industry_id"))
         self._validate_tax_id(payload.get("tax_id"))
@@ -149,6 +154,16 @@ class ClientService(BaseService[Client]):
         client = Client(**payload)
 
         self.client_repository.create(client)
+
+        if data.emails is not None:
+            self._replace_contacts(client, "email", data.emails)
+        elif client.primary_email:
+            self._replace_contacts(client, "email", [{"value": client.primary_email, "is_primary": True}])
+        if data.phones is not None:
+            self._replace_contacts(client, "phone", data.phones)
+        elif client.primary_phone:
+            self._replace_contacts(client, "phone", [{"value": client.primary_phone, "is_primary": True}])
+        self.db.commit()
 
         return self.get_client(client.id)
 
@@ -161,6 +176,7 @@ class ClientService(BaseService[Client]):
 
         payload = data.model_dump(
             exclude_unset=True,
+            exclude={"emails", "phones"},
         )
 
         if "industry_id" in payload:
@@ -177,6 +193,17 @@ class ClientService(BaseService[Client]):
         for field_name, value in payload.items():
             setattr(client, field_name, value)
 
+        if "emails" in data.model_fields_set:
+            self._replace_contacts(client, "email", data.emails or [])
+            client.primary_email = self._primary_value(data.emails or [])
+        elif "primary_email" in payload:
+            self._set_legacy_primary(client, "email", payload["primary_email"])
+        if "phones" in data.model_fields_set:
+            self._replace_contacts(client, "phone", data.phones or [])
+            client.primary_phone = self._primary_value(data.phones or [])
+        elif "primary_phone" in payload:
+            self._set_legacy_primary(client, "phone", payload["primary_phone"])
+
         self.client_repository.update(client)
 
         return self.get_client(client.id)
@@ -187,6 +214,53 @@ class ClientService(BaseService[Client]):
     ) -> None:
         client = self.get_client(client_id)
         self.client_repository.soft_delete(client)
+
+    def _replace_contacts(self, client: Client, kind: str, contacts: list) -> None:
+        client.contact_points[:] = [item for item in client.contact_points if item.kind != kind]
+        self.db.flush()
+        for position, raw in enumerate(contacts):
+            value = raw.value if hasattr(raw, "value") else raw["value"]
+            primary = raw.is_primary if hasattr(raw, "is_primary") else raw["is_primary"]
+            client.contact_points.append(ClientContactPoint(
+                kind=kind, value=value.strip(),
+                normalized_value=self._normalize_contact(kind, value),
+                is_primary=primary, position=position,
+            ))
+
+    def _set_legacy_primary(self, client: Client, kind: str, value: str | None) -> None:
+        normalized = self._normalize_contact(kind, value) if value else None
+        matching = None
+        for item in client.contact_points:
+            if item.kind == kind:
+                item.is_primary = False
+                if normalized and item.normalized_value == normalized:
+                    matching = item
+        if value and matching is None:
+            matching = ClientContactPoint(
+                kind=kind, value=value, normalized_value=normalized,
+                is_primary=True, position=len(client.contact_points),
+            )
+            client.contact_points.append(matching)
+        elif matching is not None:
+            matching.is_primary = True
+
+    @staticmethod
+    def _normalize_contact(kind: str, value: str) -> str:
+        if kind == "email":
+            return value.strip().casefold()
+        import re
+        return re.sub(r"[^0-9+]", "", value)
+
+    @staticmethod
+    def _primary_value(contacts: list) -> str | None:
+        if not contacts:
+            return None
+        for item in contacts:
+            primary = item.is_primary if hasattr(item, "is_primary") else item["is_primary"]
+            if primary:
+                return item.value if hasattr(item, "value") else item["value"]
+        first = contacts[0]
+        return first.value if hasattr(first, "value") else first["value"]
 
     def _validate_industry(
         self,

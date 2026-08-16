@@ -1,10 +1,13 @@
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     HTTPException,
     Query,
     Response,
     status,
+    UploadFile,
 )
 from sqlalchemy.orm import Session
 
@@ -20,6 +23,7 @@ from app.schemas.client import (
     ClientUpdate,
 )
 from app.schemas.client_email import ClientEmailPage
+from app.schemas.document import DocumentRead, DocumentUploadResponse
 from app.schemas.industry import IndustryRead
 from app.repositories.industry_repository import IndustryRepository
 from app.services.client_service import (
@@ -29,6 +33,9 @@ from app.services.client_service import (
     IndustryNotFoundError,
 )
 from app.services.client_email_service import ClientEmailService
+from app.services.document_service import (
+    DocumentService, DocumentStorageError, EmptyDocumentError,
+)
 
 router = APIRouter(
     prefix="/clients",
@@ -182,6 +189,42 @@ def get_client(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Client not found",
         ) from error
+
+
+@router.post(
+    "/{client_id}/documents/upload",
+    response_model=DocumentUploadResponse,
+)
+async def upload_client_document(
+    client_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> DocumentUploadResponse:
+    try:
+        ClientService(db).get_client(client_id)
+        result = DocumentService(db).store_document(
+            content=await file.read(),
+            original_filename=file.filename or "document.bin",
+            content_type=file.content_type or "application/octet-stream",
+            source_type="manual_upload",
+            client_id=client_id,
+        )
+        if result.document.client_id != client_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An identical document is already associated with another client",
+            )
+        return DocumentUploadResponse(
+            document=DocumentRead.model_validate(result.document),
+            created=result.created,
+            matched_by=result.matched_by,
+        )
+    except ClientNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Client not found") from error
+    except EmptyDocumentError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except DocumentStorageError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 
 @router.patch(
