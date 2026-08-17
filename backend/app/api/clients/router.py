@@ -161,6 +161,7 @@ def get_client_emails(
     client_id: int,
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
+    source_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
 ) -> ClientEmailPage:
     try:
@@ -168,6 +169,7 @@ def get_client_emails(
             client_id=client_id,
             skip=skip,
             limit=limit,
+            source_id=source_id,
         )
     except ClientNotFoundError as error:
         raise HTTPException(

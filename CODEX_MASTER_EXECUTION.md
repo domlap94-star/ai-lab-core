@@ -596,7 +596,7 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
 
-### P1 STABILIZATION — NEXT STABIL 1.0.2+10
+### P1 STABILIZATION — COMPLETE — NEXT STABIL 1.0.2+10
 
 - Central authenticated-Dio 401 handling: DONE. Expired/revoked/inactive-user
   sessions are cleared once, user-scoped state is invalidated and Flutter
@@ -607,17 +607,15 @@ Status: DONE / RELEASE NOT PUBLISHED.
   suites: PASS.
 - NEXT Stabil 1.0.2+10 Web, Windows and Android: BUILT/PUBLISHED from current
   CHUNK 7–10 code. `minimum_version` remains 1.0.0.
-- Google Sheets n8n workflow `My workflow` remains active on its unchanged
-  15-minute schedule, but credential `Google Sheets account` requires an
-  interactive owner OAuth reconnect. No workflow, credential secret, source
-  ID or schedule was changed. Controlled verification execution: PENDING.
-- P1 status: BLOCKED only on Sheets owner reconnect plus one successful
-  controlled execution. CHUNK 11: NOT STARTED.
-- P2 debt deliberately preserved for a later usability pass: raw
-  Project/Inspection/Timeline errors, email timeline deep link and mobile
-  navigation shell.
+- Google Sheets credential `Google Sheets account`: RECONNECTED. `My workflow`
+  remains active on its unchanged 15-minute schedule; workflow/source IDs and
+  credential secrets were not changed.
+- Sheets idempotency: DONE. Natural executions 960 and 961 each emitted zero
+  `existing_source_updated`; execution 961 added one genuine new source and
+  candidate while stable rows remained unchanged.
+- P1 status: COMPLETE. CHUNK 11: NOT STARTED.
 
-### P2 MOBILE NAVIGATION STABILIZATION — DONE
+### P2 USABILITY STABILIZATION — COMPLETE
 
 - Mobile widths below 700 px use one central, left-side, scrollable Drawer
   with all eight modules, active-route highlighting and full-size touch
@@ -627,9 +625,16 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Responsive widget coverage at 360x800, 390x900, 600x900 and 1200x900,
   cross-module navigation, drawer close, active state and Android Back: PASS.
   Flutter analyze and full 91-test suite: PASS.
-- Backend, database, ingestion, release version and CHUNK 11: UNCHANGED.
-- P1 Google Sheets idempotency investigation remains open. Remaining P2 debt:
-  raw Project/Inspection/Timeline errors and email timeline deep link.
+- Project, Inspection and Timeline reads now use a shared bounded API-error
+  mapper and a consistent explicit read retry; raw Dio/response internals are
+  not rendered and mutations are not retried automatically.
+- Timeline email events use their existing CandidateSource ID in a scoped
+  client deep link. Client Details auto-opens Email History, requests only the
+  exact source, expands/highlights it and shows a safe fallback when absent.
+- Flutter analyze and full 98-test suite: PASS. Timeline/Email History,
+  Client API, Auth/Admin and deployed compatibility backend regressions: PASS.
+- Backend DB schema, ingestion workflow, release version and CHUNK 11:
+  UNCHANGED. CHUNK 11 remains NOT STARTED.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 

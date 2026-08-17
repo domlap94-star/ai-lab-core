@@ -77,7 +77,15 @@ final GoRouter appRouter = GoRouter(
               return const ClientsPage();
             }
 
-            return ClientDetailsPage(clientId: clientId);
+            final int? emailSourceId = int.tryParse(
+              state.uri.queryParameters['email_source_id'] ?? '',
+            );
+            return ClientDetailsPage(
+              clientId: clientId,
+              emailSourceId: emailSourceId != null && emailSourceId > 0
+                  ? emailSourceId
+                  : null,
+            );
           },
         ),
         GoRoute(

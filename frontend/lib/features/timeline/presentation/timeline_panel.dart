@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/read_error_view.dart';
 import '../application/timeline_providers.dart';
 import '../domain/timeline.dart';
 
@@ -104,15 +105,10 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
               padding: const EdgeInsets.all(16),
               child: value!.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) => Column(
-                  children: <Widget>[
-                    Text('Nie udało się pobrać osi czasu: $error'),
-                    TextButton(
-                      onPressed: () =>
-                          ref.invalidate(timelinePageProvider(_request)),
-                      child: const Text('Spróbuj ponownie'),
-                    ),
-                  ],
+                error: (error, _) => ReadErrorView(
+                  error: error,
+                  onRetry: () =>
+                      ref.invalidate(timelinePageProvider(_request)),
                 ),
                 data: _buildPage,
               ),
@@ -176,7 +172,14 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
       event.projectId != null ||
       event.clientId != null;
   void _open(TimelineEvent event) {
-    if (event.documentId != null) {
+    final int? emailSourceId = event.eventType.startsWith('email_')
+        ? _positiveInt(event.sourceId)
+        : null;
+    if (emailSourceId != null && event.clientId != null) {
+      context.push(
+        '/clients/${event.clientId}?email_source_id=$emailSourceId',
+      );
+    } else if (event.documentId != null) {
       context.push('/documents?document_id=${event.documentId}');
     } else if (event.inspectionId != null) {
       context.push('/inspections/${event.inspectionId}');
@@ -185,6 +188,11 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
     } else if (event.clientId != null) {
       context.push('/clients/${event.clientId}');
     }
+  }
+
+  int? _positiveInt(Object value) {
+    final int? parsed = value is int ? value : int.tryParse(value.toString());
+    return parsed != null && parsed > 0 ? parsed : null;
   }
 
   IconData _icon(String type) {

@@ -168,6 +168,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('project 500 is friendly and retry repeats the read', (
+    tester,
+  ) async {
+    var calls = 0;
+    const query = ProjectQuery();
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          projectsPageProvider(query).overrideWith((ref) async {
+            calls++;
+            if (calls == 1) {
+              throw _dioFailure(500, '/projects');
+            }
+            return const ProjectPage(
+              items: <Project>[],
+              total: 0,
+              skip: 0,
+              limit: 50,
+            );
+          }),
+        ],
+        child: const MaterialApp(home: ProjectsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Wystąpił błąd serwera. Spróbuj ponownie.'), findsOneWidget);
+    expect(find.textContaining('DioException'), findsNothing);
+    await tester.tap(find.text('Spróbuj ponownie'));
+    await tester.pumpAndSettle();
+    expect(calls, 2);
+    expect(find.text('Brak realizacji.'), findsOneWidget);
+  });
+
   testWidgets('Client 360 lazily shows projects and create action', (
     tester,
   ) async {
@@ -243,4 +277,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Lista realizacji'), findsOneWidget);
   });
+}
+
+DioException _dioFailure(int status, String path) {
+  final request = RequestOptions(path: path);
+  return DioException.badResponse(
+    statusCode: status,
+    requestOptions: request,
+    response: Response<void>(requestOptions: request, statusCode: status),
+  );
 }

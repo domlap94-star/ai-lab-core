@@ -19,11 +19,13 @@ class ClientWorkspacePanels extends StatelessWidget {
   const ClientWorkspacePanels({
     required this.clientId,
     required this.clientName,
+    this.emailSourceId,
     super.key,
   });
 
   final int clientId;
   final String clientName;
+  final int? emailSourceId;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +41,10 @@ class ClientWorkspacePanels extends StatelessWidget {
         const SizedBox(height: 20),
         ClientDocumentsPanel(clientId: clientId, clientName: clientName),
         const SizedBox(height: 20),
-        ClientEmailsPanel(clientId: clientId),
+        ClientEmailsPanel(
+          clientId: clientId,
+          focusedSourceId: emailSourceId,
+        ),
       ],
     );
   }

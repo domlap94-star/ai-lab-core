@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_shell.dart';
+import '../../../core/widgets/read_error_view.dart';
 import '../application/inspections_providers.dart';
 import '../domain/inspection.dart';
 import 'inspection_form_dialog.dart';
@@ -166,7 +167,10 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
           Expanded(
             child: page.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(child: Text('$error')),
+              error: (error, _) => ReadErrorView(
+                error: error,
+                onRetry: () => ref.invalidate(inspectionsPageProvider(query)),
+              ),
               data: (value) => value.items.isEmpty
                   ? const Center(child: Text('Brak wizji lokalnych.'))
                   : ListView.builder(

@@ -262,4 +262,50 @@ void main() {
     expect(find.text('Status'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('inspection timeout is friendly and retry repeats the read', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var calls = 0;
+    const query = InspectionQuery();
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          inspectionsPageProvider(query).overrideWith((ref) async {
+            calls++;
+            if (calls == 1) {
+              throw DioException.connectionTimeout(
+                timeout: const Duration(seconds: 30),
+                requestOptions: RequestOptions(path: '/inspections'),
+              );
+            }
+            return const InspectionPage(
+              items: <Inspection>[],
+              total: 0,
+              skip: 0,
+              limit: 50,
+            );
+          }),
+        ],
+        child: const MaterialApp(home: InspectionsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Brak połączenia z serwerem. Sprawdź sieć i spróbuj ponownie.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('DioException'), findsNothing);
+    await tester.tap(find.text('Spróbuj ponownie'));
+    await tester.pumpAndSettle();
+    expect(calls, 2);
+    expect(find.text('Brak wizji lokalnych.'), findsOneWidget);
+  });
 }

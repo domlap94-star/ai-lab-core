@@ -83,6 +83,7 @@ class ClientEmailService:
         client_id: int,
         skip: int,
         limit: int,
+        source_id: int | None = None,
     ) -> ClientEmailPage:
         if self.client_repository.get(client_id) is None:
             raise ClientNotFoundError
@@ -91,6 +92,7 @@ class ClientEmailService:
             client_id=client_id,
             skip=skip,
             limit=limit,
+            source_id=source_id,
         )
         message_ids = [row.external_id for row in rows]
         attachments_by_message: dict[str, list[Any]] = defaultdict(list)

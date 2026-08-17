@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/read_error_view.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
 import 'project_form_dialog.dart';
@@ -58,7 +59,10 @@ class _ClientProjectsPanelState extends ConsumerState<ClientProjectsPanel> {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: value!.when(
                 loading: () => const CircularProgressIndicator(),
-                error: (error, _) => Text('$error'),
+                error: (error, _) => ReadErrorView(
+                  error: error,
+                  onRetry: () => ref.invalidate(projectsPageProvider(query)),
+                ),
                 data: (page) => page.items.isEmpty
                     ? const Text('Brak realizacji klienta.')
                     : Column(

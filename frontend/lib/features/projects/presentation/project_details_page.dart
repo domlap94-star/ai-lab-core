@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/read_error_view.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
 import '../../inspections/presentation/project_inspections_panel.dart';
@@ -82,7 +83,10 @@ class ProjectDetailsPage extends ConsumerWidget {
         ),
         body: value.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(child: Text('$error')),
+          error: (error, _) => ReadErrorView(
+            error: error,
+            onRetry: () => ref.invalidate(projectDetailsProvider(projectId)),
+          ),
           data: (project) => ListView(
             padding: const EdgeInsets.all(16),
             children: <Widget>[

@@ -5321,7 +5321,7 @@ CHUNK 10A — PROJECT / REALIZATION FOUNDATION — DONE:
 [✓] Backend tests/regressions, Flutter analyze and full 72/72 suite: PASS.
 [ ] CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 
-P1 STABILIZATION — NEXT STABIL 1.0.2+10:
+P1 STABILIZATION — COMPLETE — NEXT STABIL 1.0.2+10:
 
 [✓] Central Flutter JWT-expiration/revocation handling is implemented in the
     shared authenticated Dio layer. Concurrent 401 responses produce one
@@ -5331,12 +5331,21 @@ P1 STABILIZATION — NEXT STABIL 1.0.2+10:
 [✓] Web, Windows and Android artifacts contain the current CHUNK 7–10 CRM and
     the central session-expiration fix. Stable build: 1.0.2+10;
     minimum_version remains 1.0.0.
-[ ] Google Sheets ingestion credential `Google Sheets account`: OWNER OAUTH
-    RECONNECT REQUIRED in n8n. Workflow remains active on its existing
-    15-minute schedule; no workflow/source configuration was changed.
-[ ] P1 closes only after one controlled successful Sheets execution following
-    reconnect. CHUNK 11: NOT STARTED.
-[ ] P2 usability debt remains deferred: raw Project/Inspection/Timeline error
-    messages, email timeline deep link and mobile navigation shell.
+[✓] Google Sheets credential `Google Sheets account`: RECONNECTED; existing
+    n8n workflow remains active on its unchanged 15-minute schedule.
+[✓] Sheets source idempotency: DONE. Natural executions 960 and 961 reported
+    zero `existing_source_updated`; execution 961 ingested exactly one genuine
+    new source/candidate without replaying unchanged rows.
+[✓] P1 STABILIZATION: COMPLETE. CHUNK 11: NOT STARTED.
+
+P2 USABILITY STABILIZATION — COMPLETE:
+
+[✓] Mobile navigation uses the central left Drawer; the eight-item mobile
+    bottom NavigationBar is removed while detail-page Back remains intact.
+[✓] Project, Inspection and Timeline reads use a central bounded API-error
+    mapper and consistent explicit retry without exposing Dio internals.
+[✓] Timeline email events deep-link by scoped CandidateSource ID, auto-open
+    Email History and show the exact message or a readable not-found fallback.
+[✓] Flutter analyze and full 98-test suite: PASS. CHUNK 11: NOT STARTED.
 
 KONIEC MASTER PLAN

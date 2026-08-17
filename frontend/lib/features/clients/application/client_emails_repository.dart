@@ -8,6 +8,7 @@ abstract class ClientEmailsRepository {
     required int clientId,
     int skip,
     int limit,
+    int? sourceId,
   });
 }
 
@@ -22,6 +23,7 @@ class ApiClientEmailsRepository implements ClientEmailsRepository {
     required int clientId,
     int skip = 0,
     int limit = 20,
+    int? sourceId,
   }) async {
     final response = await _api.fetchEmails(
       clientId: clientId,
@@ -29,6 +31,7 @@ class ApiClientEmailsRepository implements ClientEmailsRepository {
       tokenType: session.tokenType,
       skip: skip,
       limit: limit,
+      sourceId: sourceId,
     );
     return response.toDomain();
   }

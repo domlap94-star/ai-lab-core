@@ -136,6 +136,32 @@ void main() {
     expect(documentRepository.contentCalls, 1);
     expect(openerCalls, 1);
   });
+
+  testWidgets('focused source auto-opens exact email and scopes the request', (
+    WidgetTester tester,
+  ) async {
+    final _EmailRepository repository = _EmailRepository();
+    await _pumpPanel(tester, repository, focusedSourceId: 4);
+    await tester.pumpAndSettle();
+
+    expect(repository.calls, hasLength(1));
+    expect(repository.calls.single.sourceId, 4);
+    expect(find.byKey(const Key('client-email-4')), findsOneWidget);
+    expect(find.byKey(const Key('client-email-body-4')), findsOneWidget);
+    expect(find.byKey(const Key('client-emails-next')), findsNothing);
+  });
+
+  testWidgets('missing focused email shows a readable scoped fallback', (
+    WidgetTester tester,
+  ) async {
+    final _EmailRepository repository = _EmailRepository(empty: true);
+    await _pumpPanel(tester, repository, focusedSourceId: 999);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nie znaleziono wskazanej wiadomości dla tego klienta.'),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpPanel(
@@ -145,6 +171,7 @@ Future<void> _pumpPanel(
   DocumentOpenService? openService,
   String? clientMarker,
   int clientId = 7,
+  int? focusedSourceId,
 }) async {
   tester.view.physicalSize = const Size(390, 900);
   tester.view.devicePixelRatio = 1;
@@ -167,7 +194,10 @@ Future<void> _pumpPanel(
             child: Column(
               children: <Widget>[
                 if (clientMarker != null) Text(clientMarker),
-                ClientEmailsPanel(clientId: clientId),
+                ClientEmailsPanel(
+                  clientId: clientId,
+                  focusedSourceId: focusedSourceId,
+                ),
               ],
             ),
           ),
@@ -194,10 +224,12 @@ class _EmailCall {
     required this.clientId,
     required this.skip,
     required this.limit,
+    this.sourceId,
   });
   final int clientId;
   final int skip;
   final int limit;
+  final int? sourceId;
 }
 
 class _EmailRepository implements ClientEmailsRepository {
@@ -212,14 +244,30 @@ class _EmailRepository implements ClientEmailsRepository {
     required int clientId,
     int skip = 0,
     int limit = 20,
+    int? sourceId,
   }) async {
-    calls.add(_EmailCall(clientId: clientId, skip: skip, limit: limit));
+    calls.add(
+      _EmailCall(
+        clientId: clientId,
+        skip: skip,
+        limit: limit,
+        sourceId: sourceId,
+      ),
+    );
     if (fail) throw StateError('email endpoint unavailable');
     if (empty) {
       return ClientEmailPage(
         items: const <ClientEmail>[],
         total: 0,
         skip: skip,
+        limit: limit,
+      );
+    }
+    if (sourceId != null) {
+      return ClientEmailPage(
+        items: <ClientEmail>[_email(sourceId)],
+        total: 1,
+        skip: 0,
         limit: limit,
       );
     }

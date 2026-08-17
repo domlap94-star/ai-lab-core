@@ -13,6 +13,7 @@ class ClientEmailsApi {
     required String tokenType,
     int skip = 0,
     int limit = 20,
+    int? sourceId,
   }) async {
     final String normalizedType = tokenType.trim().isEmpty
         ? 'Bearer'
@@ -20,7 +21,11 @@ class ClientEmailsApi {
     final Response<Map<String, dynamic>> response = await _dio
         .get<Map<String, dynamic>>(
           '/api/v1/clients/$clientId/emails',
-          queryParameters: <String, dynamic>{'skip': skip, 'limit': limit},
+          queryParameters: <String, dynamic>{
+            'skip': skip,
+            'limit': limit,
+            'source_id': ?sourceId,
+          },
           options: Options(
             headers: <String, Object>{
               'Authorization': '$normalizedType $accessToken',

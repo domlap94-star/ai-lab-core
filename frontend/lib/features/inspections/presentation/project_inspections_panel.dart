@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/read_error_view.dart';
 import '../../projects/domain/project.dart';
 import '../application/inspections_providers.dart';
 import '../domain/inspection.dart';
@@ -61,7 +62,11 @@ class _ProjectInspectionsPanelState
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: value!.when(
                 loading: () => const CircularProgressIndicator(),
-                error: (error, _) => Text('$error'),
+                error: (error, _) => ReadErrorView(
+                  error: error,
+                  onRetry: () =>
+                      ref.invalidate(inspectionsPageProvider(query)),
+                ),
                 data: (page) => page.items.isEmpty
                     ? const Text('Brak wizji lokalnych.')
                     : Column(

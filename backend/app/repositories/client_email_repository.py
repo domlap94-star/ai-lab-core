@@ -89,11 +89,14 @@ class ClientEmailRepository:
         client_id: int,
         skip: int,
         limit: int,
+        source_id: int | None = None,
     ) -> tuple[Sequence[object], int]:
         sources = self._deduplicated_sources(client_id)
         filtered = self.db.query(sources).filter(
             sources.c.duplicate_rank == 1
         )
+        if source_id is not None:
+            filtered = filtered.filter(sources.c.source_id == source_id)
 
         total = filtered.count()
         items = (

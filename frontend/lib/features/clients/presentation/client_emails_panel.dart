@@ -12,9 +12,14 @@ import '../domain/client_email.dart';
 import '../domain/client_email_page.dart';
 
 class ClientEmailsPanel extends ConsumerStatefulWidget {
-  const ClientEmailsPanel({required this.clientId, super.key});
+  const ClientEmailsPanel({
+    required this.clientId,
+    this.focusedSourceId,
+    super.key,
+  });
 
   final int clientId;
+  final int? focusedSourceId;
 
   @override
   ConsumerState<ClientEmailsPanel> createState() => _ClientEmailsPanelState();
@@ -29,21 +34,39 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
   final Set<int> _expandedMessageIds = <int>{};
   final Set<int> _openingDocumentIds = <int>{};
 
+  @override
+  void initState() {
+    super.initState();
+    _applyFocus();
+  }
+
+  void _applyFocus() {
+    final int? focused = widget.focusedSourceId;
+    if (focused == null) return;
+    _expanded = true;
+    _hasLoaded = true;
+    _skip = 0;
+    _expandedMessageIds.add(focused);
+  }
+
   ClientEmailsPageRequest get _request => ClientEmailsPageRequest(
     clientId: widget.clientId,
     skip: _skip,
     limit: _pageSize,
+    sourceId: widget.focusedSourceId,
   );
 
   @override
   void didUpdateWidget(covariant ClientEmailsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.clientId != widget.clientId) {
+    if (oldWidget.clientId != widget.clientId ||
+        oldWidget.focusedSourceId != widget.focusedSourceId) {
       _expanded = false;
       _hasLoaded = false;
       _skip = 0;
       _expandedMessageIds.clear();
       _openingDocumentIds.clear();
+      _applyFocus();
     }
   }
 
@@ -120,11 +143,13 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
 
   Widget _buildLoaded(ClientEmailPage page) {
     if (page.items.isEmpty && page.total == 0) {
-      return const Padding(
+      return Padding(
         key: Key('client-emails-empty'),
-        padding: EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(
-          'Brak źródłowych wiadomości Gmail powiązanych z tym klientem.',
+          widget.focusedSourceId == null
+              ? 'Brak źródłowych wiadomości Gmail powiązanych z tym klientem.'
+              : 'Nie znaleziono wskazanej wiadomości dla tego klienta.',
           textAlign: TextAlign.center,
         ),
       );
@@ -146,38 +171,40 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
         ),
         ...page.items.map(_buildEmailCard),
         const SizedBox(height: 8),
-        Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 12,
-          runSpacing: 8,
-          children: <Widget>[
-            Text('$rangeStart–$rangeEnd z ${page.total}'),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                IconButton(
-                  key: const Key('client-emails-previous'),
-                  tooltip: 'Poprzednia strona',
-                  onPressed: page.hasPreviousPage ? _previousPage : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                IconButton(
-                  key: const Key('client-emails-next'),
-                  tooltip: 'Następna strona',
-                  onPressed: page.hasNextPage ? _nextPage : null,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
-          ],
-        ),
+        if (widget.focusedSourceId == null)
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: <Widget>[
+              Text('$rangeStart–$rangeEnd z ${page.total}'),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IconButton(
+                    key: const Key('client-emails-previous'),
+                    tooltip: 'Poprzednia strona',
+                    onPressed: page.hasPreviousPage ? _previousPage : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  IconButton(
+                    key: const Key('client-emails-next'),
+                    tooltip: 'Następna strona',
+                    onPressed: page.hasNextPage ? _nextPage : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+            ],
+          ),
       ],
     );
   }
 
   Widget _buildEmailCard(ClientEmail email) {
     final bool messageExpanded = _expandedMessageIds.contains(email.id);
+    final bool focused = widget.focusedSourceId == email.id;
     final String sender = <String?>[email.fromName, email.fromAddress]
         .whereType<String>()
         .join(' <')
@@ -189,6 +216,9 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
     return Card.outlined(
       key: ValueKey<String>('client-email-${email.id}'),
       margin: const EdgeInsets.only(bottom: 10),
+      color: focused
+          ? Theme.of(context).colorScheme.primaryContainer.withAlpha(90)
+          : null,
       child: InkWell(
         key: ValueKey<String>('client-email-toggle-${email.id}'),
         onTap: () {

@@ -168,6 +168,28 @@ def main() -> None:
         first = http.get(path, headers=headers, params={"skip": 0, "limit": 20})
         require(first.status_code == 200, first.text)
         first_page = first.json()
+        focused_source_id = first_page["items"][0]["id"]
+        focused = http.get(
+            path,
+            headers=headers,
+            params={"source_id": focused_source_id},
+        )
+        require(focused.status_code == 200, focused.text)
+        require(focused.json()["total"] == 1, "Focused email total must be one")
+        require(
+            focused.json()["items"][0]["id"] == focused_source_id,
+            "Focused endpoint returned the wrong source",
+        )
+        cross_client = http.get(
+            f"/api/v1/clients/{empty_client_id}/emails",
+            headers=headers,
+            params={"source_id": focused_source_id},
+        )
+        require(cross_client.status_code == 200, cross_client.text)
+        require(
+            cross_client.json()["items"] == [],
+            "Email source leaked across client scope",
+        )
         second = http.get(
             path,
             headers=headers,

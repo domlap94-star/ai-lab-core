@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_shell.dart';
+import '../../../core/widgets/read_error_view.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
 import 'project_form_dialog.dart';
@@ -140,8 +141,9 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
           Expanded(
             child: page.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: Text('Nie udało się pobrać realizacji: $error'),
+              error: (error, _) => ReadErrorView(
+                error: error,
+                onRetry: () => ref.invalidate(projectsPageProvider(query)),
               ),
               data: (value) => value.items.isEmpty
                   ? const Center(child: Text('Brak realizacji.'))

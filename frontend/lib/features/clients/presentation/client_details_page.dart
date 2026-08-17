@@ -13,9 +13,14 @@ import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
 
 class ClientDetailsPage extends ConsumerWidget {
-  const ClientDetailsPage({required this.clientId, super.key});
+  const ClientDetailsPage({
+    required this.clientId,
+    this.emailSourceId,
+    super.key,
+  });
 
   final int clientId;
+  final int? emailSourceId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,6 +69,7 @@ class ClientDetailsPage extends ConsumerWidget {
           data: (Client client) {
             return _ClientDetails(
               client: client,
+              emailSourceId: emailSourceId,
               onEdit: () => _editClient(context, ref, client),
               onEditNotes: () => _editNotes(context, ref, client),
               onDelete: () => _deleteClient(context, ref, client),
@@ -254,12 +260,14 @@ class _ClientDetails extends StatelessWidget {
     required this.onEdit,
     required this.onEditNotes,
     required this.onDelete,
+    this.emailSourceId,
   });
 
   final Client client;
   final VoidCallback onEdit;
   final VoidCallback onEditNotes;
   final VoidCallback onDelete;
+  final int? emailSourceId;
 
   @override
   Widget build(BuildContext context) {
@@ -555,6 +563,7 @@ class _ClientDetails extends StatelessWidget {
               ClientWorkspacePanels(
                 clientId: client.id,
                 clientName: client.displayName,
+                emailSourceId: emailSourceId,
               ),
               const SizedBox(height: 20),
               _DetailsSection(

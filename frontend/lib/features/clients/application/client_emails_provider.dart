@@ -12,22 +12,25 @@ class ClientEmailsPageRequest {
     required this.clientId,
     this.skip = 0,
     this.limit = 10,
+    this.sourceId,
   });
 
   final int clientId;
   final int skip;
   final int limit;
+  final int? sourceId;
 
   @override
   bool operator ==(Object other) {
     return other is ClientEmailsPageRequest &&
         other.clientId == clientId &&
         other.skip == skip &&
-        other.limit == limit;
+        other.limit == limit &&
+        other.sourceId == sourceId;
   }
 
   @override
-  int get hashCode => Object.hash(clientId, skip, limit);
+  int get hashCode => Object.hash(clientId, skip, limit, sourceId);
 }
 
 final clientEmailsApiProvider = Provider<ClientEmailsApi>((Ref ref) {
@@ -52,6 +55,7 @@ final clientEmailsPageProvider = FutureProvider.autoDispose
             clientId: request.clientId,
             skip: request.skip,
             limit: request.limit,
+            sourceId: request.sourceId,
           );
     });
 

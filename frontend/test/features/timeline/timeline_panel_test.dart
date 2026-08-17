@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 
 void main() {
   test('timeline response keeps bounded display fields only', () {
@@ -140,6 +141,119 @@ void main() {
       expect(find.text('Oś czasu realizacji'), findsOneWidget);
     },
   );
+
+  testWidgets('email event opens the client with exact source deep link', (
+    tester,
+  ) async {
+    const request = TimelineRequest(scope: TimelineScope.client, id: 3);
+    final router = GoRouter(
+      initialLocation: '/timeline',
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/timeline',
+          builder: (_, _) => const Scaffold(
+            body: TimelinePanel(
+              scope: TimelineScope.client,
+              id: 3,
+              title: 'Oś czasu',
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/clients/:id',
+          builder: (_, state) => Text(
+            'Client ${state.pathParameters['id']} email '
+            '${state.uri.queryParameters['email_source_id']}',
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          timelinePageProvider(request).overrideWith(
+            (ref) async => TimelinePage(
+              items: <TimelineEvent>[
+                TimelineEvent(
+                  stableKey: 'email:71',
+                  eventType: 'email_received',
+                  occurredAt: DateTime.utc(2026, 8, 17),
+                  title: 'Odebrano wiadomość',
+                  clientId: 3,
+                  sourceType: 'candidate_source',
+                  sourceId: 71,
+                ),
+              ],
+              total: 1,
+              skip: 0,
+              limit: 20,
+            ),
+          ),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('timeline-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Otwórz źródło'));
+    await tester.pumpAndSettle();
+    expect(find.text('Client 3 email 71'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Oś czasu'), findsOneWidget);
+  });
+
+  testWidgets('timeline 404 stays friendly and retry repeats the read', (
+    tester,
+  ) async {
+    var calls = 0;
+    const request = TimelineRequest(scope: TimelineScope.client, id: 3);
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          timelinePageProvider(request).overrideWith((ref) async {
+            calls++;
+            if (calls == 1) {
+              final options = RequestOptions(path: '/clients/3/timeline');
+              throw DioException.badResponse(
+                statusCode: 404,
+                requestOptions: options,
+                response: Response<void>(
+                  requestOptions: options,
+                  statusCode: 404,
+                ),
+              );
+            }
+            return const TimelinePage(
+              items: <TimelineEvent>[],
+              total: 0,
+              skip: 0,
+              limit: 20,
+            );
+          }),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: TimelinePanel(
+              scope: TimelineScope.client,
+              id: 3,
+              title: 'Oś czasu',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('timeline-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Nie znaleziono żądanego elementu.'), findsOneWidget);
+    expect(find.textContaining('DioException'), findsNothing);
+    await tester.tap(find.text('Spróbuj ponownie'));
+    await tester.pumpAndSettle();
+    expect(calls, 2);
+    expect(find.byKey(const Key('timeline-empty')), findsOneWidget);
+  });
 }
 
 TimelinePage _page(int count, {required int total}) => TimelinePage(
