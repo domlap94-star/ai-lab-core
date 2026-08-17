@@ -596,6 +596,27 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
 
+### P1 STABILIZATION — NEXT STABIL 1.0.2+10
+
+- Central authenticated-Dio 401 handling: DONE. Expired/revoked/inactive-user
+  sessions are cleared once, user-scoped state is invalidated and Flutter
+  returns to login with `Sesja wygasła. Zaloguj się ponownie.` Login failures
+  and 403/404/409/422/500/network errors do not clear an active session.
+- JWT implementation commit: `b3a83f2005caf1c32ebc064324cbeca43f4b7c0f`.
+  Flutter analyze and full 86-test suite: PASS. Required backend regression
+  suites: PASS.
+- NEXT Stabil 1.0.2+10 Web, Windows and Android: BUILT/PUBLISHED from current
+  CHUNK 7–10 code. `minimum_version` remains 1.0.0.
+- Google Sheets n8n workflow `My workflow` remains active on its unchanged
+  15-minute schedule, but credential `Google Sheets account` requires an
+  interactive owner OAuth reconnect. No workflow, credential secret, source
+  ID or schedule was changed. Controlled verification execution: PENDING.
+- P1 status: BLOCKED only on Sheets owner reconnect plus one successful
+  controlled execution. CHUNK 11: NOT STARTED.
+- P2 debt deliberately preserved for a later usability pass: raw
+  Project/Inspection/Timeline errors, email timeline deep link and mobile
+  navigation shell.
+
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 
 - Edit/Delete actions are outside and above the client header card in a
