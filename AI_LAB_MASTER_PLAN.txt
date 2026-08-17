@@ -5348,4 +5348,16 @@ P2 USABILITY STABILIZATION — COMPLETE:
     Email History and show the exact message or a readable not-found fallback.
 [✓] Flutter analyze and full 98-test suite: PASS. CHUNK 11: NOT STARTED.
 
+STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
+
+[✓] P1 Sheets source idempotency, the central mobile Drawer, bounded friendly
+    read errors/retry and the scoped Timeline-to-Email-History deep link are
+    packaged together with the complete current CRM.
+[✓] Web, Windows and Android artifacts: PUBLISHED; public artifact hashes and
+    the served Web bundle match their local release outputs. Stable build:
+    1.0.2+11; minimum_version remains 1.0.0.
+[✓] Release gates: backend regressions PASS; Flutter analyze PASS; full
+    98-test Flutter suite PASS before and after the version bump.
+[ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
+
 KONIEC MASTER PLAN

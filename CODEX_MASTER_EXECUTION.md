@@ -636,6 +636,18 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Backend DB schema, ingestion workflow, release version and CHUNK 11:
   UNCHANGED. CHUNK 11 remains NOT STARTED.
 
+### STABILIZATION RELEASE — NEXT STABIL 1.0.2+11 — PUBLISHED
+
+- P1 Sheets source idempotency, the central mobile Drawer, bounded friendly
+  read errors/retry and the scoped Timeline email deep link are included with
+  the complete current CRM.
+- Web, Windows and Android artifacts: PUBLISHED. Public Windows/Android hashes
+  and the served Web bundle match the local release outputs.
+- Backend release regressions: PASS. Flutter analyze: PASS. Full 98-test suite:
+  PASS before and after the version bump.
+- Stable build: 1.0.2+11. `minimum_version`: 1.0.0.
+- CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
+
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 
 - Edit/Delete actions are outside and above the client header card in a
