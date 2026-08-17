@@ -92,6 +92,34 @@ void main() {
     expect(find.text('Dokumenty'), findsOneWidget);
     expect(find.text('Asystent AI'), findsOneWidget);
   });
+
+  testWidgets('expired session displays one clear login message', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(
+            _ExpiredSessionAuthController.new,
+          ),
+          appVersionProvider.overrideWith(
+            (Ref ref) async =>
+                const AppVersionInfo(version: '1.0.2', buildNumber: '9'),
+          ),
+          updateCheckProvider.overrideWith(
+            (Ref ref) async => throw StateError('offline in session test'),
+          ),
+        ],
+        child: const App(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('session-expired-message')), findsOneWidget);
+    expect(find.text('Sesja wygasła. Zaloguj się ponownie.'), findsOneWidget);
+    expect(find.textContaining('DioException'), findsNothing);
+  });
 }
 
 class _UnauthenticatedAuthController extends AuthController {
@@ -118,6 +146,15 @@ class _AuthenticatedAuthController extends AuthController {
         mustChangePassword: false,
         passwordResetRequested: false,
       ),
+    );
+  }
+}
+
+class _ExpiredSessionAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async {
+    return const AuthState.unauthenticated(
+      notice: 'Sesja wygasła. Zaloguj się ponownie.',
     );
   }
 }

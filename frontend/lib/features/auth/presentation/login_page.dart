@@ -65,6 +65,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final AsyncValue<AppVersionInfo> appVersion = ref.watch(appVersionProvider);
 
     final bool isLoading = authState.isLoading;
+    final String? sessionNotice = authState.value?.notice;
 
     ref.listen<AsyncValue<AuthState>>(authControllerProvider, (
       AsyncValue<AuthState>? previous,
@@ -115,6 +116,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
+                          if (sessionNotice?.isNotEmpty == true) ...<Widget>[
+                            const SizedBox(height: 16),
+                            Semantics(
+                              liveRegion: true,
+                              child: Container(
+                                key: const Key('session-expired-message'),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.errorContainer,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  sessionNotice!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 32),
                           TextFormField(
                             controller: _usernameController,
