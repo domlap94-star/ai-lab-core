@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
@@ -67,10 +68,11 @@ class ProjectDetailsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final value = ref.watch(projectDetailsProvider(projectId));
+    final bool centrallyHandled = AppShell.centrallyHandlesBack(context);
     return PopScope<Object?>(
-      canPop: context.canPop(),
+      canPop: centrallyHandled || context.canPop(),
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go('/projects');
+        if (!didPop && !centrallyHandled) context.go('/projects');
       },
       child: Scaffold(
         appBar: AppBar(

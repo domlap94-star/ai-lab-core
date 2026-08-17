@@ -5387,6 +5387,23 @@ PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 [✓] Natural n8n execution 980: SUCCESS; 2748 rows read = 2721 ingestable + 27
     explicitly skipped, 2721 accepted, 0 backend failures and 0
     `existing_source_updated` for unchanged rows.
+
+ANDROID BACK NAVIGATION PATCH — NEXT STABIL 1.0.2+13 — PUBLISHED:
+
+[✓] Central Android `PopScope` policy makes Dashboard the authenticated root;
+    Back from every main module returns to Dashboard and nested/detail routes
+    return one logical level, including direct links and Project/Client-scoped
+    Inspection links.
+[✓] Drawer branch switching replaces the previous branch, overlays close
+    before route changes, and logout/session expiration reset the protected
+    router stack. Web/Windows retain their native Back behavior.
+[✓] Dashboard uses the Android two-step exit guard with the bounded message
+    `Naciśnij jeszcze raz, aby wyjść`; no force-exit API is used.
+[✓] Web, Windows and Android 1.0.2+13: PUBLISHED. Public artifact hashes and
+    the served Web bundle match local outputs; minimum_version remains 1.0.0.
+    Flutter analyze and full 112-test suite: PASS before and after bump,
+    including protected-stack reset after logout/session expiration.
+[ ] Physical Android Back smoke: UNVERIFIED — no ADB device was connected.
 [ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
 
 KONIEC MASTER PLAN

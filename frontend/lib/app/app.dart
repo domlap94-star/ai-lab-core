@@ -11,9 +11,14 @@ import '../features/auth/application/auth_state.dart';
 import '../features/auth/presentation/change_password_page.dart';
 import '../features/auth/presentation/login_page.dart';
 
-class App extends ConsumerWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
+  @override
+  ConsumerState<App> createState() => _AppState();
+}
+
+class _AppState extends ConsumerState<App> {
   MaterialApp _materialApp({required Widget home}) {
     return MaterialApp(
       title: 'NEXT Stabil',
@@ -26,8 +31,18 @@ class App extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final AsyncValue<AuthState> authState = ref.watch(authControllerProvider);
+
+    ref.listen<AsyncValue<AuthState>>(authControllerProvider, (
+      AsyncValue<AuthState>? previous,
+      AsyncValue<AuthState> next,
+    ) {
+      if (previous?.value?.isAuthenticated == true &&
+          next.value?.isAuthenticated != true) {
+        appRouter.go('/dashboard');
+      }
+    });
 
     final AsyncValue<UpdateCheckResult> updateCheck = ref.watch(
       updateCheckProvider,

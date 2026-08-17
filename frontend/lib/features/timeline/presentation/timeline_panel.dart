@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../application/timeline_providers.dart';
 import '../domain/timeline.dart';
@@ -107,8 +108,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (error, _) => ReadErrorView(
                   error: error,
-                  onRetry: () =>
-                      ref.invalidate(timelinePageProvider(_request)),
+                  onRetry: () => ref.invalidate(timelinePageProvider(_request)),
                 ),
                 data: _buildPage,
               ),
@@ -176,13 +176,20 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
         ? _positiveInt(event.sourceId)
         : null;
     if (emailSourceId != null && event.clientId != null) {
-      context.push(
-        '/clients/${event.clientId}?email_source_id=$emailSourceId',
-      );
+      context.push('/clients/${event.clientId}?email_source_id=$emailSourceId');
     } else if (event.documentId != null) {
       context.push('/documents?document_id=${event.documentId}');
     } else if (event.inspectionId != null) {
-      context.push('/inspections/${event.inspectionId}');
+      final String returnPath = switch (widget.scope) {
+        TimelineScope.client => '/clients/${widget.id}',
+        TimelineScope.project => '/projects/${widget.id}',
+      };
+      context.push(
+        AppShell.inspectionPathWithReturn(
+          inspectionId: event.inspectionId!,
+          returnPath: returnPath,
+        ),
+      );
     } else if (event.projectId != null) {
       context.push('/projects/${event.projectId}');
     } else if (event.clientId != null) {

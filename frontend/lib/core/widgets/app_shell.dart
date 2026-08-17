@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,15 +8,17 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/application/auth_state.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     required this.currentLocation,
     required this.child,
+    this.androidBackPolicyOverride,
     super.key,
   });
 
   final String currentLocation;
   final Widget child;
+  final bool? androidBackPolicyOverride;
 
   static const double desktopBreakpoint = 700;
   static const double desktopSidebarWidth = 240;
@@ -69,20 +74,126 @@ class AppShell extends ConsumerWidget {
     ),
   ];
 
-  int get selectedIndex {
-    final int index = navigationItems.indexWhere(
-      (NavigationItem item) => currentLocation.startsWith(item.path),
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+
+  static Widget? mobileNavigationLeading(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= desktopBreakpoint) {
+      return null;
+    }
+
+    return const MobileNavigationButton();
+  }
+
+  static bool centrallyHandlesBack(BuildContext context) =>
+      _CentralBackNavigationScope.maybeOf(context) != null;
+
+  static String inspectionPathWithReturn({
+    required int inspectionId,
+    required String returnPath,
+  }) {
+    final String query = Uri(
+      queryParameters: <String, String>{'return_to': returnPath},
+    ).query;
+    return '/inspections/$inspectionId?$query';
+  }
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  final DashboardExitGuard _dashboardExitGuard = DashboardExitGuard();
+  Timer? _dashboardExitTimer;
+  bool _mobileDrawerOpen = false;
+
+  int get _selectedIndex {
+    final int index = AppShell.navigationItems.indexWhere(
+      (NavigationItem item) => widget.currentLocation.startsWith(item.path),
     );
 
     return index < 0 ? 0 : index;
   }
 
   void _navigate(BuildContext context, int index) {
-    final String destination = navigationItems[index].path;
+    final String destination = AppShell.navigationItems[index].path;
 
-    if (currentLocation != destination) {
+    if (widget.currentLocation != destination) {
       context.go(destination);
     }
+  }
+
+  bool get _usesAndroidBackPolicy =>
+      widget.androidBackPolicyOverride ??
+      (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
+
+  bool _canPop(BuildContext context) {
+    if (!_usesAndroidBackPolicy || _mobileDrawerOpen) {
+      return true;
+    }
+
+    if (AppNavigationPolicy.isDashboard(widget.currentLocation)) {
+      return _dashboardExitGuard.isArmed(DateTime.now());
+    }
+
+    if (AppNavigationPolicy.fallbackFor(widget.currentLocation) != null) {
+      return false;
+    }
+
+    return GoRouter.of(context).canPop();
+  }
+
+  void _handlePop(BuildContext context, bool didPop) {
+    if (didPop || !_usesAndroidBackPolicy) {
+      return;
+    }
+
+    final String? fallback = AppNavigationPolicy.fallbackFor(
+      widget.currentLocation,
+    );
+    if (fallback != null) {
+      context.go(fallback);
+      return;
+    }
+
+    if (!AppNavigationPolicy.isDashboard(widget.currentLocation)) {
+      return;
+    }
+
+    final bool allowExit = _dashboardExitGuard.registerBackAttempt(
+      DateTime.now(),
+    );
+    if (allowExit) {
+      return;
+    }
+
+    _dashboardExitTimer?.cancel();
+    _dashboardExitTimer = Timer(_dashboardExitGuard.timeout, () {
+      if (!mounted) return;
+      setState(_dashboardExitGuard.reset);
+    });
+    setState(() {});
+
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Naciśnij jeszcze raz, aby wyjść'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  void didUpdateWidget(AppShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentLocation != widget.currentLocation) {
+      _dashboardExitTimer?.cancel();
+      _dashboardExitGuard.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _dashboardExitTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
@@ -120,7 +231,7 @@ class AppShell extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final AsyncValue<AuthState> authValue = ref.watch(authControllerProvider);
 
     final AuthState? authState = authValue.value;
@@ -131,47 +242,154 @@ class AppShell extends ConsumerWidget {
 
     final String role = authState?.user?.role ?? '';
 
-    return LayoutBuilder(
-      builder: (BuildContext context, BoxConstraints constraints) {
-        final bool useDesktopLayout = constraints.maxWidth >= desktopBreakpoint;
+    return _CentralBackNavigationScope(
+      child: PopScope<Object?>(
+        canPop: _canPop(context),
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          _handlePop(context, didPop);
+        },
+        child: LayoutBuilder(
+          builder: (BuildContext context, BoxConstraints constraints) {
+            final bool useDesktopLayout =
+                constraints.maxWidth >= AppShell.desktopBreakpoint;
 
-        if (useDesktopLayout) {
-          return _DesktopShell(
-            selectedIndex: selectedIndex,
-            username: username,
-            role: role,
-            onDestinationSelected: (int index) {
-              _navigate(context, index);
-            },
-            onLogout: () {
-              _logout(context, ref);
-            },
-            child: child,
-          );
-        }
+            if (useDesktopLayout) {
+              return _DesktopShell(
+                selectedIndex: _selectedIndex,
+                username: username,
+                role: role,
+                onDestinationSelected: (int index) {
+                  _navigate(context, index);
+                },
+                onLogout: () {
+                  _logout(context, ref);
+                },
+                child: widget.child,
+              );
+            }
 
-        return _MobileShell(
-          selectedIndex: selectedIndex,
-          username: username,
-          onDestinationSelected: (int index) {
-            _navigate(context, index);
+            return _MobileShell(
+              selectedIndex: _selectedIndex,
+              username: username,
+              onDrawerChanged: (bool isOpen) {
+                if (_mobileDrawerOpen == isOpen) return;
+                setState(() {
+                  _mobileDrawerOpen = isOpen;
+                });
+              },
+              onDestinationSelected: (int index) {
+                _navigate(context, index);
+              },
+              onLogout: () {
+                _logout(context, ref);
+              },
+              child: widget.child,
+            );
           },
-          onLogout: () {
-            _logout(context, ref);
-          },
-          child: child,
-        );
-      },
+        ),
+      ),
     );
   }
+}
 
-  static Widget? mobileNavigationLeading(BuildContext context) {
-    if (MediaQuery.sizeOf(context).width >= desktopBreakpoint) {
+class AppNavigationPolicy {
+  const AppNavigationPolicy._();
+
+  static const String dashboardPath = '/dashboard';
+
+  static const Map<String, String> _fallbacks = <String, String>{
+    '/cases': dashboardPath,
+    '/clients': dashboardPath,
+    '/projects': dashboardPath,
+    '/inspections': dashboardPath,
+    '/documents': dashboardPath,
+    '/ai': dashboardPath,
+    '/settings': dashboardPath,
+    '/client-candidates': '/clients',
+    '/system': '/settings',
+  };
+
+  static String? fallbackFor(String location) {
+    final Uri uri = Uri.tryParse(location) ?? Uri(path: location);
+    final String path = uri.path;
+    if (path.startsWith('/inspections/')) {
+      final String? contextualReturn = detailReturnPath(
+        uri.queryParameters['return_to'],
+      );
+      if (contextualReturn != null) return contextualReturn;
+    }
+
+    final String? exact = _fallbacks[path];
+    if (exact != null) return exact;
+    if (path.startsWith('/clients/')) return '/clients';
+    if (path.startsWith('/projects/')) return '/projects';
+    if (path.startsWith('/inspections/')) return '/inspections';
+    if (path.startsWith('/client-candidates/')) {
+      return '/client-candidates';
+    }
+    return null;
+  }
+
+  static bool isDashboard(String location) =>
+      (Uri.tryParse(location) ?? Uri(path: location)).path == dashboardPath;
+
+  static String? detailReturnPath(String? candidate) {
+    if (candidate == null) return null;
+    final Uri? uri = Uri.tryParse(candidate);
+    if (uri == null ||
+        uri.hasScheme ||
+        uri.hasAuthority ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        uri.pathSegments.length != 2) {
       return null;
     }
 
-    return const MobileNavigationButton();
+    final String section = uri.pathSegments.first;
+    final int? id = int.tryParse(uri.pathSegments.last);
+    if ((section != 'clients' && section != 'projects') ||
+        id == null ||
+        id <= 0) {
+      return null;
+    }
+    return uri.path;
   }
+}
+
+class DashboardExitGuard {
+  DashboardExitGuard({this.timeout = const Duration(seconds: 2)});
+
+  final Duration timeout;
+  DateTime? _armedAt;
+
+  bool isArmed(DateTime now) {
+    final DateTime? armedAt = _armedAt;
+    return armedAt != null && now.difference(armedAt) <= timeout;
+  }
+
+  bool registerBackAttempt(DateTime now) {
+    if (isArmed(now)) {
+      reset();
+      return true;
+    }
+
+    _armedAt = now;
+    return false;
+  }
+
+  void reset() {
+    _armedAt = null;
+  }
+}
+
+class _CentralBackNavigationScope extends InheritedWidget {
+  const _CentralBackNavigationScope({required super.child});
+
+  static _CentralBackNavigationScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_CentralBackNavigationScope>();
+
+  @override
+  bool updateShouldNotify(_CentralBackNavigationScope oldWidget) => false;
 }
 
 class _DesktopShell extends StatelessWidget {
@@ -376,6 +594,7 @@ class _MobileShell extends StatefulWidget {
   const _MobileShell({
     required this.selectedIndex,
     required this.username,
+    required this.onDrawerChanged,
     required this.onDestinationSelected,
     required this.onLogout,
     required this.child,
@@ -383,6 +602,7 @@ class _MobileShell extends StatefulWidget {
 
   final int selectedIndex;
   final String username;
+  final ValueChanged<bool> onDrawerChanged;
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onLogout;
   final Widget child;
@@ -396,7 +616,9 @@ class _MobileShellState extends State<_MobileShell> {
 
   void _selectDestination(BuildContext drawerContext, int index) {
     Navigator.of(drawerContext).pop();
-    widget.onDestinationSelected(index);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onDestinationSelected(index);
+    });
   }
 
   @override
@@ -408,6 +630,7 @@ class _MobileShellState extends State<_MobileShell> {
       child: Scaffold(
         key: _scaffoldKey,
         body: widget.child,
+        onDrawerChanged: widget.onDrawerChanged,
         drawer: Drawer(
           child: SafeArea(
             child: ListView(

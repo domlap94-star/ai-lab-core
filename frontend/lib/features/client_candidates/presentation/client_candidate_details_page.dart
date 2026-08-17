@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/application/auth_state.dart';
 import '../../auth/domain/auth_session.dart';
@@ -30,10 +31,11 @@ class _ClientCandidateDetailsPageState
       clientCandidateContextProvider(widget.candidateId),
     );
 
+    final bool centrallyHandled = AppShell.centrallyHandlesBack(context);
     return PopScope<Object?>(
-      canPop: context.canPop(),
+      canPop: centrallyHandled || context.canPop(),
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) {
+        if (!didPop && !centrallyHandled) {
           context.go('/client-candidates');
         }
       },

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../../projects/domain/project.dart';
 import '../application/inspections_providers.dart';
@@ -78,7 +79,10 @@ class _ProjectInspectionsPanelState
                                   '${inspection.status.label} • ${inspection.scheduledAt?.toLocal().toString() ?? 'bez terminu'}',
                                 ),
                                 onTap: () => context.push(
-                                  '/inspections/${inspection.id}',
+                                  AppShell.inspectionPathWithReturn(
+                                    inspectionId: inspection.id,
+                                    returnPath: '/projects/${widget.project.id}',
+                                  ),
                                 ),
                               ),
                             )

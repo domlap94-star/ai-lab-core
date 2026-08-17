@@ -1,4 +1,5 @@
 import 'package:ai_lab/app/app.dart';
+import 'package:ai_lab/core/router/app_router.dart';
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
@@ -30,7 +31,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '12'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '13'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in branding test'),
@@ -46,7 +47,7 @@ void main() {
     expect(find.text('Nazwa użytkownika'), findsOneWidget);
     expect(find.text('Hasło'), findsOneWidget);
     expect(find.text('Zaloguj się'), findsOneWidget);
-    expect(find.text('NEXT Stabil 1.0.2+12'), findsOneWidget);
+    expect(find.text('NEXT Stabil 1.0.2+13'), findsOneWidget);
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
       'NEXT Stabil',
@@ -104,7 +105,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '12'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '13'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in session test'),
@@ -119,6 +120,42 @@ void main() {
     expect(find.byKey(const Key('session-expired-message')), findsOneWidget);
     expect(find.text('Sesja wygasła. Zaloguj się ponownie.'), findsOneWidget);
     expect(find.textContaining('DioException'), findsNothing);
+  });
+
+  testWidgets('session loss resets protected navigation history', (
+    WidgetTester tester,
+  ) async {
+    final _SessionTransitionAuthController controller =
+        _SessionTransitionAuthController();
+    appRouter.go('/dashboard');
+    addTearDown(() => appRouter.go('/dashboard'));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(() => controller),
+          updateCheckProvider.overrideWith(
+            (Ref ref) async => throw StateError('offline in session test'),
+          ),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    appRouter.go('/settings');
+    await tester.pumpAndSettle();
+    expect(find.text('Ustawienia'), findsWidgets);
+
+    controller.expire();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Zaloguj się, aby przejść do systemu.'), findsOneWidget);
+    expect(find.text('Ustawienia'), findsNothing);
+    expect(
+      appRouter.routerDelegate.currentConfiguration.uri.path,
+      '/dashboard',
+    );
   });
 }
 
@@ -155,6 +192,14 @@ class _ExpiredSessionAuthController extends AuthController {
   Future<AuthState> build() async {
     return const AuthState.unauthenticated(
       notice: 'Sesja wygasła. Zaloguj się ponownie.',
+    );
+  }
+}
+
+class _SessionTransitionAuthController extends _AuthenticatedAuthController {
+  void expire() {
+    state = const AsyncData<AuthState>(
+      AuthState.unauthenticated(notice: 'Sesja wygasła. Zaloguj się ponownie.'),
     );
   }
 }

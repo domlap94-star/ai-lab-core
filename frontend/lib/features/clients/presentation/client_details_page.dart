@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/widgets/app_shell.dart';
 import '../application/clients_providers.dart';
 import '../application/clients_controller.dart';
 import '../application/client_workflow_status.dart';
@@ -29,10 +30,11 @@ class ClientDetailsPage extends ConsumerWidget {
       clientDetailsProvider(clientId),
     );
 
+    final bool centrallyHandled = AppShell.centrallyHandlesBack(context);
     return PopScope<Object?>(
-      canPop: context.canPop(),
+      canPop: centrallyHandled || context.canPop(),
       onPopInvokedWithResult: (bool didPop, Object? result) {
-        if (!didPop) {
+        if (!didPop && !centrallyHandled) {
           context.go('/clients');
         }
       },

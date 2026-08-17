@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
@@ -9,8 +10,24 @@ import '../domain/inspection.dart';
 import 'inspection_form_dialog.dart';
 
 class InspectionDetailsPage extends ConsumerWidget {
-  const InspectionDetailsPage({required this.inspectionId, super.key});
+  const InspectionDetailsPage({
+    required this.inspectionId,
+    this.returnPath,
+    super.key,
+  });
   final int inspectionId;
+  final String? returnPath;
+
+  void _goBack(BuildContext context) {
+    if (returnPath != null) {
+      context.go(returnPath!);
+    } else if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/inspections');
+    }
+  }
+
   Future<void> _edit(
     BuildContext context,
     WidgetRef ref,
@@ -73,17 +90,19 @@ class InspectionDetailsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final value = ref.watch(inspectionDetailsProvider(inspectionId));
+    final bool centrallyHandled = AppShell.centrallyHandlesBack(context);
     return PopScope<Object?>(
-      canPop: context.canPop(),
+      canPop: centrallyHandled || context.canPop(),
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go('/inspections');
+        if (!didPop && !centrallyHandled) {
+          _goBack(context);
+        }
       },
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Wizja lokalna'),
           leading: IconButton(
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/inspections'),
+            onPressed: () => _goBack(context),
             icon: const Icon(Icons.arrow_back),
           ),
         ),

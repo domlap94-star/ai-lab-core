@@ -25,7 +25,7 @@ final GoRouter appRouter = GoRouter(
   routes: <RouteBase>[
     ShellRoute(
       builder: (BuildContext context, GoRouterState state, Widget child) {
-        return AppShell(currentLocation: state.uri.path, child: child);
+        return AppShell(currentLocation: state.uri.toString(), child: child);
       },
       routes: <RouteBase>[
         GoRoute(
@@ -111,9 +111,15 @@ final GoRouter appRouter = GoRouter(
           path: '/inspections/:inspectionId',
           builder: (BuildContext context, GoRouterState state) {
             final id = int.tryParse(state.pathParameters['inspectionId'] ?? '');
+            final String? returnPath = AppNavigationPolicy.detailReturnPath(
+              state.uri.queryParameters['return_to'],
+            );
             return id == null
                 ? const InspectionsPage()
-                : InspectionDetailsPage(inspectionId: id);
+                : InspectionDetailsPage(
+                    inspectionId: id,
+                    returnPath: returnPath,
+                  );
           },
         ),
         GoRoute(

@@ -682,6 +682,26 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Stable build: 1.0.2+12. `minimum_version`: 1.0.0.
 - CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
 
+### ANDROID BACK NAVIGATION PATCH — NEXT STABIL 1.0.2+13 — PUBLISHED
+
+- A central Android `PopScope` policy defines Dashboard as the authenticated
+  root. Main modules fall back to Dashboard; detail routes and validated
+  Inspection return contexts fall back one logical level without per-screen
+  Android exit workarounds.
+- Mobile Drawer root switching discards the prior logical branch; Drawer and
+  overlays close before route navigation. Logout and expired-session state
+  reset the shared router to Dashboard before a future authenticated session.
+- Dashboard requires two Back attempts within two seconds and shows
+  `Naciśnij jeszcze raz, aby wyjść` after the first. No `exit(0)` or
+  `SystemNavigator.pop()` was added.
+- Flutter analyze: PASS. Full suite: 112/112 PASS before and after version
+  bump, including 11 central routing/deep-link/double-Back tests and protected
+  stack reset after logout/session expiration.
+- Web, Windows and Android 1.0.2+13: PUBLISHED; local/public/manifest hashes
+  match and `minimum_version` remains 1.0.0. Physical Android Back smoke is
+  UNVERIFIED because no ADB device was connected.
+- Backend, DB and n8n: UNCHANGED. CHUNK 11: NOT STARTED.
+
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 
 - Edit/Delete actions are outside and above the client header card in a

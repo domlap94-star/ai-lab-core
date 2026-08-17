@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../application/inspections_providers.dart';
 import '../domain/inspection.dart';
@@ -102,7 +103,10 @@ class _ClientInspectionsPanelState
                                       'bez terminu',
                                 ),
                                 onTap: () => context.push(
-                                  '/inspections/${inspection.id}',
+                                  AppShell.inspectionPathWithReturn(
+                                    inspectionId: inspection.id,
+                                    returnPath: '/clients/${widget.clientId}',
+                                  ),
                                 ),
                               ),
                             )

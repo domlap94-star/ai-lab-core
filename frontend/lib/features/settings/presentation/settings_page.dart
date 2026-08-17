@@ -140,7 +140,7 @@ class SettingsPage extends ConsumerWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    context.go('/system');
+                    context.push('/system');
                   },
                 ),
               ],
