@@ -12,6 +12,7 @@ from app.models.document_page import DocumentPage
 from app.models.import_run import ImportRun
 from app.models.import_source import ImportSource
 from app.models.industry import Industry
+from app.models.inspection import Inspection
 from app.models.message import Message
 from app.models.project import Project
 from app.models.role import Role
@@ -33,6 +34,7 @@ __all__ = [
     "ImportRun",
     "ImportSource",
     "Industry",
+    "Inspection",
     "Message",
     "Project",
     "Role",

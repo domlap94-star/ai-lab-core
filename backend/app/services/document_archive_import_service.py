@@ -501,6 +501,7 @@ class DocumentArchiveImportService:
                 parent.client_id
             ),
             project_id=parent.project_id,
+            inspection_id=parent.inspection_id,
             captured_at=(
                 parent.captured_at
             ),

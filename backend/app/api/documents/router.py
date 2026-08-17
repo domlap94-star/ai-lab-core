@@ -69,7 +69,7 @@ def _parse_intake_metadata(value: str | None) -> dict[str, object]:
         raise HTTPException(status_code=422, detail="Invalid intake metadata JSON") from error
     if not isinstance(parsed, dict):
         raise HTTPException(status_code=422, detail="Intake metadata must be an object")
-    allowed = {"origin", "device_model", "platform", "orientation", "user_comment", "project_id", "realization_id"}
+    allowed = {"origin", "device_model", "platform", "orientation", "user_comment", "project_id", "realization_id", "inspection_id"}
     return {key: parsed[key] for key in allowed if key in parsed}
 
 
@@ -78,6 +78,7 @@ async def upload_user_document(
     file: UploadFile = File(...),
     client_id: int | None = Form(default=None),
     project_id: int | None = Form(default=None),
+    inspection_id: int | None = Form(default=None),
     source_type: str = Form(default="manual_upload"),
     captured_at: datetime | None = Form(default=None),
     latitude: float | None = Form(default=None),
@@ -92,6 +93,19 @@ async def upload_user_document(
     content = await file.read(MAX_USER_UPLOAD_BYTES + 1)
     if len(content) > MAX_USER_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds the 250 MB upload limit")
+    if inspection_id is not None:
+        from app.services.inspection_service import InspectionNotFoundError, InspectionService
+
+        try:
+            inspection = InspectionService(db).get(inspection_id)
+        except InspectionNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Inspection not found") from error
+        if project_id is not None and inspection.project_id != project_id:
+            raise HTTPException(status_code=409, detail="Inspection does not belong to selected project")
+        if client_id is not None and inspection.client_id != client_id:
+            raise HTTPException(status_code=409, detail="Inspection does not belong to selected client")
+        project_id = inspection.project_id
+        client_id = inspection.client_id
     if project_id is not None:
         from app.services.project_service import ProjectNotFoundError, ProjectService
         try:
@@ -112,6 +126,7 @@ async def upload_user_document(
         "actor_user_id": current_user.id,
         "client_id": client_id,
         "project_id": project_id,
+        "inspection_id": inspection_id,
         "captured_at": captured_at.isoformat() if captured_at else None,
         "latitude": latitude,
         "longitude": longitude,
@@ -126,6 +141,7 @@ async def upload_user_document(
             source_type=source_type,
             client_id=client_id,
             project_id=project_id,
+            inspection_id=inspection_id,
             captured_at=captured_at,
             latitude=latitude,
             longitude=longitude,
@@ -247,6 +263,7 @@ def list_documents(
     search: str | None = Query(default=None, max_length=255),
     client_id: int | None = Query(default=None, ge=1),
     project_id: int | None = Query(default=None, ge=1),
+    inspection_id: int | None = Query(default=None, ge=1),
     source_type: str | None = Query(default=None, max_length=30),
     match_status: str | None = Query(default=None, max_length=30),
     processing_status: str | None = Query(default=None, max_length=30),
@@ -261,6 +278,7 @@ def list_documents(
         search=search,
         client_id=client_id,
         project_id=project_id,
+        inspection_id=inspection_id,
         source_type=source_type,
         match_status=match_status,
         processing_status=processing_status,

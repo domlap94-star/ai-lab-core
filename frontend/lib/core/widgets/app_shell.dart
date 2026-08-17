@@ -44,6 +44,12 @@ class AppShell extends ConsumerWidget {
       selectedIcon: Icons.construction,
     ),
     NavigationItem(
+      label: 'Wizje lokalne',
+      path: '/inspections',
+      icon: Icons.location_searching_outlined,
+      selectedIcon: Icons.location_searching,
+    ),
+    NavigationItem(
       label: 'Dokumenty',
       path: '/documents',
       icon: Icons.description_outlined,

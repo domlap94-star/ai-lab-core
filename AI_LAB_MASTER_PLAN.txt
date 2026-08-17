@@ -6,7 +6,7 @@ Status dokumentu:
 AKTYWNA SPECYFIKACJA PROJEKTOWA
 
 Data aktualizacji:
-2026-08-15
+2026-08-17
 
 Repozytorium:
 ai-lab-core
@@ -189,9 +189,9 @@ DOCELOWO MODEL DANYCH POWINIEN OBSŁUGIWAĆ TAKŻE:
 
 [✓] wiele adresów e-mail
 
-[ ] lokalizacje realizacji
+[✓] lokalizacje realizacji
 
-[ ] projekty / realizacje
+[✓] projekty / realizacje
 
 [ ] zlecenia
 
@@ -201,9 +201,9 @@ DOCELOWO MODEL DANYCH POWINIEN OBSŁUGIWAĆ TAKŻE:
 
 [ ] faktury / dokumenty finansowe — w zakresie potrzeb systemu
 
-[ ] wizje lokalne
+[✓] wizje lokalne
 
-[ ] inspekcje
+[✓] inspekcje
 
 [ ] sesje dokumentacji terenowej
 
@@ -254,13 +254,13 @@ GŁÓWNE MODUŁY INTERFEJSU:
 
 [✓] Klienci
 
-[ ] Projekty / realizacje
+[✓] Projekty / realizacje
 
 [ ] Dokumenty
 
 [ ] Zdjęcia
 
-[ ] Inspekcje
+[✓] Inspekcje
 
 [ ] Oferty
 
@@ -430,11 +430,11 @@ Przy wykonaniu zdjęcia należy — jeśli użytkownik udzielił zgody — zapis
 
 [ ] model urządzenia
 
-[ ] inspection_session_id
+[✓] inspection_id — canonical FK; legacy inspection_session_id preserved
 
 [✓] client_id
 
-[ ] project_id / realization_id
+[✓] project_id / realization_id
 
 [✓] opcjonalny komentarz użytkownika
 
@@ -1729,9 +1729,9 @@ PIERWSZA UŻYWALNA WERSJA POWINNA POSIADAĆ:
 
 Następne wersje:
 
-[ ] projekty
+[✓] projekty
 
-[ ] wizje lokalne
+[✓] wizje lokalne
 
 [ ] mapa
 
@@ -5290,7 +5290,21 @@ CHUNK 10A — PROJECT / REALIZATION FOUNDATION — DONE:
     5899 Documents preserved and baseline Client/Candidate association hash
     unchanged. Production durable test writes: 0.
 [✓] Backend Project/regression tests, Flutter analyze and 63/63 tests: PASS.
-[ ] CHUNK 10B — INSPECTION FOUNDATION: NOT STARTED.
+[✓] CHUNK 10B — INSPECTION FOUNDATION: DONE.
+[✓] Canonical `Inspection` belongs to one Project and its matching Client,
+    supports planned/in_progress/completed/cancelled status, GPS location,
+    notes, actor attribution and soft delete.
+[✓] Additive migration `chunk10binspect_20260817` created `inspections` and
+    nullable `documents.inspection_id` with RESTRICT foreign keys.
+[✓] Historical Inspection/Document backfill: 0. The legacy string
+    `inspection_session_id` remains unchanged and is not interpreted.
+[✓] JWT CRUD, server pagination/search/project/client/status/date filters,
+    deterministic completed_at/reopen policy and upload relation guards.
+[✓] Flutter Wizje lokalne list/details, Project panel and CHUNK 9 document,
+    gallery, camera and optional-GPS intake reuse are active and responsive.
+[✓] Post-test audit: 0 production Inspection rows, 0 inspection-linked
+    documents, 5899 Documents preserved and association hash unchanged.
+[✓] Backend regressions, Flutter analyze and full 69-test suite: PASS.
 [ ] CHUNK 10C — TIMELINE: NOT STARTED.
 [ ] CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 

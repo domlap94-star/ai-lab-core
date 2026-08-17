@@ -14,6 +14,7 @@ class RepositoryDocument {
     this.clientId,
     this.clientName,
     this.projectId,
+    this.inspectionId,
     this.candidateId,
     this.candidateName,
     this.matchConfidence,
@@ -30,6 +31,7 @@ class RepositoryDocument {
   final int? clientId;
   final String? clientName;
   final int? projectId;
+  final int? inspectionId;
   final int? candidateId;
   final String? candidateName;
   final String processingStatus;

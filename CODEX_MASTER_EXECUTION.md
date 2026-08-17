@@ -493,7 +493,16 @@ Status: DONE / RELEASE NOT PUBLISHED.
   document intake linkage, Realizacje UI and Client 360 integration are active.
   Rollback-only backend tests and the full 63-test Flutter suite passed; durable
   production test writes were 0.
-- CHUNK 10B — INSPECTION FOUNDATION: NOT STARTED.
+- CHUNK 10B — INSPECTION FOUNDATION: DONE.
+  Additive `chunk10binspect_20260817` migration created canonical
+  `inspections` and nullable `documents.inspection_id` RESTRICT relation.
+  There was no historical backfill or conversion of the legacy string
+  `inspection_session_id`. JWT CRUD, pagination/search/project/client/status/
+  date filters, deterministic completed/reopen handling, GPS/notes, soft
+  delete, Project panel, global/detail Flutter UI and CHUNK 9 upload/camera/
+  gallery integration are active. Rollback-only backend tests, required
+  regressions, Flutter analyze and all 69 Flutter tests passed; 5899 documents
+  and their association baseline remained unchanged, with 0 durable test writes.
 - CHUNK 10C — TIMELINE: NOT STARTED.
 - CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 

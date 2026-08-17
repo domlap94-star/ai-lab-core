@@ -16,6 +16,7 @@ class DocumentResponse {
     this.clientId,
     this.clientName,
     this.projectId,
+    this.inspectionId,
     this.candidateId,
     this.candidateName,
     this.matchConfidence,
@@ -32,6 +33,7 @@ class DocumentResponse {
   final int? clientId;
   final String? clientName;
   final int? projectId;
+  final int? inspectionId;
   final int? candidateId;
   final String? candidateName;
   final String processingStatus;
@@ -55,6 +57,7 @@ class DocumentResponse {
       clientId: _nullableInt(json['client_id']),
       clientName: _nullableString(json['client_name']),
       projectId: _nullableInt(json['project_id']),
+      inspectionId: _nullableInt(json['inspection_id']),
       candidateId: _nullableInt(json['candidate_id']),
       candidateName: _nullableString(json['candidate_name']),
       processingStatus: json['processing_status']?.toString() ?? '',
@@ -79,6 +82,7 @@ class DocumentResponse {
     clientId: clientId,
     clientName: clientName,
     projectId: projectId,
+    inspectionId: inspectionId,
     candidateId: candidateId,
     candidateName: candidateName,
     processingStatus: processingStatus,

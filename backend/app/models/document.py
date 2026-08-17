@@ -89,6 +89,7 @@ class Document(Base):
             "client_id",
         ),
         Index("ix_documents_project_id", "project_id"),
+        Index("ix_documents_inspection_id", "inspection_id"),
         Index(
             "ix_documents_candidate_id",
             "candidate_id",
@@ -379,3 +380,11 @@ class Document(Base):
     )
 
     project = relationship("Project", back_populates="documents")
+
+    inspection_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("inspections.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
+    inspection = relationship("Inspection", back_populates="documents")

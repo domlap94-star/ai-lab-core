@@ -58,6 +58,7 @@ class DocumentRepository:
         search: str | None = None,
         client_id: int | None = None,
         project_id: int | None = None,
+        inspection_id: int | None = None,
         source_type: str | None = None,
         match_status: str | None = None,
         processing_status: str | None = None,
@@ -72,6 +73,7 @@ class DocumentRepository:
             search=search,
             client_id=client_id,
             project_id=project_id,
+            inspection_id=inspection_id,
             source_type=source_type,
             match_status=match_status,
             processing_status=processing_status,
@@ -102,6 +104,7 @@ class DocumentRepository:
                 Document.source_type,
                 Document.client_id,
                 Document.project_id,
+                Document.inspection_id,
                 Client.name.label("client_name"),
                 Document.candidate_id,
                 ClientCandidate.name.label("candidate_name"),
@@ -130,6 +133,7 @@ class DocumentRepository:
         search: str | None,
         client_id: int | None,
         project_id: int | None,
+        inspection_id: int | None,
         source_type: str | None,
         match_status: str | None,
         processing_status: str | None,
@@ -154,6 +158,8 @@ class DocumentRepository:
             query = query.filter(Document.client_id == client_id)
         if project_id is not None:
             query = query.filter(Document.project_id == project_id)
+        if inspection_id is not None:
+            query = query.filter(Document.inspection_id == inspection_id)
         if source_type is not None:
             query = query.filter(Document.source_type == source_type)
         if match_status is not None:

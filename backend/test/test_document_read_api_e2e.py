@@ -31,6 +31,7 @@ PUBLIC_KEYS = {
     "source_type",
     "client_id",
     "project_id",
+    "inspection_id",
     "client_name",
     "candidate_id",
     "candidate_name",

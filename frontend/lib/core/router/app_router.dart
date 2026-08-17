@@ -15,6 +15,8 @@ import '../../features/documents/domain/document_filters.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/projects/presentation/projects_page.dart';
 import '../../features/projects/presentation/project_details_page.dart';
+import '../../features/inspections/presentation/inspections_page.dart';
+import '../../features/inspections/presentation/inspection_details_page.dart';
 import '../../features/system_control/presentation/system_control_page.dart';
 import '../widgets/app_shell.dart';
 
@@ -93,6 +95,20 @@ final GoRouter appRouter = GoRouter(
           },
         ),
         GoRoute(
+          path: '/inspections',
+          builder: (BuildContext context, GoRouterState state) =>
+              const InspectionsPage(),
+        ),
+        GoRoute(
+          path: '/inspections/:inspectionId',
+          builder: (BuildContext context, GoRouterState state) {
+            final id = int.tryParse(state.pathParameters['inspectionId'] ?? '');
+            return id == null
+                ? const InspectionsPage()
+                : InspectionDetailsPage(inspectionId: id);
+          },
+        ),
+        GoRoute(
           path: '/documents',
           builder: (BuildContext context, GoRouterState state) {
             final int? clientId = int.tryParse(
@@ -103,6 +119,9 @@ final GoRouter appRouter = GoRouter(
             final int? projectId = int.tryParse(
               state.uri.queryParameters['project_id'] ?? '',
             );
+            final int? inspectionId = int.tryParse(
+              state.uri.queryParameters['inspection_id'] ?? '',
+            );
             final DocumentFilters filters = clientId != null && clientId > 0
                 ? DocumentFilters(
                     clientId: clientId,
@@ -110,8 +129,12 @@ final GoRouter appRouter = GoRouter(
                         ? clientName
                         : 'Klient #$clientId',
                     projectId: projectId,
+                    inspectionId: inspectionId,
                   )
-                : DocumentFilters(projectId: projectId);
+                : DocumentFilters(
+                    projectId: projectId,
+                    inspectionId: inspectionId,
+                  );
 
             return ProviderScope(
               overrides: [

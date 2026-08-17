@@ -3,42 +3,50 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
-import '../../inspections/presentation/project_inspections_panel.dart';
-import '../application/projects_providers.dart';
-import '../domain/project.dart';
-import 'project_form_dialog.dart';
+import '../application/inspections_providers.dart';
+import '../domain/inspection.dart';
+import 'inspection_form_dialog.dart';
 
-class ProjectDetailsPage extends ConsumerWidget {
-  const ProjectDetailsPage({required this.projectId, super.key});
-  final int projectId;
+class InspectionDetailsPage extends ConsumerWidget {
+  const InspectionDetailsPage({required this.inspectionId, super.key});
+  final int inspectionId;
   Future<void> _edit(
     BuildContext context,
     WidgetRef ref,
-    Project project,
+    Inspection item,
   ) async {
     final data = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => ProjectFormDialog(project: project),
+      builder: (_) => InspectionFormDialog(inspection: item),
     );
     if (data != null && context.mounted) {
       await ref
-          .read(projectsApiProvider)
-          .update(requireProjectWidgetSession(ref), project.id, data);
-      ref.invalidate(projectDetailsProvider(project.id));
+          .read(inspectionsApiProvider)
+          .update(requireInspectionWidgetSession(ref), item.id, data);
+      ref.invalidate(inspectionDetailsProvider(item.id));
     }
+  }
+
+  Future<void> _complete(WidgetRef ref, Inspection item) async {
+    await ref.read(inspectionsApiProvider).update(
+      requireInspectionWidgetSession(ref),
+      item.id,
+      <String, dynamic>{'status': 'completed'},
+    );
+    ref.invalidate(inspectionDetailsProvider(item.id));
   }
 
   Future<void> _delete(
     BuildContext context,
     WidgetRef ref,
-    Project project,
+    Inspection item,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Usunąć realizację?'),
+        title: const Text('Usunąć wizję lokalną?'),
         content: const Text(
-          'Realizacja zniknie z aktywnej listy. Dokumenty pozostaną zachowane.',
+          'Wizja zniknie z aktywnej listy. Dokumenty i zdjęcia pozostaną zachowane.',
         ),
         actions: <Widget>[
           TextButton(
@@ -54,34 +62,34 @@ class ProjectDetailsPage extends ConsumerWidget {
     );
     if (confirmed == true && context.mounted) {
       await ref
-          .read(projectsApiProvider)
-          .delete(requireProjectWidgetSession(ref), project.id);
-      ref.invalidate(projectsPageProvider);
-      if (context.mounted) context.go('/projects');
+          .read(inspectionsApiProvider)
+          .delete(requireInspectionWidgetSession(ref), item.id);
+      ref.invalidate(inspectionsPageProvider);
+      if (context.mounted) context.go('/projects/${item.projectId}');
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final value = ref.watch(projectDetailsProvider(projectId));
+    final value = ref.watch(inspectionDetailsProvider(inspectionId));
     return PopScope<Object?>(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) context.go('/projects');
+        if (!didPop) context.go('/inspections');
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Realizacja'),
+          title: const Text('Wizja lokalna'),
           leading: IconButton(
             onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/projects'),
+                context.canPop() ? context.pop() : context.go('/inspections'),
             icon: const Icon(Icons.arrow_back),
           ),
         ),
         body: value.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Center(child: Text('$error')),
-          data: (project) => ListView(
+          data: (item) => ListView(
             padding: const EdgeInsets.all(16),
             children: <Widget>[
               Wrap(
@@ -89,14 +97,20 @@ class ProjectDetailsPage extends ConsumerWidget {
                 runSpacing: 8,
                 children: <Widget>[
                   FilledButton.icon(
-                    onPressed: () => _edit(context, ref, project),
+                    onPressed: () => _edit(context, ref, item),
                     icon: const Icon(Icons.edit),
                     label: const Text('Edytuj'),
                   ),
+                  if (item.status != InspectionStatus.completed)
+                    OutlinedButton.icon(
+                      onPressed: () => _complete(ref, item),
+                      icon: const Icon(Icons.check),
+                      label: const Text('Zakończ'),
+                    ),
                   OutlinedButton.icon(
-                    onPressed: () => _delete(context, ref, project),
+                    onPressed: () => _delete(context, ref, item),
                     icon: const Icon(Icons.delete_outline),
-                    label: const Text('Usuń realizację'),
+                    label: const Text('Usuń wizję'),
                   ),
                 ],
               ),
@@ -107,19 +121,17 @@ class ProjectDetailsPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        project.name,
+                        item.title,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                      Text('Klient: ${project.clientName}'),
-                      Text('Status: ${project.status.label}'),
+                      Text('Realizacja: ${item.projectName}'),
+                      Text('Klient: ${item.clientName}'),
+                      Text('Status: ${item.status.label}'),
                       Text(
-                        'Daty: ${project.startDate?.toIso8601String().split('T').first ?? '—'} – '
-                        '${project.endDate?.toIso8601String().split('T').first ?? '—'}',
+                        'Termin: ${item.scheduledAt?.toLocal().toString() ?? 'brak'}',
                       ),
-                      Text(
-                        'Lokalizacja: ${project.location.isEmpty ? 'brak' : project.location}',
-                      ),
-                      Text(project.description ?? 'Brak opisu'),
+                      Text('Lokalizacja: ${item.location}'),
+                      Text(item.notes ?? 'Brak notatek'),
                     ],
                   ),
                 ),
@@ -131,7 +143,6 @@ class ProjectDetailsPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       const Text('Dokumenty i zdjęcia'),
-                      const Text('Pliki przypisane do tej realizacji'),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -139,25 +150,26 @@ class ProjectDetailsPage extends ConsumerWidget {
                         children: <Widget>[
                           TextButton(
                             onPressed: () => context.push(
-                              '/documents?project_id=${project.id}',
+                              '/documents?inspection_id=${item.id}',
                             ),
                             child: const Text('Pokaż'),
                           ),
                           FilledButton.icon(
-                            key: const Key('project-document-upload'),
+                            key: const Key('inspection-document-upload'),
                             onPressed: () => showDialog<void>(
                               context: context,
                               builder: (_) => DocumentIntakeDialog(
                                 repository: ref.read(
                                   documentsRepositoryProvider,
                                 ),
-                                session: requireProjectWidgetSession(ref),
-                                clientId: project.clientId,
-                                projectId: project.id,
+                                session: requireInspectionWidgetSession(ref),
+                                clientId: item.clientId,
+                                projectId: item.projectId,
+                                inspectionId: item.id,
                               ),
                             ),
                             icon: const Icon(Icons.upload_file),
-                            label: const Text('Dodaj'),
+                            label: const Text('Dodaj dokument lub zdjęcie'),
                           ),
                         ],
                       ),
@@ -165,7 +177,6 @@ class ProjectDetailsPage extends ConsumerWidget {
                   ),
                 ),
               ),
-              ProjectInspectionsPanel(project: project),
             ],
           ),
         ),

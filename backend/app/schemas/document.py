@@ -31,6 +31,7 @@ class DocumentRead(BaseModel):
     candidate_id: int | None
     client_id: int | None
     project_id: int | None
+    inspection_id: int | None
 
     captured_at: datetime | None
     latitude: float | None
@@ -73,6 +74,7 @@ class DocumentPublicRead(BaseModel):
     source_type: str
     client_id: int | None
     project_id: int | None
+    inspection_id: int | None
     client_name: str | None
     candidate_id: int | None
     candidate_name: str | None

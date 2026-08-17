@@ -24,6 +24,7 @@ class DocumentsApi {
     Uint8List? bytes,
     int? clientId,
     int? projectId,
+    int? inspectionId,
     String origin = 'manual_upload',
     DateTime? capturedAt,
     double? latitude,
@@ -56,6 +57,7 @@ class DocumentsApi {
     };
     if (clientId != null) fields['client_id'] = clientId;
     if (projectId != null) fields['project_id'] = projectId;
+    if (inspectionId != null) fields['inspection_id'] = inspectionId;
     if (capturedAt != null) {
       fields['captured_at'] = capturedAt.toUtc().toIso8601String();
     }
@@ -227,6 +229,7 @@ class DocumentsApi {
       if (search.trim().isNotEmpty) 'search': search.trim(),
       if (filters.clientId != null) 'client_id': filters.clientId,
       if (filters.projectId != null) 'project_id': filters.projectId,
+      if (filters.inspectionId != null) 'inspection_id': filters.inspectionId,
       if (filters.sourceType != null) 'source_type': filters.sourceType,
       if (filters.matchStatus != null) 'match_status': filters.matchStatus,
       if (filters.processingStatus != null)

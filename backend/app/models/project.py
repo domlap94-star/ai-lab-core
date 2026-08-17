@@ -40,3 +40,4 @@ class Project(BusinessBase):
 
     client = relationship("Client", back_populates="projects")
     documents = relationship("Document", back_populates="project", passive_deletes=True)
+    inspections = relationship("Inspection", back_populates="project", passive_deletes=True)

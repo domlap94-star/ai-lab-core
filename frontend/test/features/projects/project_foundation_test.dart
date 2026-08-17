@@ -229,7 +229,7 @@ void main() {
     expect(find.text('Realizacja A'), findsOneWidget);
     expect(find.textContaining('Lokalizacja:'), findsOneWidget);
     expect(find.byKey(const Key('project-document-upload')), findsOneWidget);
-    expect(find.text('Inspekcje'), findsOneWidget);
+    expect(find.text('Wizje lokalne'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('Usuń realizację'));
