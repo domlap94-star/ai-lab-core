@@ -660,10 +660,26 @@ Status: DONE / RELEASE NOT PUBLISHED.
   fetch-all picker path.
 - Client Details status editing, reusable debounced Client picker, Project
   scoping in Inspection and lazy Client 360 inspections: DONE.
-- Google Sheets source-date projection and idempotency: preserved. Missing
-  spreadsheets are NOT REGISTERED until exact Spreadsheet ID/URL and tab name
-  are supplied. Current registry remains two spreadsheet IDs / four tabs; n8n
-  workflow and schedule are unchanged.
+- Google Sheets source-date projection and idempotency: preserved. Live n8n
+  workflow `23i1FJJ6dZJbuMRo`, version
+  `2026c515-0ba9-4d27-9920-9a52120a3791`, has four active Sheets branches,
+  no dead duplicates and explicit bounded `skipped_no_identity`; the schedule
+  remains every 15 minutes.
+- Natural execution 980: SUCCESS; 2748 rows read = 2721 ingestable + 27
+  explicitly skipped, all 2721 accepted, 0 backend failures and 0
+  `existing_source_updated` for unchanged rows.
+
+### PRE-CHUNK 11 CRM CORRECTNESS RELEASE — NEXT STABIL 1.0.2+12 — PUBLISHED
+
+- Candidate/Client multi-select, bounded bulk accept/status/soft-delete,
+  persistent Client workflow status, expanded server-side Client search,
+  Sheets source-date projection, Client 360 inspections and the reusable
+  searchable Client picker are included with the current P1/P2 stabilization.
+- Web, Windows and Android artifacts: PUBLISHED. Public Windows/Android hashes
+  and the served Web bundle match their local release outputs.
+- Backend release regressions: PASS. Flutter analyze: PASS. Full 100-test
+  Flutter suite: PASS before and after the version bump.
+- Stable build: 1.0.2+12. `minimum_version`: 1.0.0.
 - CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED

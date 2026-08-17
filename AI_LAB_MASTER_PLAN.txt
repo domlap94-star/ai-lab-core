@@ -5375,9 +5375,18 @@ PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
     display date without rewriting technical `created_at`.
 [✓] Client 360 includes lazy Wizje lokalne; Inspection/Project forms reuse a
     bounded, debounced server-side Client picker and enforce Project scope.
-[!] Google Sheets registration remains intentionally incomplete: two
-    spreadsheet IDs / four tabs are registered; missing URL/ID + tab names
-    must be supplied by the owner. No IDs were guessed and n8n was unchanged.
+[✓] Live n8n workflow `23i1FJJ6dZJbuMRo`, version
+    `2026c515-0ba9-4d27-9920-9a52120a3791`, has four active Google Sheets
+    branches, no dead duplicate Sheets nodes and explicit bounded
+    `skipped_no_identity` classification. Modification detection and the
+    backend source-idempotency guard remain active without replay storms.
+[✓] PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH: RELEASED as NEXT
+    Stabil 1.0.2+12 on Web, Windows and Android. Public artifact hashes and
+    the served Web bundle match local release outputs; minimum_version remains
+    1.0.0. Backend regressions, Flutter analyze and full 100-test suite: PASS.
+[✓] Natural n8n execution 980: SUCCESS; 2748 rows read = 2721 ingestable + 27
+    explicitly skipped, 2721 accepted, 0 backend failures and 0
+    `existing_source_updated` for unchanged rows.
 [ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
 
 KONIEC MASTER PLAN
