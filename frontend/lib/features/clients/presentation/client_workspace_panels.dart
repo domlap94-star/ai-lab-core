@@ -10,6 +10,7 @@ import '../../documents/domain/document.dart';
 import '../../documents/domain/document_page.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
 import '../../documents/presentation/document_presentation.dart';
+import '../../projects/presentation/client_projects_panel.dart';
 import 'client_emails_panel.dart';
 
 class ClientWorkspacePanels extends StatelessWidget {
@@ -26,6 +27,8 @@ class ClientWorkspacePanels extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
+        ClientProjectsPanel(clientId: clientId),
+        const SizedBox(height: 20),
         ClientDocumentsPanel(clientId: clientId, clientName: clientName),
         const SizedBox(height: 20),
         ClientEmailsPanel(clientId: clientId),

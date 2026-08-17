@@ -500,6 +500,7 @@ class DocumentArchiveImportService:
             client_id=(
                 parent.client_id
             ),
+            project_id=parent.project_id,
             captured_at=(
                 parent.captured_at
             ),

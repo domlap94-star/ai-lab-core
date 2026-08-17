@@ -88,6 +88,7 @@ class Document(Base):
             "ix_documents_client_id",
             "client_id",
         ),
+        Index("ix_documents_project_id", "project_id"),
         Index(
             "ix_documents_candidate_id",
             "candidate_id",
@@ -370,3 +371,11 @@ class Document(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+
+    project_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("projects.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
+    project = relationship("Project", back_populates="documents")

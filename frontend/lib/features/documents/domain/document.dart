@@ -13,6 +13,7 @@ class RepositoryDocument {
     this.originalFilename,
     this.clientId,
     this.clientName,
+    this.projectId,
     this.candidateId,
     this.candidateName,
     this.matchConfidence,
@@ -28,6 +29,7 @@ class RepositoryDocument {
   final String sourceType;
   final int? clientId;
   final String? clientName;
+  final int? projectId;
   final int? candidateId;
   final String? candidateName;
   final String processingStatus;

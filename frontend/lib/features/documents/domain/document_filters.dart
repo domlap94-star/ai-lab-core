@@ -19,6 +19,7 @@ class DocumentFilters {
     this.contentType,
     this.clientId,
     this.clientName,
+    this.projectId,
   });
 
   final DocumentLinkState linkState;
@@ -28,6 +29,7 @@ class DocumentFilters {
   final String? contentType;
   final int? clientId;
   final String? clientName;
+  final int? projectId;
 
   bool get isActive =>
       linkState != DocumentLinkState.all ||
@@ -35,7 +37,8 @@ class DocumentFilters {
       matchStatus != null ||
       processingStatus != null ||
       contentType != null ||
-      clientId != null;
+      clientId != null ||
+      projectId != null;
 
   DocumentFilters copyWith({
     DocumentLinkState? linkState,
@@ -50,6 +53,8 @@ class DocumentFilters {
     int? clientId,
     String? clientName,
     bool clearClient = false,
+    int? projectId,
+    bool clearProject = false,
   }) {
     return DocumentFilters(
       linkState: linkState ?? this.linkState,
@@ -61,6 +66,7 @@ class DocumentFilters {
       contentType: clearContentType ? null : contentType ?? this.contentType,
       clientId: clearClient ? null : clientId ?? this.clientId,
       clientName: clearClient ? null : clientName ?? this.clientName,
+      projectId: clearProject ? null : projectId ?? this.projectId,
     );
   }
 }

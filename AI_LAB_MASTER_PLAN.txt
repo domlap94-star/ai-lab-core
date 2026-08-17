@@ -5269,7 +5269,29 @@ CHUNK 8 — DOCUMENT-CLIENT MATCHING WORKSPACE — DONE:
     Android camera, optional foreground GPS, bounded intake provenance and
     Client linkage. No schema migration was required; existing metadata JSON,
     captured/GPS fields and nullable inspection_session_id were reused.
-[ ] Offline synchronization, Project/realization foreign keys and AI image
-    analysis remain future work and were not started.
+[ ] Offline synchronization and AI image analysis remain future work and were
+    not started.
+
+CHUNK 10A — PROJECT / REALIZATION FOUNDATION — DONE:
+
+[✓] One canonical backend `Project` entity with Polish UI label „Realizacja”.
+[✓] Every Project belongs to one active Client through a RESTRICT FK and uses
+    planned/active/completed/cancelled status plus soft delete.
+[✓] Project location is independent from Client address; there is no automatic
+    copying or historical interpretation.
+[✓] Additive migration `chunk10aproject_20260817` applied. It created the
+    `projects` table and nullable `documents.project_id` RESTRICT relation.
+[✓] Historical Project backfill: 0. Historical Document backfill: 0.
+[✓] JWT CRUD, server-side pagination/search/client/status filters, actor
+    attribution, document upload linkage and project/client consistency guards.
+[✓] Flutter Realizacje list/details, responsive mobile UI, Client 360 panel and
+    reuse of CHUNK 9 document intake with Client + Project context.
+[✓] Post-test audit: 0 production Project rows, 0 project-linked documents,
+    5899 Documents preserved and baseline Client/Candidate association hash
+    unchanged. Production durable test writes: 0.
+[✓] Backend Project/regression tests, Flutter analyze and 63/63 tests: PASS.
+[ ] CHUNK 10B — INSPECTION FOUNDATION: NOT STARTED.
+[ ] CHUNK 10C — TIMELINE: NOT STARTED.
+[ ] CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 
 KONIEC MASTER PLAN

@@ -30,6 +30,7 @@ PUBLIC_KEYS = {
     "file_size",
     "source_type",
     "client_id",
+    "project_id",
     "client_name",
     "candidate_id",
     "candidate_name",

@@ -158,6 +158,12 @@ class Client(BusinessBase):
         passive_deletes=True,
     )
 
+    projects: Mapped[list["Project"]] = relationship(
+        "Project",
+        back_populates="client",
+        passive_deletes=True,
+    )
+
     @property
     def emails(self):
         return [item for item in self.contact_points if item.kind == "email" and item.deleted_at is None]

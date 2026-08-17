@@ -77,6 +77,7 @@ def _parse_intake_metadata(value: str | None) -> dict[str, object]:
 async def upload_user_document(
     file: UploadFile = File(...),
     client_id: int | None = Form(default=None),
+    project_id: int | None = Form(default=None),
     source_type: str = Form(default="manual_upload"),
     captured_at: datetime | None = Form(default=None),
     latitude: float | None = Form(default=None),
@@ -91,6 +92,15 @@ async def upload_user_document(
     content = await file.read(MAX_USER_UPLOAD_BYTES + 1)
     if len(content) > MAX_USER_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds the 250 MB upload limit")
+    if project_id is not None:
+        from app.services.project_service import ProjectNotFoundError, ProjectService
+        try:
+            project = ProjectService(db).get(project_id)
+        except ProjectNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Project not found") from error
+        if client_id is not None and project.client_id != client_id:
+            raise HTTPException(status_code=409, detail="Project does not belong to selected client")
+        client_id = project.client_id
     if client_id is not None:
         from app.services.client_service import ClientNotFoundError, ClientService
         try:
@@ -101,6 +111,7 @@ async def upload_user_document(
     metadata.update({
         "actor_user_id": current_user.id,
         "client_id": client_id,
+        "project_id": project_id,
         "captured_at": captured_at.isoformat() if captured_at else None,
         "latitude": latitude,
         "longitude": longitude,
@@ -114,6 +125,7 @@ async def upload_user_document(
             content_type=file.content_type or "application/octet-stream",
             source_type=source_type,
             client_id=client_id,
+            project_id=project_id,
             captured_at=captured_at,
             latitude=latitude,
             longitude=longitude,
@@ -234,6 +246,7 @@ def undo_document_client_link(
 def list_documents(
     search: str | None = Query(default=None, max_length=255),
     client_id: int | None = Query(default=None, ge=1),
+    project_id: int | None = Query(default=None, ge=1),
     source_type: str | None = Query(default=None, max_length=30),
     match_status: str | None = Query(default=None, max_length=30),
     processing_status: str | None = Query(default=None, max_length=30),
@@ -247,6 +260,7 @@ def list_documents(
     return DocumentReadService(db).get_page(
         search=search,
         client_id=client_id,
+        project_id=project_id,
         source_type=source_type,
         match_status=match_status,
         processing_status=processing_status,

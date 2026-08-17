@@ -38,6 +38,12 @@ class AppShell extends ConsumerWidget {
       selectedIcon: Icons.people,
     ),
     NavigationItem(
+      label: 'Realizacje',
+      path: '/projects',
+      icon: Icons.construction_outlined,
+      selectedIcon: Icons.construction,
+    ),
+    NavigationItem(
       label: 'Dokumenty',
       path: '/documents',
       icon: Icons.description_outlined,

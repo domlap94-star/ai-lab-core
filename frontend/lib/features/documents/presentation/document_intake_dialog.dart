@@ -33,11 +33,13 @@ class DocumentIntakeDialog extends StatefulWidget {
     required this.repository,
     required this.session,
     this.clientId,
+    this.projectId,
     this.onCompleted,
   });
   final DocumentsRepository repository;
   final AuthSession session;
   final int? clientId;
+  final int? projectId;
   final VoidCallback? onCompleted;
 
   @override
@@ -133,6 +135,7 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
           path: file.path,
           bytes: bytes,
           clientId: widget.clientId ?? int.tryParse(_client.text.trim()),
+          projectId: widget.projectId,
           origin: file.origin,
           capturedAt: file.capturedAt,
           latitude: position?.latitude,

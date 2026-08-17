@@ -478,13 +478,24 @@ Status: DONE / RELEASE NOT PUBLISHED.
   AI image analysis or offline synchronization was added.
 - Backend intake/regression tests, Flutter analyze and full 57-test suite PASS.
 
-### 10. Projects / realizations / inspections / timeline — TODO
+### 10. Projects / realizations / inspections / timeline — IN PROGRESS
 
 - Cel: klient→realizacja→lokalizacja→inspekcja→media. Zależności: 7,9.
 - Zakres: osobne additive model/API/UI subchunki. Migracje: tak.
 - Ryzyko: szeroki model domeny. Dane: nowe jawne rekordy, backfill gated.
 - Acceptance: każdy vertical slice ma CRUD/auth/audit/testy.
 - Commit: osobny per encja, zaczynając `Add project foundation`.
+- CHUNK 10A — PROJECT / REALIZATION FOUNDATION: DONE.
+  Additive `chunk10aproject_20260817` migration created `projects` and the
+  nullable `documents.project_id` RESTRICT relation. No projects or historical
+  document relations were backfilled. JWT CRUD, server pagination/search/client
+  and status filters, soft delete, independent location, actor attribution,
+  document intake linkage, Realizacje UI and Client 360 integration are active.
+  Rollback-only backend tests and the full 63-test Flutter suite passed; durable
+  production test writes were 0.
+- CHUNK 10B — INSPECTION FOUNDATION: NOT STARTED.
+- CHUNK 10C — TIMELINE: NOT STARTED.
+- CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 
 ### 11. Global hybrid search — TODO
 

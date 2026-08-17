@@ -13,6 +13,8 @@ import '../../features/documents/presentation/documents_page.dart';
 import '../../features/documents/application/documents_controller.dart';
 import '../../features/documents/domain/document_filters.dart';
 import '../../features/settings/presentation/settings_page.dart';
+import '../../features/projects/presentation/projects_page.dart';
+import '../../features/projects/presentation/project_details_page.dart';
 import '../../features/system_control/presentation/system_control_page.dart';
 import '../widgets/app_shell.dart';
 
@@ -77,6 +79,20 @@ final GoRouter appRouter = GoRouter(
           },
         ),
         GoRoute(
+          path: '/projects',
+          builder: (BuildContext context, GoRouterState state) =>
+              const ProjectsPage(),
+        ),
+        GoRoute(
+          path: '/projects/:projectId',
+          builder: (BuildContext context, GoRouterState state) {
+            final id = int.tryParse(state.pathParameters['projectId'] ?? '');
+            return id == null
+                ? const ProjectsPage()
+                : ProjectDetailsPage(projectId: id);
+          },
+        ),
+        GoRoute(
           path: '/documents',
           builder: (BuildContext context, GoRouterState state) {
             final int? clientId = int.tryParse(
@@ -84,14 +100,18 @@ final GoRouter appRouter = GoRouter(
             );
             final String? clientName = state.uri.queryParameters['client_name']
                 ?.trim();
+            final int? projectId = int.tryParse(
+              state.uri.queryParameters['project_id'] ?? '',
+            );
             final DocumentFilters filters = clientId != null && clientId > 0
                 ? DocumentFilters(
                     clientId: clientId,
                     clientName: clientName?.isNotEmpty == true
                         ? clientName
                         : 'Klient #$clientId',
+                    projectId: projectId,
                   )
-                : const DocumentFilters();
+                : DocumentFilters(projectId: projectId);
 
             return ProviderScope(
               overrides: [

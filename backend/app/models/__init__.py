@@ -13,6 +13,7 @@ from app.models.import_run import ImportRun
 from app.models.import_source import ImportSource
 from app.models.industry import Industry
 from app.models.message import Message
+from app.models.project import Project
 from app.models.role import Role
 from app.models.user import User
 from app.models.user_lifecycle_event import UserLifecycleEvent
@@ -33,6 +34,7 @@ __all__ = [
     "ImportSource",
     "Industry",
     "Message",
+    "Project",
     "Role",
     "User",
     "UserLifecycleEvent",
