@@ -122,6 +122,9 @@ final GoRouter appRouter = GoRouter(
             final int? inspectionId = int.tryParse(
               state.uri.queryParameters['inspection_id'] ?? '',
             );
+            final int? documentId = int.tryParse(
+              state.uri.queryParameters['document_id'] ?? '',
+            );
             final DocumentFilters filters = clientId != null && clientId > 0
                 ? DocumentFilters(
                     clientId: clientId,
@@ -130,10 +133,12 @@ final GoRouter appRouter = GoRouter(
                         : 'Klient #$clientId',
                     projectId: projectId,
                     inspectionId: inspectionId,
+                    documentId: documentId,
                   )
                 : DocumentFilters(
                     projectId: projectId,
                     inspectionId: inspectionId,
+                    documentId: documentId,
                   );
 
             return ProviderScope(

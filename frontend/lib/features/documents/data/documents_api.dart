@@ -230,6 +230,7 @@ class DocumentsApi {
       if (filters.clientId != null) 'client_id': filters.clientId,
       if (filters.projectId != null) 'project_id': filters.projectId,
       if (filters.inspectionId != null) 'inspection_id': filters.inspectionId,
+      if (filters.documentId != null) 'document_id': filters.documentId,
       if (filters.sourceType != null) 'source_type': filters.sourceType,
       if (filters.matchStatus != null) 'match_status': filters.matchStatus,
       if (filters.processingStatus != null)

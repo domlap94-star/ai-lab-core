@@ -260,6 +260,7 @@ def undo_document_client_link(
     response_model=DocumentPublicPage,
 )
 def list_documents(
+    document_id: int | None = Query(default=None, ge=1),
     search: str | None = Query(default=None, max_length=255),
     client_id: int | None = Query(default=None, ge=1),
     project_id: int | None = Query(default=None, ge=1),
@@ -275,6 +276,7 @@ def list_documents(
     db: Session = Depends(get_db),
 ) -> DocumentPublicPage:
     return DocumentReadService(db).get_page(
+        document_id=document_id,
         search=search,
         client_id=client_id,
         project_id=project_id,

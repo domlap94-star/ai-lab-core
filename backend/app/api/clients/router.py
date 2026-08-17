@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -25,6 +27,7 @@ from app.schemas.client import (
 from app.schemas.client_email import ClientEmailPage
 from app.schemas.document import DocumentRead, DocumentUploadResponse
 from app.schemas.industry import IndustryRead
+from app.schemas.timeline import TimelineEventType, TimelinePage
 from app.repositories.industry_repository import IndustryRepository
 from app.services.client_service import (
     ClientNotFoundError,
@@ -36,6 +39,8 @@ from app.services.client_email_service import ClientEmailService
 from app.services.document_service import (
     DocumentService, DocumentStorageError, EmptyDocumentError,
 )
+from app.services.project_service import ProjectNotFoundError
+from app.services.timeline_service import TimelineService
 
 router = APIRouter(
     prefix="/clients",
@@ -169,6 +174,33 @@ def get_client_emails(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Client not found",
         ) from error
+
+
+@router.get("/{client_id}/timeline", response_model=TimelinePage)
+def get_client_timeline(
+    client_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    event_type: TimelineEventType | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    project_id: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+) -> TimelinePage:
+    try:
+        return TimelineService(db).get_client_timeline(
+            client_id=client_id,
+            skip=skip,
+            limit=limit,
+            event_type=event_type,
+            date_from=date_from,
+            date_to=date_to,
+            project_id=project_id,
+        )
+    except ClientNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Client not found") from error
+    except ProjectNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Project not found") from error
 
 
 @router.get(

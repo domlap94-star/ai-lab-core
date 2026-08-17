@@ -478,7 +478,7 @@ Status: DONE / RELEASE NOT PUBLISHED.
   AI image analysis or offline synchronization was added.
 - Backend intake/regression tests, Flutter analyze and full 57-test suite PASS.
 
-### 10. Projects / realizations / inspections / timeline — IN PROGRESS
+### 10. Projects / realizations / inspections / timeline — DONE
 
 - Cel: klient→realizacja→lokalizacja→inspekcja→media. Zależności: 7,9.
 - Zakres: osobne additive model/API/UI subchunki. Migracje: tak.
@@ -503,10 +503,22 @@ Status: DONE / RELEASE NOT PUBLISHED.
   gallery integration are active. Rollback-only backend tests, required
   regressions, Flutter analyze and all 69 Flutter tests passed; 5899 documents
   and their association baseline remained unchanged, with 0 durable test writes.
-- CHUNK 10C — TIMELINE: NOT STARTED.
+- CHUNK 10C — TIMELINE: DONE.
+  A migration-free, read-only projection aggregates credible Client and Project
+  events from Client, Project, Inspection, Document/capture provenance,
+  deduplicated Gmail history and DocumentClientLinkEvent audit rows. It exposes
+  authenticated, stably sorted, filtered and paginated Client/Project APIs with
+  bounded metadata only; raw Gmail bodies/payloads and document text are never
+  copied. Flutter Client 360 and Realizacja details reuse one lazy responsive
+  timeline panel with load-more, type filters and source navigation.
+  No inferred status history or project Gmail association is fabricated.
+  The large-email read (127 events) measured 258.86 ms and the document-heavy
+  read (153 documents, 184 events) 68.05 ms for the first 20 items. Backend
+  tests/regressions, Flutter analyze and all 72 Flutter tests passed; durable
+  production writes and historical backfill were 0.
 - CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 
-### 11. Global hybrid search — TODO
+### 11. Global hybrid search — NEXT / NOT STARTED
 
 - Cel: exact/Postgres/semantic/hybrid nad klientami i dokumentami.
 - Zależności: 2, istniejący semantic retrieval.

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
 import '../../inspections/presentation/project_inspections_panel.dart';
+import '../../timeline/domain/timeline.dart';
+import '../../timeline/presentation/timeline_panel.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
 import 'project_form_dialog.dart';
@@ -166,6 +168,12 @@ class ProjectDetailsPage extends ConsumerWidget {
                 ),
               ),
               ProjectInspectionsPanel(project: project),
+              const SizedBox(height: 16),
+              TimelinePanel(
+                scope: TimelineScope.project,
+                id: project.id,
+                title: 'Oś czasu realizacji',
+              ),
             ],
           ),
         ),

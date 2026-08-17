@@ -5305,7 +5305,20 @@ CHUNK 10A — PROJECT / REALIZATION FOUNDATION — DONE:
 [✓] Post-test audit: 0 production Inspection rows, 0 inspection-linked
     documents, 5899 Documents preserved and association hash unchanged.
 [✓] Backend regressions, Flutter analyze and full 69-test suite: PASS.
-[ ] CHUNK 10C — TIMELINE: NOT STARTED.
+[✓] CHUNK 10C — TIMELINE: DONE.
+[✓] CHUNK 10 is complete: Client/Project timeline is a migration-free read
+    model over existing Client, Project, Inspection, Document/photo,
+    deduplicated Gmail and document-link audit sources. APIs are JWT-protected,
+    globally stable (`occurred_at DESC`, stable key tie-breaker), paginated and
+    filterable. Metadata is bounded; Gmail bodies/raw payloads and document text
+    are not exposed or copied.
+[✓] Flutter Client 360 and Realizacja details use one lazy, responsive timeline
+    panel with filters, load-more and Project/Inspection/Document source links.
+[✓] No inferred Project/Inspection status history, weak Gmail→Project match,
+    AI summary, historical backfill or production durable test write was added.
+[✓] Performance proof: 127-event email-heavy client first page 258.86 ms;
+    153-document/184-event client first page 68.05 ms. No fetch-all or N+1.
+[✓] Backend tests/regressions, Flutter analyze and full 72/72 suite: PASS.
 [ ] CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 
 KONIEC MASTER PLAN

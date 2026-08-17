@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
@@ -5,7 +7,9 @@ from app.api.auth import get_current_user
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectPage, ProjectRead, ProjectStatus, ProjectUpdate
+from app.schemas.timeline import TimelineEventType, TimelinePage
 from app.services.project_service import ProjectClientNotFoundError, ProjectNotFoundError, ProjectService
+from app.services.timeline_service import TimelineService
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -25,6 +29,30 @@ def list_projects(search: str | None = Query(default=None), client_id: int | Non
 def get_project(project_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectRead:
     try:
         return ProjectService(db).get(project_id)
+    except ProjectNotFoundError as error:
+        raise _error(error) from error
+
+
+@router.get("/{project_id}/timeline", response_model=TimelinePage)
+def get_project_timeline(
+    project_id: int,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    event_type: TimelineEventType | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TimelinePage:
+    try:
+        return TimelineService(db).get_project_timeline(
+            project_id=project_id,
+            skip=skip,
+            limit=limit,
+            event_type=event_type,
+            date_from=date_from,
+            date_to=date_to,
+        )
     except ProjectNotFoundError as error:
         raise _error(error) from error
 

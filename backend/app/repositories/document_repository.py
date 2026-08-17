@@ -55,6 +55,7 @@ class DocumentRepository:
     def get_read_page(
         self,
         *,
+        document_id: int | None = None,
         search: str | None = None,
         client_id: int | None = None,
         project_id: int | None = None,
@@ -70,6 +71,7 @@ class DocumentRepository:
         query = self._read_query()
         query = self._apply_read_filters(
             query,
+            document_id=document_id,
             search=search,
             client_id=client_id,
             project_id=project_id,
@@ -130,6 +132,7 @@ class DocumentRepository:
     def _apply_read_filters(
         query: Query,
         *,
+        document_id: int | None,
         search: str | None,
         client_id: int | None,
         project_id: int | None,
@@ -141,6 +144,9 @@ class DocumentRepository:
         content_type: str | None,
     ) -> Query:
         normalized_search = search.strip() if search else ""
+
+        if document_id is not None:
+            query = query.filter(Document.id == document_id)
 
         if normalized_search:
             pattern = f"%{normalized_search}%"
