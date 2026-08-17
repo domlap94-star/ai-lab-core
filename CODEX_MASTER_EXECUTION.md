@@ -648,6 +648,24 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Stable build: 1.0.2+11. `minimum_version`: 1.0.0.
 - CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
 
+### PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH
+
+- Persistent Client workflow status/category: DONE through additive revision
+  `prechunk11status_20260817`; historical rows retain neutral absence/default.
+- Candidate bulk accept and Client bulk workflow-status/soft-delete are
+  bounded to 100 and return per-record outcomes. Existing safety guards and
+  historical relations remain authoritative.
+- Client search: server-side name/legal/NIP, primary/secondary e-mail and
+  phone, legacy/structured address, city and postal-code matching; no N+1 or
+  fetch-all picker path.
+- Client Details status editing, reusable debounced Client picker, Project
+  scoping in Inspection and lazy Client 360 inspections: DONE.
+- Google Sheets source-date projection and idempotency: preserved. Missing
+  spreadsheets are NOT REGISTERED until exact Spreadsheet ID/URL and tab name
+  are supplied. Current registry remains two spreadsheet IDs / four tabs; n8n
+  workflow and schedule are unchanged.
+- CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
+
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 
 - Edit/Delete actions are outside and above the client header card in a

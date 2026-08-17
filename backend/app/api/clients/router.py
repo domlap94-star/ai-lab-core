@@ -24,6 +24,12 @@ from app.schemas.client import (
     ClientType,
     ClientUpdate,
 )
+from app.schemas.client_bulk import (
+    ClientBatchResponse,
+    ClientIdBatchRequest,
+    ClientWorkflowBatchRequest,
+    ClientWorkflowStatusRead,
+)
 from app.schemas.client_email import ClientEmailPage
 from app.schemas.document import DocumentRead, DocumentUploadResponse
 from app.schemas.industry import IndustryRead
@@ -35,6 +41,7 @@ from app.services.client_service import (
     DuplicateTaxIdError,
     IndustryNotFoundError,
 )
+from app.services.client_bulk_service import ClientBulkService
 from app.services.client_email_service import ClientEmailService
 from app.services.document_service import (
     DocumentService, DocumentStorageError, EmptyDocumentError,
@@ -87,6 +94,30 @@ def create_client(
             status_code=status.HTTP_409_CONFLICT,
             detail="An active client with this tax ID already exists",
         ) from error
+
+
+@router.get("/workflow-statuses", response_model=list[ClientWorkflowStatusRead])
+def get_client_workflow_statuses(
+    client_ids: list[int] = Query(default=[], max_length=100),
+    db: Session = Depends(get_db),
+) -> list[ClientWorkflowStatusRead]:
+    return ClientBulkService(db).workflow_statuses(client_ids)
+
+
+@router.post("/bulk/workflow-status", response_model=ClientBatchResponse)
+def set_client_workflow_status(
+    data: ClientWorkflowBatchRequest,
+    db: Session = Depends(get_db),
+) -> ClientBatchResponse:
+    return ClientBulkService(db).set_workflow_status(data)
+
+
+@router.post("/bulk/soft-delete", response_model=ClientBatchResponse)
+def bulk_soft_delete_clients(
+    data: ClientIdBatchRequest,
+    db: Session = Depends(get_db),
+) -> ClientBatchResponse:
+    return ClientBulkService(db).soft_delete(data.client_ids)
 
 
 @router.get(

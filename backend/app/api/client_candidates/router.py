@@ -15,6 +15,9 @@ from app.api.auth import get_current_user
 from app.database.session import get_db
 from app.schemas.client_candidate_review import (
     CandidateAcceptResponse,
+    CandidateBulkAcceptItem,
+    CandidateBulkAcceptRequest,
+    CandidateBulkAcceptResponse,
     CandidateRejectResponse,
     ClientCandidateContextResponse,
     ClientCandidateListItem,
@@ -40,6 +43,41 @@ router = APIRouter(
         Depends(get_current_user),
     ],
 )
+
+
+@router.post("/bulk-accept", response_model=CandidateBulkAcceptResponse)
+def bulk_accept_client_candidates(
+    data: CandidateBulkAcceptRequest,
+    db: Session = Depends(get_db),
+) -> CandidateBulkAcceptResponse:
+    service = ClientCandidateReviewService(db)
+    results: list[CandidateBulkAcceptItem] = []
+    for candidate_id in data.candidate_ids:
+        try:
+            client = service.accept_candidate(candidate_id)
+            results.append(CandidateBulkAcceptItem(
+                candidate_id=candidate_id, result="promoted", client_id=client.id
+            ))
+        except CandidateDuplicateClientError as error:
+            results.append(CandidateBulkAcceptItem(
+                candidate_id=candidate_id, result="duplicate",
+                client_id=error.client_id, message=f"duplicate:{error.matched_by}",
+            ))
+        except CandidateNotFoundError:
+            results.append(CandidateBulkAcceptItem(candidate_id=candidate_id, result="not_found"))
+        except (CandidateNotPendingError, CandidateAlreadyMatchedError) as error:
+            results.append(CandidateBulkAcceptItem(
+                candidate_id=candidate_id, result="conflict", message=str(error)
+            ))
+        except CandidatePromotionError as error:
+            results.append(CandidateBulkAcceptItem(
+                candidate_id=candidate_id, result="failed", message=str(error)
+            ))
+    promoted = sum(item.result == "promoted" for item in results)
+    return CandidateBulkAcceptResponse(
+        requested=len(data.candidate_ids), promoted=promoted,
+        failed=len(results) - promoted, results=results,
+    )
 
 
 @router.get(

@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../auth/domain/auth_session.dart';
+import '../../clients/presentation/searchable_client_picker.dart';
 import '../application/documents_repository.dart';
 
 class IntakeFile {
@@ -51,7 +52,7 @@ class DocumentIntakeDialog extends StatefulWidget {
 class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
   final List<IntakeFile> _files = <IntakeFile>[];
   final TextEditingController _comment = TextEditingController();
-  final TextEditingController _client = TextEditingController();
+  int? _selectedClientId;
   bool _includeLocation = false;
   bool _uploading = false;
 
@@ -61,7 +62,6 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
   @override
   void dispose() {
     _comment.dispose();
-    _client.dispose();
     super.dispose();
   }
 
@@ -136,7 +136,7 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
           name: file.name,
           path: file.path,
           bytes: bytes,
-          clientId: widget.clientId ?? int.tryParse(_client.text.trim()),
+          clientId: widget.clientId ?? _selectedClientId,
           projectId: widget.projectId,
           inspectionId: widget.inspectionId,
           origin: file.origin,
@@ -199,15 +199,13 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
             ),
             const SizedBox(height: 12),
             if (widget.clientId == null)
-              TextField(
-                controller: _client,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Klient (ID, opcjonalnie)',
-                  helperText:
-                      'Pozostaw puste, aby dokument pozostał nieprzypisany.',
-                  border: OutlineInputBorder(),
-                ),
+              SearchableClientPicker(
+                onChanged: (selection) =>
+                    setState(() => _selectedClientId = selection?.id),
+              ),
+            if (widget.clientId == null)
+              const Text(
+                'Pozostaw bez wyboru, aby dokument pozostał nieprzypisany.',
               ),
             if (widget.clientId == null) const SizedBox(height: 12),
             TextField(

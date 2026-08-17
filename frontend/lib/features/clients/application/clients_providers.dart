@@ -7,6 +7,7 @@ import '../../auth/domain/auth_session.dart';
 import '../data/clients_api.dart';
 import '../domain/client.dart';
 import '../domain/industry.dart';
+import 'client_workflow_status.dart';
 import 'clients_repository.dart';
 
 final clientsApiProvider = Provider<ClientsApi>((Ref ref) {
@@ -35,6 +36,40 @@ final clientDetailsProvider = FutureProvider.family<Client, int>((
 
   return repository.fetchClient(session: session, clientId: clientId);
 });
+
+final clientWorkflowStatusesProvider =
+    FutureProvider.family<Map<int, ClientWorkflowStatus>, String>((
+      Ref ref,
+      String clientIdsKey,
+    ) async {
+      final AuthSession? session = ref
+          .watch(authControllerProvider)
+          .value
+          ?.session;
+      if (session == null || !session.isAuthenticated) {
+        return const <int, ClientWorkflowStatus>{};
+      }
+      final List<int> clientIds = clientIdsKey
+          .split(',')
+          .map(int.tryParse)
+          .whereType<int>()
+          .toList(growable: false);
+      if (clientIds.isEmpty) return const <int, ClientWorkflowStatus>{};
+      final rows = await ref
+          .watch(clientsRepositoryProvider)
+          .fetchWorkflowStatuses(session: session, clientIds: clientIds);
+      return <int, ClientWorkflowStatus>{
+        for (final row in rows)
+          if (row['client_id'] is int)
+            row['client_id'] as int: ClientWorkflowStatus(
+              state: ClientWorkflowState.fromApi(
+                row['status']?.toString() ?? '',
+              ),
+              date: DateTime.tryParse(row['effective_date']?.toString() ?? ''),
+            ),
+      };
+    });
+
 final industriesProvider = FutureProvider<List<Industry>>((Ref ref) async {
   final AsyncValue<AuthState> authValue = ref.watch(authControllerProvider);
 

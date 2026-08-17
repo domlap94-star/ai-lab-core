@@ -5360,4 +5360,24 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     98-test Flutter suite PASS before and after the version bump.
 [ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
 
+PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
+
+[✓] Additive migration `prechunk11status_20260817` provides persistent,
+    backward-compatible Client workflow status/category values without
+    guessing or backfilling historical classifications.
+[✓] Candidate and Client lists support bounded multi-selection. Candidate
+    bulk promotion retains per-record duplicate/identity guards; Client bulk
+    actions provide status update and soft-delete only with per-record results.
+[✓] Client Details reads and edits the same workflow-status API contract.
+[✓] Client search covers name/legal name/NIP, primary and secondary contact
+    points, legacy and structured address fields with normalized phone lookup.
+[✓] Google Sheets `DATA` continues through Candidate provenance to the Client
+    display date without rewriting technical `created_at`.
+[✓] Client 360 includes lazy Wizje lokalne; Inspection/Project forms reuse a
+    bounded, debounced server-side Client picker and enforce Project scope.
+[!] Google Sheets registration remains intentionally incomplete: two
+    spreadsheet IDs / four tabs are registered; missing URL/ID + tab names
+    must be supplied by the owner. No IDs were guessed and n8n was unchanged.
+[ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
+
 KONIEC MASTER PLAN

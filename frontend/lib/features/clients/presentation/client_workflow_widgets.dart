@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/application/auth_controller.dart';
 import '../application/client_workflow_status.dart';
+import '../application/clients_providers.dart';
 import '../domain/client.dart';
 
-class ClientWorkflowAvatar extends StatelessWidget {
+class ClientWorkflowAvatar extends ConsumerWidget {
   const ClientWorkflowAvatar({
     super.key,
     required this.client,
@@ -14,7 +17,7 @@ class ClientWorkflowAvatar extends StatelessWidget {
   final VoidCallback onStatusChanged;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
     final ClientWorkflowStatus status = ClientWorkflowMemory.instance.statusFor(
       client,
@@ -45,11 +48,21 @@ class ClientWorkflowAvatar extends StatelessWidget {
           }
         }
 
+        final session = ref.read(authControllerProvider).value?.session;
+        if (session == null) return;
+        await ref
+            .read(clientsRepositoryProvider)
+            .bulkWorkflowStatus(
+              session: session,
+              clientIds: <int>[client.id],
+              status: value.apiValue,
+              effectiveDate: date?.toIso8601String().split('T').first,
+            );
         ClientWorkflowMemory.instance.setStatus(
           client.id,
           ClientWorkflowStatus(state: value, date: date),
         );
-
+        ref.invalidate(clientWorkflowStatusesProvider);
         onStatusChanged();
       },
       itemBuilder: (BuildContext context) {

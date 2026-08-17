@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_shell.dart';
+import '../../auth/application/auth_controller.dart';
 import 'client_form_dialog.dart';
 
 import '../application/client_list_filter.dart';
@@ -34,6 +35,9 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   bool _filtersExpanded = false;
   ClientType? _clientTypeFilter;
   int? _industryIdFilter;
+  bool _selectionMode = false;
+  bool _bulkBusy = false;
+  final Set<int> _selectedClientIds = <int>{};
 
   ClientListViewMemory get _viewMemory => ClientListViewMemory.instance;
 
@@ -97,6 +101,118 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
       ..showSnackBar(
         SnackBar(content: Text('Dodano klienta: ${created.displayName}')),
       );
+  }
+
+  Future<void> _bulkDelete() async {
+    if (_selectedClientIds.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Usuń wybrane'),
+        content: Text(
+          'Czy na pewno chcesz usunąć ${_selectedClientIds.length} klientów? Dane historyczne pozostaną zachowane.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Usuń wybrane'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null) return;
+    setState(() => _bulkBusy = true);
+    try {
+      final result = await ref
+          .read(clientsRepositoryProvider)
+          .bulkSoftDelete(
+            session: session,
+            clientIds: _selectedClientIds.toList()..sort(),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Usunięto: ${result['succeeded'] ?? 0}; błędy: ${result['failed'] ?? 0}',
+          ),
+        ),
+      );
+      setState(() {
+        _selectionMode = false;
+        _selectedClientIds.clear();
+      });
+      await _refresh();
+    } finally {
+      if (mounted) setState(() => _bulkBusy = false);
+    }
+  }
+
+  Future<void> _bulkStatus() async {
+    if (_selectedClientIds.isEmpty) return;
+    final status = await showDialog<ClientWorkflowState>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Ustaw status / kategorię'),
+        children: ClientWorkflowState.values
+            .map(
+              (value) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, value),
+                child: Text(value.label),
+              ),
+            )
+            .toList(),
+      ),
+    );
+    if (status == null || !mounted) return;
+    DateTime? date;
+    if (status.requiresDate) {
+      date = await showDatePicker(
+        context: context,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+        initialDate: DateTime.now(),
+      );
+      if (date == null) return;
+    }
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null) return;
+    setState(() => _bulkBusy = true);
+    try {
+      final result = await ref
+          .read(clientsRepositoryProvider)
+          .bulkWorkflowStatus(
+            session: session,
+            clientIds: _selectedClientIds.toList()..sort(),
+            status: status.apiValue,
+            effectiveDate: date?.toIso8601String().split('T').first,
+          );
+      for (final id in _selectedClientIds) {
+        ClientWorkflowMemory.instance.setStatus(
+          id,
+          ClientWorkflowStatus(state: status, date: date),
+        );
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Zmieniono: ${result['succeeded'] ?? 0}; błędy: ${result['failed'] ?? 0}',
+          ),
+        ),
+      );
+      setState(() {
+        _selectionMode = false;
+        _selectedClientIds.clear();
+      });
+    } finally {
+      if (mounted) setState(() => _bulkBusy = false);
+    }
   }
 
   Future<void> _resetFilters() async {
@@ -163,6 +279,17 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Klienci'),
         actions: <Widget>[
+          TextButton.icon(
+            key: const Key('client-multi-select'),
+            onPressed: _bulkBusy
+                ? null
+                : () => setState(() {
+                    _selectionMode = !_selectionMode;
+                    _selectedClientIds.clear();
+                  }),
+            icon: Icon(_selectionMode ? Icons.close : Icons.checklist),
+            label: Text(_selectionMode ? 'Anuluj' : 'Wybierz kilka'),
+          ),
           if (compactLayout)
             IconButton(
               tooltip: 'Kandydaci',
@@ -292,6 +419,17 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
               },
               data: (ClientPage page) {
                 final List<Client> clients = page.items;
+                if (clients.isNotEmpty) {
+                  final String statusKey = clients
+                      .map((client) => client.id)
+                      .join(',');
+                  final statuses = ref
+                      .watch(clientWorkflowStatusesProvider(statusKey))
+                      .value;
+                  if (statuses != null) {
+                    ClientWorkflowMemory.instance.setStatuses(statuses);
+                  }
+                }
                 final List<Client> visibleClients = filterClientsForCurrentPage(
                   clients,
                   locationQuery: _locationController.text,
@@ -317,6 +455,32 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
                     children: <Widget>[
+                      if (_selectionMode) ...<Widget>[
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              'Wybrano: ${_selectedClientIds.length}',
+                              key: const Key('client-selected-count'),
+                            ),
+                            FilledButton(
+                              onPressed: _selectedClientIds.isEmpty || _bulkBusy
+                                  ? null
+                                  : _bulkStatus,
+                              child: const Text('Ustaw status/kategorię'),
+                            ),
+                            OutlinedButton(
+                              onPressed: _selectedClientIds.isEmpty || _bulkBusy
+                                  ? null
+                                  : _bulkDelete,
+                              child: const Text('Usuń wybrane'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       _ClientStatusSummary(
                         clients: clients,
                         selectedStatus: _statusFilter,
@@ -350,9 +514,20 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: _ClientCard(
                             client: client,
-                            onTap: () {
-                              context.push('/clients/${client.id}');
-                            },
+                            selectionMode: _selectionMode,
+                            selected: _selectedClientIds.contains(client.id),
+                            onSelected: () => setState(
+                              () => _selectedClientIds.contains(client.id)
+                                  ? _selectedClientIds.remove(client.id)
+                                  : _selectedClientIds.add(client.id),
+                            ),
+                            onTap: () => _selectionMode
+                                ? setState(
+                                    () => _selectedClientIds.contains(client.id)
+                                        ? _selectedClientIds.remove(client.id)
+                                        : _selectedClientIds.add(client.id),
+                                  )
+                                : context.push('/clients/${client.id}'),
                             onStatusChanged: () {
                               setState(() {});
                             },
@@ -1081,11 +1256,17 @@ class _ClientCard extends StatelessWidget {
     required this.client,
     required this.onTap,
     required this.onStatusChanged,
+    required this.selectionMode,
+    required this.selected,
+    required this.onSelected,
   });
 
   final Client client;
   final VoidCallback onTap;
   final VoidCallback onStatusChanged;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1101,10 +1282,13 @@ class _ClientCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              ClientWorkflowAvatar(
-                client: client,
-                onStatusChanged: onStatusChanged,
-              ),
+              if (selectionMode)
+                Checkbox(value: selected, onChanged: (_) => onSelected())
+              else
+                ClientWorkflowAvatar(
+                  client: client,
+                  onStatusChanged: onStatusChanged,
+                ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

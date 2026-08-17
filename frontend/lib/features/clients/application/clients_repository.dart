@@ -77,12 +77,65 @@ class ClientsRepository {
     return response.toDomain();
   }
 
-  Future<Client> updateClient({required AuthSession session, required int clientId, required Map<String, dynamic> data}) async =>
-      (await _api.updateClient(clientId: clientId, data: data, accessToken: session.accessToken, tokenType: session.tokenType)).toDomain();
+  Future<Client> updateClient({
+    required AuthSession session,
+    required int clientId,
+    required Map<String, dynamic> data,
+  }) async => (await _api.updateClient(
+    clientId: clientId,
+    data: data,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  )).toDomain();
 
-  Future<void> deleteClient({required AuthSession session, required int clientId}) =>
-      _api.deleteClient(clientId: clientId, accessToken: session.accessToken, tokenType: session.tokenType);
+  Future<void> deleteClient({
+    required AuthSession session,
+    required int clientId,
+  }) => _api.deleteClient(
+    clientId: clientId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
 
-  Future<void> uploadClientDocument({required AuthSession session, required int clientId, required String path}) =>
-      _api.uploadClientDocument(clientId: clientId, path: path, accessToken: session.accessToken, tokenType: session.tokenType);
+  Future<List<Map<String, dynamic>>> fetchWorkflowStatuses({
+    required AuthSession session,
+    required List<int> clientIds,
+  }) => _api.fetchWorkflowStatuses(
+    clientIds: clientIds,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  Future<Map<String, dynamic>> bulkWorkflowStatus({
+    required AuthSession session,
+    required List<int> clientIds,
+    required String status,
+    String? effectiveDate,
+  }) => _api.bulkWorkflowStatus(
+    clientIds: clientIds,
+    status: status,
+    effectiveDate: effectiveDate,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  Future<Map<String, dynamic>> bulkSoftDelete({
+    required AuthSession session,
+    required List<int> clientIds,
+  }) => _api.bulkSoftDelete(
+    clientIds: clientIds,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  Future<void> uploadClientDocument({
+    required AuthSession session,
+    required int clientId,
+    required String path,
+  }) => _api.uploadClientDocument(
+    clientId: clientId,
+    path: path,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
 }

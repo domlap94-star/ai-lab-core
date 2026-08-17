@@ -140,6 +140,21 @@ class ClientCandidatesApi {
     );
   }
 
+  Future<Map<String, dynamic>> bulkAccept({
+    required List<int> candidateIds,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_path/bulk-accept',
+      data: <String, dynamic>{'candidate_ids': candidateIds},
+      options: Options(
+        headers: _headers(accessToken: accessToken, tokenType: tokenType),
+      ),
+    );
+    return response.data ?? <String, dynamic>{};
+  }
+
   Map<String, Object> _headers({
     required String accessToken,
     required String tokenType,

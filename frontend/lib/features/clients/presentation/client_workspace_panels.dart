@@ -11,6 +11,7 @@ import '../../documents/domain/document_page.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
 import '../../documents/presentation/document_presentation.dart';
 import '../../projects/presentation/client_projects_panel.dart';
+import '../../inspections/presentation/client_inspections_panel.dart';
 import '../../timeline/domain/timeline.dart';
 import '../../timeline/presentation/timeline_panel.dart';
 import 'client_emails_panel.dart';
@@ -39,12 +40,11 @@ class ClientWorkspacePanels extends StatelessWidget {
         const SizedBox(height: 20),
         ClientProjectsPanel(clientId: clientId),
         const SizedBox(height: 20),
+        ClientInspectionsPanel(clientId: clientId, clientName: clientName),
+        const SizedBox(height: 20),
         ClientDocumentsPanel(clientId: clientId, clientName: clientName),
         const SizedBox(height: 20),
-        ClientEmailsPanel(
-          clientId: clientId,
-          focusedSourceId: emailSourceId,
-        ),
+        ClientEmailsPanel(clientId: clientId, focusedSourceId: emailSourceId),
       ],
     );
   }

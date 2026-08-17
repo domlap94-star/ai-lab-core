@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 CandidateStatus = Literal[
@@ -56,3 +56,29 @@ class CandidateAcceptResponse(BaseModel):
 class CandidateRejectResponse(BaseModel):
     candidate_id: int
     candidate_status: str
+
+
+class CandidateBulkAcceptRequest(BaseModel):
+    candidate_ids: list[int] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def unique_positive_ids(self):
+        if len(set(self.candidate_ids)) != len(self.candidate_ids):
+            raise ValueError("candidate_ids must be unique")
+        if any(value <= 0 for value in self.candidate_ids):
+            raise ValueError("candidate_ids must be positive")
+        return self
+
+
+class CandidateBulkAcceptItem(BaseModel):
+    candidate_id: int
+    result: Literal["promoted", "duplicate", "conflict", "not_found", "failed"]
+    client_id: int | None = None
+    message: str | None = None
+
+
+class CandidateBulkAcceptResponse(BaseModel):
+    requested: int
+    promoted: int
+    failed: int
+    results: list[CandidateBulkAcceptItem]

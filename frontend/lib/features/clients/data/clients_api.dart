@@ -137,32 +137,126 @@ class ClientsApi {
   }
 
   Future<ClientResponse> updateClient({
-    required int clientId, required Map<String, dynamic> data,
-    required String accessToken, required String tokenType,
+    required int clientId,
+    required Map<String, dynamic> data,
+    required String accessToken,
+    required String tokenType,
   }) async {
     final response = await _dio.patch<Map<String, dynamic>>(
-      '$_clientsPath/$clientId', data: data,
-      options: Options(headers: _authorizationHeaders(accessToken: accessToken, tokenType: tokenType)),
+      '$_clientsPath/$clientId',
+      data: data,
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
     );
-    if (response.data == null) throw const FormatException('Pusta odpowiedź aktualizacji klienta.');
+    if (response.data == null) {
+      throw const FormatException('Pusta odpowiedź aktualizacji klienta.');
+    }
     return ClientResponse.fromJson(response.data!);
   }
 
-  Future<void> deleteClient({required int clientId, required String accessToken, required String tokenType}) async {
-    await _dio.delete<void>('$_clientsPath/$clientId',
-      options: Options(headers: _authorizationHeaders(accessToken: accessToken, tokenType: tokenType)));
+  Future<void> deleteClient({
+    required int clientId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.delete<void>(
+      '$_clientsPath/$clientId',
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> fetchWorkflowStatuses({
+    required List<int> clientIds,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.get<List<dynamic>>(
+      '$_clientsPath/workflow-statuses',
+      queryParameters: <String, dynamic>{'client_ids': clientIds},
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+    return (response.data ?? const <dynamic>[])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> bulkWorkflowStatus({
+    required List<int> clientIds,
+    required String status,
+    String? effectiveDate,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_clientsPath/bulk/workflow-status',
+      data: <String, dynamic>{
+        'client_ids': clientIds,
+        'status': status,
+        'effective_date': effectiveDate,
+      },
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+    return response.data ?? <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> bulkSoftDelete({
+    required List<int> clientIds,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_clientsPath/bulk/soft-delete',
+      data: <String, dynamic>{'client_ids': clientIds},
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+    return response.data ?? <String, dynamic>{};
   }
 
   Future<void> uploadClientDocument({
-    required int clientId, required String path,
-    required String accessToken, required String tokenType,
+    required int clientId,
+    required String path,
+    required String accessToken,
+    required String tokenType,
   }) async {
     final name = path.replaceAll('\\', '/').split('/').last;
     final form = FormData.fromMap(<String, dynamic>{
       'file': await MultipartFile.fromFile(path, filename: name),
     });
-    await _dio.post<Map<String, dynamic>>('$_clientsPath/$clientId/documents/upload',
-      data: form, options: Options(headers: _authorizationHeaders(accessToken: accessToken, tokenType: tokenType)));
+    await _dio.post<Map<String, dynamic>>(
+      '$_clientsPath/$clientId/documents/upload',
+      data: form,
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
   }
 
   Map<String, Object> _authorizationHeaders({

@@ -59,4 +59,13 @@ class ClientCandidatesRepository {
       tokenType: session.tokenType,
     );
   }
+
+  Future<Map<String, dynamic>> bulkAccept({
+    required AuthSession session,
+    required List<int> candidateIds,
+  }) => _api.bulkAccept(
+    candidateIds: candidateIds,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
 }

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../application/clients_providers.dart';
 import '../application/clients_controller.dart';
+import '../application/client_workflow_status.dart';
 import '../../auth/application/auth_controller.dart';
 import '../domain/client.dart';
 import 'client_workspace_panels.dart';
@@ -350,6 +351,8 @@ class _ClientDetails extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              _ClientWorkflowStatusCard(client: client),
+              const SizedBox(height: 20),
               _DetailsSection(
                 title: 'Dane podstawowe',
                 icon: Icons.badge_outlined,
@@ -688,6 +691,82 @@ class _ClientDetails extends StatelessWidget {
     'manual' => 'ręcznie',
     _ => 'inne',
   };
+}
+
+class _ClientWorkflowStatusCard extends ConsumerWidget {
+  const _ClientWorkflowStatusCard({required this.client});
+
+  final Client client;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final key = client.id.toString();
+    final value = ref.watch(clientWorkflowStatusesProvider(key));
+    final status =
+        value.value?[client.id] ??
+        ClientWorkflowMemory.instance.statusFor(client);
+    return Card(
+      key: const Key('client-workflow-status-card'),
+      child: ListTile(
+        leading: const Icon(Icons.flag_outlined),
+        title: const Text('Status / kategoria'),
+        subtitle: Text(status.displayLabel),
+        trailing: TextButton(
+          key: const Key('client-workflow-status-edit'),
+          onPressed: () => _edit(context, ref, status),
+          child: const Text('Edytuj'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _edit(
+    BuildContext context,
+    WidgetRef ref,
+    ClientWorkflowStatus current,
+  ) async {
+    final selected = await showDialog<ClientWorkflowState>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Ustaw status / kategorię'),
+        children: ClientWorkflowState.values
+            .map(
+              (state) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialogContext, state),
+                child: Text(state.label),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+    if (selected == null || !context.mounted) return;
+    DateTime? date;
+    if (selected.requiresDate) {
+      date = await showDatePicker(
+        context: context,
+        initialDate: current.date ?? DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (date == null || !context.mounted) return;
+    }
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null) return;
+    await ref
+        .read(clientsRepositoryProvider)
+        .bulkWorkflowStatus(
+          session: session,
+          clientIds: <int>[client.id],
+          status: selected.apiValue,
+          effectiveDate: date?.toIso8601String().split('T').first,
+        );
+    ClientWorkflowMemory.instance.setStatus(
+      client.id,
+      ClientWorkflowStatus(state: selected, date: date),
+    );
+    ref.invalidate(clientWorkflowStatusesProvider(client.id.toString()));
+    ref.invalidate(clientsControllerProvider);
+  }
 }
 
 class _DetailsSection extends StatelessWidget {

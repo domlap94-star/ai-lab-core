@@ -10,6 +10,24 @@ enum ClientWorkflowState {
   untouched,
   phoneContact;
 
+  String get apiValue => switch (this) {
+    ClientWorkflowState.obsolete => 'obsolete',
+    ClientWorkflowState.inProgress => 'in_progress',
+    ClientWorkflowState.inspection => 'inspection',
+    ClientWorkflowState.completed => 'completed',
+    ClientWorkflowState.untouched => 'untouched',
+    ClientWorkflowState.phoneContact => 'phone_contact',
+  };
+
+  static ClientWorkflowState fromApi(String value) => switch (value) {
+    'obsolete' => obsolete,
+    'in_progress' => inProgress,
+    'inspection' => inspection,
+    'completed' => completed,
+    'phone_contact' => phoneContact,
+    _ => untouched,
+  };
+
   String get label {
     return switch (this) {
       ClientWorkflowState.obsolete => 'Nieaktualne',
@@ -100,5 +118,9 @@ class ClientWorkflowMemory {
 
   void setStatus(int clientId, ClientWorkflowStatus status) {
     _entries[clientId] = status;
+  }
+
+  void setStatuses(Map<int, ClientWorkflowStatus> statuses) {
+    _entries.addAll(statuses);
   }
 }

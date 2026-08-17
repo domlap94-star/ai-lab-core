@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../clients/presentation/searchable_client_picker.dart';
 import '../domain/project.dart';
 
 class ProjectFormDialog extends StatefulWidget {
@@ -10,9 +11,7 @@ class ProjectFormDialog extends StatefulWidget {
 }
 
 class _ProjectFormDialogState extends State<ProjectFormDialog> {
-  late final _client = TextEditingController(
-    text: (widget.clientId ?? widget.project?.clientId)?.toString() ?? '',
-  );
+  late int? _clientId = widget.clientId ?? widget.project?.clientId;
   late final _name = TextEditingController(text: widget.project?.name ?? '');
   late final _description = TextEditingController(
     text: widget.project?.description ?? '',
@@ -41,7 +40,6 @@ class _ProjectFormDialogState extends State<ProjectFormDialog> {
   @override
   void dispose() {
     for (final value in <TextEditingController>[
-      _client,
       _name,
       _description,
       _street,
@@ -70,14 +68,12 @@ class _ProjectFormDialogState extends State<ProjectFormDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              TextFormField(
-                controller: _client,
-                enabled: widget.clientId == null,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Klient ID'),
-                validator: (value) => int.tryParse(value ?? '') == null
-                    ? 'Wybierz klienta'
-                    : null,
+              SearchableClientPicker(
+                enabled: widget.clientId == null && widget.project == null,
+                initialClientId: _clientId,
+                initialClientName: widget.project?.clientName,
+                onChanged: (selection) =>
+                    setState(() => _clientId = selection?.id),
               ),
               TextFormField(
                 controller: _name,
@@ -159,8 +155,14 @@ class _ProjectFormDialogState extends State<ProjectFormDialog> {
       FilledButton(
         onPressed: () {
           if (_form.currentState!.validate()) {
+            if (_clientId == null) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Wybierz klienta.')));
+              return;
+            }
             Navigator.pop(context, <String, dynamic>{
-              'client_id': int.parse(_client.text),
+              'client_id': _clientId,
               'name': _name.text.trim(),
               'description': _description.text.trim().isEmpty
                   ? null

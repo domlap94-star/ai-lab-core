@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/ai/presentation/ai_page.dart';
 import '../../features/cases/presentation/cases_page.dart';
 import '../../features/client_candidates/presentation/client_candidate_details_page.dart';
-import '../../features/client_candidates/presentation/client_candidates_page.dart';
+import '../../features/client_candidates/presentation/client_candidates_bulk_page.dart';
 import '../../features/clients/presentation/client_details_page.dart';
 import '../../features/clients/presentation/clients_page.dart';
 import '../../features/dashboard/presentation/dashboard_page.dart';
@@ -49,7 +49,7 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/client-candidates',
           builder: (BuildContext context, GoRouterState state) {
-            return const ClientCandidatesPage();
+            return const ClientCandidatesBulkPage();
           },
         ),
         GoRoute(
@@ -60,7 +60,7 @@ final GoRouter appRouter = GoRouter(
             );
 
             if (candidateId == null || candidateId <= 0) {
-              return const ClientCandidatesPage();
+              return const ClientCandidatesBulkPage();
             }
 
             return ClientCandidateDetailsPage(candidateId: candidateId);

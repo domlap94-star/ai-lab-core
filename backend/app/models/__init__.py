@@ -1,5 +1,6 @@
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
+from app.models.client_workflow_status import ClientWorkflowStatus
 from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
 from app.models.client_candidate import ClientCandidate
@@ -22,6 +23,7 @@ from app.models.user_lifecycle_event import UserLifecycleEvent
 __all__ = [
     "CandidateSource",
     "Client",
+    "ClientWorkflowStatus",
     "ClientAddress",
     "ClientContactPoint",
     "ClientCandidate",
