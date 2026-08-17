@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/widgets/app_shell.dart';
 import '../application/projects_providers.dart';
 import '../domain/project.dart';
 import 'project_form_dialog.dart';
@@ -51,6 +53,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
     final page = ref.watch(projectsPageProvider(query));
     return Scaffold(
       appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Realizacje'),
         actions: <Widget>[
           IconButton(

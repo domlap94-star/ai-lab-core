@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/app_shell.dart';
 import '../../system_status/application/system_status_provider.dart';
 import '../../system_status/domain/backend_status.dart';
 
@@ -17,6 +18,7 @@ class DashboardPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Dashboard'),
         actions: <Widget>[
           IconButton(

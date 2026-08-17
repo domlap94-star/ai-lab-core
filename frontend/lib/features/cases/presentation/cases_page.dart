@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_shell.dart';
+
 class CasesPage extends StatelessWidget {
   const CasesPage({super.key});
 
@@ -27,7 +29,10 @@ class _PlaceholderPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
+        title: Text(title),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
 import '../../clients/application/clients_providers.dart';
@@ -49,6 +50,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Repozytorium dokumentów'),
         actions: <Widget>[
           IconButton(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/widgets/app_shell.dart';
 import '../../app_update/application/update_install_controller.dart';
 import '../../app_update/application/update_provider.dart';
 import '../../app_update/domain/app_update.dart';
@@ -81,7 +82,10 @@ class SettingsPage extends ConsumerWidget {
     final bool isAdmin = _isAdminRole(role);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Ustawienia')),
+      appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
+        title: const Text('Ustawienia'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[

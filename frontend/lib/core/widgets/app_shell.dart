@@ -153,7 +153,6 @@ class AppShell extends ConsumerWidget {
         return _MobileShell(
           selectedIndex: selectedIndex,
           username: username,
-          role: role,
           onDestinationSelected: (int index) {
             _navigate(context, index);
           },
@@ -164,6 +163,14 @@ class AppShell extends ConsumerWidget {
         );
       },
     );
+  }
+
+  static Widget? mobileNavigationLeading(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= desktopBreakpoint) {
+      return null;
+    }
+
+    return const MobileNavigationButton();
   }
 }
 
@@ -365,11 +372,10 @@ class _UserPanel extends StatelessWidget {
   }
 }
 
-class _MobileShell extends StatelessWidget {
+class _MobileShell extends StatefulWidget {
   const _MobileShell({
     required this.selectedIndex,
     required this.username,
-    required this.role,
     required this.onDestinationSelected,
     required this.onLogout,
     required this.child,
@@ -377,57 +383,166 @@ class _MobileShell extends StatelessWidget {
 
   final int selectedIndex;
   final String username;
-  final String role;
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onLogout;
   final Widget child;
 
   @override
+  State<_MobileShell> createState() => _MobileShellState();
+}
+
+class _MobileShellState extends State<_MobileShell> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  void _selectDestination(BuildContext drawerContext, int index) {
+    Navigator.of(drawerContext).pop();
+    widget.onDestinationSelected(index);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: child,
-      drawer: Drawer(
-        child: SafeArea(
-          child: Column(
-            children: <Widget>[
-              const _ApplicationHeader(),
-              const Divider(height: 1),
-              ListTile(
-                leading: CircleAvatar(
-                  child: Text(
-                    username.isEmpty ? '?' : username[0].toUpperCase(),
+    final ThemeData theme = Theme.of(context);
+
+    return _MobileDrawerScope(
+      openDrawer: () => _scaffoldKey.currentState?.openDrawer(),
+      child: Scaffold(
+        key: _scaffoldKey,
+        body: widget.child,
+        drawer: Drawer(
+          child: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: <Widget>[
+                const _MobileDrawerHeader(),
+                for (
+                  int index = 0;
+                  index < AppShell.navigationItems.length;
+                  index++
+                )
+                  Builder(
+                    builder: (BuildContext drawerContext) {
+                      final NavigationItem item =
+                          AppShell.navigationItems[index];
+                      final bool selected = widget.selectedIndex == index;
+
+                      return ListTile(
+                        key: Key('mobile-nav-${item.path}'),
+                        minTileHeight: 52,
+                        leading: Icon(selected ? item.selectedIcon : item.icon),
+                        title: Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        selected: selected,
+                        selectedColor: theme.colorScheme.onSecondaryContainer,
+                        selectedTileColor: theme.colorScheme.secondaryContainer,
+                        onTap: () => _selectDestination(drawerContext, index),
+                      );
+                    },
+                  ),
+                const Divider(height: 24),
+                ListTile(
+                  leading: CircleAvatar(
+                    child: Text(
+                      widget.username.isEmpty
+                          ? '?'
+                          : widget.username[0].toUpperCase(),
+                    ),
+                  ),
+                  title: Text(
+                    widget.username,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                title: Text(username),
-                subtitle: role.isEmpty ? null : Text(role),
-              ),
-              const Spacer(),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Wyloguj si\u0119'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  onLogout();
-                },
-              ),
-              const SizedBox(height: 12),
-            ],
+                Builder(
+                  builder: (BuildContext drawerContext) => ListTile(
+                    leading: const Icon(Icons.logout),
+                    title: const Text('Wyloguj si\u0119'),
+                    onTap: () {
+                      Navigator.of(drawerContext).pop();
+                      widget.onLogout();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        destinations: AppShell.navigationItems
-            .map(
-              (NavigationItem item) => NavigationDestination(
-                icon: Icon(item.icon),
-                selectedIcon: Icon(item.selectedIcon),
-                label: item.label,
-              ),
-            )
-            .toList(),
+    );
+  }
+}
+
+class _MobileDrawerHeader extends StatelessWidget {
+  const _MobileDrawerHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      child: Row(
+        children: <Widget>[
+          Image.asset(
+            'logo.png',
+            width: 52,
+            height: 52,
+            fit: BoxFit.contain,
+            semanticLabel: 'NEXT Stabil',
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  'NEXT Stabil',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text('CRM', style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _MobileDrawerScope extends InheritedWidget {
+  const _MobileDrawerScope({required this.openDrawer, required super.child});
+
+  final VoidCallback openDrawer;
+
+  static _MobileDrawerScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<_MobileDrawerScope>();
+  }
+
+  @override
+  bool updateShouldNotify(_MobileDrawerScope oldWidget) {
+    return openDrawer != oldWidget.openDrawer;
+  }
+}
+
+class MobileNavigationButton extends StatelessWidget {
+  const MobileNavigationButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('mobile-navigation-menu-button'),
+      tooltip: 'Otw\u00f3rz menu',
+      onPressed: _MobileDrawerScope.maybeOf(context)?.openDrawer,
+      icon: const Icon(Icons.menu),
     );
   }
 }

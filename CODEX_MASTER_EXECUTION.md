@@ -617,6 +617,20 @@ Status: DONE / RELEASE NOT PUBLISHED.
   Project/Inspection/Timeline errors, email timeline deep link and mobile
   navigation shell.
 
+### P2 MOBILE NAVIGATION STABILIZATION — DONE
+
+- Mobile widths below 700 px use one central, left-side, scrollable Drawer
+  with all eight modules, active-route highlighting and full-size touch
+  targets. The eight-item bottom NavigationBar is no longer rendered.
+- Root module AppBars use the shared shell menu action; Client, Project and
+  Inspection detail AppBars retain their existing Back behavior.
+- Responsive widget coverage at 360x800, 390x900, 600x900 and 1200x900,
+  cross-module navigation, drawer close, active state and Android Back: PASS.
+  Flutter analyze and full 91-test suite: PASS.
+- Backend, database, ingestion, release version and CHUNK 11: UNCHANGED.
+- P1 Google Sheets idempotency investigation remains open. Remaining P2 debt:
+  raw Project/Inspection/Timeline errors and email timeline deep link.
+
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 
 - Edit/Delete actions are outside and above the client header card in a

@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/widgets/app_shell.dart';
 import 'client_form_dialog.dart';
 
 import '../application/client_list_filter.dart';
@@ -158,6 +160,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Klienci'),
         actions: <Widget>[
           if (compactLayout)

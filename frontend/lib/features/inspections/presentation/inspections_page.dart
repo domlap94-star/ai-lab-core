@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/widgets/app_shell.dart';
 import '../application/inspections_providers.dart';
 import '../domain/inspection.dart';
 import 'inspection_form_dialog.dart';
@@ -56,6 +58,7 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
     final page = ref.watch(inspectionsPageProvider(query));
     return Scaffold(
       appBar: AppBar(
+        leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Wizje lokalne'),
         actions: <Widget>[
           IconButton(
