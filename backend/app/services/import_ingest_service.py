@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -51,6 +55,20 @@ class CandidateMatch:
 
 
 class ImportIngestService:
+    _SHEETS_TRANSPORT_METADATA_KEYS = frozenset(
+        {
+            "next_stabil_forward_contacts_v1",
+            "execution_id",
+            "executionid",
+            "execution_timestamp",
+            "fetched_at",
+            "fetchedat",
+            "import_run_id",
+            "run_id",
+            "workflow_execution_id",
+        }
+    )
+
     def __init__(self, db: Session) -> None:
         self.repository = ImportRepository(db)
         self.forward_normalizer = ForwardSourceIngestionService()
@@ -206,6 +224,27 @@ class ImportIngestService:
                 existing_source,
                 request.source,
             )
+
+            if not source_changed:
+                if import_run is not None:
+                    self.repository.increment_import_run_counters(
+                        import_run,
+                        processed=1,
+                    )
+
+                import_source.status = "active"
+                import_source.last_error = None
+                self.repository.commit()
+
+                return ImportIngestResponse(
+                    candidate_id=candidate.id,
+                    candidate_status=candidate.status,
+                    source_id=existing_source.id,
+                    created_candidate=False,
+                    created_source=False,
+                    matched_by="existing_source",
+                    matched_client_id=candidate.matched_client_id,
+                )
 
             candidate_changed = self._candidate_has_sheet_changes(
                 candidate,
@@ -905,25 +944,156 @@ class ImportIngestService:
 
         return 1
 
-    @staticmethod
+    @classmethod
     def _source_has_changed(
+        cls,
         existing_source: CandidateSource,
         incoming_source: CandidateSourceInput,
     ) -> bool:
-        return any(
-            (
-                existing_source.external_parent_id
-                != incoming_source.external_parent_id,
-                existing_source.source_label
-                != incoming_source.source_label,
-                existing_source.source_url
-                != incoming_source.source_url,
-                existing_source.extracted_text
-                != incoming_source.extracted_text,
-                existing_source.raw_payload
-                != incoming_source.raw_payload,
-            )
+        return cls._google_sheets_business_projection(
+            existing_source
+        ) != cls._google_sheets_business_projection(
+            incoming_source
         )
+
+    @classmethod
+    def _google_sheets_business_projection(
+        cls,
+        source: CandidateSource | CandidateSourceInput,
+    ) -> dict[str, Any]:
+        """Return stable source-owned data used for Sheets idempotency."""
+        return {
+            "external_parent_id": cls._canonicalize_sheet_value(
+                source.external_parent_id,
+                field_name="external_parent_id",
+            ),
+            "source_label": cls._canonicalize_sheet_value(
+                source.source_label,
+                field_name="source_label",
+            ),
+            "source_url": cls._canonicalize_sheet_value(
+                source.source_url,
+                field_name="source_url",
+            ),
+            "extracted_text": cls._canonicalize_sheet_value(
+                source.extracted_text,
+                field_name="extracted_text",
+            ),
+            "raw_payload": cls._canonicalize_sheet_value(
+                source.raw_payload,
+                field_name="raw_payload",
+            ),
+        }
+
+    @classmethod
+    def _canonicalize_sheet_value(
+        cls,
+        value: Any,
+        *,
+        field_name: str | None = None,
+    ) -> Any:
+        normalized_key = cls._canonical_sheet_key(field_name)
+
+        if value is None:
+            return None
+
+        if isinstance(value, str):
+            normalized = " ".join(value.replace("\xa0", " ").split())
+            if not normalized:
+                return None
+
+            if cls._is_email_field(normalized_key):
+                emails = cls._canonical_contact_values(
+                    ForwardSourceIngestionService.parse_emails(normalized).values
+                )
+                return emails or normalized.casefold()
+
+            if cls._is_phone_field(normalized_key):
+                phones = ForwardSourceIngestionService.parse_phones(normalized)
+                if phones.values and not phones.ambiguous:
+                    return cls._canonical_contact_values(phones.values)
+
+            if cls._is_date_field(normalized_key):
+                return cls._canonicalize_sheet_date(normalized)
+
+            return normalized
+
+        if isinstance(value, Mapping):
+            result: dict[str, Any] = {}
+            for key in sorted(value, key=lambda item: str(item).casefold()):
+                normalized_child_key = cls._canonical_sheet_key(str(key))
+                if normalized_child_key in cls._SHEETS_TRANSPORT_METADATA_KEYS:
+                    continue
+                canonical_value = cls._canonicalize_sheet_value(
+                    value[key],
+                    field_name=str(key),
+                )
+                if canonical_value is not None:
+                    result[str(key)] = canonical_value
+            return result
+
+        if isinstance(value, Sequence) and not isinstance(
+            value,
+            (str, bytes, bytearray),
+        ):
+            canonical_items = [
+                cls._canonicalize_sheet_value(item, field_name=field_name)
+                for item in value
+            ]
+            canonical_items = [
+                item
+                for item in canonical_items
+                if item is not None
+            ]
+            return sorted(canonical_items, key=repr)
+
+        return value
+
+    @staticmethod
+    def _canonical_contact_values(values: Sequence[str]) -> tuple[str, ...]:
+        return tuple(sorted(set(values)))
+
+    @staticmethod
+    def _canonical_sheet_key(value: str | None) -> str:
+        if not value:
+            return ""
+        return re.sub(
+            r"[^a-z0-9ąćęłńóśźż]+",
+            "_",
+            value.casefold(),
+        ).strip("_")
+
+    @staticmethod
+    def _is_email_field(field_name: str) -> bool:
+        tokens = set(field_name.split("_"))
+        return "email" in tokens or "mail" in tokens
+
+    @staticmethod
+    def _is_phone_field(field_name: str) -> bool:
+        tokens = set(field_name.split("_"))
+        return bool(tokens.intersection({"phone", "telefon", "tel"}))
+
+    @staticmethod
+    def _is_date_field(field_name: str) -> bool:
+        tokens = set(field_name.split("_"))
+        return bool(tokens.intersection({"date", "data", "timestamp"}))
+
+    @staticmethod
+    def _canonicalize_sheet_date(value: str) -> str:
+        for date_format in ("%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(value, date_format).date().isoformat()
+            except ValueError:
+                continue
+
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return value
+
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc)
+        return parsed.isoformat()
 
     @staticmethod
     def _apply_source_update(
