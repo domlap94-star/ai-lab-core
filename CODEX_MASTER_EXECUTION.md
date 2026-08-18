@@ -14,6 +14,27 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
+## CURRENT RELEASE — NEXT STABIL 1.0.2+17
+
+- CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
+  read-only copilotem; deterministic analytics, Global Search retrieval,
+  Client AI reuse, llama3.2 i deterministyczne citations pozostają bez
+  business actions i bez conversation persistence.
+- INSPECTION FIELD UX: RELEASED. Foreground location może zostać zapisana
+  jawnie w szczegółach wizji; camera/gallery intake próbuje dołączyć aktualny
+  GPS i nigdy nie blokuje uploadu przy odmowie. Ręczne pola współrzędnych
+  usunięto z formularzy.
+- Notatki wizji są edytowane inline, autosave po 800 ms jest serializowany i
+  flushowany przy Back. Android SpeechRecognizer dopisuje transkrypcję pl-PL
+  do tego samego pola. Audio nie trafia do CRM ani backendu; nie deklarujemy
+  gwarancji offline systemowego recognizera.
+- Flutter analyze PASS; pełny suite 146/146 PASS. Backend release regressions
+  50/50 PASS, focused Business Assistant/Inspection 18/18 PASS. DB migration:
+  NO; revision pozostaje `inspectclient_20260818 (head)`.
+- Web/Windows/Android 1.0.2+17: PUBLISHED; minimum_version 1.0.0. Fizyczny
+  Android GPS/camera/STT smoke: UNVERIFIED (brak urządzenia ADB).
+- CHUNK 14 — TECHNICAL AI: NOT STARTED.
+
 ## Reconciliation stanu
 
 | Obszar | Stan | Dowód / luka |

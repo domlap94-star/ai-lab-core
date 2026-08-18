@@ -6,7 +6,7 @@ Status dokumentu:
 AKTYWNA SPECYFIKACJA PROJEKTOWA
 
 Data aktualizacji:
-2026-08-17
+2026-08-18
 
 Repozytorium:
 ai-lab-core
@@ -21,6 +21,20 @@ rozwój systemu.
 
 Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
 zgodna z założeniami tego dokumentu.
+
+AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+17
+
+[✓] CHUNK 13 — BUSINESS ASSISTANT — RELEASED. Globalny asystent pozostaje
+    read-only: deterministyczna analityka, Global Search/Client AI retrieval,
+    llama3.2 i cytowania źródeł; bez akcji biznesowych i bez persystencji
+    rozmów.
+[✓] INSPECTION FIELD UX — RELEASED. Szczegóły wizji obsługują foreground GPS,
+    geotagowanie zdjęć z best-effort fallback, inline notes z autosave oraz
+    Android system speech-to-text pl-PL. Backend otrzymuje wyłącznie tekst;
+    audio nie jest zapisywane ani wysyłane do NEXT Stabil.
+[✓] Web, Windows i Android 1.0.2+17 opublikowane. Brak background location,
+    Qdrant writes, vector backfill, zmian n8n i historycznego cleanupu.
+[ ] CHUNK 14 — TECHNICAL AI — NOT STARTED.
 
 ================================================================================
 1. GŁÓWNY CEL SYSTEMU
