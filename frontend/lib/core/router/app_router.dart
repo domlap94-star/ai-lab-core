@@ -170,9 +170,11 @@ final GoRouter appRouter = GoRouter(
           path: '/ai',
           builder: (BuildContext context, GoRouterState state) {
             return AiPage(
-              initialMode: state.uri.queryParameters['mode'] == 'technical'
-                  ? AiMode.technical
-                  : AiMode.business,
+              initialMode: switch (state.uri.queryParameters['mode']) {
+                'technical' => AiMode.technical,
+                'agent' => AiMode.agent,
+                _ => AiMode.business,
+              },
               initialClientId: int.tryParse(
                 state.uri.queryParameters['client_id'] ?? '',
               ),

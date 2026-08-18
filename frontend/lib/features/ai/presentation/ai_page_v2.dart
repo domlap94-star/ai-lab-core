@@ -10,11 +10,13 @@ import '../../clients/presentation/searchable_client_picker.dart';
 import '../../inspections/application/inspections_providers.dart';
 import '../../inspections/domain/inspection.dart';
 import '../application/business_assistant_providers.dart';
+import '../application/agent_assistant_providers.dart';
 import '../application/technical_assistant_providers.dart';
+import '../domain/agent_assistant.dart';
 import '../domain/business_assistant.dart';
 import '../domain/technical_assistant.dart';
 
-enum AiMode { business, technical }
+enum AiMode { business, technical, agent }
 
 class AiPage extends ConsumerStatefulWidget {
   const AiPage({
@@ -35,6 +37,7 @@ class _AiPageState extends ConsumerState<AiPage> {
   final _conversation = <Map<String, String>>[];
   BusinessAssistantAnswer? _businessAnswer;
   TechnicalAssistantAnswer? _technicalAnswer;
+  AgentAssistantAnswer? _agentAnswer;
   String? _error;
   CancelToken? _cancelToken;
   late AiMode _mode;
@@ -94,6 +97,11 @@ class _AiPageState extends ConsumerState<AiPage> {
                       icon: Icon(Icons.engineering_outlined),
                       label: Text('Techniczny'),
                     ),
+                    ButtonSegment(
+                      value: AiMode.agent,
+                      icon: Icon(Icons.manage_search_outlined),
+                      label: Text('Agent'),
+                    ),
                   ],
                   selected: <AiMode>{_mode},
                   onSelectionChanged: _loading
@@ -101,19 +109,22 @@ class _AiPageState extends ConsumerState<AiPage> {
                       : (value) => _changeMode(value.first),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  _mode == AiMode.business
-                      ? 'Globalny asystent biznesowy tylko do odczytu'
-                      : 'Asystent techniczny oparty na dowodach',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text(switch (_mode) {
+                  AiMode.business =>
+                    'Globalny asystent biznesowy tylko do odczytu',
+                  AiMode.technical => 'Asystent techniczny oparty na dowodach',
+                  AiMode.agent => 'Audytowany Agent zadaniowy tylko do odczytu',
+                }, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                Text(
-                  _mode == AiMode.business
-                      ? 'Pyta o klientów, kandydatów, dokumenty, e-maile i wizje. Nie zmienia danych ani nie wykonuje działań.'
-                      : 'Analizuje tekst dokumentów, notatki i dane wizji. Oddziela fakty od hipotez i nie analizuje zdjęć.',
-                ),
-                if (_mode == AiMode.technical) ...<Widget>[
+                Text(switch (_mode) {
+                  AiMode.business =>
+                    'Pyta o klientów, kandydatów, dokumenty, e-maile i wizje. Nie zmienia danych ani nie wykonuje działań.',
+                  AiMode.technical =>
+                    'Analizuje tekst dokumentów, notatki i dane wizji. Oddziela fakty od hipotez.',
+                  AiMode.agent =>
+                    'Dobiera wyłącznie dozwolone narzędzia odczytowe, łączy wyniki i pokazuje źródła oraz ślad użytych narzędzi.',
+                }),
+                if (_mode != AiMode.business) ...<Widget>[
                   const SizedBox(height: 16),
                   SearchableClientPicker(
                     key: ValueKey<String>('technical-client-${_clientId ?? 0}'),
@@ -168,11 +179,7 @@ class _AiPageState extends ConsumerState<AiPage> {
                 ],
                 const SizedBox(height: 16),
                 TextField(
-                  key: Key(
-                    _mode == AiMode.business
-                        ? 'business-ai-question'
-                        : 'technical-ai-question',
-                  ),
+                  key: Key('${_mode.name}-ai-question'),
                   controller: _controller,
                   enabled: !_loading,
                   minLines: 1,
@@ -181,14 +188,19 @@ class _AiPageState extends ConsumerState<AiPage> {
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => _ask(),
                   decoration: InputDecoration(
-                    hintText: _mode == AiMode.business
-                        ? 'Zapytaj o firmę, klientów, dokumenty, wizje...'
-                        : 'Zapytaj o problem techniczny, dokumentację lub wizję lokalną…',
-                    prefixIcon: Icon(
-                      _mode == AiMode.business
-                          ? Icons.auto_awesome_outlined
-                          : Icons.engineering_outlined,
-                    ),
+                    hintText: switch (_mode) {
+                      AiMode.business =>
+                        'Zapytaj o firmę, klientów, dokumenty, wizje...',
+                      AiMode.technical =>
+                        'Zapytaj o problem techniczny, dokumentację lub wizję lokalną…',
+                      AiMode.agent =>
+                        'Zadaj pytanie lub poproś o zebranie informacji z systemu…',
+                    },
+                    prefixIcon: Icon(switch (_mode) {
+                      AiMode.business => Icons.auto_awesome_outlined,
+                      AiMode.technical => Icons.engineering_outlined,
+                      AiMode.agent => Icons.manage_search_outlined,
+                    }),
                     border: const OutlineInputBorder(),
                   ),
                 ),
@@ -206,6 +218,11 @@ class _AiPageState extends ConsumerState<AiPage> {
                               height: 22,
                               child: CircularProgressIndicator(strokeWidth: 3),
                             ),
+                            if (_mode == AiMode.agent)
+                              const Text(
+                                'Agent sprawdza dane…',
+                                key: Key('agent-ai-activity'),
+                              ),
                             OutlinedButton(
                               key: const Key('business-ai-cancel'),
                               onPressed: _cancel,
@@ -214,11 +231,7 @@ class _AiPageState extends ConsumerState<AiPage> {
                           ],
                         )
                       : FilledButton.icon(
-                          key: Key(
-                            _mode == AiMode.business
-                                ? 'business-ai-send'
-                                : 'technical-ai-send',
-                          ),
+                          key: Key('${_mode.name}-ai-send'),
                           onPressed: _ask,
                           icon: const Icon(Icons.send_outlined),
                           label: const Text('Wyślij'),
@@ -228,6 +241,7 @@ class _AiPageState extends ConsumerState<AiPage> {
                 if (_businessAnswer != null) _businessResult(_businessAnswer!),
                 if (_technicalAnswer != null)
                   _technicalResult(_technicalAnswer!),
+                if (_agentAnswer != null) _agentResult(_agentAnswer!),
               ],
             ),
           ),
@@ -237,28 +251,33 @@ class _AiPageState extends ConsumerState<AiPage> {
   );
 
   Widget _examples() {
-    final examples = _mode == AiMode.business
-        ? <String>[
-            'Co wydarzyło się w CRM w ostatnich 7 dniach?',
-            'Ilu klientów ma status Oględziny?',
-            'Którzy klienci nie mieli kontaktu od 30 dni?',
-            'Jakie wizje lokalne są zaplanowane?',
-          ]
-        : <String>[
-            'Podsumuj technicznie ten przypadek',
-            'Co sprawdzić podczas wizji lokalnej?',
-            'Jakich danych brakuje?',
-            'Co mówi dokumentacja o gruncie?',
-          ];
+    final examples = switch (_mode) {
+      AiMode.business => <String>[
+        'Co wydarzyło się w CRM w ostatnich 7 dniach?',
+        'Ilu klientów ma status Oględziny?',
+        'Którzy klienci nie mieli kontaktu od 30 dni?',
+        'Jakie wizje lokalne są zaplanowane?',
+      ],
+      AiMode.technical => <String>[
+        'Podsumuj technicznie ten przypadek',
+        'Co sprawdzić podczas wizji lokalnej?',
+        'Jakich danych brakuje?',
+        'Co mówi dokumentacja o gruncie?',
+      ],
+      AiMode.agent => <String>[
+        'Pokaż klientów wymagających uwagi',
+        'Znajdź najnowsze dokumenty klienta',
+        'Podsumuj ostatnią aktywność tego klienta',
+        'Zbierz informacje o tej wizji lokalnej',
+      ],
+    };
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: examples
           .map(
             (question) => ActionChip(
-              key: ValueKey<String>(
-                '${_mode == AiMode.business ? 'business' : 'technical'}-ai-example-$question',
-              ),
+              key: ValueKey<String>('${_mode.name}-ai-example-$question'),
               label: Text(
                 question,
                 maxLines: 1,
@@ -344,6 +363,32 @@ class _AiPageState extends ConsumerState<AiPage> {
     limitations: answer.limitations,
   );
 
+  Widget _agentResult(AgentAssistantAnswer answer) => _resultShell(
+    answer: answer.answer,
+    answerKey: const Key('agent-ai-answer'),
+    sections: <Widget>[
+      if (answer.toolTrace.isNotEmpty)
+        _listSection(
+          'Użyte narzędzia',
+          answer.toolTrace
+              .map((x) => '${x.name} — ${x.outcome.toUpperCase()}')
+              .toList(),
+        ),
+    ],
+    sources: answer.sources
+        .map(
+          (x) => _SourceView(
+            type: x.sourceType,
+            id: x.sourceId,
+            title: x.title,
+            snippet: x.snippet,
+            route: x.route,
+          ),
+        )
+        .toList(),
+    limitations: answer.limitations,
+  );
+
   Widget _resultShell({
     required String answer,
     required Key answerKey,
@@ -403,6 +448,7 @@ class _AiPageState extends ConsumerState<AiPage> {
       _conversation.clear();
       _businessAnswer = null;
       _technicalAnswer = null;
+      _agentAnswer = null;
       _error = null;
     });
   }
@@ -415,6 +461,7 @@ class _AiPageState extends ConsumerState<AiPage> {
       _inspections = const [];
       _conversation.clear();
       _technicalAnswer = null;
+      _agentAnswer = null;
     });
     if (selection != null) _loadInspections();
   }
@@ -485,9 +532,10 @@ class _AiPageState extends ConsumerState<AiPage> {
         setState(() {
           _businessAnswer = result;
           _technicalAnswer = null;
+          _agentAnswer = null;
           _remember(question, result.answer);
         });
-      } else {
+      } else if (_mode == AiMode.technical) {
         final result = await ref
             .read(technicalAssistantGatewayProvider)
             .ask(
@@ -502,6 +550,25 @@ class _AiPageState extends ConsumerState<AiPage> {
         setState(() {
           _technicalAnswer = result;
           _businessAnswer = null;
+          _agentAnswer = null;
+          _remember(question, result.answer);
+        });
+      } else {
+        final result = await ref
+            .read(agentAssistantGatewayProvider)
+            .ask(
+              session: session,
+              question: question,
+              clientId: _clientId,
+              inspectionId: _inspectionId,
+              conversation: history,
+              cancelToken: cancelToken,
+            );
+        if (!mounted || !identical(cancelToken, _cancelToken)) return;
+        setState(() {
+          _agentAnswer = result;
+          _businessAnswer = null;
+          _technicalAnswer = null;
           _remember(question, result.answer);
         });
       }

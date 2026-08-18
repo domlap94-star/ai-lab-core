@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:ai_lab/features/ai/application/business_assistant_providers.dart';
+import 'package:ai_lab/features/ai/application/agent_assistant_providers.dart';
 import 'package:ai_lab/features/ai/application/technical_assistant_providers.dart';
 import 'package:ai_lab/features/ai/data/business_assistant_api.dart';
+import 'package:ai_lab/features/ai/data/agent_assistant_api.dart';
 import 'package:ai_lab/features/ai/data/technical_assistant_api.dart';
 import 'package:ai_lab/features/ai/domain/business_assistant.dart';
+import 'package:ai_lab/features/ai/domain/agent_assistant.dart';
 import 'package:ai_lab/features/ai/domain/technical_assistant.dart';
 import 'package:ai_lab/features/ai/presentation/ai_page.dart';
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
@@ -48,6 +51,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('technical-ai-question')), findsOneWidget);
   });
+
+  testWidgets(
+    'Agent mode submits scoped request and renders trace and source',
+    (tester) async {
+      final agent = _AgentGateway();
+      await _pumpGateway(
+        tester,
+        _TechnicalGateway(),
+        size: const Size(390, 900),
+        initialMode: AiMode.agent,
+        clientId: 7,
+        inspectionId: 9,
+        agentGateway: agent,
+      );
+      expect(find.byKey(const Key('agent-ai-question')), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('agent-ai-question')),
+        'Zbierz informacje o wizji',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pumpAndSettle();
+      expect(agent.clientIds, <int?>[7]);
+      expect(agent.inspectionIds, <int?>[9]);
+      expect(find.byKey(const Key('agent-ai-answer')), findsOneWidget);
+      expect(find.text('Użyte narzędzia'), findsOneWidget);
+      expect(find.textContaining('get_inspection — OK'), findsOneWidget);
+    },
+  );
+
+  for (final size in <Size>[
+    const Size(360, 800),
+    const Size(390, 900),
+    const Size(600, 900),
+    const Size(1200, 900),
+  ]) {
+    testWidgets('Agent mode is responsive at ${size.width}', (tester) async {
+      await _pumpGateway(
+        tester,
+        _TechnicalGateway(),
+        size: size,
+        initialMode: AiMode.agent,
+        agentGateway: _AgentGateway(),
+      );
+      expect(
+        find.text('Audytowany Agent zadaniowy tylko do odczytu'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'submits scoped question and renders facts inference missing data and source',
@@ -144,6 +197,7 @@ Future<void> _pumpGateway(
   AiMode initialMode = AiMode.technical,
   int? clientId,
   int? inspectionId,
+  AgentAssistantGateway? agentGateway,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -174,12 +228,51 @@ Future<void> _pumpGateway(
         authControllerProvider.overrideWith(_TestAuthController.new),
         technicalAssistantGatewayProvider.overrideWithValue(gateway),
         businessAssistantGatewayProvider.overrideWithValue(_BusinessGateway()),
+        agentAssistantGatewayProvider.overrideWithValue(
+          agentGateway ?? _AgentGateway(),
+        ),
         inspectionsApiProvider.overrideWithValue(_InspectionsApi()),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _AgentGateway implements AgentAssistantGateway {
+  final clientIds = <int?>[];
+  final inspectionIds = <int?>[];
+  @override
+  Future<AgentAssistantAnswer> ask({
+    required AuthSession session,
+    required String question,
+    int? clientId,
+    int? inspectionId,
+    List<Map<String, String>> conversation = const [],
+    CancelToken? cancelToken,
+  }) async {
+    clientIds.add(clientId);
+    inspectionIds.add(inspectionId);
+    return const AgentAssistantAnswer(
+      requestId: 'request-1',
+      answer: 'Zebrano informacje.',
+      sources: <AgentSource>[
+        AgentSource(
+          sourceType: 'inspection',
+          sourceId: 9,
+          title: 'Wizja testowa',
+          snippet: 'Stan planowany',
+          route: '/inspections/9',
+        ),
+      ],
+      toolTrace: <AgentToolTrace>[
+        AgentToolTrace(name: 'get_inspection', outcome: 'ok'),
+      ],
+      limitations: <String>[],
+      status: 'completed',
+      model: 'llama3.2',
+    );
+  }
 }
 
 const _session = AuthSession(accessToken: 'token', tokenType: 'Bearer');

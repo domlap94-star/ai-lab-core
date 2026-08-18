@@ -49,7 +49,14 @@ kontraktu.
   image embeddings i Qdrant writes nie są używane. Produkcyjna automatyzacja
   jest aktywna dla nowych Documents; historia pozostaje on-demand bez
   backfillu. Temporary Chat podlega aktualnej polityce retencji OpenAI.
-- CHUNK 16 — AGENT: NOT STARTED.
+- CHUNK 16 — AGENT: COMPLETE IN SOURCE / NOT RELEASED. The JWT-protected
+  `/api/v1/ai/agent/ask` orchestrates a deny-by-default allowlist of bounded
+  application-service reads with `llama3.2`, deterministic source mapping,
+  strict Client/Inspection scope and sanitized persistent execution audit.
+  Hard limits are 5 planner rounds, 8 calls and 180 seconds. Write tools,
+  shell/SQL, Docker/supervisor control, general browser access, live Vision
+  triggers and conversation persistence are absent.
+- CHUNK 17 — PRODUCTION HARDENING: NOT STARTED.
 - LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
   during authentication, errors are user-facing, token persistence is read
   back after save, and stale 401 responses are generation-scoped. The +17

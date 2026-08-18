@@ -6,7 +6,7 @@ Status dokumentu:
 AKTYWNA SPECYFIKACJA PROJEKTOWA
 
 Data aktualizacji:
-2026-08-18
+2026-08-19
 
 Repozytorium:
 ai-lab-core
@@ -51,7 +51,13 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+20
     jest runtime-blocked, a AMD/Vulkan multimodal jest niestabilny na obecnym
     sprzęcie. Image embeddings i Qdrant writes: NO. Temporary Chat nie jest
     gwarancją zero-retention; obowiązuje aktualna polityka retencji OpenAI.
-[ ] CHUNK 16 — AGENT — NOT STARTED.
+[✓] CHUNK 16 — AGENT — COMPLETE IN SOURCE / NOT RELEASED. JWT-protected Agent
+    uses a deny-by-default registry of bounded application-service reads,
+    `llama3.2` structured planning, deterministic citations and persistent
+    sanitized `agent_executions` audit. Limits: 5 rounds / 8 calls / 180 s.
+    No write tools, shell, SQL, Docker/supervisor control, general browser,
+    live Vision trigger or conversation persistence exist.
+[ ] CHUNK 17 — PRODUCTION HARDENING — NOT STARTED.
 [✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
     the form mounted while validating, reports invalid credentials and network
     failures clearly, verifies secure-storage persistence, and guards session
@@ -5479,7 +5485,11 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     writes. Automatyzacja produkcyjna jest aktywna dla nowych Documents;
     historia pozostaje on-demand bez backfillu. Temporary Chat podlega
     aktualnej polityce retencji OpenAI.
-[ ] CHUNK 16 — AGENT: NOT STARTED.
+[✓] CHUNK 16 — AGENT: COMPLETE IN SOURCE / NOT RELEASED. Read-only,
+    deny-by-default tool registry; persistent sanitized audit; hard limits of
+    5 rounds and 8 calls; strict Client/Inspection scope. No write, shell,
+    arbitrary SQL/browser, live Vision action or conversation persistence.
+[ ] CHUNK 17 — PRODUCTION HARDENING: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 
