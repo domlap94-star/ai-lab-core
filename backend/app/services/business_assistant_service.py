@@ -97,10 +97,14 @@ class BusinessAssistantService:
     def _types_for(intent: str):
         return {
             "client_lookup": ("client", "candidate"),
-            "communications": ("email", "client"),
-            "documents": ("document", "client"),
-            "inspections": ("inspection", "client"),
-            "projects": ("project", "client"),
+            # Entity results already carry their related Client context. Keeping
+            # these searches entity-scoped prevents an exact Client-name match
+            # from outranking (and displacing the citation for) the object the
+            # user explicitly asked about.
+            "communications": ("email",),
+            "documents": ("document",),
+            "inspections": ("inspection",),
+            "projects": ("project",),
         }.get(intent, ("client", "candidate", "document", "email", "project", "inspection"))
 
     @staticmethod

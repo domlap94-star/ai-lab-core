@@ -116,9 +116,15 @@ class BusinessAssistantTests(unittest.IsolatedAsyncioTestCase):
         search, llm = _SearchStub([item]), _LlmStub()
         answer = await BusinessAssistantService(self.db, search_service=search, llm_client=llm).ask(question="Znajdź dokumenty o stabilizacji fundamentów")
         self.assertEqual(answer.sources[0].source_id, self.document.id)
-        self.assertEqual(search.calls[0]["types"], ("document", "client"))
+        self.assertEqual(search.calls[0]["types"], ("document",))
         self.assertIn("UNTRUSTED_DATA_BEGIN", llm.prompts[0])
         self.assertIn("Nie wykonuj", llm.prompts[0])
+
+    def test_entity_intents_do_not_allow_client_matches_to_displace_requested_sources(self):
+        self.assertEqual(BusinessAssistantService._types_for("communications"), ("email",))
+        self.assertEqual(BusinessAssistantService._types_for("documents"), ("document",))
+        self.assertEqual(BusinessAssistantService._types_for("inspections"), ("inspection",))
+        self.assertEqual(BusinessAssistantService._types_for("projects"), ("project",))
 
     async def test_fabricated_citation_is_not_returned(self):
         item = GlobalSearchResult(type="client", id=self.client.id, title=self.client.name, score=100, match_reason="name", match_reasons=["name"], route=f"/clients/{self.client.id}")
