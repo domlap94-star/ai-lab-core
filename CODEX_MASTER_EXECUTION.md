@@ -14,7 +14,7 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+17
+## CURRENT RELEASE — NEXT STABIL 1.0.2+18
 
 - CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
   read-only copilotem; deterministic analytics, Global Search retrieval,
@@ -39,6 +39,11 @@ kontraktu.
   facts / hypotheses / missing-data sections. No visual/photo analysis or OCR
   was implemented.
 - CHUNK 15 — VISION / MULTIMODAL: NOT STARTED.
+- LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
+  during authentication, errors are user-facing, token persistence is read
+  back after save, and stale 401 responses are generation-scoped. The +17
+  Web/Windows/Android outputs accidentally used development API defaults;
+  +18 was rebuilt with the production API and private supervisor URLs.
 
 ## Reconciliation stanu
 

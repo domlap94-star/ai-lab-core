@@ -22,7 +22,7 @@ rozwój systemu.
 Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
 zgodna z założeniami tego dokumentu.
 
-AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+17
+AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+18
 
 [✓] CHUNK 13 — BUSINESS ASSISTANT — RELEASED. Globalny asystent pozostaje
     read-only: deterministyczna analityka, Global Search/Client AI retrieval,
@@ -40,6 +40,12 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+17
     facts / hypotheses / missing-data separation. No visual/photo analysis
     was implemented in CHUNK 14.
 [ ] CHUNK 15 — VISION / MULTIMODAL — NOT STARTED.
+[✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
+    the form mounted while validating, reports invalid credentials and network
+    failures clearly, verifies secure-storage persistence, and guards session
+    expiration by request generation. The +17 release artifacts were found to
+    contain development API endpoints; +18 was rebuilt with the production
+    API URL for Web, Windows and Android.
 
 ================================================================================
 1. GŁÓWNY CEL SYSTEMU
