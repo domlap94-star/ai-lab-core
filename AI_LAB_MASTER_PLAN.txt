@@ -5473,8 +5473,8 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     published for Web, Windows and Android with production API configuration.
 [✓] CHUNK 15 — VISION / MULTIMODAL: RELEASED IN NEXT STABIL 1.0.2+20.
     VisionNeedClassifier obejmuje nowe Documents, wymagane elementy wizualne
-    są kierowane do izolowanego Temporary Chat browser workera po późniejszym
-    włączeniu flagi produkcyjnej, a historia pozostaje on-demand bez backfillu.
+    są kierowane do izolowanego Temporary Chat browser workera, a historia
+    pozostaje on-demand bez backfillu.
     OpenAI API i lokalny Vision nie są używane; brak image embeddings/Qdrant
     writes. Automatyzacja produkcyjna jest aktywna dla nowych Documents;
     historia pozostaje on-demand bez backfillu. Temporary Chat podlega
