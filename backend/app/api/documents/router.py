@@ -5,6 +5,7 @@ import json
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -30,6 +31,7 @@ from app.schemas.document import (
     DocumentPublicRead,
     DocumentUploadResponse,
 )
+from app.schemas.vision import VisionAnalyzeResponse, VisionStatusRead
 from app.services.document_service import (
     DocumentService,
     DocumentStorageError,
@@ -51,6 +53,11 @@ from app.services.document_read_service import (
     DocumentNotFoundError,
     DocumentReadService,
 )
+from app.services.vision_dispatcher import process_explicit_vision_document
+from app.services.vision_supervisor_client import (
+    VisionSupervisorClient,
+    VisionSupervisorUnavailable,
+)
 
 router = APIRouter(
     prefix="/documents",
@@ -58,6 +65,68 @@ router = APIRouter(
 )
 
 MAX_USER_UPLOAD_BYTES = 250 * 1024 * 1024
+
+
+@router.get("/vision/health")
+def get_vision_health(
+    _: User = Depends(get_current_user),
+) -> dict:
+    try:
+        return VisionSupervisorClient().health()
+    except VisionSupervisorUnavailable as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Analiza wizualna jest chwilowo niedostępna.",
+        ) from error
+
+
+@router.get("/{document_id}/vision", response_model=VisionStatusRead)
+def get_document_vision_status(
+    document_id: int,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> VisionStatusRead:
+    document = DocumentService(db).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    worker_status = None
+    try:
+        worker_status = VisionSupervisorClient().health().get("status")
+    except VisionSupervisorUnavailable:
+        worker_status = "FAILED"
+    return VisionStatusRead(
+        document_id=document.id,
+        classification=document.vision_classification,
+        status=document.vision_status,
+        auto_eligible=document.vision_auto_eligible,
+        attempt_count=document.vision_attempt_count,
+        next_retry_at=document.vision_next_retry_at,
+        error_code=document.vision_error_code,
+        analyzed_at=document.vision_analyzed_at,
+        schema_version=document.vision_schema_version,
+        worker_status=worker_status,
+    )
+
+
+@router.post("/{document_id}/vision/analyze", response_model=VisionAnalyzeResponse, status_code=202)
+def analyze_document_vision(
+    document_id: int,
+    background_tasks: BackgroundTasks,
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> VisionAnalyzeResponse:
+    document = DocumentService(db).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    document.vision_status = "pending"
+    document.vision_error_code = None
+    db.commit()
+    background_tasks.add_task(process_explicit_vision_document, document.id)
+    return VisionAnalyzeResponse(
+        document_id=document.id,
+        status=document.vision_status,
+        classification=document.vision_classification,
+    )
 
 
 def _parse_intake_metadata(value: str | None) -> dict[str, object]:

@@ -273,6 +273,8 @@ class DocumentService:
             ),
             processing_status="stored",
             processing_error=None,
+            vision_auto_eligible=True,
+            vision_status="not_evaluated",
             match_status=(
                 "matched"
                 if matched

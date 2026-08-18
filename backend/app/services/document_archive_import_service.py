@@ -518,6 +518,8 @@ class DocumentArchiveImportService:
             ),
             processing_status="stored",
             processing_error=None,
+            vision_auto_eligible=True,
+            vision_status="not_evaluated",
             extracted_text=None,
             metadata_status="pending",
             metadata_raw=None,

@@ -65,6 +65,8 @@ class Settings(BaseSettings):
     openai_client_reconstruction_model: str = "gpt-5.6"
 
     data_dir: str = "/data"
+    vision_supervisor_url: str = "http://host.docker.internal:8787"
+    vision_automation_enabled: bool = False
 
     @computed_field
     @property

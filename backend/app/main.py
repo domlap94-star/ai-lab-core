@@ -9,6 +9,7 @@ from sqlalchemy.exc import OperationalError
 from app.api.router import api_router
 from app.database.init_db import init_database
 from app.core.config import settings
+from app.services.vision_dispatcher import start_vision_dispatcher
 
 
 logger = logging.getLogger("ai_lab")
@@ -48,8 +49,15 @@ async def lifespan(app: FastAPI):
 
             await asyncio.sleep(RETRY_DELAY)
 
+    vision_task = start_vision_dispatcher()
     logger.info("Application started.")
     yield
+    if vision_task is not None:
+        vision_task.cancel()
+        try:
+            await vision_task
+        except asyncio.CancelledError:
+            pass
     logger.info("Application shutdown.")
 
 
