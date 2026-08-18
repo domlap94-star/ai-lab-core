@@ -613,6 +613,20 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 6D: BLOCKED. CANDIDATE AUTO-PROMOTION: NOT STARTED. CHUNK 7:
   NOT STARTED.
 
+### INSPECTION SIMPLIFICATION PATCH — NEXT STABIL 1.0.2+16 — PUBLISHED
+
+- Inspection create/update is Client-only: no Project picker or manual title.
+  The backend generates a deterministic technical title and keeps legacy
+  Project relations readable but optional.
+- Alembic `inspectclient_20260818` is applied. It only changes
+  `inspections.project_id` from NOT NULL to nullable; no rows were rewritten,
+  deleted or backfilled, and the RESTRICT FK remains.
+- Client 360 and the global Inspection module use the simplified forms and
+  document upload links Client + Inspection without requiring Project.
+- Backend release regressions PASS; Flutter analyze PASS; full Flutter suite
+  130/130 PASS. Web, Windows and Android 1.0.2+16 are published.
+- CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
+
 ### P1 STABILIZATION — COMPLETE — NEXT STABIL 1.0.2+10
 
 - Central authenticated-Dio 401 handling: DONE. Expired/revoked/inactive-user

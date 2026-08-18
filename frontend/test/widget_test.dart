@@ -47,7 +47,7 @@ void main() {
     expect(find.text('Nazwa użytkownika'), findsOneWidget);
     expect(find.text('Hasło'), findsOneWidget);
     expect(find.text('Zaloguj się'), findsOneWidget);
-    expect(find.text('NEXT Stabil 1.0.2+15'), findsOneWidget);
+    expect(find.text('NEXT Stabil 1.0.2+16'), findsOneWidget);
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
       'NEXT Stabil',

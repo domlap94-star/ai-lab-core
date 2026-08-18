@@ -5465,4 +5465,20 @@ ANDROID BACK NAVIGATION PATCH — NEXT STABIL 1.0.2+13 — PUBLISHED:
 [✓] CHUNK 12 — AI CLIENT KNOWLEDGE: RELEASED — NEXT Stabil 1.0.2+15.
 [ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
+INSPECTION SIMPLIFICATION PATCH — NEXT STABIL 1.0.2+16:
+
+[✓] Inspection is now a direct Client-owned workflow. New create/update
+    contracts require Client but neither Project/Realization nor a manually
+    entered title. The server generates the retained technical title.
+[✓] Additive migration `inspectclient_20260818` makes legacy
+    `inspections.project_id` nullable without deleting or rewriting data; the
+    RESTRICT FK remains and any historical non-null relation stays readable.
+[✓] Create/edit/details, global Wizje lokalne and Client 360 no longer expose
+    Realizacja or Nazwa wizji. The obsolete Project inspection panel was
+    removed; document intake uses Client + Inspection without Project.
+[✓] NEXT Stabil 1.0.2+16: PUBLISHED on Web, Windows and Android. Backend
+    regressions, Flutter analyze and full 130-test suite: PASS. Production
+    business writes: 0 beyond the approved schema nullability change.
+[ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
+
 KONIEC MASTER PLAN
