@@ -31,7 +31,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '15'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '16'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in branding test'),
@@ -105,7 +105,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '15'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '16'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in session test'),

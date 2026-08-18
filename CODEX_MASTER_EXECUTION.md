@@ -627,6 +627,31 @@ Status: DONE / RELEASE NOT PUBLISHED.
   130/130 PASS. Web, Windows and Android 1.0.2+16 are published.
 - CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
+### CHUNK 13 — BUSINESS ASSISTANT — COMPLETE
+
+- Added authenticated `POST /api/v1/ai/business/ask` with bounded question and
+  request-local conversation context, explainable coverage, limitations,
+  semantic status and deterministic source routes.
+- `BusinessAnalyticsService` performs read-only counts, status breakdowns,
+  UTC recency windows, stale-email-contact detection, recent activity,
+  inspection/project summaries and explainable attention signals. LLM is not
+  used for arithmetic.
+- Descriptive retrieval reuses `GlobalSearchService`; exact client ambiguity is
+  returned for user selection instead of guessing. Existing local `llama3.2`
+  receives only bounded, enumerated, untrusted evidence and unknown citations
+  are discarded.
+- Existing `/ai` placeholder is now the responsive Business Assistant with four
+  examples, loading/cancel, friendly retry, answer, limitations and source
+  deep links. Android/Web Back remains on the existing central route policy.
+- Current semantic coverage is deliberately limited: Qdrant remains 57 chunks
+  / 11 of 5909 Documents, with 0 points carrying `client_id`. No vector
+  backfill, Qdrant write/upgrade, migration, n8n change, business mutation or
+  conversation persistence occurred.
+- Gates: focused backend 8/8 PASS; relevant backend regression 47/47 plus
+  script-based suites PASS; controlled local LLM E2E 8/8 PASS with rollback;
+  Flutter analyze PASS and full 137/137 tests PASS.
+- CHUNK 14 — TECHNICAL AI: NOT STARTED.
+
 ### P1 STABILIZATION — COMPLETE — NEXT STABIL 1.0.2+10
 
 - Central authenticated-Dio 401 handling: DONE. Expired/revoked/inactive-user
@@ -794,7 +819,10 @@ Status: DONE / RELEASE NOT PUBLISHED.
   Android physical upgrade UNVERIFIED because ADB reported no device.
 - Public Web, Windows and Android hashes match local outputs and stable
   manifest. `minimum_version` remains 1.0.0.
-- CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
+- CHUNK 13 — BUSINESS ASSISTANT: COMPLETE. See the CHUNK 13 delivery section:
+  global `/ai` read-only analytics/retrieval, deterministic citations,
+  bounded request-local history, no actions and no persistence.
+- CHUNK 14 — TECHNICAL AI: NOT STARTED.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 

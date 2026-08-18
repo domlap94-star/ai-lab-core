@@ -5398,7 +5398,25 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     client-scoped retrieval. Structured and lexical fallback remain active.
     No vector backfill, Qdrant write/upgrade, n8n change or conversation
     persistence was performed. Public/local/manifest artifact hashes match.
-[ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
+[✓] CHUNK 13 — BUSINESS ASSISTANT: COMPLETE. The existing `Asystent AI`
+    module is now a global read-only CRM copilot. Deterministic analytics
+    answer counts, workflow/status, recency, stale-contact, inspection,
+    pipeline and explainable attention questions without using an LLM for
+    arithmetic; descriptive questions reuse Global Hybrid Search and the
+    existing bounded `llama3.2` evidence/citation pattern.
+[✓] CHUNK 13 safety: JWT is required; conversation context is bounded and
+    request-local; retrieved email/document text is untrusted data; citations
+    are selected only from the deterministic source map. No actions, business
+    writes, conversation persistence, migration, n8n change or Qdrant write
+    were added.
+[✓] CHUNK 13 semantic coverage remains limited to the existing 57 chunks / 11
+    documents out of 5909 Documents. All 57 current legacy points lack a
+    `client_id`; structured and lexical retrieval remain the safe fail-open.
+[✓] CHUNK 13 verification: focused backend 8/8 PASS; relevant backend
+    regression gate 47/47 plus script-based Auth/Client/Candidate/Document/
+    Email/Sheets/intake regressions PASS; controlled local `llama3.2` E2E 8/8
+    PASS with rollback; Flutter analyze PASS and full 137/137 suite PASS.
+[ ] CHUNK 14 — TECHNICAL AI: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 
@@ -5479,6 +5497,10 @@ INSPECTION SIMPLIFICATION PATCH — NEXT STABIL 1.0.2+16:
 [✓] NEXT Stabil 1.0.2+16: PUBLISHED on Web, Windows and Android. Backend
     regressions, Flutter analyze and full 130-test suite: PASS. Production
     business writes: 0 beyond the approved schema nullability change.
-[ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
+[✓] CHUNK 13 — BUSINESS ASSISTANT: COMPLETE (read-only deterministic
+    analytics + bounded Global Search/`llama3.2` evidence; no actions or
+    conversation persistence). Semantic coverage remains limited to 57 chunks
+    / 11 of 5909 Documents; no vector backfill or Qdrant write occurred.
+[ ] CHUNK 14 — TECHNICAL AI: NOT STARTED.
 
 KONIEC MASTER PLAN
