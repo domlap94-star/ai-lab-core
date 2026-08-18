@@ -5,6 +5,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.ai.schemas.chat_request import ChatRequest
 from app.ai.schemas.chat_response import ChatResponse
@@ -26,6 +27,13 @@ from app.services.business_assistant_service import (
     BusinessAssistantService,
 )
 from app.schemas.technical_ai import TechnicalAskRequest, TechnicalAskResponse
+from app.schemas.agent import AgentAskRequest, AgentAskResponse
+from app.services.agent_service import (
+    AgentContextMismatch,
+    AgentContextNotFound,
+    AgentModelUnavailable,
+    AgentService,
+)
 from app.services.technical_ai_service import (
     TechnicalAiModelUnavailable, TechnicalAiService,
     TechnicalContextMismatch, TechnicalContextNotFound,
@@ -35,6 +43,30 @@ router = APIRouter(
     prefix="/ai",
     tags=["AI"],
 )
+
+
+@router.post("/agent/ask", response_model=AgentAskResponse)
+async def ask_agent(
+    request: AgentAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AgentAskResponse:
+    try:
+        return await AgentService(db).ask(
+            question=request.question,
+            user_id=current_user.id,
+            client_id=request.client_id,
+            inspection_id=request.inspection_id,
+            conversation=request.conversation,
+        )
+    except AgentContextNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wskazanej wizji lokalnej.") from error
+    except AgentContextMismatch as error:
+        raise HTTPException(status_code=422, detail="Wizja lokalna nie należy do wskazanego klienta.") from error
+    except AgentModelUnavailable as error:
+        raise HTTPException(status_code=503, detail="Agent AI jest chwilowo niedostępny. Spróbuj ponownie.") from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Nie udało się odczytać danych CRM. Spróbuj ponownie.") from error
 
 
 @router.post("/business/ask", response_model=BusinessAskResponse)
