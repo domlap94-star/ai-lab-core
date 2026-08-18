@@ -5,11 +5,15 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { VisionQueue, MAX_BODY_BYTES } = require('./vision_queue');
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AI_LAB_SUPERVISOR_PORT || '8787');
 const PROJECT_DIR = process.env.AI_LAB_PROJECT_DIR || 'C:\\ai-lab-core';
 const ENV_FILE = path.join(PROJECT_DIR, '.env');
+const VISION_SPOOL = path.join(PROJECT_DIR, 'data', 'vision-spool');
+const VISION_WORKER_ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'C:\\ChatGPT-Vision-Worker';
+const VISION_WORKER_SCRIPT = process.env.NEXT_STABIL_VISION_WORKER_SCRIPT || path.join(VISION_WORKER_ROOT, 'worker', 'vision-job.js');
 
 const CORE_SERVICES = [
   'postgres',
@@ -68,6 +72,49 @@ if (!SECRET_KEY) {
 
 if (ALGORITHM !== 'HS256') {
   throw new Error(`Unsupported JWT algorithm: ${ALGORITHM}`);
+}
+
+const VISION_BRIDGE_KEY = crypto
+  .createHmac('sha256', SECRET_KEY)
+  .update('next-stabil-vision-supervisor-v1')
+  .digest('hex');
+
+const visionQueue = new VisionQueue({
+  spoolRoot: VISION_SPOOL,
+  workerScript: VISION_WORKER_SCRIPT,
+  workerRoot: VISION_WORKER_ROOT,
+});
+
+function authorizeVision(req) {
+  const supplied = Buffer.from(String(req.headers['x-next-stabil-vision-key'] || ''), 'utf8');
+  const expected = Buffer.from(VISION_BRIDGE_KEY, 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    throw new Error('Unauthorized');
+  }
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error('BODY_TOO_LARGE'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
+      } catch (_) {
+        reject(new Error('INVALID_JSON'));
+      }
+    });
+    req.on('error', reject);
+  });
 }
 
 function base64UrlDecode(value) {
@@ -261,6 +308,47 @@ async function handle(req, res) {
     return;
   }
 
+  const requestUrl = new URL(req.url, `http://${HOST}:${PORT}`);
+  if (requestUrl.pathname.startsWith('/vision/')) {
+    try {
+      authorizeVision(req);
+    } catch (_) {
+      sendJson(res, 401, { detail: 'Unauthorized' });
+      return;
+    }
+    try {
+      if (req.method === 'GET' && requestUrl.pathname === '/vision/health') {
+        sendJson(res, 200, visionQueue.health());
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/vision/jobs') {
+        sendJson(res, 202, visionQueue.create(await readJsonBody(req)));
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/vision/resume') {
+        sendJson(res, 202, visionQueue.resume());
+        return;
+      }
+      const match = /^\/vision\/jobs\/([a-f0-9-]{36})(\/cancel)?$/i.exec(requestUrl.pathname);
+      if (match && req.method === 'GET' && !match[2]) {
+        const status = visionQueue.get(match[1]);
+        sendJson(res, status ? 200 : 404, status || { detail: 'Not found' });
+        return;
+      }
+      if (match && req.method === 'POST' && match[2]) {
+        const status = visionQueue.cancel(match[1]);
+        sendJson(res, status ? 202 : 404, status || { detail: 'Not found' });
+        return;
+      }
+      sendJson(res, 404, { detail: 'Not found' });
+      return;
+    } catch (error) {
+      const badRequest = ['BODY_TOO_LARGE', 'INVALID_JSON'].includes(error.message) || /^(INVALID|SOURCE_)/.test(error.message);
+      sendJson(res, badRequest ? 422 : 500, { detail: badRequest ? 'Invalid Vision job request' : 'Vision supervisor failure' });
+      return;
+    }
+  }
+
   try {
     authorize(req);
   } catch (error) {
@@ -339,3 +427,6 @@ server.listen(PORT, HOST, () => {
     `AI-Lab supervisor listening on http://${HOST}:${PORT}\n`,
   );
 });
+
+const cleanupTimer = setInterval(() => visionQueue.cleanup(), 60 * 60 * 1000);
+cleanupTimer.unref();
