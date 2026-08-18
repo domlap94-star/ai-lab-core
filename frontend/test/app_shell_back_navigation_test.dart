@@ -108,6 +108,24 @@ void main() {
     expect(find.text('Szczegóły klienta 7'), findsNothing);
   });
 
+  testWidgets('Global Search result returns through Search to Dashboard', (
+    WidgetTester tester,
+  ) async {
+    await _setMobileSurface(tester);
+    final GoRouter router = _router();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(_application(router));
+    await tester.pumpAndSettle();
+
+    router.push('/search');
+    await tester.pumpAndSettle();
+    router.go('/clients/7?return_to=%2Fsearch');
+    await tester.pumpAndSettle();
+
+    await _back(tester, router, '/search');
+    await _back(tester, router, '/dashboard');
+  });
+
   for (final ({String direct, String parent}) route
       in <({String direct, String parent})>[
         (direct: '/clients/7', parent: '/clients'),
@@ -214,6 +232,10 @@ GoRouter _router({
               path: item.path,
               builder: (_, _) => _RootPage(label: item.label),
             ),
+          GoRoute(
+            path: '/search',
+            builder: (_, _) => const _RootPage(label: 'Global Search'),
+          ),
           GoRoute(
             path: '/system',
             builder: (_, _) => const _DetailPage(

@@ -279,17 +279,31 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Klienci'),
         actions: <Widget>[
-          TextButton.icon(
-            key: const Key('client-multi-select'),
-            onPressed: _bulkBusy
-                ? null
-                : () => setState(() {
-                    _selectionMode = !_selectionMode;
-                    _selectedClientIds.clear();
-                  }),
-            icon: Icon(_selectionMode ? Icons.close : Icons.checklist),
-            label: Text(_selectionMode ? 'Anuluj' : 'Wybierz kilka'),
-          ),
+          AppShell.globalSearchAction(context),
+          if (compactLayout)
+            IconButton(
+              key: const Key('client-multi-select'),
+              tooltip: _selectionMode ? 'Anuluj wybór' : 'Wybierz kilka',
+              onPressed: _bulkBusy
+                  ? null
+                  : () => setState(() {
+                      _selectionMode = !_selectionMode;
+                      _selectedClientIds.clear();
+                    }),
+              icon: Icon(_selectionMode ? Icons.close : Icons.checklist),
+            )
+          else
+            TextButton.icon(
+              key: const Key('client-multi-select'),
+              onPressed: _bulkBusy
+                  ? null
+                  : () => setState(() {
+                      _selectionMode = !_selectionMode;
+                      _selectedClientIds.clear();
+                    }),
+              icon: Icon(_selectionMode ? Icons.close : Icons.checklist),
+              label: Text(_selectionMode ? 'Anuluj' : 'Wybierz kilka'),
+            ),
           if (compactLayout)
             IconButton(
               tooltip: 'Kandydaci',

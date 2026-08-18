@@ -57,6 +57,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Realizacje'),
         actions: <Widget>[
+          AppShell.globalSearchAction(context),
           IconButton(
             key: const Key('project-create'),
             tooltip: 'Dodaj realizację',

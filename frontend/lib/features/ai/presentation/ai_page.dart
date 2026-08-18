@@ -11,6 +11,7 @@ class AiPage extends StatelessWidget {
       appBar: AppBar(
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Asystent AI'),
+        actions: <Widget>[AppShell.globalSearchAction(context)],
       ),
       body: const Center(child: Text('Tutaj powstanie przestrzeń pracy z AI.')),
     );

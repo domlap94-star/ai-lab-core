@@ -62,6 +62,7 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Wizje lokalne'),
         actions: <Widget>[
+          AppShell.globalSearchAction(context),
           IconButton(
             key: const Key('inspection-create'),
             tooltip: 'Dodaj wizję',

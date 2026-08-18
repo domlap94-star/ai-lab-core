@@ -85,6 +85,19 @@ class AppShell extends ConsumerStatefulWidget {
     return const MobileNavigationButton();
   }
 
+  static Widget globalSearchAction(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= desktopBreakpoint) {
+      return const SizedBox.shrink();
+    }
+
+    return IconButton(
+      key: const Key('global-search-action'),
+      tooltip: 'Szukaj w NEXT Stabil',
+      onPressed: () => context.push('/search'),
+      icon: const Icon(Icons.search),
+    );
+  }
+
   static bool centrallyHandlesBack(BuildContext context) =>
       _CentralBackNavigationScope.maybeOf(context) != null;
 
@@ -264,6 +277,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 onLogout: () {
                   _logout(context, ref);
                 },
+                onSearch: () => context.push('/search'),
                 child: widget.child,
               );
             }
@@ -305,6 +319,7 @@ class AppNavigationPolicy {
     '/documents': dashboardPath,
     '/ai': dashboardPath,
     '/settings': dashboardPath,
+    '/search': dashboardPath,
     '/client-candidates': '/clients',
     '/system': '/settings',
   };
@@ -312,13 +327,10 @@ class AppNavigationPolicy {
   static String? fallbackFor(String location) {
     final Uri uri = Uri.tryParse(location) ?? Uri(path: location);
     final String path = uri.path;
-    if (path.startsWith('/inspections/')) {
-      final String? contextualReturn = detailReturnPath(
-        uri.queryParameters['return_to'],
-      );
-      if (contextualReturn != null) return contextualReturn;
-    }
-
+    final String? contextualReturn = detailReturnPath(
+      uri.queryParameters['return_to'],
+    );
+    if (contextualReturn != null) return contextualReturn;
     final String? exact = _fallbacks[path];
     if (exact != null) return exact;
     if (path.startsWith('/clients/')) return '/clients';
@@ -340,10 +352,12 @@ class AppNavigationPolicy {
         uri.hasScheme ||
         uri.hasAuthority ||
         uri.hasQuery ||
-        uri.hasFragment ||
-        uri.pathSegments.length != 2) {
+        uri.hasFragment) {
       return null;
     }
+
+    if (uri.path == '/search') return uri.path;
+    if (uri.pathSegments.length != 2) return null;
 
     final String section = uri.pathSegments.first;
     final int? id = int.tryParse(uri.pathSegments.last);
@@ -399,6 +413,7 @@ class _DesktopShell extends StatelessWidget {
     required this.role,
     required this.onDestinationSelected,
     required this.onLogout,
+    required this.onSearch,
     required this.child,
   });
 
@@ -407,6 +422,7 @@ class _DesktopShell extends StatelessWidget {
   final String role;
   final ValueChanged<int> onDestinationSelected;
   final VoidCallback onLogout;
+  final VoidCallback onSearch;
   final Widget child;
 
   @override
@@ -426,7 +442,7 @@ class _DesktopShell extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    const _ApplicationHeader(),
+                    _ApplicationHeader(onSearch: onSearch),
                     const SizedBox(height: 8),
                     Expanded(
                       child: ListView.builder(
@@ -470,21 +486,33 @@ class _DesktopShell extends StatelessWidget {
 }
 
 class _ApplicationHeader extends StatelessWidget {
-  const _ApplicationHeader();
+  const _ApplicationHeader({required this.onSearch});
+
+  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-      child: SizedBox(
-        height: 96,
-        child: Image.asset(
-          'logo.png',
-          fit: BoxFit.contain,
-          alignment: Alignment.centerLeft,
-          semanticLabel: 'NEXT Stabil',
-          height: 72,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SizedBox(
+            height: 72,
+            child: Image.asset(
+              'logo.png',
+              fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
+              semanticLabel: 'NEXT Stabil',
+            ),
+          ),
+          TextButton.icon(
+            key: const Key('desktop-global-search-action'),
+            onPressed: onSearch,
+            icon: const Icon(Icons.search),
+            label: const Text('Szukaj'),
+          ),
+        ],
       ),
     );
   }

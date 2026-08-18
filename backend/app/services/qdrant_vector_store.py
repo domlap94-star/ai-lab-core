@@ -35,6 +35,11 @@ class QdrantVectorStore:
             timeout=60,
         )
 
+    def collection_exists(self) -> bool:
+        return self.client.collection_exists(
+            self.collection_name
+        )
+
     def ensure_collection(
         self,
     ) -> bool:

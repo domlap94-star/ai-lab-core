@@ -53,6 +53,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Repozytorium dokumentów'),
         actions: <Widget>[
+          AppShell.globalSearchAction(context),
           IconButton(
             key: const Key('global-document-upload'),
             tooltip: 'Dodaj dokumenty',

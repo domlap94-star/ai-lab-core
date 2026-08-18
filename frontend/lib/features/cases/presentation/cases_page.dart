@@ -32,6 +32,7 @@ class _PlaceholderPage extends StatelessWidget {
       appBar: AppBar(
         leading: AppShell.mobileNavigationLeading(context),
         title: Text(title),
+        actions: <Widget>[AppShell.globalSearchAction(context)],
       ),
       body: Center(
         child: Padding(

@@ -1053,15 +1053,15 @@ Docelowo aplikacja powinna posiadać globalne wyszukiwanie.
 
 Typy search:
 
-[ ] exact search
+[✓] exact search
 
-[ ] PostgreSQL text search
+[✓] PostgreSQL text search
 
-[ ] semantic search
+[✓] semantic search — ograniczone do istniejącego indeksu dokumentów
 
-[ ] hybrid search
+[✓] hybrid search
 
-[ ] filters
+[✓] filters
 
 
 Przykłady:
@@ -5358,7 +5358,24 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     1.0.2+11; minimum_version remains 1.0.0.
 [✓] Release gates: backend regressions PASS; Flutter analyze PASS; full
     98-test Flutter suite PASS before and after the version bump.
-[ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
+[✓] CHUNK 11A — STRUCTURED + LEXICAL GLOBAL SEARCH: DONE.
+[✓] CHUNK 11B — SEMANTIC SEARCH: LIMITED TO EXISTING VECTOR COVERAGE.
+    Global Search łączy deterministyczny exact/structured SQL, leksykalny FTS
+    PostgreSQL i opcjonalne wyniki semantyczne dokumentów w jednym read-only,
+    uwierzytelnionym API z bounded snippets, powodami dopasowania, deduplikacją,
+    filtrami, paginacją i deep linkami. Flutter udostępnia wspólne wejście w
+    mobile AppBar i desktop shell, debounce/cancel, filtry, retry oraz
+    responsywne wyniki. Android Back prowadzi wynik -> Search -> Dashboard.
+[✓] Additive revision `chunk11search_20260818` adds only the partial Gmail GIN
+    FTS index. Planner uses it; Gmail search fell from about 30.8 s to 700.5 ms
+    p95 and global no-result from about 31 s to 218.3 ms p95.
+[✓] Qdrant remains unchanged: `ai_lab_document_chunks`, 1024 dimensions,
+    `qwen3-embedding:0.6b`, 57 chunks covering 11 documents. Current production
+    volume is 5903 documents, so 5892 documents are not semantically indexed.
+    No vector backfill, Qdrant writes or Qdrant upgrade were performed.
+[✓] CHUNK 11 — GLOBAL HYBRID SEARCH: COMPLETE. Flutter analyze and full
+    120-test suite PASS; focused backend and all required regressions PASS.
+[ ] CHUNK 12 — AI CLIENT KNOWLEDGE: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 

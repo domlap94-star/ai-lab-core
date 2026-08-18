@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_shell.dart';
 import '../../system_status/application/system_status_provider.dart';
@@ -30,7 +31,7 @@ class DashboardPage extends ConsumerWidget {
           ),
           IconButton(
             tooltip: 'Wyszukiwanie',
-            onPressed: () {},
+            onPressed: () => context.push('/search'),
             icon: const Icon(Icons.search),
           ),
           IconButton(

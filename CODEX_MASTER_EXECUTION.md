@@ -518,13 +518,30 @@ Status: DONE / RELEASE NOT PUBLISHED.
   production writes and historical backfill were 0.
 - CHUNK 7B — CONTACT PERSON MODEL: NOT STARTED.
 
-### 11. Global hybrid search — NEXT / NOT STARTED
+### 11. Global hybrid search — COMPLETE
 
-- Cel: exact/Postgres/semantic/hybrid nad klientami i dokumentami.
-- Zależności: 2, istniejący semantic retrieval.
-- Zakres: query/filter/ranking API + Flutter; bez duplikacji Qdrant/RAG.
-- Migracje: ewentualne indeksy. Ryzyko: ranking/latency. Dane: odczyt.
-- Acceptance: benchmark exact + semantic, source links i open page/document.
+- CHUNK 11A — STRUCTURED + LEXICAL GLOBAL SEARCH: DONE. Authenticated
+  `GET /api/v1/search` aggregates Clients, Projects, Inspections, Documents,
+  Emails and Candidates with bounded snippets, explainable reasons,
+  deterministic exact > lexical > semantic ranking, entity deduplication,
+  type filters and bounded pagination. Queries are read-only.
+- Additive revision `chunk11search_20260818` adds the partial Gmail GIN/FTS
+  index only. It modified no business rows; pre/post counts were identical and
+  the planner uses `ix_candidate_sources_gmail_search_vector`.
+- Measured p95: exact phone 138.9 ms, Client/name 56.8 ms, document lexical
+  80.8 ms, Gmail lexical 700.5 ms and global no-result 218.3 ms. Warm hybrid
+  p95 is 908.0 ms; the first cold Ollama request measured 2.66 s.
+- CHUNK 11B — SEMANTIC SEARCH: LIMITED TO EXISTING VECTOR COVERAGE. Existing
+  Qdrant collection `ai_lab_document_chunks` contains 57 current 1024-dimension
+  chunks for 11 documents using `qwen3-embedding:0.6b`. Current production has
+  5903 documents (5892 without semantic coverage). No vector backfill, Qdrant
+  write, collection rebuild or upgrade was performed.
+- Qdrant/Ollama failure is fail-open for structured/lexical results. Flutter
+  provides mobile AppBar and desktop-shell entry, 320 ms debounce, request
+  cancellation, filters, badges, bounded error/retry and source deep links.
+  Search result Back returns through Search to Dashboard.
+- Backend focused/regression suites, semantic E2E, Flutter analyze and the
+  complete 120-test Flutter suite: PASS. Production business writes: 0.
 - Commit: `Add global hybrid search`.
 
 ### 12. AI client knowledge — TODO

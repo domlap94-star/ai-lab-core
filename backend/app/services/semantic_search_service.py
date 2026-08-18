@@ -71,6 +71,7 @@ class SemanticSearchService:
         document_id: int | None = None,
         content_type: str | None = None,
         score_threshold: float | None = None,
+        create_collection_if_missing: bool = True,
     ) -> list[
         SemanticSearchResult
     ]:
@@ -82,7 +83,12 @@ class SemanticSearchService:
         if limit <= 0:
             return []
 
-        self.vector_store.ensure_collection()
+        if create_collection_if_missing:
+            self.vector_store.ensure_collection()
+        elif not self.vector_store.collection_exists():
+            raise RuntimeError(
+                "Semantic search collection is unavailable."
+            )
 
         vector = (
             self.embedding_client

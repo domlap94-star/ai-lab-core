@@ -85,6 +85,7 @@ class SettingsPage extends ConsumerWidget {
       appBar: AppBar(
         leading: AppShell.mobileNavigationLeading(context),
         title: const Text('Ustawienia'),
+        actions: <Widget>[AppShell.globalSearchAction(context)],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),

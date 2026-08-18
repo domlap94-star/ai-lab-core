@@ -12,6 +12,7 @@ from app.api.imports.router import router as imports_router
 from app.api.inspections.router import router as inspections_router
 from app.api.users.router import router as users_router
 from app.api.projects.router import router as projects_router
+from app.api.search.router import router as search_router
 from app.core.constants import API_PREFIX
 
 
@@ -28,4 +29,5 @@ api_router.include_router(imports_router)
 api_router.include_router(documents_router)
 api_router.include_router(projects_router)
 api_router.include_router(inspections_router)
+api_router.include_router(search_router)
 api_router.include_router(ai_router)
