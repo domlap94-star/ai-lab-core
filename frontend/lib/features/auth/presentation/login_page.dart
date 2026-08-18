@@ -25,6 +25,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -42,12 +43,29 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       return;
     }
 
-    await ref
-        .read(authControllerProvider.notifier)
-        .login(
-          username: _usernameController.text,
-          password: _passwordController.text,
+    setState(() => _isSubmitting = true);
+    try {
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(
+            username: _usernameController.text,
+            password: _passwordController.text,
+          );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(_friendlyErrorMessage(error)),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   void _openResetPassword() {
@@ -64,7 +82,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final AsyncValue<AppVersionInfo> appVersion = ref.watch(appVersionProvider);
 
-    final bool isLoading = authState.isLoading;
+    final bool isLoading = authState.isLoading || _isSubmitting;
     final String? sessionNotice = authState.value?.notice;
 
     ref.listen<AsyncValue<AuthState>>(authControllerProvider, (

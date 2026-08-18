@@ -29,9 +29,11 @@ void main() {
     );
     expect(initial.user?.username, 'user-a');
 
-    await container
-        .read(sessionExpirationCoordinatorProvider)
-        .handleUnauthorized(_sessionA.accessToken);
+    final coordinator = container.read(sessionExpirationCoordinatorProvider);
+    await coordinator.handleUnauthorized(
+      _sessionA.accessToken,
+      requestGeneration: coordinator.captureGeneration(_sessionA.accessToken),
+    );
 
     final AuthState expired = container
         .read(authControllerProvider)
@@ -52,9 +54,10 @@ void main() {
     expect(relogged.session?.accessToken, _sessionB.accessToken);
     expect(relogged.notice, isNull);
 
-    await container
-        .read(sessionExpirationCoordinatorProvider)
-        .handleUnauthorized(_sessionA.accessToken);
+    await coordinator.handleUnauthorized(
+      _sessionA.accessToken,
+      requestGeneration: coordinator.captureGeneration(_sessionA.accessToken),
+    );
     expect(
       container.read(authControllerProvider).requireValue.user?.username,
       'user-b',
@@ -87,6 +90,37 @@ void main() {
     expect(storage.clearCount, 1);
     expect(storage.session, isNull);
   });
+
+  test(
+    'network failure during restore preserves token with clear notice',
+    () async {
+      final _MemoryTokenStorage storage = _MemoryTokenStorage(_sessionA);
+      final _AuthRepository repository = _AuthRepository(
+        fetchError: DioException.connectionError(
+          requestOptions: RequestOptions(path: '/api/v1/auth/me'),
+          reason: 'offline',
+        ),
+      );
+      final ProviderContainer container = ProviderContainer(
+        overrides: [
+          authTokenStorageProvider.overrideWithValue(storage),
+          authRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final AuthState state = await container.read(
+        authControllerProvider.future,
+      );
+      expect(state.isAuthenticated, isFalse);
+      expect(
+        state.notice,
+        'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
+      );
+      expect(storage.clearCount, 0);
+      expect(storage.session, _sessionA);
+    },
+  );
 }
 
 const AuthSession _sessionA = AuthSession(

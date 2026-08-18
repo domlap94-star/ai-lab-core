@@ -6,6 +6,8 @@ class SessionExpirationCoordinator {
   SessionExpiredHandler? _handler;
   final Set<String> _handledTokens = <String>{};
   final Map<String, Future<void>> _inFlight = <String, Future<void>>{};
+  String? _activeAccessToken;
+  int _sessionGeneration = 0;
 
   void registerHandler(SessionExpiredHandler handler) {
     _handler = handler;
@@ -20,15 +22,36 @@ class SessionExpirationCoordinator {
   void markSessionActive(String accessToken) {
     final String normalized = accessToken.trim();
     if (normalized.isNotEmpty) {
+      _sessionGeneration++;
+      _activeAccessToken = normalized;
       _handledTokens.remove(normalized);
     }
   }
 
-  Future<void> handleUnauthorized(String accessToken) {
+  void markSessionInactive() {
+    _sessionGeneration++;
+    _activeAccessToken = null;
+  }
+
+  int? captureGeneration(String accessToken) {
+    final String normalized = accessToken.trim();
+    return normalized.isNotEmpty && normalized == _activeAccessToken
+        ? _sessionGeneration
+        : null;
+  }
+
+  Future<void> handleUnauthorized(
+    String accessToken, {
+    int? requestGeneration,
+  }) {
     final String normalized = accessToken.trim();
     final SessionExpiredHandler? handler = _handler;
 
-    if (normalized.isEmpty || handler == null) {
+    if (normalized.isEmpty ||
+        handler == null ||
+        requestGeneration == null ||
+        requestGeneration != _sessionGeneration ||
+        normalized != _activeAccessToken) {
       return Future<void>.value();
     }
 

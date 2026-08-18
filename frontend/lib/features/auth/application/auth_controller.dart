@@ -55,9 +55,13 @@ class AuthController extends AsyncNotifier<AuthState> {
       return AuthState(session: session, user: user);
     } on DioException catch (error) {
       if (error.response?.statusCode != 401) {
-        rethrow;
+        return const AuthState.unauthenticated(
+          notice:
+              'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
+        );
       }
       await _tokenStorage.clearSession();
+      _sessionExpirationCoordinator.markSessionInactive();
       return const AuthState.unauthenticated(
         notice: 'Sesja wygasła. Zaloguj się ponownie.',
       );
@@ -68,29 +72,45 @@ class AuthController extends AsyncNotifier<AuthState> {
     required String username,
     required String password,
   }) async {
-    state = const AsyncLoading<AuthState>();
+    final AuthSession session = await _repository.login(
+      username: username,
+      password: password,
+    );
 
-    state = await AsyncValue.guard<AuthState>(() async {
-      final AuthSession session = await _repository.login(
-        username: username,
-        password: password,
-      );
-
-      final CurrentUser user = await _repository.fetchCurrentUser(session);
-
-      if (!user.isActive) {
-        throw const AuthException('Konto użytkownika jest nieaktywne.');
+    final CurrentUser user;
+    try {
+      user = await _repository.fetchCurrentUser(session);
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 401) {
+        throw const AuthException(
+          'Nie udało się potwierdzić sesji. Zaloguj się ponownie.',
+        );
       }
+      throw const AuthException(
+        'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
+      );
+    }
 
-      await _tokenStorage.saveSession(session);
-      _sessionExpirationCoordinator.markSessionActive(session.accessToken);
+    if (!user.isActive) {
+      throw const AuthException('Konto użytkownika jest nieaktywne.');
+    }
 
-      return AuthState(session: session, user: user);
-    });
+    await _tokenStorage.saveSession(session);
+    final AuthSession? storedSession = await _tokenStorage.readSession();
+    if (storedSession?.accessToken != session.accessToken ||
+        storedSession?.tokenType != session.tokenType) {
+      await _tokenStorage.clearSession();
+      throw const AuthException(
+        'Nie udało się bezpiecznie zapisać sesji. Spróbuj ponownie.',
+      );
+    }
+    _sessionExpirationCoordinator.markSessionActive(session.accessToken);
+    state = AsyncData<AuthState>(AuthState(session: session, user: user));
   }
 
   Future<void> logout() async {
     await _tokenStorage.clearSession();
+    _sessionExpirationCoordinator.markSessionInactive();
 
     state = const AsyncData<AuthState>(AuthState.unauthenticated());
   }
@@ -105,6 +125,7 @@ class AuthController extends AsyncNotifier<AuthState> {
     try {
       await _tokenStorage.clearSession();
     } finally {
+      _sessionExpirationCoordinator.markSessionInactive();
       state = const AsyncData<AuthState>(
         AuthState.unauthenticated(
           notice: 'Sesja wygasła. Zaloguj się ponownie.',
@@ -122,11 +143,18 @@ class AuthController extends AsyncNotifier<AuthState> {
       return;
     }
 
-    state = await AsyncValue.guard<AuthState>(() async {
+    try {
       final CurrentUser user = await _repository.fetchCurrentUser(session);
-
-      return AuthState(session: session, user: user);
-    });
+      if (state.value?.session?.accessToken == session.accessToken) {
+        state = AsyncData<AuthState>(AuthState(session: session, user: user));
+      }
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 401 &&
+          state.value?.session?.accessToken == session.accessToken) {
+        await _expireSession(session.accessToken);
+      }
+      rethrow;
+    }
   }
 }
 

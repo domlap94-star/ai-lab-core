@@ -12,6 +12,7 @@ void main() {
     final SessionExpirationCoordinator coordinator =
         SessionExpirationCoordinator()
           ..registerHandler((_) async => expirationCount++);
+    coordinator.markSessionActive('A');
     final Dio dio = _dio(statusCode: 200, coordinator: coordinator);
 
     await dio.get<void>(
@@ -30,6 +31,7 @@ void main() {
           expirationCount++;
           rejectedToken = token;
         });
+    coordinator.markSessionActive('expired-token');
     final Dio dio = _dio(statusCode: 401, coordinator: coordinator);
 
     await expectLater(
@@ -60,6 +62,7 @@ void main() {
             }
             await release.future;
           });
+      coordinator.markSessionActive('same-token');
       final Dio dio = _dio(statusCode: 401, coordinator: coordinator);
 
       final List<Future<void>> requests = List<Future<void>>.generate(
@@ -102,6 +105,7 @@ void main() {
       final SessionExpirationCoordinator coordinator =
           SessionExpirationCoordinator()
             ..registerHandler((_) async => expirationCount++);
+      coordinator.markSessionActive('active-token');
       final Dio dio = _dio(statusCode: statusCode, coordinator: coordinator);
 
       await expectLater(
@@ -123,6 +127,7 @@ void main() {
     final SessionExpirationCoordinator coordinator =
         SessionExpirationCoordinator()
           ..registerHandler((_) async => expirationCount++);
+    coordinator.markSessionActive('active-token');
     final Dio dio = Dio()..httpClientAdapter = _ThrowingAdapter();
     installSessionExpirationInterceptor(dio, coordinator);
 
@@ -145,13 +150,76 @@ void main() {
         SessionExpirationCoordinator()
           ..registerHandler((_) async => expirationCount++);
 
-    await coordinator.handleUnauthorized('token');
-    await coordinator.handleUnauthorized('token');
+    coordinator.markSessionActive('token');
+    int? generation = coordinator.captureGeneration('token');
+    await coordinator.handleUnauthorized(
+      'token',
+      requestGeneration: generation,
+    );
+    await coordinator.handleUnauthorized(
+      'token',
+      requestGeneration: generation,
+    );
     expect(expirationCount, 1);
 
     coordinator.markSessionActive('token');
-    await coordinator.handleUnauthorized('token');
+    generation = coordinator.captureGeneration('token');
+    await coordinator.handleUnauthorized(
+      'token',
+      requestGeneration: generation,
+    );
     expect(expirationCount, 2);
+  });
+
+  test('stale 401 cannot expire a newer generation with same token', () async {
+    int expirationCount = 0;
+    final SessionExpirationCoordinator coordinator =
+        SessionExpirationCoordinator()
+          ..registerHandler((_) async => expirationCount++);
+
+    coordinator.markSessionActive('same-token');
+    final int? staleGeneration = coordinator.captureGeneration('same-token');
+    coordinator.markSessionActive('same-token');
+
+    await coordinator.handleUnauthorized(
+      'same-token',
+      requestGeneration: staleGeneration,
+    );
+    expect(expirationCount, 0);
+
+    await coordinator.handleUnauthorized(
+      'same-token',
+      requestGeneration: coordinator.captureGeneration('same-token'),
+    );
+    expect(expirationCount, 1);
+  });
+
+  test('request started before relogin cannot clear the new session', () async {
+    int expirationCount = 0;
+    final SessionExpirationCoordinator coordinator =
+        SessionExpirationCoordinator()
+          ..registerHandler((_) async => expirationCount++);
+    coordinator.markSessionActive('same-token');
+    final _DelayedStatusAdapter adapter = _DelayedStatusAdapter(401);
+    final Dio dio = Dio()..httpClientAdapter = adapter;
+    installSessionExpirationInterceptor(dio, coordinator);
+
+    final Future<void> staleRequest = dio
+        .get<void>(
+          '/protected',
+          options: Options(
+            headers: <String, Object>{'Authorization': 'Bearer same-token'},
+          ),
+        )
+        .then<void>((_) {}, onError: (_) {});
+    await adapter.started.future;
+
+    coordinator.markSessionActive('same-token');
+    adapter.release.complete();
+    await staleRequest;
+
+    expect(expirationCount, 0);
+    expect(coordinator.captureGeneration('same-token'), isNotNull);
   });
 }
 
@@ -193,6 +261,28 @@ class _ThrowingAdapter implements HttpClientAdapter {
       requestOptions: options,
       reason: 'offline',
     );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _DelayedStatusAdapter implements HttpClientAdapter {
+  _DelayedStatusAdapter(this.statusCode);
+
+  final int statusCode;
+  final Completer<void> started = Completer<void>();
+  final Completer<void> release = Completer<void>();
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    started.complete();
+    await release.future;
+    return ResponseBody.fromString('{}', statusCode);
   }
 
   @override

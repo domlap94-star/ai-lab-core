@@ -36,8 +36,18 @@ void installSessionExpirationInterceptor(
   Dio dio,
   SessionExpirationCoordinator coordinator,
 ) {
+  const String sessionGenerationKey = 'auth_session_generation';
   dio.interceptors.add(
     InterceptorsWrapper(
+      onRequest: (RequestOptions options, RequestInterceptorHandler handler) {
+        final String? accessToken = _authorizedAccessToken(options.headers);
+        if (accessToken != null) {
+          options.extra[sessionGenerationKey] = coordinator.captureGeneration(
+            accessToken,
+          );
+        }
+        handler.next(options);
+      },
       onError: (DioException error, ErrorInterceptorHandler handler) async {
         if (error.response?.statusCode == 401) {
           final String? accessToken = _authorizedAccessToken(
@@ -45,7 +55,11 @@ void installSessionExpirationInterceptor(
           );
           if (accessToken != null) {
             try {
-              await coordinator.handleUnauthorized(accessToken);
+              await coordinator.handleUnauthorized(
+                accessToken,
+                requestGeneration:
+                    error.requestOptions.extra[sessionGenerationKey] as int?,
+              );
             } finally {
               handler.next(error);
             }

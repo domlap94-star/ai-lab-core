@@ -39,7 +39,8 @@ class _AppState extends ConsumerState<App> {
       AsyncValue<AuthState> next,
     ) {
       if (previous?.value?.isAuthenticated == true &&
-          next.value?.isAuthenticated != true) {
+          next.hasValue &&
+          next.requireValue.isAuthenticated != true) {
         appRouter.go('/dashboard');
       }
     });
