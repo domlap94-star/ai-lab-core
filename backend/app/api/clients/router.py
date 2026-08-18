@@ -31,6 +31,7 @@ from app.schemas.client_bulk import (
     ClientWorkflowStatusRead,
 )
 from app.schemas.client_email import ClientEmailPage
+from app.schemas.client_ai_knowledge import ClientAiAskRequest, ClientAiAskResponse
 from app.schemas.document import DocumentRead, DocumentUploadResponse
 from app.schemas.industry import IndustryRead
 from app.schemas.timeline import TimelineEventType, TimelinePage
@@ -43,6 +44,10 @@ from app.services.client_service import (
 )
 from app.services.client_bulk_service import ClientBulkService
 from app.services.client_email_service import ClientEmailService
+from app.services.client_knowledge_service import (
+    ClientKnowledgeContextService,
+    ClientKnowledgeModelUnavailable,
+)
 from app.services.document_service import (
     DocumentService, DocumentStorageError, EmptyDocumentError,
 )
@@ -234,6 +239,27 @@ def get_client_timeline(
         raise HTTPException(status_code=404, detail="Client not found") from error
     except ProjectNotFoundError as error:
         raise HTTPException(status_code=404, detail="Project not found") from error
+
+
+@router.post("/{client_id}/ai/ask", response_model=ClientAiAskResponse)
+async def ask_client_ai(
+    client_id: int,
+    data: ClientAiAskRequest,
+    db: Session = Depends(get_db),
+) -> ClientAiAskResponse:
+    try:
+        return await ClientKnowledgeContextService(db).ask(
+            client_id=client_id,
+            question=data.question,
+            conversation=data.conversation,
+        )
+    except ClientNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Client not found") from error
+    except ClientKnowledgeModelUnavailable as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Asystent AI jest chwilowo niedostępny. Spróbuj ponownie.",
+        ) from error
 
 
 @router.get(

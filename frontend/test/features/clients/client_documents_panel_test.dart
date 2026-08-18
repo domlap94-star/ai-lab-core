@@ -123,6 +123,8 @@ void main() {
     await tester.tap(find.byKey(const Key('client-documents-toggle')));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const Key('client-document-open-1')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('client-document-open-1')));
     await tester.pumpAndSettle();
 

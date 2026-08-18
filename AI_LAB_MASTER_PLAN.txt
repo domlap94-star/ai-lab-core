@@ -5375,7 +5375,22 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     No vector backfill, Qdrant writes or Qdrant upgrade were performed.
 [✓] CHUNK 11 — GLOBAL HYBRID SEARCH: COMPLETE. Flutter analyze and full
     120-test suite PASS; focused backend and all required regressions PASS.
-[ ] CHUNK 12 — AI CLIENT KNOWLEDGE: NOT STARTED.
+[✓] CHUNK 12 — AI CLIENT KNOWLEDGE: COMPLETE. Client Details exposes a
+    client-scoped, read-only assistant backed by deterministic CRM answers,
+    bounded structured/operational context, Email History, Timeline and
+    lexical Document retrieval with optional client-filtered semantic chunks.
+    The JWT API enforces active Client scope, bounded input/history/evidence,
+    deterministic source IDs/routes and rejects citations not produced by
+    retrieval. Retrieved content is explicitly untrusted prompt data.
+[✓] Current generation uses the existing local `llama3.2`; embeddings remain
+    `qwen3-embedding:0.6b` at 1024 dimensions. Qdrant remains unchanged at 57
+    chunks covering 11 of 5903 Documents globally; client-scoped vector use is
+    further limited to points carrying a valid `client_id`. Lexical fallback
+    remains available. No vector backfill, Qdrant write or upgrade occurred.
+[✓] CHUNK 12 verification: focused backend 8/8 PASS; controlled local LLM E2E
+    5/5 PASS; Flutter analyze PASS and full 130/130 suite PASS. Production
+    business writes: 0. No migration, conversation persistence or release.
+[ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 
@@ -5437,6 +5452,8 @@ ANDROID BACK NAVIGATION PATCH — NEXT STABIL 1.0.2+13 — PUBLISHED:
     full 126-test suite PASS before and after bump.
 [✓] Semantic coverage remains 57 chunks / 11 of 5903 Documents. No Qdrant
     write, rebuild, upgrade or vector backfill was performed.
-[ ] CHUNK 12 — AI CLIENT KNOWLEDGE: NOT STARTED.
+[✓] CHUNK 12 — AI CLIENT KNOWLEDGE: COMPLETE (read-only, client-scoped;
+    semantic retrieval limited to existing vectors as documented above).
+[ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
 KONIEC MASTER PLAN

@@ -734,7 +734,32 @@ Status: DONE / RELEASE NOT PUBLISHED.
   hashes match local outputs; minimum_version remains 1.0.0.
 - Qdrant remains unchanged at 57 chunks covering 11 of 5903 Documents. No
   Qdrant write, upgrade, rebuild or vector backfill was performed.
-- CHUNK 11: RELEASED. CHUNK 12 — AI CLIENT KNOWLEDGE: NOT STARTED.
+- CHUNK 11: RELEASED. CHUNK 12 — AI CLIENT KNOWLEDGE: COMPLETE.
+
+### CHUNK 12 — AI CLIENT KNOWLEDGE — COMPLETE
+
+- Added JWT-protected `POST /api/v1/clients/{client_id}/ai/ask`. The service
+  loads exactly one active Client and performs no business-data writes.
+- Deterministic answers cover phone, e-mail, NIP, address and workflow status.
+  Bounded retrieval adds Projects, Inspections, Timeline, Client Email History
+  and lexical Documents; semantic chunks are optional and filtered by
+  `client_id` with a second DB ownership check.
+- The prompt treats evidence as untrusted data, permits only numbered source
+  IDs supplied by retrieval and requires an explicit insufficient-data answer.
+  Sources use bounded snippets and existing Client/Email/Document/Project/
+  Inspection routes. Conversation context remains bounded session state only.
+- Client 360 includes the responsive `Zapytaj AI o klienta` panel with example
+  questions, loading/cancel, friendly error/retry and source deep links.
+- Active local models remain `llama3.2` for generation and
+  `qwen3-embedding:0.6b` (1024 dimensions) for embeddings. Qdrant remains at
+  57 chunks covering 11 of 5903 Documents globally; client-scoped vector
+  availability is narrower where legacy payloads lack `client_id`. Lexical
+  retrieval and structured answers fail open without Qdrant.
+- Verification: focused backend 8/8 PASS; controlled local LLM E2E 5/5 PASS;
+  backend regressions and health PASS; Flutter analyze PASS; full Flutter suite
+  130/130 PASS. No migration, vector backfill, Qdrant write, n8n change,
+  conversation persistence, production business write or release occurred.
+- CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 

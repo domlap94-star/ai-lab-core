@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
+import '../../client_ai_knowledge/presentation/client_ai_knowledge_panel.dart';
 import '../../documents/application/client_documents_provider.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/domain/document.dart';
@@ -32,6 +33,8 @@ class ClientWorkspacePanels extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: <Widget>[
+        ClientAiKnowledgePanel(clientId: clientId, clientName: clientName),
+        const SizedBox(height: 20),
         TimelinePanel(
           scope: TimelineScope.client,
           id: clientId,
