@@ -717,7 +717,24 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Web, Windows and Android 1.0.2+13: PUBLISHED; local/public/manifest hashes
   match and `minimum_version` remains 1.0.0. Physical Android Back smoke is
   UNVERIFIED because no ADB device was connected.
-- Backend, DB and n8n: UNCHANGED. CHUNK 11: NOT STARTED.
+- Backend, DB and n8n: UNCHANGED.
+
+### CHUNK 11 GLOBAL HYBRID SEARCH — NEXT STABIL 1.0.2+14 — PUBLISHED
+
+- Dashboard is the primary Global Search entry through a responsive SearchBar
+  above all dashboard cards. Query handoff uses `/search?q=...` and the same
+  repository/controller/results flow as mobile AppBar and desktop shell.
+- Pagination is verified against stable entity keys and a combined reference;
+  pages are disjoint and deterministic, while adjacent results may share a
+  type. No production ranking/scoring change was made for the prior brittle
+  type-change assertion.
+- Backend release regressions and performance gates: PASS. Flutter analyze:
+  PASS. Full Flutter suite: 126/126 PASS before and after version bump.
+- Web, Windows and Android 1.0.2+14: PUBLISHED. Public artifact and Web bundle
+  hashes match local outputs; minimum_version remains 1.0.0.
+- Qdrant remains unchanged at 57 chunks covering 11 of 5903 Documents. No
+  Qdrant write, upgrade, rebuild or vector backfill was performed.
+- CHUNK 11: RELEASED. CHUNK 12 — AI CLIENT KNOWLEDGE: NOT STARTED.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 

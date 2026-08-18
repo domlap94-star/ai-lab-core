@@ -6,6 +6,10 @@ import 'package:ai_lab/features/global_search/application/global_search_provider
 import 'package:ai_lab/features/global_search/data/global_search_api.dart';
 import 'package:ai_lab/features/global_search/domain/global_search.dart';
 import 'package:ai_lab/features/global_search/presentation/global_search_page.dart';
+import 'package:ai_lab/features/dashboard/presentation/dashboard_page.dart';
+import 'package:ai_lab/features/system_status/application/system_status_provider.dart';
+import 'package:ai_lab/features/system_status/domain/backend_status.dart';
+import 'package:ai_lab/core/widgets/app_shell.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -137,6 +141,88 @@ void main() {
     expect(gateway.queries.length, 2);
   });
 
+  testWidgets('Dashboard opens the shared Global Search without loading data', (
+    WidgetTester tester,
+  ) async {
+    final gateway = _Gateway(page: _page());
+    final router = _dashboardRouter();
+    addTearDown(router.dispose);
+    await _pump(tester, router, gateway, const Size(390, 900));
+
+    expect(gateway.queries, isEmpty);
+    expect(
+      find.byKey(const Key('dashboard-global-search-bar')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('dashboard-global-search-bar')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/search');
+    expect(find.byKey(const Key('global-search-field')), findsOneWidget);
+    expect(gateway.queries, isEmpty);
+  });
+
+  testWidgets('Dashboard hands query to Global Search and runs it once', (
+    WidgetTester tester,
+  ) async {
+    final gateway = _Gateway(page: _page());
+    final router = _dashboardRouter();
+    addTearDown(router.dispose);
+    await _pump(tester, router, gateway, const Size(1200, 900));
+
+    tester
+        .widget<SearchBar>(find.byKey(const Key('dashboard-global-search-bar')))
+        .onSubmitted!('  orion  ');
+    await tester.pumpAndSettle();
+    await _pumpResponse(tester);
+
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/search');
+    expect(
+      router.routerDelegate.currentConfiguration.uri.queryParameters['q'],
+      'orion',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('global-search-field')))
+          .controller!
+          .text,
+      'orion',
+    );
+    expect(gateway.queries, <String>['orion']);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(router.routerDelegate.currentConfiguration.uri.path, '/dashboard');
+  });
+
+  for (final size in <Size>[
+    const Size(360, 800),
+    const Size(390, 900),
+    const Size(600, 900),
+    const Size(1200, 900),
+  ]) {
+    testWidgets('Dashboard search bar is responsive at $size', (
+      WidgetTester tester,
+    ) async {
+      final gateway = _Gateway(page: _page());
+      final router = _dashboardRouter();
+      addTearDown(router.dispose);
+      await _pump(tester, router, gateway, size);
+
+      expect(
+        find.byKey(const Key('dashboard-global-search-bar')),
+        findsOneWidget,
+      );
+      expect(gateway.queries, isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   for (final size in <Size>[
     const Size(360, 800),
     const Size(390, 900),
@@ -182,6 +268,17 @@ Future<void> _pump(
       overrides: [
         authControllerProvider.overrideWith(_AuthController.new),
         globalSearchGatewayProvider.overrideWithValue(gateway),
+        backendStatusProvider.overrideWith(
+          (Ref ref) async => const BackendStatus(
+            isOnline: true,
+            application: 'AI-Lab',
+            version: 'test',
+            environment: 'test',
+            debug: false,
+            latencyMilliseconds: 1,
+            baseUrl: 'http://test',
+          ),
+        ),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
@@ -199,6 +296,28 @@ GoRouter _router() => GoRouter(
         appBar: AppBar(),
         body: Text('Client ${state.pathParameters['id']}'),
       ),
+    ),
+  ],
+);
+
+GoRouter _dashboardRouter() => GoRouter(
+  initialLocation: '/dashboard',
+  routes: <RouteBase>[
+    ShellRoute(
+      builder: (_, state, child) => AppShell(
+        currentLocation: state.uri.toString(),
+        androidBackPolicyOverride: true,
+        child: child,
+      ),
+      routes: <RouteBase>[
+        GoRoute(path: '/dashboard', builder: (_, _) => const DashboardPage()),
+        GoRoute(
+          path: '/search',
+          builder: (_, state) => GlobalSearchPage(
+            initialQuery: state.uri.queryParameters['q'] ?? '',
+          ),
+        ),
+      ],
     ),
   ],
 );

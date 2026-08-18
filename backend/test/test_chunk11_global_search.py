@@ -51,7 +51,9 @@ class GlobalSearchTests(unittest.TestCase):
         )
         self.actor = self.db.query(User).filter(User.is_active.is_(True)).first()
         self.assertIsNotNone(self.actor)
-        suffix = uuid.uuid4().hex[:10]
+        suffix = uuid.uuid4().hex[:10].translate(
+            str.maketrans("0123456789", "abcdefghij")
+        )
         self.term = f"Orion{suffix}"
         self.client = Client(
             client_type="company",
@@ -258,6 +260,7 @@ class GlobalSearchTests(unittest.TestCase):
         self.assertTrue(semantic.kwargs["create_collection_if_missing"] is False)
 
     def test_type_filter_pagination_and_semantic_fail_open(self) -> None:
+        entity = lambda item: (item.type, item.id, item.score, item.route)
         failed = GlobalSearchService(
             self.db, semantic_service=_SemanticStub(fail=True)
         ).search(query=self.term, types=("client", "document"), limit=1)
@@ -267,10 +270,83 @@ class GlobalSearchTests(unittest.TestCase):
         second = GlobalSearchService(
             self.db, semantic_service=_SemanticStub(fail=True)
         ).search(query=self.term, types=("client", "document"), skip=1, limit=1)
-        self.assertNotEqual(failed.items[0].type, second.items[0].type)
+        combined = GlobalSearchService(
+            self.db, semantic_service=_SemanticStub(fail=True)
+        ).search(query=self.term, types=("client", "document"), limit=2)
+        self.assertNotEqual(entity(failed.items[0]), entity(second.items[0]))
+        self.assertEqual(
+            [entity(failed.items[0]), entity(second.items[0])],
+            [entity(item) for item in combined.items],
+        )
+        self.assertFalse(second.has_more)
+        self.assertEqual(second.semantic_status, "unavailable")
         only_projects = self.search(self.term, types=("project",))
         self.assertTrue(only_projects.items)
         self.assertTrue(all(item.type == "project" for item in only_projects.items))
+
+    def test_pagination_is_disjoint_stable_and_matches_reference(self) -> None:
+        entity = lambda item: (item.type, item.id, item.score, item.route)
+        service = GlobalSearchService(self.db, semantic_service=_SemanticStub())
+        reference = service.search(query=self.term, semantic=False, limit=50)
+        first = service.search(query=self.term, semantic=False, limit=5)
+        second = service.search(query=self.term, semantic=False, skip=5, limit=5)
+
+        first_keys = [entity(item) for item in first.items]
+        second_keys = [entity(item) for item in second.items]
+        self.assertFalse(
+            {(item.type, item.id) for item in first.items}
+            & {(item.type, item.id) for item in second.items}
+        )
+        self.assertEqual(
+            first_keys + second_keys,
+            [entity(item) for item in reference.items[:10]],
+        )
+        self.assertEqual(first.has_more, len(reference.items) > 5)
+        self.assertEqual(second.has_more, len(reference.items) > 10)
+
+        repeated = [
+            [
+                entity(item)
+                for item in service.search(
+                    query=self.term, semantic=False, limit=50
+                ).items
+            ]
+            for _ in range(3)
+        ]
+        self.assertEqual(repeated, [repeated[0], repeated[0], repeated[0]])
+
+    def test_type_filtered_pagination_allows_same_type_on_both_pages(self) -> None:
+        second_client = Client(
+            client_type="company",
+            name=f"Oddział {self.term}",
+        )
+        self.db.add(second_client)
+        self.db.flush()
+        service = GlobalSearchService(self.db, semantic_service=_SemanticStub())
+        first = service.search(
+            query=self.term,
+            types=("client",),
+            semantic=False,
+            limit=1,
+        )
+        second = service.search(
+            query=self.term,
+            types=("client",),
+            semantic=False,
+            skip=1,
+            limit=1,
+        )
+        self.assertEqual(first.items[0].type, "client")
+        self.assertEqual(second.items[0].type, "client")
+        self.assertNotEqual(first.items[0].id, second.items[0].id)
+        self.assertTrue(first.has_more)
+        self.assertFalse(second.has_more)
+
+        mixed = self.search(self.term, types=("document", "email"))
+        self.assertTrue(mixed.items)
+        self.assertTrue(
+            all(item.type in {"document", "email"} for item in mixed.items)
+        )
 
     def test_bounded_query_count_has_no_per_result_n_plus_one(self) -> None:
         statements: list[str] = []

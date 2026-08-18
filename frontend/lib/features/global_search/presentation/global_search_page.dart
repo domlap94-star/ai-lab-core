@@ -12,7 +12,9 @@ import '../application/global_search_providers.dart';
 import '../domain/global_search.dart';
 
 class GlobalSearchPage extends ConsumerStatefulWidget {
-  const GlobalSearchPage({super.key});
+  const GlobalSearchPage({this.initialQuery = '', super.key});
+
+  final String initialQuery;
 
   @override
   ConsumerState<GlobalSearchPage> createState() => _GlobalSearchPageState();
@@ -22,7 +24,7 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
   static const Duration _debounce = Duration(milliseconds: 320);
   static const int _pageSize = 25;
 
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller;
   Timer? _timer;
   CancelToken? _cancelToken;
   GlobalSearchType? _type;
@@ -30,6 +32,17 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
   List<GlobalSearchResult> _items = const [];
   bool _loadingMore = false;
   int _requestNumber = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialQuery.trim());
+    if (_controller.text.length >= 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _search(reset: true);
+      });
+    }
+  }
 
   @override
   void dispose() {

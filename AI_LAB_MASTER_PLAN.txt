@@ -5421,6 +5421,22 @@ ANDROID BACK NAVIGATION PATCH — NEXT STABIL 1.0.2+13 — PUBLISHED:
     Flutter analyze and full 112-test suite: PASS before and after bump,
     including protected-stack reset after logout/session expiration.
 [ ] Physical Android Back smoke: UNVERIFIED — no ADB device was connected.
-[ ] CHUNK 11 — GLOBAL HYBRID SEARCH: NOT STARTED.
+[✓] CHUNK 11 — GLOBAL HYBRID SEARCH: RELEASED as NEXT Stabil 1.0.2+14.
+[✓] Dashboard is the primary Global Search entry point. Its responsive Search
+    Bar hands `q` to the same `/search` route/controller used by the mobile
+    AppBar and desktop shell; Dashboard render itself performs 0 search calls.
+[✓] Unified exact/structured, PostgreSQL lexical/Gmail FTS and limited
+    semantic document results retain deterministic ranking, bounded snippets,
+    filters, pagination, deduplication and source deep links. Android Back is
+    Dashboard -> Search -> result -> Search -> Dashboard.
+[✓] Pagination regression contract now checks stable `(type,id,score,route)`,
+    disjoint pages, combined-reference equivalence, deterministic tie-breaks
+    and `has_more`; consecutive pages may legally contain the same type.
+[✓] Web/Windows/Android +14 artifacts and public hashes match local outputs;
+    minimum_version remains 1.0.0. Backend regressions, Flutter analyze and
+    full 126-test suite PASS before and after bump.
+[✓] Semantic coverage remains 57 chunks / 11 of 5903 Documents. No Qdrant
+    write, rebuild, upgrade or vector backfill was performed.
+[ ] CHUNK 12 — AI CLIENT KNOWLEDGE: NOT STARTED.
 
 KONIEC MASTER PLAN

@@ -53,6 +53,8 @@ class DashboardPage extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
+              const _DashboardGlobalSearchBar(),
+              const SizedBox(height: 28),
               Text(
                 'Dzień dobry',
                 style: theme.textTheme.headlineMedium?.copyWith(
@@ -144,6 +146,57 @@ class DashboardPage extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DashboardGlobalSearchBar extends StatefulWidget {
+  const _DashboardGlobalSearchBar();
+
+  @override
+  State<_DashboardGlobalSearchBar> createState() =>
+      _DashboardGlobalSearchBarState();
+}
+
+class _DashboardGlobalSearchBarState extends State<_DashboardGlobalSearchBar> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _openSearch([String? value]) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final String query = (value ?? _controller.text).trim();
+    final Uri target = Uri(
+      path: '/search',
+      queryParameters: query.isEmpty ? null : <String, String>{'q': query},
+    );
+    context.go(target.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool compact = MediaQuery.sizeOf(context).width < 600;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 920),
+      child: SearchBar(
+        key: const Key('dashboard-global-search-bar'),
+        controller: _controller,
+        leading: const Icon(Icons.search),
+        hintText: compact
+            ? 'Szukaj w NEXT Stabil'
+            : 'Szukaj klientów, dokumentów, e-maili, realizacji...',
+        textInputAction: TextInputAction.search,
+        onTap: () {
+          if (_controller.text.trim().isEmpty) {
+            _openSearch();
+          }
+        },
+        onSubmitted: _openSearch,
       ),
     );
   }
