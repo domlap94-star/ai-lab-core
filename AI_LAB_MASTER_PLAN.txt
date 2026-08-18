@@ -22,7 +22,7 @@ rozwój systemu.
 Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
 zgodna z założeniami tego dokumentu.
 
-AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+18
+AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+19
 
 [✓] CHUNK 13 — BUSINESS ASSISTANT — RELEASED. Globalny asystent pozostaje
     read-only: deterministyczna analityka, Global Search/Client AI retrieval,
@@ -32,13 +32,15 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+18
     geotagowanie zdjęć z best-effort fallback, inline notes z autosave oraz
     Android system speech-to-text pl-PL. Backend otrzymuje wyłącznie tekst;
     audio nie jest zapisywane ani wysyłane do NEXT Stabil.
-[✓] Web, Windows i Android 1.0.2+17 opublikowane. Brak background location,
+[✓] Web, Windows i Android 1.0.2+19 opublikowane. Brak background location,
     Qdrant writes, vector backfill, zmian n8n i historycznego cleanupu.
-[✓] CHUNK 14 — TECHNICAL AI — COMPLETE. Read-only Technical mode reuses
+[✓] CHUNK 14 — TECHNICAL AI — RELEASED in NEXT Stabil 1.0.2+19. Read-only Technical mode reuses
     Global Search, Client AI retrieval and existing document vectors with
     strict Client/Inspection scoping, deterministic citations and explicit
     facts / hypotheses / missing-data separation. No visual/photo analysis
-    was implemented in CHUNK 14.
+    was implemented in CHUNK 14. Model remains `llama3.2`; semantic coverage
+    remains limited to the existing 57 chunks / 11 documents and no vector
+    backfill was performed.
 [ ] CHUNK 15 — VISION / MULTIMODAL — NOT STARTED.
 [✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
     the form mounted while validating, reports invalid credentials and network
@@ -5455,9 +5457,10 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     legacy points lack `client_id`, therefore safely usable client-scoped
     vectors are 0 and scoped retrieval falls back to lexical data. No visual
     or photo analysis and no OCR were added.
-[✓] CHUNK 14 verification: focused backend 13/13 PASS, controlled local
-    llama3.2 E2E 10/10 PASS, relevant backend regressions 59/59 PASS, Flutter
-    analyze PASS and full Flutter suite 154/154 PASS.
+[✓] CHUNK 14 verification/release: focused backend 13/13 PASS, controlled
+    local llama3.2 E2E 10/10 PASS, required backend regressions PASS, Flutter
+    analyze PASS and full Flutter suite 160/160 PASS. NEXT Stabil 1.0.2+19 is
+    published for Web, Windows and Android with production API configuration.
 [ ] CHUNK 15 — VISION / MULTIMODAL: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
@@ -5543,6 +5546,7 @@ INSPECTION SIMPLIFICATION PATCH — NEXT STABIL 1.0.2+16:
     analytics + bounded Global Search/`llama3.2` evidence; no actions or
     conversation persistence). Semantic coverage remains limited to 57 chunks
     / 11 of 5909 Documents; no vector backfill or Qdrant write occurred.
-[ ] CHUNK 14 — TECHNICAL AI: NOT STARTED.
+[✓] CHUNK 14 — TECHNICAL AI: RELEASED in NEXT Stabil 1.0.2+19. No visual/photo
+    analysis or OCR was added; CHUNK 15 remains not started.
 
 KONIEC MASTER PLAN

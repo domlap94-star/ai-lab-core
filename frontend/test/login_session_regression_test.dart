@@ -108,7 +108,7 @@ Future<void> _pumpLogin(
         authRepositoryProvider.overrideWithValue(repository),
         appVersionProvider.overrideWith(
           (Ref ref) async =>
-              const AppVersionInfo(version: '1.0.2', buildNumber: '18'),
+              const AppVersionInfo(version: '1.0.2', buildNumber: '19'),
         ),
         updateCheckProvider.overrideWith(
           (Ref ref) async => throw StateError('offline in login test'),

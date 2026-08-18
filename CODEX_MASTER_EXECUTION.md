@@ -14,7 +14,7 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+18
+## CURRENT RELEASE — NEXT STABIL 1.0.2+19
 
 - CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
   read-only copilotem; deterministic analytics, Global Search retrieval,
@@ -31,13 +31,15 @@ kontraktu.
 - Flutter analyze PASS; pełny suite 146/146 PASS. Backend release regressions
   50/50 PASS, focused Business Assistant/Inspection 18/18 PASS. DB migration:
   NO; revision pozostaje `inspectclient_20260818 (head)`.
-- Web/Windows/Android 1.0.2+17: PUBLISHED; minimum_version 1.0.0. Fizyczny
+- Web/Windows/Android 1.0.2+19: PUBLISHED; minimum_version 1.0.0. Fizyczny
   Android GPS/camera/STT smoke: UNVERIFIED (brak urządzenia ADB).
-- CHUNK 14 — TECHNICAL AI: COMPLETE in source, not released. Read-only
+- CHUNK 14 — TECHNICAL AI: RELEASED. Read-only
   Technical mode reuses Global Search, Client AI and existing vectors with
   strict Client/Inspection scoping, deterministic citations and explicit
   facts / hypotheses / missing-data sections. No visual/photo analysis or OCR
-  was implemented.
+  was implemented. Web, Windows and Android use the production API URL;
+  semantic coverage remains limited to the existing 57 chunks / 11 documents
+  and no vector backfill was performed.
 - CHUNK 15 — VISION / MULTIMODAL: NOT STARTED.
 - LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
   during authentication, errors are user-facing, token persistence is read
@@ -591,7 +593,7 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Acceptance: provenance/versioning/audit i brak automatycznej publikacji.
 - Commit: `Add approval-gated business drafts`.
 
-### 14. Technical AI — TODO
+### 14. Technical AI — DONE / RELEASED IN 1.0.2+19
 
 - Cel: deterministyczne, weryfikowalne obliczenia. Zależności: 11–13.
 - Zakres: units/formulas/assumptions/intermediate results/source standards.
@@ -681,7 +683,7 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Gates: focused backend 8/8 PASS; relevant backend regression 47/47 plus
   script-based suites PASS; controlled local LLM E2E 8/8 PASS with rollback;
   Flutter analyze PASS and full 137/137 tests PASS.
-- CHUNK 14 — TECHNICAL AI: NOT STARTED.
+- CHUNK 14 — TECHNICAL AI: later completed and released in 1.0.2+19.
 
 ### P1 STABILIZATION — COMPLETE — NEXT STABIL 1.0.2+10
 
@@ -853,7 +855,7 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - CHUNK 13 — BUSINESS ASSISTANT: COMPLETE. See the CHUNK 13 delivery section:
   global `/ai` read-only analytics/retrieval, deterministic citations,
   bounded request-local history, no actions and no persistence.
-- CHUNK 14 — TECHNICAL AI: NOT STARTED.
+- CHUNK 14 — TECHNICAL AI: later completed and released in 1.0.2+19.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED
 
