@@ -194,7 +194,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Wystąpił błąd serwera. Spróbuj ponownie.'), findsOneWidget);
+    expect(
+      find.text('Wystąpił błąd serwera. Spróbuj ponownie.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('DioException'), findsNothing);
     await tester.tap(find.text('Spróbuj ponownie'));
     await tester.pumpAndSettle();
@@ -263,7 +266,7 @@ void main() {
     expect(find.text('Realizacja A'), findsOneWidget);
     expect(find.textContaining('Lokalizacja:'), findsOneWidget);
     expect(find.byKey(const Key('project-document-upload')), findsOneWidget);
-    expect(find.text('Wizje lokalne'), findsOneWidget);
+    expect(find.text('Wizje lokalne'), findsNothing);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('Usuń realizację'));

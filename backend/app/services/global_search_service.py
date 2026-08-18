@@ -343,11 +343,11 @@ class GlobalSearchService:
         pattern = f"%{q.value}%"
         rows = (
             self.db.query(Inspection, Project.name, Client.name)
-            .join(Project, Project.id == Inspection.project_id)
+            .outerjoin(Project, Project.id == Inspection.project_id)
             .join(Client, Client.id == Inspection.client_id)
             .filter(
                 Inspection.deleted_at.is_(None),
-                Project.deleted_at.is_(None),
+                or_(Inspection.project_id.is_(None), Project.deleted_at.is_(None)),
                 Client.deleted_at.is_(None),
                 or_(
                     Inspection.title.ilike(pattern),
@@ -387,7 +387,7 @@ class GlobalSearchService:
                     type="inspection",
                     id=inspection.id,
                     title=inspection.title,
-                    subtitle=f"{client_name} · {project_name}",
+                    subtitle=client_name,
                     snippet=self._matching_snippet(q.folded, [inspection.notes]),
                     score=score,
                     reasons=reasons,

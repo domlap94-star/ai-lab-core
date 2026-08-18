@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.models.inspection import Inspection
 from app.models.user import User
+from app.repositories.client_repository import ClientRepository
 from app.repositories.inspection_repository import InspectionRepository
-from app.repositories.project_repository import ProjectRepository
 from app.schemas.inspection import (
     InspectionCreate,
     InspectionPage,
@@ -17,11 +17,7 @@ class InspectionNotFoundError(Exception):
     pass
 
 
-class InspectionProjectNotFoundError(Exception):
-    pass
-
-
-class InspectionClientProjectMismatchError(Exception):
+class InspectionClientNotFoundError(Exception):
     pass
 
 
@@ -29,11 +25,13 @@ class InspectionService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = InspectionRepository(db)
-        self.projects = ProjectRepository(db)
+        self.clients = ClientRepository(db)
 
     @staticmethod
     def _read(inspection: Inspection) -> Inspection:
-        inspection.project_name = inspection.project.name
+        inspection.project_name = (
+            inspection.project.name if inspection.project is not None else None
+        )
         inspection.client_name = inspection.client.name
         return inspection
 
@@ -52,12 +50,17 @@ class InspectionService:
             limit=filters["limit"],
         )
 
-    def _validate_project_client(self, project_id: int, client_id: int) -> None:
-        project = self.projects.get(project_id)
-        if project is None:
-            raise InspectionProjectNotFoundError
-        if project.client_id != client_id:
-            raise InspectionClientProjectMismatchError
+    def _client(self, client_id: int):
+        client = self.clients.get(client_id)
+        if client is None:
+            raise InspectionClientNotFoundError
+        return client
+
+    @staticmethod
+    def _title(client_name: str, client_id: int) -> str:
+        normalized = " ".join(client_name.split())
+        suffix = normalized or f"klient #{client_id}"
+        return f"Wizja lokalna — {suffix}"[:255]
 
     @staticmethod
     def _complete_payload(payload: dict) -> dict:
@@ -67,10 +70,12 @@ class InspectionService:
 
     def create(self, data: InspectionCreate, actor: User) -> Inspection:
         payload = self._complete_payload(data.model_dump())
-        self._validate_project_client(payload["project_id"], payload["client_id"])
+        client = self._client(payload["client_id"])
         validated = InspectionCreate.model_validate(payload).model_dump()
         inspection = Inspection(
             **validated,
+            project_id=None,
+            title=self._title(client.name, client.id),
             created_by_user_id=actor.id,
             updated_by_user_id=actor.id,
         )
@@ -89,10 +94,11 @@ class InspectionService:
         if "status" in payload and payload["status"] != "completed":
             merged["completed_at"] = None
         merged = self._complete_payload(merged)
-        self._validate_project_client(merged["project_id"], merged["client_id"])
+        client = self._client(merged["client_id"])
         validated = InspectionCreate.model_validate(merged).model_dump()
         for key, value in validated.items():
             setattr(inspection, key, value)
+        inspection.title = self._title(client.name, client.id)
         inspection.updated_by_user_id = actor.id
         self.repository.update(inspection)
         return self.get(inspection.id)

@@ -1,20 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../clients/presentation/searchable_client_picker.dart';
-import '../../projects/application/projects_providers.dart';
-import '../../projects/domain/project.dart';
 import '../domain/inspection.dart';
 
 class InspectionFormDialog extends StatefulWidget {
   const InspectionFormDialog({
     super.key,
     this.inspection,
-    this.project,
     this.clientId,
     this.clientName,
   });
   final Inspection? inspection;
-  final Project? project;
   final int? clientId;
   final String? clientName;
   @override
@@ -22,14 +17,8 @@ class InspectionFormDialog extends StatefulWidget {
 }
 
 class _InspectionFormDialogState extends State<InspectionFormDialog> {
-  late int? _projectId = widget.project?.id ?? widget.inspection?.projectId;
-  late int? _clientId =
-      widget.project?.clientId ??
-      widget.inspection?.clientId ??
-      widget.clientId;
-  late final _title = TextEditingController(
-    text: widget.inspection?.title ?? '',
-  );
+  late int? _clientId = widget.inspection?.clientId ?? widget.clientId;
+  bool _clientMissing = false;
   late final _scheduled = TextEditingController(
     text: widget.inspection?.scheduledAt?.toIso8601String() ?? '',
   );
@@ -54,7 +43,6 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
   @override
   void dispose() {
     for (final value in <TextEditingController>[
-      _title,
       _scheduled,
       _started,
       _notes,
@@ -73,15 +61,6 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
           DateTime.tryParse(value.trim()) != null
       ? null
       : 'Nieprawidłowa data i czas';
-  void _useProjectLocation() {
-    final project = widget.project;
-    if (project?.latitude == null || project?.longitude == null) return;
-    setState(() {
-      _latitude.text = project!.latitude.toString();
-      _longitude.text = project.longitude.toString();
-    });
-  }
-
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
@@ -97,33 +76,26 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              if (widget.project != null)
-                InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Klient / realizacja',
-                  ),
-                  child: Text(
-                    '${widget.project!.clientName} • ${widget.project!.name}',
-                  ),
-                )
-              else
-                _ClientProjectSelection(
-                  initialClientId: _clientId,
-                  initialClientName:
-                      widget.inspection?.clientName ?? widget.clientName,
-                  initialProjectId: _projectId,
-                  onChanged: (clientId, projectId) {
-                    _clientId = clientId;
-                    _projectId = projectId;
-                  },
-                ),
-              TextFormField(
-                controller: _title,
-                decoration: const InputDecoration(labelText: 'Nazwa wizji'),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Podaj nazwę'
-                    : null,
+              SearchableClientPicker(
+                initialClientId: _clientId,
+                initialClientName:
+                    widget.inspection?.clientName ?? widget.clientName,
+                onChanged: (selection) => setState(() {
+                  _clientId = selection?.id;
+                  _clientMissing = false;
+                }),
               ),
+              if (_clientMissing)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Wybierz klienta.',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ),
               DropdownButtonFormField<InspectionStatus>(
                 initialValue: _status,
                 decoration: const InputDecoration(labelText: 'Status'),
@@ -166,14 +138,7 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
                   spacing: 8,
                   runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    const Text('Lokalizacja GPS'),
-                    if (widget.project?.latitude != null)
-                      TextButton(
-                        onPressed: _useProjectLocation,
-                        child: const Text('Użyj lokalizacji realizacji'),
-                      ),
-                  ],
+                  children: <Widget>[const Text('Lokalizacja GPS')],
                 ),
               ),
               TextFormField(
@@ -218,11 +183,12 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
       FilledButton(
         onPressed: () {
           if (!_form.currentState!.validate()) return;
-          if (_clientId == null || _projectId == null) return;
+          if (_clientId == null) {
+            setState(() => _clientMissing = true);
+            return;
+          }
           Navigator.pop(context, <String, dynamic>{
-            'project_id': _projectId,
             'client_id': _clientId,
-            'title': _title.text.trim(),
             'status': _status.apiValue,
             'scheduled_at': _scheduled.text.trim().isEmpty
                 ? null
@@ -240,81 +206,4 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
       ),
     ],
   );
-}
-
-class _ClientProjectSelection extends ConsumerStatefulWidget {
-  const _ClientProjectSelection({
-    required this.onChanged,
-    this.initialClientId,
-    this.initialClientName,
-    this.initialProjectId,
-  });
-  final int? initialClientId;
-  final String? initialClientName;
-  final int? initialProjectId;
-  final void Function(int? clientId, int? projectId) onChanged;
-
-  @override
-  ConsumerState<_ClientProjectSelection> createState() =>
-      _ClientProjectSelectionState();
-}
-
-class _ClientProjectSelectionState
-    extends ConsumerState<_ClientProjectSelection> {
-  late int? _clientId = widget.initialClientId;
-  late int? _projectId = widget.initialProjectId;
-
-  @override
-  Widget build(BuildContext context) {
-    final projects = _clientId == null
-        ? null
-        : ref.watch(
-            projectsPageProvider(ProjectQuery(clientId: _clientId, limit: 100)),
-          );
-    return Column(
-      children: <Widget>[
-        SearchableClientPicker(
-          initialClientId: _clientId,
-          initialClientName: widget.initialClientName,
-          onChanged: (selection) {
-            setState(() {
-              _clientId = selection?.id;
-              _projectId = null;
-            });
-            widget.onChanged(_clientId, _projectId);
-          },
-        ),
-        const SizedBox(height: 12),
-        if (_clientId == null)
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Najpierw wybierz klienta.'),
-          )
-        else if (projects?.isLoading == true)
-          const LinearProgressIndicator()
-        else if (projects?.hasError == true)
-          const Text('Nie udało się wczytać realizacji klienta.')
-        else
-          DropdownButtonFormField<int>(
-            key: ValueKey<int?>(_clientId),
-            initialValue: _projectId,
-            decoration: const InputDecoration(labelText: 'Realizacja'),
-            items: (projects?.value?.items ?? const <Project>[])
-                .map(
-                  (project) => DropdownMenuItem<int>(
-                    value: project.id,
-                    child: Text(project.name),
-                  ),
-                )
-                .toList(growable: false),
-            onChanged: (value) {
-              setState(() => _projectId = value);
-              widget.onChanged(_clientId, _projectId);
-            },
-            validator: (_) =>
-                _projectId == null ? 'Wybierz realizację klienta' : null,
-          ),
-      ],
-    );
-  }
 }

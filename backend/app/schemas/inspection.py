@@ -7,9 +7,7 @@ InspectionStatus = Literal["planned", "in_progress", "completed", "cancelled"]
 
 
 class InspectionBase(BaseModel):
-    project_id: int = Field(gt=0)
     client_id: int = Field(gt=0)
-    title: str = Field(min_length=1, max_length=255)
     status: InspectionStatus = "planned"
     scheduled_at: datetime | None = None
     started_at: datetime | None = None
@@ -19,7 +17,7 @@ class InspectionBase(BaseModel):
     longitude: float | None = Field(default=None, ge=-180, le=180)
     location_accuracy_m: float | None = Field(default=None, ge=0)
 
-    @field_validator("title", "notes", mode="before")
+    @field_validator("notes", mode="before")
     @classmethod
     def strip_strings(cls, value: object) -> object:
         if isinstance(value, str):
@@ -47,9 +45,7 @@ class InspectionCreate(InspectionBase):
 
 
 class InspectionUpdate(BaseModel):
-    project_id: int | None = Field(default=None, gt=0)
     client_id: int | None = Field(default=None, gt=0)
-    title: str | None = Field(default=None, min_length=1, max_length=255)
     status: InspectionStatus | None = None
     scheduled_at: datetime | None = None
     started_at: datetime | None = None
@@ -63,7 +59,9 @@ class InspectionUpdate(BaseModel):
 class InspectionRead(InspectionBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
-    project_name: str
+    project_id: int | None
+    project_name: str | None
+    title: str
     client_name: str
     created_at: datetime
     updated_at: datetime

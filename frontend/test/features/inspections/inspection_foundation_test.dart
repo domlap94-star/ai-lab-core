@@ -5,8 +5,6 @@ import 'package:ai_lab/features/inspections/domain/inspection.dart';
 import 'package:ai_lab/features/inspections/presentation/inspection_details_page.dart';
 import 'package:ai_lab/features/inspections/presentation/inspection_form_dialog.dart';
 import 'package:ai_lab/features/inspections/presentation/inspections_page.dart';
-import 'package:ai_lab/features/inspections/presentation/project_inspections_panel.dart';
-import 'package:ai_lab/features/projects/domain/project.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,11 +13,11 @@ import 'package:go_router/go_router.dart';
 
 Map<String, dynamic> _inspectionJson() => <String, dynamic>{
   'id': 12,
-  'project_id': 7,
-  'project_name': 'Realizacja A',
+  'project_id': null,
+  'project_name': null,
   'client_id': 3,
   'client_name': 'Klient A',
-  'title': 'Wizja elewacji',
+  'title': 'Wizja lokalna — Klient A',
   'status': 'planned',
   'scheduled_at': '2026-08-18T10:00:00Z',
   'started_at': null,
@@ -35,33 +33,11 @@ Map<String, dynamic> _inspectionJson() => <String, dynamic>{
 
 Inspection _inspection() => Inspection.fromJson(_inspectionJson());
 
-Project _project() => Project.fromJson(<String, dynamic>{
-  'id': 7,
-  'client_id': 3,
-  'client_name': 'Klient A',
-  'name': 'Realizacja A',
-  'description': null,
-  'status': 'active',
-  'start_date': null,
-  'end_date': null,
-  'street': 'Polna',
-  'building_number': '4',
-  'unit_number': null,
-  'postal_code': '00-001',
-  'city': 'Warszawa',
-  'country_code': 'PL',
-  'latitude': 52.1,
-  'longitude': 21.0,
-  'created_at': '2026-08-17T10:00:00Z',
-  'updated_at': '2026-08-17T10:00:00Z',
-  'deleted_at': null,
-});
-
 void main() {
-  test('inspection response preserves status, project and GPS location', () {
+  test('inspection response preserves client-only status and GPS location', () {
     final inspection = _inspection();
     expect(inspection.status, InspectionStatus.planned);
-    expect(inspection.projectId, 7);
+    expect(inspection.projectId, isNull);
     expect(inspection.clientId, 3);
     expect(inspection.location, contains('52.22970'));
   });
@@ -103,22 +79,17 @@ void main() {
     await api.list(
       session,
       search: 'elewacji',
-      projectId: 7,
       clientId: 3,
       status: InspectionStatus.planned,
       dateFrom: DateTime.utc(2026, 8, 17),
       dateTo: DateTime.utc(2026, 8, 19),
     );
     await api.get(session, 12);
-    await api.create(session, <String, dynamic>{
-      'project_id': 7,
-      'client_id': 3,
-      'title': 'Wizja',
-    });
+    await api.create(session, <String, dynamic>{'client_id': 3});
     await api.update(session, 12, <String, dynamic>{'status': 'completed'});
     await api.delete(session, 12);
 
-    expect(requests.first.queryParameters, containsPair('project_id', 7));
+    expect(requests.first.queryParameters.containsKey('project_id'), isFalse);
     expect(requests.first.queryParameters, containsPair('client_id', 3));
     expect(requests.first.queryParameters, containsPair('status', 'planned'));
     expect(requests.map((request) => request.method), <String>[
@@ -136,7 +107,7 @@ void main() {
     );
   });
 
-  testWidgets('form uses project location only after explicit action', (
+  testWidgets('create form requires only client and has no project or title', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -144,39 +115,33 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(body: InspectionFormDialog(project: _project())),
+      const MaterialApp(
+        home: Scaffold(
+          body: InspectionFormDialog(clientId: 3, clientName: 'Klient A'),
+        ),
       ),
     );
-    expect(find.text('Użyj lokalizacji realizacji'), findsOneWidget);
+    expect(find.text('Klient A'), findsOneWidget);
+    expect(find.text('Realizacja'), findsNothing);
+    expect(find.text('Nazwa wizji'), findsNothing);
     expect(find.text('Zapisz'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('project panel loads inspections lazily', (tester) async {
-    const query = InspectionQuery(projectId: 7, limit: 20);
+  testWidgets('edit form has no project or manual title', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          inspectionsPageProvider(query).overrideWith(
-            (ref) async => InspectionPage(
-              items: <Inspection>[_inspection()],
-              total: 1,
-              skip: 0,
-              limit: 20,
-            ),
-          ),
-        ],
-        child: MaterialApp(
-          home: Scaffold(body: ProjectInspectionsPanel(project: _project())),
-        ),
+      MaterialApp(
+        home: Scaffold(body: InspectionFormDialog(inspection: _inspection())),
       ),
     );
-    expect(find.text('Wizja elewacji'), findsNothing);
-    await tester.tap(find.byKey(const Key('project-inspections-toggle')));
-    await tester.pumpAndSettle();
-    expect(find.text('Wizja elewacji'), findsOneWidget);
-    expect(find.text('Dodaj wizję'), findsOneWidget);
+    expect(find.text('Edytuj wizję lokalną'), findsOneWidget);
+    expect(find.text('Realizacja'), findsNothing);
+    expect(find.text('Nazwa wizji'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(
@@ -211,7 +176,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Wizja elewacji'), findsOneWidget);
+      expect(find.text('Wizja lokalna'), findsWidgets);
+      expect(find.textContaining('Realizacja:'), findsNothing);
       expect(
         find.byKey(const Key('inspection-document-upload')),
         findsOneWidget,
@@ -257,7 +223,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Szukaj wizji'), findsOneWidget);
-    expect(find.text('Realizacja ID'), findsOneWidget);
+    expect(find.text('Realizacja ID'), findsNothing);
     expect(find.text('Klient ID'), findsOneWidget);
     expect(find.text('Status'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -297,9 +263,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      find.text(
-        'Brak połączenia z serwerem. Sprawdź sieć i spróbuj ponownie.',
-      ),
+      find.text('Brak połączenia z serwerem. Sprawdź sieć i spróbuj ponownie.'),
       findsOneWidget,
     );
     expect(find.textContaining('DioException'), findsNothing);

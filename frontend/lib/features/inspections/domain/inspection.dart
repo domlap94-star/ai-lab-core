@@ -18,8 +18,8 @@ extension InspectionStatusValue on InspectionStatus {
 class Inspection {
   const Inspection({
     required this.id,
-    required this.projectId,
-    required this.projectName,
+    this.projectId,
+    this.projectName,
     required this.clientId,
     required this.clientName,
     required this.title,
@@ -35,8 +35,8 @@ class Inspection {
     this.locationAccuracyM,
   });
   final int id;
-  final int projectId;
-  final String projectName;
+  final int? projectId;
+  final String? projectName;
   final int clientId;
   final String clientName;
   final String title;
@@ -55,8 +55,8 @@ class Inspection {
       : '${latitude!.toStringAsFixed(5)}, ${longitude!.toStringAsFixed(5)}';
   factory Inspection.fromJson(Map<String, dynamic> json) => Inspection(
     id: json['id'] as int,
-    projectId: json['project_id'] as int,
-    projectName: json['project_name']?.toString() ?? '',
+    projectId: json['project_id'] as int?,
+    projectName: json['project_name']?.toString(),
     clientId: json['client_id'] as int,
     clientName: json['client_name']?.toString() ?? '',
     title: json['title']?.toString() ?? '',

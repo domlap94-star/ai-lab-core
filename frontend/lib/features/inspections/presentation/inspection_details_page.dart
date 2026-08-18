@@ -83,7 +83,7 @@ class InspectionDetailsPage extends ConsumerWidget {
           .read(inspectionsApiProvider)
           .delete(requireInspectionWidgetSession(ref), item.id);
       ref.invalidate(inspectionsPageProvider);
-      if (context.mounted) context.go('/projects/${item.projectId}');
+      if (context.mounted) context.go('/inspections');
     }
   }
 
@@ -145,10 +145,9 @@ class InspectionDetailsPage extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        item.title,
+                        'Wizja lokalna',
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                      Text('Realizacja: ${item.projectName}'),
                       Text('Klient: ${item.clientName}'),
                       Text('Status: ${item.status.label}'),
                       Text(
@@ -188,7 +187,6 @@ class InspectionDetailsPage extends ConsumerWidget {
                                 ),
                                 session: requireInspectionWidgetSession(ref),
                                 clientId: item.clientId,
-                                projectId: item.projectId,
                                 inspectionId: item.id,
                               ),
                             ),

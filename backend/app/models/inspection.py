@@ -46,8 +46,8 @@ class Inspection(BusinessBase):
         Index("ix_inspections_deleted_at", "deleted_at"),
     )
 
-    project_id: Mapped[int] = mapped_column(
-        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=False
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
     )
     client_id: Mapped[int] = mapped_column(
         ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False

@@ -5,7 +5,6 @@ import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
-import '../../inspections/presentation/project_inspections_panel.dart';
 import '../../timeline/domain/timeline.dart';
 import '../../timeline/presentation/timeline_panel.dart';
 import '../application/projects_providers.dart';
@@ -173,7 +172,6 @@ class ProjectDetailsPage extends ConsumerWidget {
                   ),
                 ),
               ),
-              ProjectInspectionsPanel(project: project),
               const SizedBox(height: 16),
               TimelinePanel(
                 scope: TimelineScope.project,

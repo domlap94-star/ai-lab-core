@@ -17,17 +17,14 @@ class InspectionsPage extends ConsumerStatefulWidget {
 
 class _InspectionsPageState extends ConsumerState<InspectionsPage> {
   final _search = TextEditingController();
-  final _project = TextEditingController();
   final _client = TextEditingController();
   Timer? _debounce;
   String _query = '';
-  int? _projectId;
   int? _clientId;
   InspectionStatus? _status;
   int _skip = 0;
   InspectionQuery get query => InspectionQuery(
     search: _query,
-    projectId: _projectId,
     clientId: _clientId,
     status: _status,
     skip: _skip,
@@ -36,7 +33,6 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
   void dispose() {
     _debounce?.cancel();
     _search.dispose();
-    _project.dispose();
     _client.dispose();
     super.dispose();
   }
@@ -107,21 +103,6 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
                     SizedBox(
                       width: narrowField,
                       child: TextField(
-                        controller: _project,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Realizacja ID',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (value) => setState(() {
-                          _projectId = int.tryParse(value);
-                          _skip = 0;
-                        }),
-                      ),
-                    ),
-                    SizedBox(
-                      width: narrowField,
-                      child: TextField(
                         controller: _client,
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
@@ -184,9 +165,9 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
                             vertical: 6,
                           ),
                           child: ListTile(
-                            title: Text(item.title),
+                            title: const Text('Wizja lokalna'),
                             subtitle: Text(
-                              '${item.projectName} • ${item.clientName}\n${item.status.label} • ${item.scheduledAt?.toLocal().toString() ?? 'bez terminu'}',
+                              '${item.clientName}\n${item.status.label} • ${item.scheduledAt?.toLocal().toString() ?? 'bez terminu'}',
                             ),
                             isThreeLine: true,
                             onTap: () =>

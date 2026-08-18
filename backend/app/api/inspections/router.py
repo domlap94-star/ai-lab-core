@@ -14,9 +14,8 @@ from app.schemas.inspection import (
     InspectionUpdate,
 )
 from app.services.inspection_service import (
-    InspectionClientProjectMismatchError,
+    InspectionClientNotFoundError,
     InspectionNotFoundError,
-    InspectionProjectNotFoundError,
     InspectionService,
 )
 
@@ -26,9 +25,7 @@ router = APIRouter(prefix="/inspections", tags=["Inspections"])
 def _error(error: Exception) -> HTTPException:
     if isinstance(error, InspectionNotFoundError):
         return HTTPException(status_code=404, detail="Inspection not found")
-    if isinstance(error, InspectionProjectNotFoundError):
-        return HTTPException(status_code=422, detail="Project does not exist or is inactive")
-    return HTTPException(status_code=409, detail="Inspection client must match project client")
+    return HTTPException(status_code=422, detail="Client does not exist or is inactive")
 
 
 @router.get("", response_model=InspectionPage)
@@ -78,7 +75,7 @@ def create_inspection(
 ) -> InspectionRead:
     try:
         return InspectionService(db).create(data, current_user)
-    except (InspectionProjectNotFoundError, InspectionClientProjectMismatchError) as error:
+    except InspectionClientNotFoundError as error:
         raise _error(error) from error
 
 
@@ -93,8 +90,7 @@ def update_inspection(
         return InspectionService(db).update(inspection_id, data, current_user)
     except (
         InspectionNotFoundError,
-        InspectionProjectNotFoundError,
-        InspectionClientProjectMismatchError,
+        InspectionClientNotFoundError,
     ) as error:
         raise _error(error) from error
 

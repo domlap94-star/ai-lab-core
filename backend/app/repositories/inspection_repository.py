@@ -35,12 +35,15 @@ class InspectionRepository(BaseRepository[Inspection]):
     ) -> tuple[list[Inspection], int]:
         query = (
             self.db.query(Inspection)
-            .join(Project, Inspection.project_id == Project.id)
+            .outerjoin(Project, Inspection.project_id == Project.id)
             .join(Client, Inspection.client_id == Client.id)
             .options(joinedload(Inspection.project), joinedload(Inspection.client))
             .filter(
                 Inspection.deleted_at.is_(None),
-                Project.deleted_at.is_(None),
+                or_(
+                    Inspection.project_id.is_(None),
+                    Project.deleted_at.is_(None),
+                ),
                 Client.deleted_at.is_(None),
             )
         )

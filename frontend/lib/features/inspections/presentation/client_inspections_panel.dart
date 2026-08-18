@@ -83,17 +83,13 @@ class _ClientInspectionsPanelState
                       ref.invalidate(inspectionsPageProvider(_query)),
                 ),
                 data: (page) => page.items.isEmpty
-                    ? const Text(
-                        'Brak wizji lokalnych. Najpierw dodaj realizację dla tego klienta.',
-                      )
+                    ? const Text('Brak wizji lokalnych.')
                     : Column(
                         children: page.items
                             .map(
                               (inspection) => ListTile(
-                                title: Text(inspection.title),
-                                subtitle: Text(
-                                  '${inspection.status.label} • ${inspection.projectName}',
-                                ),
+                                title: const Text('Wizja lokalna'),
+                                subtitle: Text(inspection.status.label),
                                 trailing: Text(
                                   inspection.scheduledAt
                                           ?.toLocal()
