@@ -11,6 +11,7 @@ from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
 from app.models.client_workflow_status import ClientWorkflowStatus
 from app.models.document import Document
+from app.models.document_client_link_event import DocumentClientLinkEvent
 from app.models.inspection import Inspection
 from app.models.project import Project
 from app.repositories.client_email_repository import LINKED_CANDIDATE_STATUSES
@@ -105,6 +106,7 @@ class BusinessAnalyticsService:
             documents_searched=self.db.query(Document).count(),
             inspections_considered=self.db.query(Inspection).filter(Inspection.deleted_at.is_(None)).count(),
             projects_considered=self.db.query(Project).filter(Project.deleted_at.is_(None)).count(),
+            timeline_events_considered=self.db.query(DocumentClientLinkEvent).count(),
         )
 
     def _active_clients(self):
@@ -159,9 +161,20 @@ class BusinessAnalyticsService:
             "e-maili": self.db.query(CandidateSource).filter(CandidateSource.deleted_at.is_(None), CandidateSource.source_type == "gmail_message", CandidateSource.created_at >= since).count(),
             "wizji": self.db.query(Inspection).filter(Inspection.deleted_at.is_(None), Inspection.created_at >= since).count(),
             "realizacji": self.db.query(Project).filter(Project.deleted_at.is_(None), Project.created_at >= since).count(),
+            "zdarzeń powiązań": self.db.query(DocumentClientLinkEvent).filter(DocumentClientLinkEvent.created_at >= since).count(),
         }
         text = ", ".join(f"{count} {label}" for label, count in values.items())
-        return self._answer(f"W ostatnich 7 dniach odnotowano: {text}.", "Aktywność CRM — ostatnie 7 dni", sum(values.values()), coverage, now)
+        analytics = self._answer(f"W ostatnich 7 dniach odnotowano: {text}.", "Aktywność CRM — ostatnie 7 dni", sum(values.values()), coverage, now)
+        events = self.db.query(DocumentClientLinkEvent).filter(
+            DocumentClientLinkEvent.created_at >= since
+        ).order_by(DocumentClientLinkEvent.created_at.desc(), DocumentClientLinkEvent.id.desc()).limit(5).all()
+        timeline_sources = [BusinessSource(
+            source_type="timeline", source_id=event.id,
+            title=f"Powiązanie dokumentu — {event.action}", date=event.created_at,
+            route=(f"/clients/{event.new_client_id or event.old_client_id}" if event.new_client_id or event.old_client_id else f"/documents?document_id={event.document_id}"),
+            snippet=f"Zdarzenie {event.action} dla dokumentu #{event.document_id}.",
+        ) for event in events]
+        return AnalyticsAnswer(analytics.answer, analytics.sources + timeline_sources, coverage)
 
     def _pipeline(self, coverage: BusinessCoverage, now: datetime) -> AnalyticsAnswer:
         grouped = dict(self.db.query(ClientWorkflowStatus.status, func.count(ClientWorkflowStatus.id)).join(Client, Client.id == ClientWorkflowStatus.client_id).filter(Client.deleted_at.is_(None), ClientWorkflowStatus.deleted_at.is_(None)).group_by(ClientWorkflowStatus.status).all())

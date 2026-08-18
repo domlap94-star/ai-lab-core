@@ -15,8 +15,10 @@ from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
 from app.models.client_workflow_status import ClientWorkflowStatus
 from app.models.document import Document
+from app.models.document_client_link_event import DocumentClientLinkEvent
 from app.models.import_source import ImportSource
 from app.models.inspection import Inspection
+from app.models.user import User
 from app.schemas.search import GlobalSearchPage, GlobalSearchResult
 from app.schemas.business_assistant import BusinessAskRequest
 from app.services.business_assistant_service import BusinessAssistantModelUnavailable
@@ -80,6 +82,10 @@ class BusinessAssistantTests(unittest.IsolatedAsyncioTestCase):
         self.inspection = Inspection(client_id=self.client.id, title=f"Wizja lokalna — {self.client.name}", status="planned", scheduled_at=datetime.now(UTC) + timedelta(days=1))
         self.db.add_all([self.document, self.inspection])
         self.db.flush()
+        actor = self.db.query(User).filter(User.is_active.is_(True)).first()
+        self.assertIsNotNone(actor)
+        self.db.add(DocumentClientLinkEvent(document_id=self.document.id, actor_user_id=actor.id, action="LINK", new_client_id=self.client.id, reason="chunk13-test"))
+        self.db.flush()
 
     def tearDown(self):
         self.db.close()
@@ -101,6 +107,8 @@ class BusinessAssistantTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(result.direct_answer)
                 self.assertTrue(result.answer)
                 self.assertTrue(result.sources)
+                if question.startswith("Co wydarzyło"):
+                    self.assertTrue(any(source.source_type == "timeline" for source in result.sources))
         self.assertEqual(llm.prompts, [])
 
     async def test_search_reuse_citations_and_injection_boundary(self):
