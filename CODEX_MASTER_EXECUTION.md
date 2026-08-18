@@ -14,7 +14,7 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+19
+## CURRENT RELEASE — NEXT STABIL 1.0.2+20
 
 - CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
   read-only copilotem; deterministic analytics, Global Search retrieval,
@@ -40,14 +40,15 @@ kontraktu.
   was implemented. Web, Windows and Android use the production API URL;
   semantic coverage remains limited to the existing 57 chunks / 11 documents
   and no vector backfill was performed.
-- CHUNK 15 — VISION / MULTIMODAL: COMPLETE IN SOURCE / NOT RELEASED.
+- CHUNK 15 — VISION / MULTIMODAL: RELEASED IN NEXT STABIL 1.0.2+20.
   Deterministic VisionNeedClassifier klasyfikuje każdy rzeczywiście nowy
   Document, a wymagane obrazy/strony mogą przejść przez prywatny supervisor i
   izolowany ChatGPT Temporary Chat browser worker. Wynik V1 jest walidowany i
   używany przez Technical AI z cytowaniem oryginalnego źródła. Historyczne
   Documents pozostają on-demand, bez backfillu; OpenAI API, local Vision,
   image embeddings i Qdrant writes nie są używane. Produkcyjna automatyzacja
-  pozostaje OFF do release.
+  jest aktywna dla nowych Documents; historia pozostaje on-demand bez
+  backfillu. Temporary Chat podlega aktualnej polityce retencji OpenAI.
 - CHUNK 16 — AGENT: NOT STARTED.
 - LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
   during authentication, errors are user-facing, token persistence is read

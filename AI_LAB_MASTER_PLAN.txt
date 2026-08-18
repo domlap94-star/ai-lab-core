@@ -22,7 +22,7 @@ rozwój systemu.
 Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
 zgodna z założeniami tego dokumentu.
 
-AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+19
+AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+20
 
 [✓] CHUNK 13 — BUSINESS ASSISTANT — RELEASED. Globalny asystent pozostaje
     read-only: deterministyczna analityka, Global Search/Client AI retrieval,
@@ -41,15 +41,16 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+19
     was implemented in CHUNK 14. Model remains `llama3.2`; semantic coverage
     remains limited to the existing 57 chunks / 11 documents and no vector
     backfill was performed.
-[✓] CHUNK 15 — VISION / MULTIMODAL — COMPLETE IN SOURCE / NOT RELEASED.
+[✓] CHUNK 15 — VISION / MULTIMODAL — RELEASED IN NEXT STABIL 1.0.2+20.
     Każdy rzeczywiście nowy Document otrzymuje trwałą klasyfikację Vision;
-    automatyczna analiza kwalifikowanych plików pozostaje wyłączona do release.
+    automatyczna analiza kwalifikowanych nowych plików jest aktywna.
     Historyczne Documents są analizowane wyłącznie on-demand, bez backfillu.
     Executor używa izolowanego ChatGPT Temporary Chat browser workera, nie
     OpenAI API ani lokalnego modelu Vision. Wynik jest walidowany, wersjonowany
     i mapowany do oryginalnej proweniencji dla Technical AI. Local CPU Vision
     jest runtime-blocked, a AMD/Vulkan multimodal jest niestabilny na obecnym
-    sprzęcie. Image embeddings i Qdrant writes: NO.
+    sprzęcie. Image embeddings i Qdrant writes: NO. Temporary Chat nie jest
+    gwarancją zero-retention; obowiązuje aktualna polityka retencji OpenAI.
 [ ] CHUNK 16 — AGENT — NOT STARTED.
 [✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
     the form mounted while validating, reports invalid credentials and network
@@ -5470,12 +5471,14 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     local llama3.2 E2E 10/10 PASS, required backend regressions PASS, Flutter
     analyze PASS and full Flutter suite 160/160 PASS. NEXT Stabil 1.0.2+19 is
     published for Web, Windows and Android with production API configuration.
-[✓] CHUNK 15 — VISION / MULTIMODAL: COMPLETE IN SOURCE / NOT RELEASED.
+[✓] CHUNK 15 — VISION / MULTIMODAL: RELEASED IN NEXT STABIL 1.0.2+20.
     VisionNeedClassifier obejmuje nowe Documents, wymagane elementy wizualne
     są kierowane do izolowanego Temporary Chat browser workera po późniejszym
     włączeniu flagi produkcyjnej, a historia pozostaje on-demand bez backfillu.
     OpenAI API i lokalny Vision nie są używane; brak image embeddings/Qdrant
-    writes. Automatyzacja produkcyjna pozostaje OFF do osobnego release.
+    writes. Automatyzacja produkcyjna jest aktywna dla nowych Documents;
+    historia pozostaje on-demand bez backfillu. Temporary Chat podlega
+    aktualnej polityce retencji OpenAI.
 [ ] CHUNK 16 — AGENT: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
