@@ -5,11 +5,13 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
     Index,
+    Integer,
     JSON,
     String,
     Text,
@@ -130,6 +132,15 @@ class Document(Base):
         Index(
             "ix_documents_captured_at",
             "captured_at",
+        ),
+        Index(
+            "ix_documents_vision_auto_eligible_status",
+            "vision_auto_eligible",
+            "vision_status",
+        ),
+        Index(
+            "ix_documents_vision_next_retry_at",
+            "vision_next_retry_at",
         ),
     )
 
@@ -265,6 +276,57 @@ class Document(Base):
 
     processing_error: Mapped[str | None] = mapped_column(
         Text,
+        nullable=True,
+    )
+
+    vision_classification: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    vision_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="not_evaluated",
+        server_default="not_evaluated",
+    )
+
+    vision_auto_eligible: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+
+    vision_attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+
+    vision_next_retry_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    vision_error_code: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    vision_analyzed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    vision_schema_version: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    vision_source_checksum: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
     )
 

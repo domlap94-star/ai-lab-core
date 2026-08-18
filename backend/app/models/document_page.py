@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -30,6 +31,10 @@ class DocumentPage(Base):
             "document_id",
             "page_number",
             name="uq_document_pages_document_page",
+        ),
+        Index(
+            "ix_document_pages_vision_status",
+            "vision_status",
         ),
     )
 
@@ -107,6 +112,40 @@ class DocumentPage(Base):
 
     vision_analysis: Mapped[str | None] = mapped_column(
         Text,
+        nullable=True,
+    )
+
+    vision_status: Mapped[str] = mapped_column(
+        String(30),
+        nullable=False,
+        default="not_evaluated",
+        server_default="not_evaluated",
+    )
+
+    vision_attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+
+    vision_error_code: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    vision_analyzed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    vision_schema_version: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    vision_source_checksum: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
     )
 

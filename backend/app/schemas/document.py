@@ -1,9 +1,31 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Literal
+
+
+VisionClassification = Literal[
+    "text_sufficient",
+    "vision_required",
+    "vision_optional",
+    "unsupported",
+]
+
+VisionStatus = Literal[
+    "not_evaluated",
+    "not_needed",
+    "pending",
+    "queued",
+    "processing",
+    "complete",
+    "failed_retryable",
+    "failed_permanent",
+    "pending_auth",
+    "ui_changed",
+    "partial",
+]
 
 
 class DocumentRead(BaseModel):
@@ -43,6 +65,16 @@ class DocumentRead(BaseModel):
     processing_status: str
     processing_error: str | None
 
+    vision_classification: VisionClassification | None
+    vision_status: VisionStatus
+    vision_auto_eligible: bool
+    vision_attempt_count: int
+    vision_next_retry_at: datetime | None
+    vision_error_code: str | None
+    vision_analyzed_at: datetime | None
+    vision_schema_version: str | None
+    vision_source_checksum: str | None
+
     match_status: str
     match_confidence: float | None
     match_method: str | None
@@ -79,6 +111,15 @@ class DocumentPublicRead(BaseModel):
     candidate_id: int | None
     candidate_name: str | None
     processing_status: str
+    vision_classification: VisionClassification | None
+    vision_status: VisionStatus
+    vision_auto_eligible: bool
+    vision_attempt_count: int
+    vision_next_retry_at: datetime | None
+    vision_error_code: str | None
+    vision_analyzed_at: datetime | None
+    vision_schema_version: str | None
+    vision_source_checksum: str | None
     metadata_status: str
     match_status: str
     match_confidence: float | None
