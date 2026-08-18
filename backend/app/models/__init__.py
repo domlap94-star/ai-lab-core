@@ -1,3 +1,4 @@
+from app.models.agent_execution import AgentExecution
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
 from app.models.client_workflow_status import ClientWorkflowStatus
@@ -21,6 +22,7 @@ from app.models.user import User
 from app.models.user_lifecycle_event import UserLifecycleEvent
 
 __all__ = [
+    "AgentExecution",
     "CandidateSource",
     "Client",
     "ClientWorkflowStatus",
