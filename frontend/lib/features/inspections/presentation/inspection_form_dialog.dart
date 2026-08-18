@@ -25,31 +25,12 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
   late final _started = TextEditingController(
     text: widget.inspection?.startedAt?.toIso8601String() ?? '',
   );
-  late final _notes = TextEditingController(
-    text: widget.inspection?.notes ?? '',
-  );
-  late final _latitude = TextEditingController(
-    text: widget.inspection?.latitude?.toString() ?? '',
-  );
-  late final _longitude = TextEditingController(
-    text: widget.inspection?.longitude?.toString() ?? '',
-  );
-  late final _accuracy = TextEditingController(
-    text: widget.inspection?.locationAccuracyM?.toString() ?? '',
-  );
   late InspectionStatus _status =
       widget.inspection?.status ?? InspectionStatus.planned;
   final _form = GlobalKey<FormState>();
   @override
   void dispose() {
-    for (final value in <TextEditingController>[
-      _scheduled,
-      _started,
-      _notes,
-      _latitude,
-      _longitude,
-      _accuracy,
-    ]) {
+    for (final value in <TextEditingController>[_scheduled, _started]) {
       value.dispose();
     }
     super.dispose();
@@ -124,52 +105,6 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
                 ),
                 validator: _date,
               ),
-              TextFormField(
-                controller: _notes,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Notatki wizji lokalnej',
-                ),
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[const Text('Lokalizacja GPS')],
-                ),
-              ),
-              TextFormField(
-                controller: _latitude,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Szerokość geograficzna',
-                ),
-              ),
-              TextFormField(
-                controller: _longitude,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                  signed: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Długość geograficzna',
-                ),
-              ),
-              TextFormField(
-                controller: _accuracy,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Dokładność GPS (m)',
-                ),
-              ),
             ],
           ),
         ),
@@ -196,10 +131,6 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
             'started_at': _started.text.trim().isEmpty
                 ? null
                 : _started.text.trim(),
-            'notes': _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-            'latitude': double.tryParse(_latitude.text.trim()),
-            'longitude': double.tryParse(_longitude.text.trim()),
-            'location_accuracy_m': double.tryParse(_accuracy.text.trim()),
           });
         },
         child: const Text('Zapisz'),

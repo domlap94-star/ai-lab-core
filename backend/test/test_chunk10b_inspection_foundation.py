@@ -212,6 +212,45 @@ class InspectionFoundationDatabaseTests(unittest.TestCase):
         )
         self.assertEqual(updated.project_id, self.project.id)
 
+    def test_partial_notes_and_location_updates_do_not_overwrite_each_other(self) -> None:
+        inspection = self._create(notes="Initial field note")
+        original_status = inspection.status
+        original_scheduled_at = inspection.scheduled_at
+        original_latitude = inspection.latitude
+        original_longitude = inspection.longitude
+
+        notes_updated = self.service.update(
+            inspection.id,
+            InspectionUpdate(notes="Autosaved field note"),
+            self.actor,
+        )
+        self.assertEqual(notes_updated.notes, "Autosaved field note")
+        self.assertEqual(notes_updated.status, original_status)
+        self.assertEqual(notes_updated.scheduled_at, original_scheduled_at)
+        self.assertEqual(notes_updated.latitude, original_latitude)
+        self.assertEqual(notes_updated.longitude, original_longitude)
+
+        location_updated = self.service.update(
+            inspection.id,
+            InspectionUpdate(
+                latitude=50.0614,
+                longitude=19.9383,
+                location_accuracy_m=7.5,
+            ),
+            self.actor,
+        )
+        self.assertEqual(location_updated.notes, "Autosaved field note")
+        self.assertEqual(location_updated.status, original_status)
+        self.assertEqual(location_updated.latitude, 50.0614)
+        self.assertEqual(location_updated.longitude, 19.9383)
+        self.assertEqual(location_updated.location_accuracy_m, 7.5)
+
+    def test_invalid_location_and_oversized_notes_are_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            InspectionUpdate(latitude=91)
+        with self.assertRaises(ValidationError):
+            InspectionUpdate(notes="x" * 10_001)
+
     def test_soft_delete_preserves_document_and_legacy_session_value(self) -> None:
         inspection = self._create()
         suffix = uuid.uuid4().hex

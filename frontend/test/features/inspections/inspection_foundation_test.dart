@@ -124,6 +124,9 @@ void main() {
     expect(find.text('Klient A'), findsOneWidget);
     expect(find.text('Realizacja'), findsNothing);
     expect(find.text('Nazwa wizji'), findsNothing);
+    expect(find.text('Szerokość geograficzna'), findsNothing);
+    expect(find.text('Długość geograficzna'), findsNothing);
+    expect(find.text('Dokładność GPS (m)'), findsNothing);
     expect(find.text('Zapisz'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -141,6 +144,9 @@ void main() {
     expect(find.text('Edytuj wizję lokalną'), findsOneWidget);
     expect(find.text('Realizacja'), findsNothing);
     expect(find.text('Nazwa wizji'), findsNothing);
+    expect(find.text('Szerokość geograficzna'), findsNothing);
+    expect(find.text('Długość geograficzna'), findsNothing);
+    expect(find.text('Dokładność GPS (m)'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

@@ -9,8 +9,10 @@ import '../application/inspections_providers.dart';
 import '../domain/inspection.dart';
 import 'inspection_form_dialog.dart';
 
-class InspectionDetailsPage extends ConsumerWidget {
-  const InspectionDetailsPage({
+export 'inspection_details_page_v2.dart';
+
+class LegacyInspectionDetailsPage extends ConsumerWidget {
+  const LegacyInspectionDetailsPage({
     required this.inspectionId,
     this.returnPath,
     super.key,

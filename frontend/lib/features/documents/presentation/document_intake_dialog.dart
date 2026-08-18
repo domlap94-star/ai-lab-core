@@ -3,11 +3,11 @@ import 'dart:io' show Platform;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../auth/domain/auth_session.dart';
 import '../../clients/presentation/searchable_client_picker.dart';
+import '../../inspections/application/inspection_field_services.dart';
 import '../application/documents_repository.dart';
 
 class IntakeFile {
@@ -17,15 +17,57 @@ class IntakeFile {
     this.bytes,
     required this.origin,
     this.capturedAt,
+    this.location,
   });
   final String name;
   final String? path;
   final Uint8List? bytes;
   final String origin;
   final DateTime? capturedAt;
+  final FieldLocationResult? location;
   double progress = 0;
   String? error;
   bool complete = false;
+}
+
+abstract class DocumentImagePicker {
+  Future<List<IntakeFile>> pickGallery();
+  Future<IntakeFile?> captureCamera();
+}
+
+class SystemDocumentImagePicker implements DocumentImagePicker {
+  @override
+  Future<List<IntakeFile>> pickGallery() async {
+    final files = await FilePicker.pickFiles(type: FileType.image);
+    final selected = <IntakeFile>[];
+    for (final file in files) {
+      selected.add(
+        IntakeFile(
+          name: file.name,
+          path: file.path,
+          bytes: file.path == null ? await file.readAsBytes() : null,
+          origin: 'gallery_upload',
+          capturedAt: DateTime.now(),
+        ),
+      );
+    }
+    return selected;
+  }
+
+  @override
+  Future<IntakeFile?> captureCamera() async {
+    final XFile? image = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 100,
+    );
+    if (image == null) return null;
+    return IntakeFile(
+      name: image.name,
+      path: kIsWeb ? null : image.path,
+      origin: 'camera_capture',
+      capturedAt: DateTime.now(),
+    );
+  }
 }
 
 class DocumentIntakeDialog extends StatefulWidget {
@@ -36,6 +78,8 @@ class DocumentIntakeDialog extends StatefulWidget {
     this.clientId,
     this.projectId,
     this.inspectionId,
+    this.locationService,
+    this.imagePicker,
     this.onCompleted,
   });
   final DocumentsRepository repository;
@@ -43,6 +87,8 @@ class DocumentIntakeDialog extends StatefulWidget {
   final int? clientId;
   final int? projectId;
   final int? inspectionId;
+  final InspectionLocationService? locationService;
+  final DocumentImagePicker? imagePicker;
   final VoidCallback? onCompleted;
 
   @override
@@ -56,6 +102,11 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
   bool _includeLocation = false;
   bool _uploading = false;
 
+  InspectionLocationService get _locationService =>
+      widget.locationService ?? DeviceInspectionLocationService();
+  DocumentImagePicker get _imagePicker =>
+      widget.imagePicker ?? SystemDocumentImagePicker();
+
   bool get _android =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
@@ -65,8 +116,8 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
     super.dispose();
   }
 
-  Future<void> _pickFiles({FileType type = FileType.any}) async {
-    final files = await FilePicker.pickFiles(type: type);
+  Future<void> _pickFiles() async {
+    final files = await FilePicker.pickFiles();
     if (!mounted || files.isEmpty) return;
     final selected = <IntakeFile>[];
     for (final file in files) {
@@ -75,27 +126,56 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
           name: file.name,
           path: file.path,
           bytes: file.path == null ? await file.readAsBytes() : null,
-          origin: type == FileType.image ? 'gallery_upload' : 'manual_upload',
+          origin: 'manual_upload',
         ),
       );
     }
     if (mounted) setState(() => _files.addAll(selected));
   }
 
-  Future<void> _camera() async {
-    final XFile? image = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 100,
+  Future<void> _gallery() async {
+    final List<IntakeFile> selected = await _imagePicker.pickGallery();
+    if (selected.isEmpty || !mounted) return;
+    final FieldLocationResult? location = widget.inspectionId == null
+        ? null
+        : await _locationService.currentLocation();
+    if (!mounted) return;
+    final FieldLocationResult? usable =
+        location?.status == FieldLocationStatus.success ? location : null;
+    setState(
+      () => _files.addAll(
+        selected.map(
+          (file) => IntakeFile(
+            name: file.name,
+            path: file.path,
+            bytes: file.bytes,
+            origin: file.origin,
+            capturedAt: file.capturedAt ?? DateTime.now(),
+            location: usable,
+          ),
+        ),
+      ),
     );
+  }
+
+  Future<void> _camera() async {
+    final IntakeFile? image = await _imagePicker.captureCamera();
     if (image == null || !mounted) return;
+    final FieldLocationResult? location = widget.inspectionId == null
+        ? null
+        : await _locationService.currentLocation();
+    if (!mounted) return;
     setState(
       () => _files.add(
         IntakeFile(
           name: image.name,
-          path: kIsWeb ? null : image.path,
-          bytes: kIsWeb ? null : null,
+          path: image.path,
+          bytes: image.bytes,
           origin: 'camera_capture',
-          capturedAt: DateTime.now(),
+          capturedAt: image.capturedAt ?? DateTime.now(),
+          location: location?.status == FieldLocationStatus.success
+              ? location
+              : null,
         ),
       ),
     );
@@ -103,18 +183,11 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
 
   String _deviceModel() => kIsWeb ? 'Web browser' : Platform.operatingSystem;
 
-  Future<Position?> _position() async {
+  Future<FieldLocationResult?> _position() async {
     if (!_includeLocation) return null;
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        return null;
-      }
-      return Geolocator.getCurrentPosition();
+      final result = await _locationService.currentLocation();
+      return result.status == FieldLocationStatus.success ? result : null;
     } catch (_) {
       return null;
     }
@@ -123,7 +196,7 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
   Future<void> _upload() async {
     if (_files.isEmpty) return;
     setState(() => _uploading = true);
-    final Position? position = await _position();
+    final FieldLocationResult? position = await _position();
     final String device = _deviceModel();
     for (final file in _files.where((file) => !file.complete)) {
       try {
@@ -141,9 +214,9 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
           inspectionId: widget.inspectionId,
           origin: file.origin,
           capturedAt: file.capturedAt,
-          latitude: position?.latitude,
-          longitude: position?.longitude,
-          accuracy: position?.accuracy,
+          latitude: file.location?.latitude ?? position?.latitude,
+          longitude: file.location?.longitude ?? position?.longitude,
+          accuracy: file.location?.accuracy ?? position?.accuracy,
           deviceModel: device,
           comment: _comment.text,
           onProgress: (sent, total) {
@@ -177,14 +250,12 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
               runSpacing: 8,
               children: <Widget>[
                 OutlinedButton.icon(
-                  onPressed: _uploading ? null : () => _pickFiles(),
+                  onPressed: _uploading ? null : _pickFiles,
                   icon: const Icon(Icons.attach_file),
                   label: const Text('Dodaj pliki'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _uploading
-                      ? null
-                      : () => _pickFiles(type: FileType.image),
+                  onPressed: _uploading ? null : _gallery,
                   icon: const Icon(Icons.photo_library),
                   label: const Text('Dodaj zdjęcie'),
                 ),
@@ -216,18 +287,23 @@ class _DocumentIntakeDialogState extends State<DocumentIntakeDialog> {
                 border: OutlineInputBorder(),
               ),
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _includeLocation,
-              onChanged: _uploading
-                  ? null
-                  : (value) =>
-                        setState(() => _includeLocation = value ?? false),
-              title: const Text('Dołącz bieżącą lokalizację'),
-              subtitle: const Text(
-                'Opcjonalnie; odmowa nie blokuje wysyłania.',
+            if (widget.inspectionId == null)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _includeLocation,
+                onChanged: _uploading
+                    ? null
+                    : (value) =>
+                          setState(() => _includeLocation = value ?? false),
+                title: const Text('Dołącz bieżącą lokalizację'),
+                subtitle: const Text(
+                  'Opcjonalnie; odmowa nie blokuje wysyłania.',
+                ),
               ),
-            ),
+            if (widget.inspectionId != null)
+              const Text(
+                'Przy zdjęciach aplikacja spróbuje automatycznie dołączyć bieżącą lokalizację. Brak GPS nie blokuje wysyłania.',
+              ),
             ..._files.map(
               (file) => ListTile(
                 contentPadding: EdgeInsets.zero,
