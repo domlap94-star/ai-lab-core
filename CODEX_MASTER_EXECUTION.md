@@ -758,7 +758,28 @@ Status: DONE / RELEASE NOT PUBLISHED.
 - Verification: focused backend 8/8 PASS; controlled local LLM E2E 5/5 PASS;
   backend regressions and health PASS; Flutter analyze PASS; full Flutter suite
   130/130 PASS. No migration, vector backfill, Qdrant write, n8n change,
-  conversation persistence, production business write or release occurred.
+  conversation persistence or production business write occurred.
+- CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
+
+### CHUNK 12 AI CLIENT KNOWLEDGE — NEXT STABIL 1.0.2+15 — PUBLISHED
+
+- Web, Windows and Android publish the client-scoped `Zapytaj AI o klienta`
+  panel, deterministic structured answers, bounded evidence retrieval,
+  citations and structured/lexical fail-open behavior using `llama3.2`.
+- Runtime models remain unchanged: generation `llama3.2`, embeddings
+  `qwen3-embedding:0.6b`, Qdrant collection `ai_lab_document_chunks` at 1024
+  dimensions. AI Client Knowledge does not have full semantic coverage of all
+  Documents: 57 chunks cover 11 of 5903 Documents globally, and 0 current
+  points have a valid `client_id` usable by client-scoped vector retrieval.
+- No vector backfill, Qdrant write/rebuild/upgrade, n8n change, conversation
+  persistence, migration, historical cleanup or production business write was
+  performed. Structured and lexical Client retrieval remains available.
+- Release gates: focused backend 34/34 PASS plus all required regressions;
+  controlled local LLM E2E 5/5 PASS with rollback; Flutter analyze PASS and
+  full 130/130 suite PASS before and after bump. Windows runtime smoke PASS;
+  Android physical upgrade UNVERIFIED because ADB reported no device.
+- Public Web, Windows and Android hashes match local outputs and stable
+  manifest. `minimum_version` remains 1.0.0.
 - CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
 ### CLIENT DETAILS ACTION LAYOUT PATCH — NEXT STABIL 1.0.2+9 — PUBLISHED

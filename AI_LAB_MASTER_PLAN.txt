@@ -5389,7 +5389,15 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     remains available. No vector backfill, Qdrant write or upgrade occurred.
 [✓] CHUNK 12 verification: focused backend 8/8 PASS; controlled local LLM E2E
     5/5 PASS; Flutter analyze PASS and full 130/130 suite PASS. Production
-    business writes: 0. No migration, conversation persistence or release.
+    business writes: 0. No migration or conversation persistence was added.
+[✓] CHUNK 12 — AI CLIENT KNOWLEDGE: RELEASED as NEXT Stabil 1.0.2+15 on
+    Web, Windows and Android. Runtime generation remains `llama3.2`; embeddings
+    remain `qwen3-embedding:0.6b`. AI Client Knowledge does not have full
+    semantic coverage of all Documents: Qdrant has 57 chunks / 11 of 5903
+    Documents globally, while 0 current points carry a usable `client_id` for
+    client-scoped retrieval. Structured and lexical fallback remain active.
+    No vector backfill, Qdrant write/upgrade, n8n change or conversation
+    persistence was performed. Public/local/manifest artifact hashes match.
 [ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
@@ -5454,6 +5462,7 @@ ANDROID BACK NAVIGATION PATCH — NEXT STABIL 1.0.2+13 — PUBLISHED:
     write, rebuild, upgrade or vector backfill was performed.
 [✓] CHUNK 12 — AI CLIENT KNOWLEDGE: COMPLETE (read-only, client-scoped;
     semantic retrieval limited to existing vectors as documented above).
+[✓] CHUNK 12 — AI CLIENT KNOWLEDGE: RELEASED — NEXT Stabil 1.0.2+15.
 [ ] CHUNK 13 — BUSINESS ASSISTANT: NOT STARTED.
 
 KONIEC MASTER PLAN
