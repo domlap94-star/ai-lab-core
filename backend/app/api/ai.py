@@ -25,6 +25,11 @@ from app.services.business_assistant_service import (
     BusinessAssistantModelUnavailable,
     BusinessAssistantService,
 )
+from app.schemas.technical_ai import TechnicalAskRequest, TechnicalAskResponse
+from app.services.technical_ai_service import (
+    TechnicalAiModelUnavailable, TechnicalAiService,
+    TechnicalContextMismatch, TechnicalContextNotFound,
+)
 
 router = APIRouter(
     prefix="/ai",
@@ -49,6 +54,28 @@ async def ask_business_assistant(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Asystent AI jest chwilowo niedostępny. Spróbuj ponownie.",
         ) from error
+
+
+@router.post("/technical/ask", response_model=TechnicalAskResponse)
+async def ask_technical_assistant(
+    request: TechnicalAskRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TechnicalAskResponse:
+    del current_user
+    try:
+        return await TechnicalAiService(db).ask(
+            question=request.question,
+            client_id=request.client_id,
+            inspection_id=request.inspection_id,
+            conversation=request.conversation,
+        )
+    except TechnicalContextNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wskazanego kontekstu technicznego.") from error
+    except TechnicalContextMismatch as error:
+        raise HTTPException(status_code=422, detail="Wizja lokalna nie należy do wskazanego klienta.") from error
+    except TechnicalAiModelUnavailable as error:
+        raise HTTPException(status_code=503, detail="Asystent AI jest chwilowo niedostępny. Spróbuj ponownie.") from error
 
 
 @router.post(

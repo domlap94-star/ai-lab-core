@@ -565,6 +565,17 @@ class _ClientDetails extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.tonalIcon(
+                  key: const Key('client-open-technical-ai'),
+                  onPressed: () =>
+                      context.push('/ai?mode=technical&client_id=${client.id}'),
+                  icon: const Icon(Icons.engineering_outlined),
+                  label: const Text('Otwórz w Asystencie technicznym'),
+                ),
+              ),
+              const SizedBox(height: 20),
               ClientWorkspacePanels(
                 clientId: client.id,
                 clientName: client.displayName,

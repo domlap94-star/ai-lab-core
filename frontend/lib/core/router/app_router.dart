@@ -169,7 +169,17 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/ai',
           builder: (BuildContext context, GoRouterState state) {
-            return const AiPage();
+            return AiPage(
+              initialMode: state.uri.queryParameters['mode'] == 'technical'
+                  ? AiMode.technical
+                  : AiMode.business,
+              initialClientId: int.tryParse(
+                state.uri.queryParameters['client_id'] ?? '',
+              ),
+              initialInspectionId: int.tryParse(
+                state.uri.queryParameters['inspection_id'] ?? '',
+              ),
+            );
           },
         ),
         GoRoute(

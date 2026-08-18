@@ -33,7 +33,12 @@ kontraktu.
   NO; revision pozostaje `inspectclient_20260818 (head)`.
 - Web/Windows/Android 1.0.2+17: PUBLISHED; minimum_version 1.0.0. Fizyczny
   Android GPS/camera/STT smoke: UNVERIFIED (brak urządzenia ADB).
-- CHUNK 14 — TECHNICAL AI: NOT STARTED.
+- CHUNK 14 — TECHNICAL AI: COMPLETE in source, not released. Read-only
+  Technical mode reuses Global Search, Client AI and existing vectors with
+  strict Client/Inspection scoping, deterministic citations and explicit
+  facts / hypotheses / missing-data sections. No visual/photo analysis or OCR
+  was implemented.
+- CHUNK 15 — VISION / MULTIMODAL: NOT STARTED.
 
 ## Reconciliation stanu
 

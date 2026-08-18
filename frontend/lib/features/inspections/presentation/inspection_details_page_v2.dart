@@ -460,6 +460,15 @@ class _InspectionDetailsPageState extends ConsumerState<InspectionDetailsPage> {
                   : 'Udostępnij lokalizację',
             ),
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            key: const Key('inspection-open-technical-ai'),
+            onPressed: () => context.push(
+              '/ai?mode=technical&client_id=${item.clientId}&inspection_id=${item.id}',
+            ),
+            icon: const Icon(Icons.engineering_outlined),
+            label: const Text('Zapytaj AI o tę wizję'),
+          ),
         ],
       ),
     ),

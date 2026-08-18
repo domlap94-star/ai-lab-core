@@ -34,7 +34,12 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+17
     audio nie jest zapisywane ani wysyłane do NEXT Stabil.
 [✓] Web, Windows i Android 1.0.2+17 opublikowane. Brak background location,
     Qdrant writes, vector backfill, zmian n8n i historycznego cleanupu.
-[ ] CHUNK 14 — TECHNICAL AI — NOT STARTED.
+[✓] CHUNK 14 — TECHNICAL AI — COMPLETE. Read-only Technical mode reuses
+    Global Search, Client AI retrieval and existing document vectors with
+    strict Client/Inspection scoping, deterministic citations and explicit
+    facts / hypotheses / missing-data separation. No visual/photo analysis
+    was implemented in CHUNK 14.
+[ ] CHUNK 15 — VISION / MULTIMODAL — NOT STARTED.
 
 ================================================================================
 1. GŁÓWNY CEL SYSTEMU
@@ -5430,7 +5435,24 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     regression gate 47/47 plus script-based Auth/Client/Candidate/Document/
     Email/Sheets/intake regressions PASS; controlled local `llama3.2` E2E 8/8
     PASS with rollback; Flutter analyze PASS and full 137/137 suite PASS.
-[ ] CHUNK 14 — TECHNICAL AI: NOT STARTED.
+[✓] CHUNK 14 — TECHNICAL AI: COMPLETE. `/api/v1/ai/technical/ask` supports
+    global, Client and Inspection context; entity-first bounded retrieval,
+    lexical fail-open, deterministic measurement deltas and evidence-grounded
+    llama3.2 analysis. Flutter exposes Business/Technical modes plus scoped
+    Client/Inspection selectors and contextual entry points.
+[✓] CHUNK 14 safety: JWT and context ownership are enforced; fabricated
+    citations, prompt injection and cross-client evidence are rejected. No
+    business writes, conversation persistence, Qdrant writes, vector backfill,
+    migration or n8n changes were made.
+[✓] CHUNK 14 semantic audit: `ai_lab_document_chunks` remains 57 chunks / 11
+    of 5909 Documents at 1024 dimensions using `qwen3-embedding:0.6b`. All 57
+    legacy points lack `client_id`, therefore safely usable client-scoped
+    vectors are 0 and scoped retrieval falls back to lexical data. No visual
+    or photo analysis and no OCR were added.
+[✓] CHUNK 14 verification: focused backend 13/13 PASS, controlled local
+    llama3.2 E2E 10/10 PASS, relevant backend regressions 59/59 PASS, Flutter
+    analyze PASS and full Flutter suite 154/154 PASS.
+[ ] CHUNK 15 — VISION / MULTIMODAL: NOT STARTED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 

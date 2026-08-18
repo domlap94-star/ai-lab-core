@@ -9,14 +9,16 @@ import '../../auth/application/auth_controller.dart';
 import '../application/business_assistant_providers.dart';
 import '../domain/business_assistant.dart';
 
-class AiPage extends ConsumerStatefulWidget {
-  const AiPage({super.key});
+export 'ai_page_v2.dart';
+
+class LegacyAiPage extends ConsumerStatefulWidget {
+  const LegacyAiPage({super.key});
 
   @override
-  ConsumerState<AiPage> createState() => _AiPageState();
+  ConsumerState<LegacyAiPage> createState() => _AiPageState();
 }
 
-class _AiPageState extends ConsumerState<AiPage> {
+class _AiPageState extends ConsumerState<LegacyAiPage> {
   final _controller = TextEditingController();
   final _conversation = <Map<String, String>>[];
   BusinessAssistantAnswer? _answer;
