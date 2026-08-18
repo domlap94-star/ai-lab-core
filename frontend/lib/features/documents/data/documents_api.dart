@@ -128,6 +128,17 @@ class DocumentsApi {
     return DocumentResponse.fromJson(response.data!);
   }
 
+  Future<void> analyzeVision({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '$_path/$documentId/vision/analyze',
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+  }
+
   Future<DocumentContent> fetchContent({
     required int documentId,
     required String fileName,

@@ -13,6 +13,7 @@ from app.database.engine import engine
 from app.main import app
 from app.models.client import Client
 from app.models.document import Document
+from app.models.document_page import DocumentPage
 from app.models.inspection import Inspection
 from app.schemas.client_ai_knowledge import ClientAiSource
 from app.schemas.search import GlobalSearchPage, GlobalSearchResult
@@ -176,7 +177,37 @@ class TechnicalAiTests(unittest.IsolatedAsyncioTestCase):
         await TechnicalAiService(self.db, search_service=_SearchStub([item]), llm_client=llm).ask(question="Przeanalizuj dokument")
         self.assertIn("UNTRUSTED_DATA_BEGIN", llm.prompts[0])
         self.assertIn("Nie wymyślaj parametrów", llm.prompts[0])
-        self.assertIn("nie analizujesz obrazu", llm.prompts[0])
+        self.assertIn("UNTRUSTED_VISUAL_EVIDENCE", llm.prompts[0])
+        self.assertIn("possible_interpretation wyłącznie hipotezą", llm.prompts[0])
+
+    async def test_validated_visual_result_keeps_observation_and_hypothesis_labels(self):
+        self.db.add(DocumentPage(
+            document_id=self.document.id,
+            page_number=1,
+            vision_status="complete",
+            vision_analysis=json.dumps({
+                "observations": [{"source_ref": "S1", "text": "Widoczna ukośna linia."}],
+                "possible_interpretations": [{"source_ref": "S1", "text": "Linia może przypominać rysę."}],
+                "uncertainties": [{"source_ref": "S1", "text": "Brak skali."}],
+                "visible_text": [],
+                "measurements": [],
+                "image_quality": [{"source_ref": "S1", "quality": "good"}],
+            }),
+        ))
+        self.db.flush()
+        item = GlobalSearchResult(
+            type="document", id=self.document.id, title="opinia.pdf", snippet="grunt",
+            score=.9, match_reason="document_text", match_reasons=["document_text"],
+            client_id=self.client.id, route=f"/documents?document_id={self.document.id}",
+        )
+        llm = _LlmStub()
+        await TechnicalAiService(
+            self.db, search_service=_SearchStub([item]), llm_client=llm,
+        ).ask(question="Przeanalizuj dokument geotechniczny")
+        prompt = llm.prompts[0]
+        self.assertIn("VISUAL_OBSERVATION: Widoczna ukośna linia.", prompt)
+        self.assertIn("VISUAL_HYPOTHESIS: Linia może przypominać rysę.", prompt)
+        self.assertIn("VISUAL_UNCERTAINTY: Brak skali.", prompt)
 
     async def test_qdrant_fail_open_and_llm_unavailable_are_typed(self):
         source = ClientAiSource(source_type="document", source_id=self.document.id, title="opinia.pdf", route=f"/documents?document_id={self.document.id}", snippet="grunt")

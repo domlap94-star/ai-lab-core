@@ -16,6 +16,42 @@ String documentProcessingLabel(String value) => switch (value.toLowerCase()) {
   _ => polishDocumentCode(value),
 };
 
+String documentVisionLabel(String value) => switch (value.toLowerCase()) {
+  'not_evaluated' => 'Nie oceniono',
+  'not_needed' => 'Nie wymagana',
+  'pending' => 'Oczekuje',
+  'queued' => 'W kolejce',
+  'processing' => 'Analizowanie…',
+  'complete' => 'Zakończona',
+  'partial' => 'Częściowa',
+  'pending_auth' => 'Wymagane logowanie ChatGPT',
+  'ui_changed' => 'Niedostępna — wymaga sprawdzenia',
+  'failed_retryable' => 'Wymaga ponowienia',
+  'failed_permanent' => 'Niedostępna',
+  _ => polishDocumentCode(value),
+};
+
+bool documentSupportsVision(String contentType, String? filename) {
+  final String type = contentType.toLowerCase();
+  final String name = (filename ?? '').toLowerCase();
+  if (type.startsWith('image/') || type == 'application/pdf') return true;
+  const Set<String> visualOfficeTypes = <String>{
+    'application/msword',
+    'application/rtf',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.presentation',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+  if (visualOfficeTypes.contains(type)) return true;
+  return <String>[
+    '.doc', '.docx', '.odt', '.ppt', '.pptx', '.odp', '.rtf', '.xls', '.xlsx',
+  ].any(name.endsWith);
+}
+
 String documentMatchLabel(String value) => switch (value.toLowerCase()) {
   'unmatched' => 'Niedopasowany',
   'suggested' => 'Sugerowany',

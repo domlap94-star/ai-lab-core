@@ -12,6 +12,12 @@ class DocumentResponse {
     required this.archiveDepth,
     required this.createdAt,
     required this.updatedAt,
+    this.visionStatus = 'not_evaluated',
+    this.visionAutoEligible = false,
+    this.visionAttemptCount = 0,
+    this.visionClassification,
+    this.visionErrorCode,
+    this.visionAnalyzedAt,
     this.originalFilename,
     this.clientId,
     this.clientName,
@@ -37,6 +43,12 @@ class DocumentResponse {
   final int? candidateId;
   final String? candidateName;
   final String processingStatus;
+  final String? visionClassification;
+  final String visionStatus;
+  final bool visionAutoEligible;
+  final int visionAttemptCount;
+  final String? visionErrorCode;
+  final DateTime? visionAnalyzedAt;
   final String metadataStatus;
   final String matchStatus;
   final double? matchConfidence;
@@ -61,6 +73,12 @@ class DocumentResponse {
       candidateId: _nullableInt(json['candidate_id']),
       candidateName: _nullableString(json['candidate_name']),
       processingStatus: json['processing_status']?.toString() ?? '',
+      visionClassification: _nullableString(json['vision_classification']),
+      visionStatus: json['vision_status']?.toString() ?? 'not_evaluated',
+      visionAutoEligible: json['vision_auto_eligible'] == true,
+      visionAttemptCount: _requiredInt(json['vision_attempt_count']),
+      visionErrorCode: _nullableString(json['vision_error_code']),
+      visionAnalyzedAt: _nullableDateTime(json['vision_analyzed_at']),
       metadataStatus: json['metadata_status']?.toString() ?? '',
       matchStatus: json['match_status']?.toString() ?? '',
       matchConfidence: _nullableDouble(json['match_confidence']),
@@ -86,6 +104,12 @@ class DocumentResponse {
     candidateId: candidateId,
     candidateName: candidateName,
     processingStatus: processingStatus,
+    visionClassification: visionClassification,
+    visionStatus: visionStatus,
+    visionAutoEligible: visionAutoEligible,
+    visionAttemptCount: visionAttemptCount,
+    visionErrorCode: visionErrorCode,
+    visionAnalyzedAt: visionAnalyzedAt,
     metadataStatus: metadataStatus,
     matchStatus: matchStatus,
     matchConfidence: matchConfidence,

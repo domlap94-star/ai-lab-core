@@ -10,6 +10,12 @@ class RepositoryDocument {
     required this.archiveDepth,
     required this.createdAt,
     required this.updatedAt,
+    this.visionStatus = 'not_evaluated',
+    this.visionAutoEligible = false,
+    this.visionAttemptCount = 0,
+    this.visionClassification,
+    this.visionErrorCode,
+    this.visionAnalyzedAt,
     this.originalFilename,
     this.clientId,
     this.clientName,
@@ -35,6 +41,12 @@ class RepositoryDocument {
   final int? candidateId;
   final String? candidateName;
   final String processingStatus;
+  final String? visionClassification;
+  final String visionStatus;
+  final bool visionAutoEligible;
+  final int visionAttemptCount;
+  final String? visionErrorCode;
+  final DateTime? visionAnalyzedAt;
   final String metadataStatus;
   final String matchStatus;
   final double? matchConfidence;

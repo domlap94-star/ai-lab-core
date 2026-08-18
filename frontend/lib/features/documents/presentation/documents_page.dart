@@ -713,6 +713,10 @@ class _DocumentDetailsDialog extends ConsumerWidget {
                   documentProcessingLabel(document.processingStatus),
                 ),
                 _DetailRow(
+                  'Analiza wizualna',
+                  documentVisionLabel(document.visionStatus),
+                ),
+                _DetailRow(
                   'Metadane',
                   polishDocumentCode(document.metadataStatus),
                 ),
@@ -741,6 +745,46 @@ class _DocumentDetailsDialog extends ConsumerWidget {
         ),
       ),
       actions: <Widget>[
+        if (details.value case final RepositoryDocument document
+            when documentSupportsVision(
+              document.contentType,
+              document.originalFilename,
+            ))
+          TextButton.icon(
+            onPressed: () async {
+              try {
+                await ref
+                    .read(documentsRepositoryProvider)
+                    .analyzeVision(
+                      session: requireDocumentSessionFromAuth(
+                        ref.read(authControllerProvider),
+                      ),
+                      documentId: document.id,
+                    );
+                ref.invalidate(documentDetailsProvider(document.id));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Analiza wizualna została zlecona.'),
+                    ),
+                  );
+                }
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(friendlyDocumentError(error))),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.auto_awesome),
+            label: Text(
+              document.visionStatus == 'complete' ||
+                      document.visionStatus == 'partial'
+                  ? 'Analizuj ponownie'
+                  : 'Analizuj wizualnie',
+            ),
+          ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Zamknij'),

@@ -40,7 +40,15 @@ kontraktu.
   was implemented. Web, Windows and Android use the production API URL;
   semantic coverage remains limited to the existing 57 chunks / 11 documents
   and no vector backfill was performed.
-- CHUNK 15 — VISION / MULTIMODAL: NOT STARTED.
+- CHUNK 15 — VISION / MULTIMODAL: COMPLETE IN SOURCE / NOT RELEASED.
+  Deterministic VisionNeedClassifier klasyfikuje każdy rzeczywiście nowy
+  Document, a wymagane obrazy/strony mogą przejść przez prywatny supervisor i
+  izolowany ChatGPT Temporary Chat browser worker. Wynik V1 jest walidowany i
+  używany przez Technical AI z cytowaniem oryginalnego źródła. Historyczne
+  Documents pozostają on-demand, bez backfillu; OpenAI API, local Vision,
+  image embeddings i Qdrant writes nie są używane. Produkcyjna automatyzacja
+  pozostaje OFF do release.
+- CHUNK 16 — AGENT: NOT STARTED.
 - LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
   during authentication, errors are user-facing, token persistence is read
   back after save, and stale 401 responses are generation-scoped. The +17

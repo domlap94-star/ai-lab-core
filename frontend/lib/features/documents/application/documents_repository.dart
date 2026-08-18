@@ -65,6 +65,11 @@ abstract class DocumentsRepository {
     required AuthSession session,
     required int documentId,
   }) => throw UnsupportedError('Document matching is not implemented.');
+
+  Future<void> analyzeVision({
+    required AuthSession session,
+    required int documentId,
+  }) => throw UnsupportedError('Vision analysis is not implemented.');
 }
 
 class ApiDocumentsRepository implements DocumentsRepository {
@@ -204,6 +209,16 @@ class ApiDocumentsRepository implements DocumentsRepository {
     required AuthSession session,
     required int documentId,
   }) => _api.undoClientLink(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<void> analyzeVision({
+    required AuthSession session,
+    required int documentId,
+  }) => _api.analyzeVision(
     documentId: documentId,
     accessToken: session.accessToken,
     tokenType: session.tokenType,

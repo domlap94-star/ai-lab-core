@@ -2,11 +2,23 @@ import 'package:ai_lab/features/documents/application/documents_controller.dart'
 import 'package:ai_lab/features/documents/domain/document.dart';
 import 'package:ai_lab/features/documents/domain/document_page.dart';
 import 'package:ai_lab/features/documents/presentation/documents_page.dart';
+import 'package:ai_lab/features/documents/presentation/document_presentation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Vision action supports rendered Office documents but not plain text', () {
+    expect(
+      documentSupportsVision(
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'opinia.docx',
+      ),
+      isTrue,
+    );
+    expect(documentSupportsVision('text/plain', 'notatka.txt'), isFalse);
+  });
+
   testWidgets('documents page shows server result and debounced search', (
     WidgetTester tester,
   ) async {
