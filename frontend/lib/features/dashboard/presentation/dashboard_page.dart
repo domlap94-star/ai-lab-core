@@ -91,26 +91,27 @@ class DashboardPage extends ConsumerWidget {
                     childAspectRatio: 2.2,
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    children: const <Widget>[
-                      _SummaryCard(
+                    children: <Widget>[
+                      const _SummaryCard(
                         title: 'Aktywne sprawy',
                         value: '0',
                         icon: Icons.work_outline,
                       ),
-                      _SummaryCard(
+                      const _SummaryCard(
                         title: 'Nowe dokumenty',
                         value: '0',
                         icon: Icons.description_outlined,
                       ),
-                      _SummaryCard(
+                      const _SummaryCard(
                         title: 'Zadania',
                         value: '0',
                         icon: Icons.task_alt_outlined,
                       ),
                       _SummaryCard(
-                        title: 'Analizy AI',
-                        value: '0',
-                        icon: Icons.auto_awesome_outlined,
+                        title: 'Maile',
+                        value: 'Otwórz',
+                        icon: Icons.mail_outline,
+                        onTap: () => context.push('/mail'),
                       ),
                     ],
                   );
@@ -401,54 +402,60 @@ class _SummaryCard extends StatelessWidget {
     required this.title,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   final String title;
   final String value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
               ),
-              child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    value,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      value,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

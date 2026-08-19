@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — QUERY ARCHITECTURE BLOCKED / NULL READ-STATE INDEX DECISION REQUIRED
+## [~] FOLLOW-UP CHUNK 09 — READ WORKSPACE COMPLETE / EMAIL SEND APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -632,9 +632,56 @@ Production supersession and remaining hard-gate record (2026-08-19):
 - Verification retained for this stage: isolated migration
   upgrade/downgrade/re-upgrade PASS and structural test `2/2 PASS`.
 
-Current decision: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`. Active work
-remains CHUNK 09. Stage 1 API/UI, email-send gate, CHUNK 10 and release remain
-stopped until the nullable read-state query has a production-safe plan.
+Historical decision at that checkpoint was
+`FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`; it was superseded by the
+nullable-state remediation and Stage 1 completion record below.
+
+Nullable read-state and Stage 1 completion record (2026-08-19):
+
+- Root cause was SQL three-valued logic: when both Gmail label fields were
+  absent, `json_typeof(NULL) <> 'array'` evaluated to `NULL`, so the historical
+  expression incorrectly fell through to `read`. The canonical shared SQL now
+  maps missing/non-array labels to `NULL`, `UNREAD` arrays to `unread`, and
+  remaining arrays to `read`. Production truth is 4,241 read / 20 unread / 1
+  unknown, with zero malformed non-array payloads; technical source ID 2 is
+  correctly unknown.
+- Revision `followup_mail_nullable_read_state_20260819` built
+  `ix_candidate_sources_gmail_read_state_v2_time` concurrently, verified it
+  valid/ready, then concurrently superseded the incorrect ordered
+  `ix_candidate_sources_gmail_read_time`. Downgrade restores the exact prior
+  ordered index before removing V2. The explicitly verified full-size clone
+  `ai_lab_chunk09_nullable_20260819_a` passed upgrade/downgrade/re-upgrade;
+  V2 is 184 KiB and no row/count changed. Production build took 26.377 s,
+  backend stayed HTTP 200 and waiting locks remained zero.
+- The production planner initially chose bitmap + broad sort for the common
+  state despite the corrected index. The service therefore expresses the
+  logically constant read-state key first in `ORDER BY`, followed by canonical
+  message time and ID. This preserves result semantics while forcing the full
+  ordered index path: read 50 is about 254 ms median, unread 30 ms and unknown
+  1.6 ms. Full measured maxima were latest 377 ms, received 779 ms, sent
+  3,826 ms, unknown direction 227 ms, search 2,391 ms, Client filter 11 ms,
+  thread filter 41 ms and date range 225 ms; requests over 10 s: zero.
+- Stage 1 now provides authenticated additive `GET /api/v1/mail`,
+  `/mail/{source_id}` and `/mail/threads/{thread_id}` endpoints with bounded
+  filters/pagination, canonical Client linkage, safe text-only detail,
+  attachment Document projections and no raw payload/filesystem paths. Thread
+  lookup uses canonical `external_parent_id` only.
+- Flutter now exposes `Maile` in main navigation and a minimal Dashboard card,
+  responsive list/detail/thread UX, server-side filters and paging,
+  read/unread/unknown states, Client/Document deep links and mobile Back state.
+- Verification: nullable migration/service tests 28/28 PASS; selected
+  Client Mail, Timeline V2, Matching V2, Candidate, Documents, Search, Auth and
+  Agent regressions 48 PASS / 13 skipped; Client Mail E2E and attachment-scope
+  rollback PASS; authenticated Global Mail list/detail/thread smoke 200;
+  Flutter analyze PASS, focused Mail 8/8 PASS, full Flutter 199/199 PASS.
+- Production safety remained Clients 3,243, Candidates 3,561, Documents 5,915,
+  Gmail 4,262, Change History/Activity/Candidate merge audit rows 0, Qdrant 57,
+  Vision queue 0, n8n/backend healthy. Email writes/sends, Client relinks,
+  n8n/Vision/Qdrant writes and business-row rewrites: zero. No release.
+
+Stage 2 compose/reply/forward is not implemented. Active gate and next work:
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`. CHUNK 10 and Release B remain stopped.
+Implementation commit: `Complete global mail read workspace` (this change).
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 

@@ -87,6 +87,28 @@ receives Gmail credentials. The Agent remains read-only and receives no
 
 `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`
 
+## Stage 1 final outcome — 2026-08-19
+
+Stage 1 READ is complete. Shared canonical SQL now handles absent/non-array
+Gmail labels as unknown rather than read. Online revision
+`followup_mail_nullable_read_state_20260819` installed the 184 KiB corrected
+ordered V2 index and removed the incorrect ordered predecessor only after the
+new index was valid/ready. The full-size isolated migration round-trip and
+production application passed without row rewrites or waiting locks.
+
+The production service orders filtered read-state pages by the complete index
+key (constant state, canonical time, ID), avoiding the planner's bitmap/sort
+choice. Median timings in milliseconds: latest 251, received 352, sent 1,371,
+read 254, unread 30, unknown read 1.6, search 957, Client 3.8, thread 7.9 and
+date range 222; maximum normal request was 3,826 ms and none exceeded 10 s.
+
+Read-only endpoints `/api/v1/mail`, `/api/v1/mail/{source_id}` and
+`/api/v1/mail/threads/{thread_id}` plus the responsive Flutter workspace are
+implemented. No raw payload, executable HTML, remote content fetch or
+filesystem path is exposed. No refresh, reconciliation, relink, provider
+write, n8n change or email send was added. Stage 2 remains stopped at
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+
 ## Production supersession outcome and remaining blocker
 
 Production revision `followup_mail_read_index_supersession_20260819`
@@ -140,7 +162,8 @@ separately gated by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
 
 ## Online composite-index execution outcome
 
-Current decision: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`.
+Historical decision at this checkpoint:
+`FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`; see the final outcome below.
 
 The approved online procedure used an explicitly verified isolated database
 (`ai_lab_chunk09_online_20260819`) and checked `current_database()` before DDL.

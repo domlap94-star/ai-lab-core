@@ -23,7 +23,7 @@ The common `read` query passed, but Stage 1 did not. A strict audit found one
 Gmail source without a labels array. The historical expression used by the
 ordered index classifies that missing value as `read`; a semantically correct
 `unknown` filter took 13,364 ms. The unaccepted API/UI prototype was removed.
-Current decision is `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`; a corrected
+Historical decision was `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`; a corrected
 online nullable read-state index or separately approved canonical projection
 is required before Stage 1 can continue. CHUNK 10 and release remain stopped.
 
@@ -113,3 +113,19 @@ predicate from `followup_mail_query_indexes_20260819.py`, then verify
 
 No production operation was performed in this diagnosis. Global Mail API/UI,
 CHUNK 10, email sending and release remain stopped.
+
+## Final nullable-state remediation — 2026-08-19
+
+The approved corrected expression resolved the missing-label semantic bug:
+production counts are read 4,241, unread 20 and unknown 1; malformed arrays 0.
+Technical source ID 2 is unknown. Revision
+`followup_mail_nullable_read_state_20260819` concurrently created
+`ix_candidate_sources_gmail_read_state_v2_time`, verified it valid/ready, and
+then concurrently dropped incorrect `ix_candidate_sources_gmail_read_time`.
+
+Because production statistics initially preferred a bitmap scan, the exact
+runtime query includes the constant state expression as the first ordering
+key. This is semantically identical under its state predicate and selects the
+ordered V2 index: read ~254 ms median, unread ~30 ms, unknown ~1.6 ms. The full
+query matrix had zero requests over 10 seconds. Stage 1 API/UI was therefore
+completed; the active stop is now `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.

@@ -19,6 +19,7 @@ import '../../features/inspections/presentation/inspections_page.dart';
 import '../../features/inspections/presentation/inspection_details_page.dart';
 import '../../features/system_control/presentation/system_control_page.dart';
 import '../../features/global_search/presentation/global_search_page.dart';
+import '../../features/mail/presentation/global_mail_page.dart';
 import '../widgets/app_shell.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -122,6 +123,11 @@ final GoRouter appRouter = GoRouter(
                     returnPath: returnPath,
                   );
           },
+        ),
+        GoRoute(
+          path: '/mail',
+          builder: (BuildContext context, GoRouterState state) =>
+              const GlobalMailPage(),
         ),
         GoRoute(
           path: '/documents',

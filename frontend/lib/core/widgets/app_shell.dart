@@ -61,6 +61,12 @@ class AppShell extends ConsumerStatefulWidget {
       selectedIcon: Icons.description,
     ),
     NavigationItem(
+      label: 'Maile',
+      path: '/mail',
+      icon: Icons.mail_outline,
+      selectedIcon: Icons.mail,
+    ),
+    NavigationItem(
       label: 'Asystent AI',
       path: '/ai',
       icon: Icons.auto_awesome_outlined,
@@ -317,6 +323,7 @@ class AppNavigationPolicy {
     '/projects': dashboardPath,
     '/inspections': dashboardPath,
     '/documents': dashboardPath,
+    '/mail': dashboardPath,
     '/ai': dashboardPath,
     '/settings': dashboardPath,
     '/search': dashboardPath,
