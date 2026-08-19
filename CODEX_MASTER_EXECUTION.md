@@ -24,15 +24,16 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 09 — EMAIL SEND APPROVAL GATE** — Stage 1 Global Mail READ
-is complete. Revision `followup_mail_nullable_read_state_20260819` corrected
-missing Gmail labels to nullable/unknown, installed a valid ordered V2 index
-concurrently and superseded the incorrect ordered index. All bounded queries
-are below 10 seconds; authenticated list/detail/thread API, navigation,
-Dashboard entry and responsive Flutter workspace passed backend regressions,
-Flutter analyze and full 199/199. No email was sent and no Client link changed.
-Next work remains CHUNK 09 at `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`; do not
-start CHUNK 10 or Release B.
+**FOLLOW-UP CHUNK 09 — EMAIL SEND SCHEMA MIGRATION APPROVAL GATE** — Stage 1
+Global Mail READ is complete. The Stage 2 send gate was granted and the
+audit-first design found that a minimal durable `mail_send_operations` ledger
+is required to claim operation UUIDs before the external Gmail side effect and
+to resume canonical ingestion without duplicate sends. Exact bounded schema,
+n8n adapter, endpoint/UI and acceptance design is in
+`FOLLOWUP_CHUNK09_EMAIL_SEND_DESIGN.md`. No migration, send implementation,
+n8n change or email send was performed. Next work remains CHUNK 09 at
+`FOLLOWUP_EMAIL_SEND_SCHEMA_MIGRATION_APPROVAL_REQUIRED`; do not start CHUNK 10
+or Release B.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only

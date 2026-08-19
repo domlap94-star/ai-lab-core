@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — READ WORKSPACE COMPLETE / EMAIL SEND APPROVAL REQUIRED
+## [~] FOLLOW-UP CHUNK 09 — EMAIL SEND DESIGN COMPLETE / SCHEMA MIGRATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -682,6 +682,39 @@ Nullable read-state and Stage 1 completion record (2026-08-19):
 Stage 2 compose/reply/forward is not implemented. Active gate and next work:
 `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`. CHUNK 10 and Release B remain stopped.
 Implementation commit: `Complete global mail read workspace` (this change).
+
+Stage 2 send audit/design record (2026-08-19):
+
+- Human gate `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED` was granted. No provider
+  send was performed during the required audit-first stage.
+- Gmail OAuth exists only inside the active n8n runtime. The backend exposes no
+  Gmail credential/send primitive, and the current workflow contains read/sync
+  nodes only. The installed Gmail node supports provider send and native reply,
+  so credentials must remain isolated in n8n behind a bounded backend adapter.
+- None of `candidate_sources`, `change_history_events`,
+  `client_activity_events` or `candidate_merge_events` can safely provide the
+  pre-provider durable claim needed for operation UUID idempotency. Reusing
+  them would either leave a double-send race or overload a different audit
+  domain.
+- Minimal additive revision `followup_mail_send_ops_20260819` is required to
+  create only `mail_send_operations`: content-free operation/payload hashes,
+  actor/action/state, bounded counts and provider/canonical IDs. It stores no
+  body, subject, recipient list, attachment path, arbitrary JSON or secret and
+  performs no backfill/business rewrite.
+- The state machine is fail-closed across the external transaction boundary:
+  provider acceptance is persisted before canonical ingest; a replay resumes
+  ingest without re-sending, while unknown provider outcome cannot be retried
+  automatically.
+- Exact migration, n8n adapter, endpoint, attachment, UI, rollback and
+  controlled three-send acceptance design:
+  `FOLLOWUP_CHUNK09_EMAIL_SEND_DESIGN.md`.
+- Migration, source/UI implementation, n8n workflow changes, email sends and
+  customer/business writes: `0`. A controlled acceptance mailbox was not
+  assumed and must be supplied/verified before any real test send.
+
+Current gate and next work:
+`FOLLOWUP_EMAIL_SEND_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. CHUNK 10 and Release B
+remain stopped.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 
