@@ -97,3 +97,30 @@ receives Gmail credentials. The Agent remains read-only and receives no
 - Flutter analyze, focused responsive tests and full suite.
 - Data-safety audit: zero email writes/sends, zero Client-link changes, zero
   n8n changes, zero historical relink.
+
+## Execution outcome — online-build gate
+
+Revision `followup_mail_query_indexes_20260819` was applied with exactly the
+three approved partial expression indexes. The production build took 49.57 s;
+the correct isolated round-trip then measured approximately 46.6 s per build
+and 1.6 s for downgrade. Counts were unchanged and no rows were rewritten.
+
+The isolated command was initially configured with `DATABASE_URL`, while this
+repository derives its URL from `POSTGRES_DB`. As a result, the first intended
+isolated invocation applied the approved index-only migration to production
+before the isolated proof. The system was immediately audited: backend 200,
+zero pending locks and unchanged source/business/audit counts. A compensating
+downgrade was deliberately not run because it would add another blocking DDL
+operation without improving data safety.
+
+Performance acceptance remains open. The independent indexes make rare
+filters fast (`unknown` about 250 ms; `unread` about 70 ms), but PostgreSQL
+cannot efficiently combine common direction/read selection with canonical
+message-time ordering (`incoming` about 16 s; `read` about 18 s). A composite
+query index is required. Because normal construction against the 524 MB table
+is materially blocking, work stops before any additional DDL at:
+
+`FOLLOWUP_MAIL_INDEX_ONLINE_BUILD_APPROVAL_REQUIRED`
+
+Stage 1 API/Flutter code was not retained or committed. Stage 2 remains
+separately gated by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.

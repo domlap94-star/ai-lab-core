@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — AUDIT COMPLETE / MAIL WORKSPACE SCHEMA MIGRATION APPROVAL REQUIRED
+## [~] FOLLOW-UP CHUNK 09 — QUERY INDEX BASELINE APPLIED / ONLINE COMPOSITE INDEX APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -527,9 +527,29 @@ Audit/design record (2026-08-19):
 - Production writes, email sends, Client relinks, DB migration and n8n changes:
   `0`. The unverified prototype was not retained. Release was not performed.
 
-Current gate: `FOLLOWUP_MAIL_WORKSPACE_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
-After read implementation passes, Stage 2 still requires the separate
-`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED` gate.
+Execution record (2026-08-19):
+
+- Approved revision `followup_mail_query_indexes_20260819` created only three
+  partial expression indexes: direction, nullable read state and guarded
+  message time. No column, backfill, trigger, default or business-row rewrite
+  occurred; Gmail count remained 4,262.
+- The first intended isolated invocation used the wrong environment override
+  name and applied the approved index-only revision to production before the
+  isolated round-trip. Build duration was 49.57 s. Backend recovered healthy,
+  pending locks were 0 and all audited counts were unchanged. This sequencing
+  exception is recorded explicitly and was not hidden by downgrade/reapply.
+- Correct isolated upgrade/downgrade/re-upgrade subsequently passed; upgrade
+  and re-upgrade were approximately 46.6 s, downgrade 1.6 s, counts unchanged.
+- Query acceptance did not pass: rare `unknown` and `unread` filters used the
+  indexes and completed in about 250/70 ms, while common `incoming` and `read`
+  combined with canonical time ordering took about 16/18 s. That exceeds the
+  Flutter 10-second timeout.
+- A composite `(direction/read, message_time, id)` query index is required.
+  Normal transactional construction on the 524 MB table is materially
+  blocking, so no additional index or Stage 1 API/UI was implemented.
+
+Current gate: `FOLLOWUP_MAIL_INDEX_ONLINE_BUILD_APPROVAL_REQUIRED`.
+Stage 2 remains separately blocked by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 
