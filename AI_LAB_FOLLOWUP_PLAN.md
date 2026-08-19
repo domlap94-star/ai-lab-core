@@ -242,7 +242,7 @@ Completion record (2026-08-19):
 - Implementation commit: `Add editable client added date and sorting`.
 - Release: NOT PERFORMED; pozostaje `NEXT Stabil 1.0.2+21`.
 
-## FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE
+## [✓] FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE — COMPLETE
 
 **Priority: P1**
 
@@ -257,6 +257,40 @@ Acceptance: kontrolowana macierz zapytań daje zgodny wynik w Clients Search i
 Global Search.
 
 Human gate: brak dla audytu/source implementation; release osobnym promptem.
+
+Completion record (2026-08-19):
+
+- Root cause: Clients Search i Global Search utrzymywały dwa niezależne zestawy
+  SQL predicates i normalizacji. Rozjazdy obejmowały whitespace, cyfrową
+  reprezentację NIP, notes oraz osobne implementacje kontaktów/telefonów.
+- `ClientSearchMatchingService` jest jednym canonical primitive dla
+  normalizacji i generowania Client candidate predicates. Używają go zarówno
+  `ClientRepository`, jak i Client branch `GlobalSearchService`; endpointy UI
+  pozostały rozdzielone.
+- Wspólne matching fields: name, legal name, NIP, primary i dodatkowe
+  email/phone, główny i dodatkowe adresy oraz istniejące Client notes. Global
+  Search nie miał Client alias/provenance primitive, więc nie dodano nowej,
+  niesprawdzonej semantyki source identity.
+- Normalizacja: trim/collapse whitespace, case-insensitive SQL matching,
+  casefold dla oceny rankingu, digits oraz wspólna normalizacja polskiego
+  prefiksu telefonu. Brak nowego fuzzy/unaccent engine.
+- Controlled equivalence matrix: `17/17 PASS`, mismatches `0`, w tym exact i
+  partial name, legal name, email/case, contact email, trzy postacie telefonu,
+  city/street/postal code, multiple matches, whitespace, normalized NIP, notes
+  oraz no-match.
+- Clients-specific filters, effective-added-date ASC/DESC, deterministic ID
+  tie-break, pagination i empty-query behavior pozostały zachowane. Global
+  Search nadal odpowiada za własny scoring/ranking, a Client list za business
+  date sorting.
+- Performance na kontrolowanym zestawie przy 3243 Clients: mediany
+  `29.406–40.707 ms`, maksimum `41.343 ms`; index migration nie jest potrzebna.
+- Tests: CHUNK 04 `4/4 PASS`; Global Search + CHUNK 02/03 + Agent `29/29 PASS`;
+  Client source/list, deployed compatibility i Auth/Admin PASS; focused Flutter
+  Clients `9/9 PASS`; production health aggregate PASS.
+- Data safety: business writes `0`; synthetic fixtures transaction rollback;
+  migration `NO`; Qdrant writes `0`; Vision jobs `0`; n8n changes `0`.
+- Implementation commit: `Unify client search with global search matching`.
+- Release: NOT PERFORMED; pozostaje `NEXT Stabil 1.0.2+21`.
 
 ## FOLLOW-UP CHUNK 05 — CLIENT FILTERS / HIDE STATUS / IGNORED MAIL SOURCES
 
@@ -758,9 +792,9 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE**
+**FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT 406 + MERGE**
 
-FOLLOW-UP CHUNK 03 został zakończony: osobna data biznesowa jest trwała i
-edytowalna, canonical fallback pozostaje backendowy, a sortowanie jest
-deterministyczne i wykonywane przed paginacją. Release pozostaje osobnym
-przyszłym promptem Release A.
+FOLLOW-UP CHUNK 04 został zakończony wspólnym Client matching primitive dla
+Clients i Global Search, bez zmiany publicznych endpointów, migracji ani
+release. Zgodnie z kolejnością Phase A następną pracą jest CHUNK 08; CHUNK 05
+pozostaje w późniejszej fazie Communication.

@@ -24,10 +24,11 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE**. FOLLOW-UP
-CHUNK 03 został zakończony migracją `followup_clientdate_20260819`: nullable
-business date bez backfillu, canonical backend fallback, set/clear w Client
-edit oraz server-side ASC/DESC przed paginacją. Release nie został wykonany.
+**FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT 406 + MERGE**. FOLLOW-UP CHUNK 04
+został zakończony przez `ClientSearchMatchingService`, wspólny dla Clients i
+Client branch Global Search. Equivalence `17/17 PASS`, migracja i release nie
+były wymagane. CHUNK 05 pozostaje zgodnie z roadmapą w późniejszej fazie
+Communication.
 
 ## Zasada kompatybilności wdrożonych klientów
 

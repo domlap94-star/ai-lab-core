@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime
 import re
 from typing import Iterable
@@ -10,15 +9,17 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
-from app.models.client_address import ClientAddress
 from app.models.client_candidate import ClientCandidate
-from app.models.client_contact_point import ClientContactPoint
 from app.models.document import Document
 from app.models.inspection import Inspection
 from app.models.project import Project
 from app.repositories.client_email_repository import LINKED_CANDIDATE_STATUSES
 from app.schemas.search import GlobalSearchPage, GlobalSearchResult
 from app.services.client_email_service import ClientEmailService
+from app.services.client_search_matching_service import (
+    ClientSearchMatchingService,
+    ClientSearchQuery,
+)
 from app.services.client_workflow_status_projection_service import (
     ClientWorkflowStatusProjection,
     ClientWorkflowStatusProjectionService,
@@ -41,14 +42,6 @@ class SearchTypeError(ValueError):
     pass
 
 
-@dataclass(frozen=True)
-class _TextQuery:
-    value: str
-    folded: str
-    digits: str
-    phone_digits: str
-
-
 class GlobalSearchService:
     """Bounded, read-only aggregation of structured and semantic matches."""
 
@@ -64,6 +57,7 @@ class GlobalSearchService:
         self.semantic_service = semantic_service or SemanticSearchService()
         self.email_projection = ClientEmailService(db)
         self.client_status_projection = ClientWorkflowStatusProjectionService(db)
+        self.client_matching = ClientSearchMatchingService()
 
     @staticmethod
     def parse_types(value: str | None) -> tuple[str, ...]:
@@ -94,15 +88,9 @@ class GlobalSearchService:
         limit: int = 25,
         semantic: bool = True,
     ) -> GlobalSearchPage:
-        normalized = " ".join(query.split())
-        if len(normalized) < 2:
+        q = self.client_matching.normalize(query)
+        if len(q.value) < 2:
             raise ValueError("Search query must contain at least 2 characters")
-        q = _TextQuery(
-            value=normalized,
-            folded=normalized.casefold(),
-            digits=re.sub(r"\D", "", normalized),
-            phone_digits=self._local_phone_digits(normalized),
-        )
         requested = tuple(types)
         fetch_limit = min(skip + limit + 1, 551)
         results: list[GlobalSearchResult] = []
@@ -138,68 +126,17 @@ class GlobalSearchService:
             semantic_status=semantic_status,
         )
 
-    def _clients(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
-        pattern = f"%{q.value}%"
-        conditions = [
-            Client.name.ilike(pattern),
-            Client.legal_name.ilike(pattern),
-            Client.tax_id.ilike(pattern),
-            Client.primary_email.ilike(pattern),
-            Client.primary_phone.ilike(pattern),
-            Client.street.ilike(pattern),
-            Client.building_number.ilike(pattern),
-            Client.postal_code.ilike(pattern),
-            Client.city.ilike(pattern),
-            Client.notes.ilike(pattern),
-            Client.contact_points.any(
-                and_(
-                    ClientContactPoint.deleted_at.is_(None),
-                    ClientContactPoint.normalized_value.ilike(pattern),
-                )
-            ),
-            Client.address_records.any(
-                and_(
-                    ClientAddress.deleted_at.is_(None),
-                    or_(
-                        ClientAddress.street.ilike(pattern),
-                        ClientAddress.building_number.ilike(pattern),
-                        ClientAddress.postal_code.ilike(pattern),
-                        ClientAddress.city.ilike(pattern),
-                    ),
-                )
-            ),
-        ]
-        if q.digits:
-            phone_pattern = f"%{q.phone_digits or q.digits}%"
-            conditions.extend(
-                [
-                    func.regexp_replace(
-                        Client.primary_phone, r"[^0-9]", "", "g"
-                    ).ilike(phone_pattern),
-                    func.regexp_replace(
-                        Client.tax_id, r"[^0-9]", "", "g"
-                    ).ilike(f"%{q.digits}%"),
-                    Client.contact_points.any(
-                        and_(
-                            ClientContactPoint.deleted_at.is_(None),
-                            ClientContactPoint.kind == "phone",
-                            func.regexp_replace(
-                                ClientContactPoint.normalized_value,
-                                r"[^0-9]",
-                                "",
-                                "g",
-                            ).ilike(phone_pattern),
-                        )
-                    ),
-                ]
-            )
+    def _clients(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         rows = (
             self.db.query(Client)
             .options(
                 selectinload(Client.contact_points),
                 selectinload(Client.address_records),
             )
-            .filter(Client.deleted_at.is_(None), or_(*conditions))
+            .filter(
+                Client.deleted_at.is_(None),
+                self.client_matching.condition(q),
+            )
             .order_by(Client.updated_at.desc(), Client.id.desc())
             .limit(limit)
             .all()
@@ -215,7 +152,7 @@ class GlobalSearchService:
     def _client_result(
         self,
         row: Client,
-        q: _TextQuery,
+        q: ClientSearchQuery,
         workflow: ClientWorkflowStatusProjection,
     ) -> GlobalSearchResult:
         emails = [row.primary_email, *(item.value for item in row.emails)]
@@ -235,14 +172,14 @@ class GlobalSearchService:
             reasons.append("email")
             score = max(score, 0.9)
         if q.phone_digits and any(
-            self._local_phone_digits(value) == q.phone_digits
+            self.client_matching.local_phone_digits(value) == q.phone_digits
             for value in phones
             if value
         ):
             reasons.append("phone")
             score = max(score, 1.0)
         elif q.digits and any(
-            q.phone_digits in self._local_phone_digits(value)
+            q.phone_digits in self.client_matching.local_phone_digits(value)
             for value in phones
             if value
         ):
@@ -294,7 +231,7 @@ class GlobalSearchService:
             route=f"/clients/{row.id}",
         )
 
-    def _projects(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
+    def _projects(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         pattern = f"%{q.value}%"
         rows = (
             self.db.query(Project, Client.name.label("client_name"))
@@ -358,7 +295,7 @@ class GlobalSearchService:
             )
         return results
 
-    def _inspections(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
+    def _inspections(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         pattern = f"%{q.value}%"
         rows = (
             self.db.query(Inspection, Project.name, Client.name)
@@ -419,7 +356,7 @@ class GlobalSearchService:
             )
         return results
 
-    def _documents(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
+    def _documents(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         pattern = f"%{q.value}%"
         rows = (
             self.db.query(Document, Client.name, Project.name, Inspection.title)
@@ -487,7 +424,7 @@ class GlobalSearchService:
             )
         return results
 
-    def _emails(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
+    def _emails(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         payload = CandidateSource.raw_payload
         searchable = func.to_tsvector(
             "simple",
@@ -588,7 +525,7 @@ class GlobalSearchService:
                 break
         return results
 
-    def _candidates(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
+    def _candidates(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         pattern = f"%{q.value}%"
         source_label = (
             self.db.query(
@@ -637,7 +574,8 @@ class GlobalSearchService:
                 score = max(score, 0.88)
             if (
                 q.phone_digits
-                and self._local_phone_digits(candidate.primary_phone) == q.phone_digits
+                and self.client_matching.local_phone_digits(candidate.primary_phone)
+                == q.phone_digits
             ):
                 reasons.append("phone")
                 score = max(score, 0.96)
@@ -672,7 +610,7 @@ class GlobalSearchService:
             )
         return results
 
-    def _semantic_documents(self, q: _TextQuery, limit: int) -> list[GlobalSearchResult]:
+    def _semantic_documents(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
         hits = self.semantic_service.search(
             query=q.value,
             limit=limit,
@@ -775,11 +713,6 @@ class GlobalSearchService:
         )
 
     @staticmethod
-    def _local_phone_digits(value: object | None) -> str:
-        digits = re.sub(r"\D", "", str(value or ""))
-        return digits[2:] if len(digits) == 11 and digits.startswith("48") else digits
-
-    @staticmethod
     def _snippet(value: object | None) -> str | None:
         normalized = " ".join(str(value or "").split())
         if not normalized:
@@ -808,7 +741,7 @@ class GlobalSearchService:
         )
 
     @staticmethod
-    def _is_semantic_query(q: _TextQuery) -> bool:
+    def _is_semantic_query(q: ClientSearchQuery) -> bool:
         letters = sum(character.isalpha() for character in q.value)
         return letters >= 3 and "@" not in q.value and not (
             q.digits and letters == 0

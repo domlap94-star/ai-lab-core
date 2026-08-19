@@ -1,15 +1,14 @@
 from datetime import date, datetime, timezone
 
-import re
-
-from sqlalchemy import and_, func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Query
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.client import Client
-from app.models.client_address import ClientAddress
-from app.models.client_contact_point import ClientContactPoint
 from app.repositories.base_repository import BaseRepository
+from app.services.client_search_matching_service import (
+    ClientSearchMatchingService,
+)
 
 
 class ClientRepository(BaseRepository[Client]):
@@ -112,69 +111,11 @@ class ClientRepository(BaseRepository[Client]):
             Client.deleted_at.is_(None)
         )
 
-        normalized_search = search.strip() if search else ""
+        normalized_search = ClientSearchMatchingService.normalize(search)
 
-        if normalized_search:
-            pattern = f"%{normalized_search}%"
-            normalized_email_pattern = f"%{normalized_search.casefold()}%"
-            phone_digits = re.sub(r"\D", "", normalized_search)
-            phone_patterns = []
-            if len(phone_digits) >= 3:
-                local_phone = phone_digits[2:] if len(phone_digits) == 11 and phone_digits.startswith("48") else phone_digits
-                phone_patterns = [f"%{local_phone}%", f"%48{local_phone}%"]
+        if normalized_search.value:
             query = query.filter(
-                or_(
-                    Client.name.ilike(pattern),
-                    Client.legal_name.ilike(pattern),
-                    Client.tax_id.ilike(pattern),
-                    Client.primary_email.ilike(pattern),
-                    Client.primary_phone.ilike(pattern),
-                    Client.street.ilike(pattern),
-                    Client.building_number.ilike(pattern),
-                    Client.postal_code.ilike(pattern),
-                    Client.city.ilike(pattern),
-                    Client.contact_points.any(
-                        and_(
-                            ClientContactPoint.deleted_at.is_(None),
-                            ClientContactPoint.kind == "email",
-                            ClientContactPoint.normalized_value.ilike(normalized_email_pattern),
-                        )
-                    ),
-                    *(
-                        [
-                            Client.contact_points.any(
-                                and_(
-                                    ClientContactPoint.deleted_at.is_(None),
-                                    ClientContactPoint.kind == "phone",
-                                    or_(*[
-                                        func.regexp_replace(
-                                            ClientContactPoint.normalized_value, r"[^0-9]", "", "g"
-                                        ).ilike(phone_pattern)
-                                        for phone_pattern in phone_patterns
-                                    ]),
-                                )
-                            ),
-                            or_(*[
-                                func.regexp_replace(
-                                    Client.primary_phone, r"[^0-9]", "", "g"
-                                ).ilike(phone_pattern)
-                                for phone_pattern in phone_patterns
-                            ]),
-                        ]
-                        if phone_patterns else []
-                    ),
-                    Client.address_records.any(
-                        and_(
-                            ClientAddress.deleted_at.is_(None),
-                            or_(
-                                ClientAddress.street.ilike(pattern),
-                                ClientAddress.building_number.ilike(pattern),
-                                ClientAddress.postal_code.ilike(pattern),
-                                ClientAddress.city.ilike(pattern),
-                            ),
-                        )
-                    ),
-                )
+                ClientSearchMatchingService.condition(normalized_search)
             )
 
         if client_type is not None:
