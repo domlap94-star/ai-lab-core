@@ -72,6 +72,7 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+21
     Canonical reconciliation, residual-risk register and evidence are recorded
     in `FINAL_SYSTEM_AUDIT.md`. Earlier unchecked target checklists remain as
     historical design scope; they are not the current delivery-status ledger.
+    POST-PROJECT DEVELOPMENT CONTINUES IN: `AI_LAB_FOLLOWUP_PLAN.md`.
 [✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
     the form mounted while validating, reports invalid credentials and network
     failures clearly, verifies secure-storage persistence, and guards session

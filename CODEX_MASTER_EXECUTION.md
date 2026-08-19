@@ -4,6 +4,28 @@ Stan bazowy: 2026-08-14, commit wejściowy `5700681`. Dokument rozbija
 `AI_LAB_MASTER_PLAN.txt` na małe checkpointy. Statusy wynikają z kodu, testów i
 odczytowego audytu bazy, nie ze starych checkboxów.
 
+## ACTIVE POST-PROJECT ROADMAP
+
+**`AI_LAB_FOLLOWUP_PLAN.md`** jest aktywnym źródłem kolejności dalszych prac po
+release 1.0.2+21.
+
+- `AI_LAB_MASTER_PLAN.txt` jest zakończonym, historycznym masterplanem głównej
+  implementacji.
+- `FINAL_SYSTEM_AUDIT.md` jest kanonicznym audytem aktualnego stanu.
+- `AI_LAB_FOLLOWUP_PLAN.md` definiuje aktywne priorytety, zależności i human
+  gates dla wszystkich dalszych fixów i rozszerzeń.
+
+Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
+
+1. przeczytać `AI_LAB_FOLLOWUP_PLAN.md`,
+2. odnaleźć żądany FOLLOW-UP CHUNK,
+3. zastosować jego priorytet, zależności i human-gate requirements,
+4. nie wykonywać po cichu późniejszych CHUNK-ów,
+5. zatrzymać się na każdym jawnym approval gate.
+
+Current next recommended work:
+**FOLLOW-UP CHUNK 01 — DOCUMENT PROCESSING ANOMALIES**.
+
 ## Zasada kompatybilności wdrożonych klientów
 
 DEPLOYED BINARIES ARE API CONSUMERS. Zmiana aktualnego source nie oznacza, że
