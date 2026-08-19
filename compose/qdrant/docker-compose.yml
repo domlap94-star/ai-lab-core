@@ -1,9 +1,16 @@
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    # Qdrant 1.18.3; same digest as the running production container.
+    image: qdrant/qdrant@sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286
     container_name: qdrant
 
     restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
     ports:
       - "127.0.0.1:6333:6333"

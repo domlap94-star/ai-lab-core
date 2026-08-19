@@ -1,8 +1,15 @@
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
+    # n8n 2.31.6; same digest as the current production workflow runtime.
+    image: docker.n8n.io/n8nio/n8n@sha256:3c07c723326dd72e46a6969181c66a75260b7a204b9b77ba1ece6d594489c684
     container_name: n8n
     restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
     ports:
       - "127.0.0.1:5678:5678"

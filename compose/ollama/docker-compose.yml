@@ -1,8 +1,15 @@
 services:
   ollama:
-    image: ollama/ollama:latest
+    # Ollama 0.32.3; pin the working CPU runtime without changing models.
+    image: ollama/ollama@sha256:ec24bcaa2a810eb74171ce7c517813ef4821ed678988845e8d76cf62467036d4
     container_name: ollama
     restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
     ports:
       - "127.0.0.1:11434:11434"

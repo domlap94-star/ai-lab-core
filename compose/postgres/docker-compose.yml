@@ -1,10 +1,17 @@
 services:
   postgres:
-    image: postgres:17
+    # Pinned to the exact image running during the CHUNK 17 checkpoint.
+    image: postgres@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
 
     container_name: postgres
 
     restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
     environment:
       POSTGRES_DB: ai_lab
