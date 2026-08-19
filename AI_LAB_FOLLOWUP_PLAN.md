@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE
+## [~] FOLLOW-UP CHUNK 09 — AUDIT COMPLETE / MAIL WORKSPACE SCHEMA MIGRATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -508,6 +508,28 @@ Agent nadal nie może autonomicznie wysyłać emaili.
 
 Human gate: przed write wymagany
 `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+
+Audit/design record (2026-08-19):
+
+- Canonical source remains `candidate_sources` (`gmail_message`) with existing
+  Candidate/Client linkage and attachment Documents; no second mail store is
+  justified.
+- Production contains 4,262 canonical messages. A bounded prototype returned
+  the latest 50 in about 748 ms without evaluating historical JSON, but
+  correct backend direction/read filtering exceeded the 10-second client
+  timeout because these fields exist only inside large `raw_payload` values.
+- Gmail full-text search already has a production GIN index. Minimal additive
+  direction/read/message-time expression indexes are required for correct
+  filtering, stable pagination and canonical ordering. No column, default,
+  trigger, backfill or business-row rewrite is proposed.
+- Exact schema/read/write design and verification gates are recorded in
+  `FOLLOWUP_CHUNK09_GLOBAL_MAIL_WORKSPACE_DESIGN.md`.
+- Production writes, email sends, Client relinks, DB migration and n8n changes:
+  `0`. The unverified prototype was not retained. Release was not performed.
+
+Current gate: `FOLLOWUP_MAIL_WORKSPACE_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+After read implementation passes, Stage 2 still requires the separate
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED` gate.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 
