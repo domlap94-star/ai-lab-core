@@ -1,8 +1,11 @@
 # FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE — AUDIT AND DESIGN
 
-Date: 2026-08-19  
-Release baseline: `NEXT Stabil 1.0.2+21`  
-Source baseline: `51daa332b9f52cc995fd9c0f738b153e4498f0b4`  
+Date: 2026-08-19
+
+Release baseline: `NEXT Stabil 1.0.2+21`
+
+Source baseline: `51daa332b9f52cc995fd9c0f738b153e4498f0b4`
+
 DB baseline: `followup_change_history_20260819`
 
 ## Decision
@@ -38,7 +41,8 @@ The unverified prototype was not retained.
 
 ## Minimal additive migration proposal
 
-Proposed revision: `followup_mail_query_indexes_20260819`  
+Proposed revision: `followup_mail_query_indexes_20260819`
+
 Parent: `followup_change_history_20260819`
 
 No columns, defaults, backfill, triggers or business-row rewrite. Create only
