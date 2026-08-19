@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.repositories.candidate_context_repository import (
     CandidateContextRepository,
 )
+from app.services.email_client_matching_service import EMAIL_MATCH_METADATA_KEY
 
 
 class CandidateContextNotFoundError(Exception):
@@ -113,6 +114,7 @@ class CandidateContextService:
         source: Any,
     ) -> dict[str, Any]:
         payload = source.raw_payload or {}
+        matching = payload.get(EMAIL_MATCH_METADATA_KEY)
 
         from_value = self._extract_mail_address(
             payload.get("from")
@@ -142,6 +144,9 @@ class CandidateContextService:
             "text": payload.get("text"),
             "message_id": payload.get("messageId"),
             "size_estimate": payload.get("sizeEstimate"),
+            "client_matching": (
+                matching if isinstance(matching, dict) else None
+            ),
             "created_at": self._serialize_datetime(
                 source.created_at
             ),

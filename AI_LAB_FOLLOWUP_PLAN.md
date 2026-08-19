@@ -416,7 +416,7 @@ Acceptance: brak duplikatów.
 Human gate: zmiana n8n/schedule lub produkcyjny reconciliation wymaga osobnego
 approval.
 
-## FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2
+## [✓] FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2 — COMPLETE
 
 **Priority: P1**
 
@@ -440,6 +440,38 @@ gdy attachment faktycznie wymaga analizy wizualnej.
 Kryterium krytyczne: zero cross-client wrong linking.
 
 Human gate: każde historyczne relink/apply wymaga osobnego data approval.
+
+Completion record (2026-08-19):
+
+- Root cause: dotychczasowy ingest sprawdzał NIP, email i telefon kolejno, a
+  repozytorium zwracało pierwszy exact match. Dodatkowo identyfikatory z body
+  Gmaila mogły być traktowane jak zweryfikowane dane nadawcy i dopisywane do
+  kontaktów dopasowanego Client.
+- Wspólny bounded matcher zbiera wszystkie exact matches (maks. 10 Clients),
+  rozdziela zweryfikowanego nadawcę od niezaufanej treści i klasyfikuje wynik
+  jako `certain`, `high`, `ambiguous` albo `unresolved`. Auto-link jest
+  dozwolony wyłącznie dla jednego niesprzecznego `certain` Client.
+- Evidence hierarchy obejmuje canonical email/contact, pełny NIP, canonical
+  telefon, reference ID, wspierającą relację thread oraz bounded body. Name,
+  city, thread i email znaleziony wyłącznie w body są tylko propozycją do
+  review; AI-only i name-only nigdy nie są `certain`.
+- Niepewne nowe wiadomości pozostają osobnymi pending Candidates z bounded
+  metadata-only evidence. Replay tego samego Gmail message ID pozostaje
+  idempotent; istniejący link nigdy nie jest po cichu zmieniany.
+- Future-only reconciliation załączników korzysta z już zapisanego extracted
+  text, OCR i validated Vision (maks. 3 attachments, 8 pages/assets, bounded
+  text). Nie uruchamia OCR, LLM ani Vision job; sprzeczny późniejszy dowód
+  zachowuje aktualny Client i kieruje rekord do review.
+- Historyczny relink/backfill: NO. Schema migration: NO. n8n change: NO.
+  Produkcyjne Client/email/Candidate links zmienione podczas acceptance: `0`.
+- Read-only real-source sample: 12 najnowszych rekordów; 5 aktualnych linków
+  potwierdzonych, 3 linked-review, 4 unlinked-review, 0 exact conflict i 0
+  zmienionych produkcyjnych linków.
+- Tests: controlled matcher/reconciliation `24/24 PASS`; Gmail source boundary,
+  Candidate CHUNK 08 `13/13`, Vision `10/10`, Documents, Sheets idempotency,
+  Global Search, compatibility i Auth/Admin PASS; backend compile PASS.
+- Implementation commit: `Improve email to existing client matching`.
+- Release: NOT PERFORMED; pozostaje `NEXT Stabil 1.0.2+21`.
 
 ## FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD
 
@@ -821,9 +853,10 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2**
+**FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2**
 
-FOLLOW-UP CHUNK 08 został zakończony audytowanym, jawnie potwierdzanym merge z
-deterministycznym multi-match i bez realnego produkcyjnego merge podczas
-acceptance. Zgodnie z kolejnością Phase A następna praca to CHUNK 11; CHUNK 05
-pozostaje w późniejszej fazie Communication.
+FOLLOW-UP CHUNK 11 zakończył Phase A: matching nowych wiadomości jest
+deterministyczny, bounded i auto-linkuje wyłącznie `certain`; niepewne oraz
+sprzeczne dowody pozostają w review, bez historycznego relinkowania. Zgodnie z
+Phase B następna praca to CHUNK 06, ponieważ Activity Log będzie wspólną bazą
+dla Mail workspace, Admin History i Dashboard Last Activity.

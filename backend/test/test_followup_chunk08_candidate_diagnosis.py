@@ -182,7 +182,12 @@ class FollowupChunk08CandidateDiagnosisTests(unittest.TestCase):
                     f"CONTACT-{self.token}@EXAMPLE.INVALID",
                     f"other-{self.token}@example.invalid",
                 ],
+                "verified_emails": [
+                    f"CONTACT-{self.token}@EXAMPLE.INVALID",
+                    f"other-{self.token}@example.invalid",
+                ],
                 "phones": [],
+                "verified_phones": [],
             }
         }
         added = ForwardClientContactService.add_from_payloads(

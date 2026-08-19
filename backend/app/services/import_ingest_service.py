@@ -29,6 +29,11 @@ from app.services.forward_client_contact_service import (
 from app.services.forward_source_ingestion_service import (
     ForwardSourceIngestionService,
 )
+from app.services.email_client_matching_service import (
+    EMAIL_MATCH_METADATA_KEY,
+    EmailClientMatch,
+    EmailClientMatchingService,
+)
 
 
 class ImportSourceNotFoundError(Exception):
@@ -72,6 +77,7 @@ class ImportIngestService:
     def __init__(self, db: Session) -> None:
         self.repository = ImportRepository(db)
         self.forward_normalizer = ForwardSourceIngestionService()
+        self.email_matching = EmailClientMatchingService(self.repository)
 
     def ingest(
         self,
@@ -101,6 +107,10 @@ class ImportIngestService:
                     import_run=import_run,
                 )
 
+            candidate = self.repository.get_candidate(
+                existing_source.candidate_id
+            )
+            metadata = self._existing_email_match_metadata(existing_source)
             return ImportIngestResponse(
                 candidate_id=existing_source.candidate_id,
                 candidate_status=self._get_candidate_status(
@@ -110,7 +120,14 @@ class ImportIngestService:
                 created_candidate=False,
                 created_source=False,
                 matched_by="existing_source",
-                matched_client_id=None,
+                matched_client_id=(
+                    candidate.matched_client_id if candidate is not None else None
+                ),
+                match_confidence=metadata.get("confidence"),
+                match_reasons=list(metadata.get("reasons", [])),
+                candidate_client_ids=list(
+                    metadata.get("candidate_client_ids", [])
+                ),
             )
 
         # Forward-only boundary: existing historical CandidateSource rows are
@@ -124,7 +141,24 @@ class ImportIngestService:
                     received=1,
                 )
 
-            match = self._find_match(request.candidate)
+            email_match: EmailClientMatch | None = None
+            if request.source.source_type == "gmail_message":
+                email_match = self.email_matching.match(request)
+                payload = dict(request.source.raw_payload or {})
+                payload[EMAIL_MATCH_METADATA_KEY] = email_match.metadata()
+                request = request.model_copy(
+                    update={
+                        "source": request.source.model_copy(
+                            update={"raw_payload": payload}
+                        )
+                    }
+                )
+                match = self._find_candidate_for_email(
+                    request.candidate,
+                    email_match,
+                )
+            else:
+                match = self._find_match(request.candidate)
 
             created_candidate = False
 
@@ -188,6 +222,17 @@ class ImportIngestService:
                     match.matched_client.id
                     if match.matched_client is not None
                     else candidate.matched_client_id
+                ),
+                match_confidence=(
+                    email_match.confidence if email_match is not None else None
+                ),
+                match_reasons=(
+                    list(email_match.reasons) if email_match is not None else []
+                ),
+                candidate_client_ids=(
+                    list(email_match.candidate_client_ids)
+                    if email_match is not None
+                    else []
                 ),
             )
 
@@ -487,6 +532,59 @@ class ImportIngestService:
             matched_client=None,
             matched_by=None,
         )
+
+    def _find_candidate_for_email(
+        self,
+        data: CandidateDataInput,
+        decision: EmailClientMatch,
+    ) -> CandidateMatch:
+        matched_client = (
+            decision.client if decision.confidence == "certain" else None
+        )
+        if matched_client is None:
+            # Keep each uncertain future Gmail message independently
+            # reviewable. Replays are still deduplicated by CandidateSource.
+            return CandidateMatch(
+                candidate=None,
+                matched_client=None,
+                matched_by=f"email_match_{decision.confidence}",
+            )
+        candidate: ClientCandidate | None = None
+        # Reuse a prior pending/duplicate Candidate only when it cannot cross
+        # an existing Client assignment. Source-id idempotency is handled
+        # before this method and remains the primary replay guard.
+        for finder, value in (
+            (self.repository.find_candidate_by_tax_id, data.tax_id),
+            (self.repository.find_candidate_by_email, data.primary_email),
+            (self.repository.find_candidate_by_phone, data.primary_phone),
+        ):
+            if not value:
+                continue
+            found = finder(value)
+            if found is None:
+                continue
+            target_id = matched_client.id if matched_client is not None else None
+            if found.matched_client_id in {None, target_id}:
+                candidate = found
+                break
+
+        return CandidateMatch(
+            candidate=candidate,
+            matched_client=matched_client,
+            matched_by=(
+                decision.reasons[0]
+                if decision.confidence == "certain" and decision.reasons
+                else f"email_match_{decision.confidence}"
+            ),
+        )
+
+    @staticmethod
+    def _existing_email_match_metadata(
+        source: CandidateSource,
+    ) -> dict[str, Any]:
+        payload = source.raw_payload if isinstance(source.raw_payload, dict) else {}
+        metadata = payload.get(EMAIL_MATCH_METADATA_KEY)
+        return metadata if isinstance(metadata, dict) else {}
 
     def _create_candidate(
         self,

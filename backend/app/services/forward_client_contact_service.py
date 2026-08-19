@@ -29,7 +29,12 @@ class ForwardClientContactService:
             if not isinstance(metadata, dict):
                 continue
             for kind, key in (("email", "emails"), ("phone", "phones")):
-                values = metadata.get(key)
+                safe_key = (
+                    f"verified_{key}"
+                    if source_type in {"gmail_message", "gmail_thread"}
+                    else key
+                )
+                values = metadata.get(safe_key)
                 if isinstance(values, list):
                     incoming[kind].extend(
                         value for value in values if isinstance(value, str)

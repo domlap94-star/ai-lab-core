@@ -24,12 +24,12 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2**. CHUNK 08 jest
-zakończony w source: typed HTTP 409 zachowuje kompatybilność, deterministyczny
-multi-match prowadzi do read-only preview i jawnie potwierdzanego,
-transakcyjnego merge z persistent metadata-only audytem. Acceptance nie
-wykonało żadnego realnego produkcyjnego merge; wydanie nadal pozostaje częścią
-przyszłego Release A. Następna praca zgodnie z Phase A to CHUNK 11.
+**FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2**. CHUNK 11 zakończył
+Phase A w source: Gmail matching zbiera bounded deterministic evidence,
+auto-linkuje wyłącznie jeden niesprzeczny wynik `certain`, a niepewne i
+sprzeczne przypadki pozostawia do review. Nie wykonano historycznego relinku,
+zmiany n8n ani produkcyjnych zmian linków; wydanie nadal pozostaje częścią
+przyszłego Release A. Phase B zaczyna się od wspólnego modelu Activity Log.
 
 ## Zasada kompatybilności wdrożonych klientów
 

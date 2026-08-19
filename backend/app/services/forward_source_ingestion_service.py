@@ -13,7 +13,11 @@ from app.services.gmail_message_boundary_service import GmailMessageBoundaryServ
 
 EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
 PHONE_RE = re.compile(r"(?<!\d)(?:\+?48[\s.-]*)?(?:\d[\s.-]*){9}(?!\d)")
+TAX_ID_RE = re.compile(
+    r"(?i)\b(?:NIP|tax\s*id)\s*[:#-]?\s*((?:\d[\s.-]*){10})\b"
+)
 CONTACT_METADATA_KEY = "_next_stabil_forward_contacts_v1"
+MAX_MATCHING_BODY_CHARS = 100_000
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,24 @@ class ForwardSourceIngestionService:
             "phones": list(phones.values),
             "warnings": warnings,
         }
+        if source.source_type == "gmail_message":
+            payload[CONTACT_METADATA_KEY].update(
+                {
+                    "sender_email": gmail["sender_email"] or None,
+                    "sender_first_party": gmail["sender_first_party"],
+                    "body_emails": list(gmail["body_emails"]),
+                    "body_phones": list(gmail["body_phones"]),
+                    "body_tax_ids": list(gmail["body_tax_ids"]),
+                    # Body identifiers are evidence, not verified CRM contact
+                    # points. Only the current external sender is safe here.
+                    "verified_emails": (
+                        [gmail["sender_email"]]
+                        if gmail["sender_email"]
+                        else []
+                    ),
+                    "verified_phones": [],
+                }
+            )
         prepared_source = source.model_copy(update={"raw_payload": payload})
         return request.model_copy(
             update={"candidate": candidate, "source": prepared_source}
@@ -79,7 +101,9 @@ class ForwardSourceIngestionService:
         candidate_email: str | None,
     ) -> dict[str, Any]:
         payload = source.raw_payload or {}
-        raw_text = self._message_text(payload, source.extracted_text)
+        raw_text = self._message_text(
+            payload, source.extracted_text
+        )[:MAX_MATCHING_BODY_CHARS]
         current = self.gmail_boundary.parse(raw_text).current_content
         sender_email, sender_name = self._header_identity(payload, "from")
         normalized_candidate = self.normalize_email(candidate_email)
@@ -91,14 +115,32 @@ class ForwardSourceIngestionService:
 
         emails: list[str] = []
         phones: list[str] = []
+        body_emails: tuple[str, ...] = ()
+        body_phones: tuple[str, ...] = ()
+        body_tax_ids: tuple[str, ...] = ()
+        sender_first_party = FirstPartyIdentityRegistry.is_first_party_email(
+            sender_email
+        )
+        body_emails = self._unique(
+            value
+            for value in self.parse_emails(current).values
+            if not FirstPartyIdentityRegistry.is_first_party_email(value)
+        )
+        body_phones = self._unique(
+            normalized
+            for match in PHONE_RE.finditer(current)
+            if (normalized := self.normalize_phone(match.group(0)))
+        )
+        body_tax_ids = self._unique(
+            normalized
+            for match in TAX_ID_RE.finditer(current)
+            if (normalized := self.normalize_tax_id(match.group(1)))
+            and not FirstPartyIdentityRegistry.is_first_party_tax_id(normalized)
+        )
         if sender_is_external_candidate:
             emails.append(sender_email)
-            emails.extend(self.parse_emails(current).values)
-            phones.extend(
-                normalized
-                for match in PHONE_RE.finditer(current)
-                if (normalized := self.normalize_phone(match.group(0)))
-            )
+        emails.extend(body_emails)
+        phones.extend(body_phones)
 
         name = sender_name if sender_is_external_candidate else None
         if not self.is_usable_identity(name) and sender_is_external_candidate:
@@ -116,6 +158,11 @@ class ForwardSourceIngestionService:
             "name": name,
             "emails": self._unique(emails),
             "phones": self._unique(phones),
+            "sender_email": sender_email if sender_is_external_candidate else "",
+            "sender_first_party": sender_first_party,
+            "body_emails": body_emails,
+            "body_phones": body_phones,
+            "body_tax_ids": body_tax_ids,
         }
 
     @staticmethod
@@ -178,6 +225,11 @@ class ForwardSourceIngestionService:
             return ""
         match = EMAIL_RE.fullmatch(str(value).strip())
         return match.group(0).casefold() if match else ""
+
+    @staticmethod
+    def normalize_tax_id(value: Any) -> str:
+        digits = re.sub(r"\D", "", str(value or ""))
+        return digits if len(digits) == 10 else ""
 
     @staticmethod
     def _message_text(payload: dict[str, Any], fallback: str | None) -> str:

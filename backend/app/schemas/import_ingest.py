@@ -236,6 +236,11 @@ class ImportIngestResponse(BaseModel):
 
     matched_by: str | None = None
     matched_client_id: int | None = None
+    match_confidence: Literal[
+        "certain", "high", "ambiguous", "unresolved"
+    ] | None = None
+    match_reasons: list[str] = Field(default_factory=list, max_length=32)
+    candidate_client_ids: list[int] = Field(default_factory=list, max_length=10)
 
 
 class ImportBatchRequest(BaseModel):

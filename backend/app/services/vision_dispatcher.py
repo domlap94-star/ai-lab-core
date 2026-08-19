@@ -11,6 +11,9 @@ from app.core.config import settings
 from app.database.session import SessionLocal
 from app.models.document import Document
 from app.services.document_processing_service import DocumentProcessingService
+from app.services.email_attachment_reconciliation_service import (
+    EmailAttachmentReconciliationService,
+)
 from app.services.vision_processing_service import VisionProcessingService
 
 
@@ -25,10 +28,21 @@ def process_one_vision_document(document_id: int, *, explicit: bool = False):
             return None
         if document.processing_status in {"stored", "pending", "extracting"}:
             DocumentProcessingService(db).process_document(document_id=document.id)
-        return VisionProcessingService(db).advance(
+        result = VisionProcessingService(db).advance(
             document.id,
             explicit=explicit or not document.vision_auto_eligible,
         )
+        try:
+            EmailAttachmentReconciliationService(db).reconcile(document.id)
+        except Exception as error:
+            db.rollback()
+            # Email reconciliation is fail-closed for linking and fail-open for
+            # the independent Vision pipeline.
+            logger.warning(
+                "Email attachment reconciliation failed: %s",
+                error.__class__.__name__,
+            )
+        return result
     finally:
         db.close()
 
