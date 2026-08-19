@@ -24,15 +24,15 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE** — stop at
-`FOLLOWUP_MAIL_LEGACY_READ_INDEX_DROP_APPROVAL_REQUIRED`. Isolated full-size
-evidence validated superseding `ix_candidate_sources_gmail_read_state`: exact
-read improved from 17,907.796 ms to 87.232 ms, the ordered read/time index was
-selected, and 200 IDs/order positions were identical. Production received no
-DDL. A future approved operation must use `DROP INDEX CONCURRENTLY` with the
-documented concurrent-recreate rollback. Stage 1 API/Flutter and CHUNK 10 must
-not start; email sending remains independently gated by
-`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+**FOLLOW-UP CHUNK 09 — QUERY ARCHITECTURE BLOCKED** — Production revision
+`followup_mail_read_index_supersession_20260819` concurrently superseded the
+legacy read-state index; common `read` improved from 18,527 ms to 349 ms cold /
+about 102 ms warm. A strict nullable-state audit then found one Gmail source
+without labels. Correct `unknown` filtering requires historical JSON reads and
+took 13,364 ms, so the 10-second hard gate still fails. The unaccepted API/UI
+prototype was removed. Next work remains CHUNK 09 and requires a decision on a
+corrected concurrent nullable read-state index or canonical projection. Do not
+start Stage 1 API/UI, the email-send gate, CHUNK 10 or Release B.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only

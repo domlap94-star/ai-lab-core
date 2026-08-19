@@ -87,6 +87,19 @@ receives Gmail credentials. The Agent remains read-only and receives no
 
 `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`
 
+## Production supersession outcome and remaining blocker
+
+Production revision `followup_mail_read_index_supersession_20260819`
+concurrently removed the planner-conflicting legacy read-state index after a
+verified isolated round-trip. All intended bounded queries pass the 10-second
+gate except the strict nullable `unknown read-state` filter. The historical
+expression treats a missing labels value as `read`; production contains one
+such Gmail source. Correct semantics require a JSON scan and measured
+13,364 ms. The API/Flutter prototype used for validation was removed before
+commit. Stage 1 therefore remains blocked pending a corrected concurrent
+nullable read-state index or separately approved canonical projection. Stage
+2, CHUNK 10 and release have not started.
+
 ## Required verification after schema approval
 
 - At least 20 read cases covering list, search, filters, threads, detail,

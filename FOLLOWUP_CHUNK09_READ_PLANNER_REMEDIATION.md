@@ -4,9 +4,28 @@ Date: 2026-08-19
 
 Source baseline: `b2621f6902fd016abfd398e2b4302391577e42c1`
 
-Production DB revision: `followup_mail_composite_indexes_20260819`
+Production DB revision: `followup_mail_read_index_supersession_20260819`
 
-Decision: `FOLLOWUP_MAIL_LEGACY_READ_INDEX_DROP_APPROVAL_REQUIRED`
+Decision: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`
+
+## Approved production outcome
+
+Approval was applied through revision
+`followup_mail_read_index_supersession_20260819`. The upgrade used
+`DROP INDEX CONCURRENTLY` in an Alembic autocommit block and removed only the
+legacy read-state index. The ordered replacement remained valid/ready; waiting
+locks were zero and backend health remained HTTP 200. The exact plan improved
+from 18,527.250 ms with a 4,242-row top-N sort to 348.775 ms without a sort and
+then 102–111 ms warm. Downgrade recreates the exact historical expression index
+concurrently.
+
+The common `read` query passed, but Stage 1 did not. A strict audit found one
+Gmail source without a labels array. The historical expression used by the
+ordered index classifies that missing value as `read`; a semantically correct
+`unknown` filter took 13,364 ms. The unaccepted API/UI prototype was removed.
+Current decision is `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`; a corrected
+online nullable read-state index or separately approved canonical projection
+is required before Stage 1 can continue. CHUNK 10 and release remain stopped.
 
 ## Scope and safety
 

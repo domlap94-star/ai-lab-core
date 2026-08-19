@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — LEGACY READ INDEX SUPERSESSION VALIDATED / PRODUCTION DROP APPROVAL REQUIRED
+## [~] FOLLOW-UP CHUNK 09 — QUERY ARCHITECTURE BLOCKED / NULL READ-STATE INDEX DECISION REQUIRED
 
 **Priority: P1**
 
@@ -595,11 +595,46 @@ Planner-remediation evidence (2026-08-19):
   Full evidence and rollback are in
   `FOLLOWUP_CHUNK09_READ_PLANNER_REMEDIATION.md`.
 
-Current gate: `FOLLOWUP_MAIL_LEGACY_READ_INDEX_DROP_APPROVAL_REQUIRED`.
-Required production method is `DROP INDEX CONCURRENTLY` in an Alembic
-autocommit revision, with pre/post plans and concurrent recreation of the
-exact historical index as rollback. Do not start API/UI or CHUNK 10. Stage 2
-remains separately blocked by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+Production supersession and remaining hard-gate record (2026-08-19):
+
+- Approved revision `followup_mail_read_index_supersession_20260819` used an
+  Alembic autocommit block to drop only
+  `ix_candidate_sources_gmail_read_state` with `DROP INDEX CONCURRENTLY`.
+  Downgrade recreates the exact historical expression/partial predicate with
+  `CREATE INDEX CONCURRENTLY`; no row, column, trigger or default changed.
+- Verified isolated upgrade/downgrade/re-upgrade passed before production.
+  Production DB identity was explicitly `ai_lab`; backend remained HTTP 200,
+  waiting locks were 0, and ordered replacement
+  `ix_candidate_sources_gmail_read_time` remained valid/ready.
+- The exact common `read LIMIT 50` plan changed from the legacy index plus
+  4,242-row top-N sort (18,527.250 ms) to the ordered read/time index without
+  sort (348.775 ms immediately after apply; 102–111 ms warm measurements).
+  Result IDs/order remained identical to the isolated proof.
+- Initial production query matrix (maximum observed): latest 199 ms, received
+  692 ms, sent 3,669 ms, unknown direction 142 ms, read 112 ms, unread 37 ms,
+  search 275 ms, Client filter 12 ms and date range 139 ms. The prior
+  `unknown read` figure of about 2 ms used the historical index expression,
+  which incorrectly classifies a missing-label payload as `read`.
+- A strict contract audit found exactly one Gmail source (technical ID 2)
+  without either labels array. Correct nullable semantics (`missing/unusable`
+  means `null`) require evaluating historical JSON; the exact bounded unknown
+  filter took 13,364 ms and therefore fails the 10-second hard gate.
+- A thread JSON fallback also measured 13.7 s; read-only evidence showed
+  canonical `external_parent_id` on all 4,262 Gmail sources and zero mismatches,
+  so the canonical thread query itself is viable at about 54 ms. This does not
+  solve the nullable read-state filter.
+- A read-only API/Flutter prototype was exercised to expose these issues, then
+  removed before commit because Stage 1 acceptance did not pass. No production
+  email/link/Candidate row, n8n workflow, Vision job or Qdrant point changed.
+- Required next architecture decision: approve a corrected nullable
+  read-state ordered expression index (online/concurrent) or a separately
+  designed canonical projection. Do not approximate missing labels as `read`.
+- Verification retained for this stage: isolated migration
+  upgrade/downgrade/re-upgrade PASS and structural test `2/2 PASS`.
+
+Current decision: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`. Active work
+remains CHUNK 09. Stage 1 API/UI, email-send gate, CHUNK 10 and release remain
+stopped until the nullable read-state query has a production-safe plan.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 
