@@ -24,10 +24,14 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE** — decide the online composite
-query-index build at `FOLLOWUP_MAIL_INDEX_ONLINE_BUILD_APPROVAL_REQUIRED`.
-The baseline direction/read/message-time indexes are applied, but Stage 1 is
-not accepted because common filtered queries exceed the 10-second UI timeout.
+**FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE** — resolve
+`FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`. The approved concurrent
+received/read ordered indexes are applied and valid; received now completes in
+about 244 ms, but PostgreSQL still selects the older read-state index and the
+bounded read query remains about 18.5–25.4 s. Stage 1 API/Flutter must not be
+started until an explicit planner-safe architecture is approved. CHUNK 10 must
+not start; email sending remains independently gated by
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only

@@ -8,7 +8,7 @@ Source baseline: `51daa332b9f52cc995fd9c0f738b153e4498f0b4`
 
 DB baseline: `followup_change_history_20260819`
 
-## Decision
+## Initial decision
 
 `FOLLOWUP_MAIL_WORKSPACE_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
 
@@ -124,3 +124,41 @@ is materially blocking, work stops before any additional DDL at:
 
 Stage 1 API/Flutter code was not retained or committed. Stage 2 remains
 separately gated by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+
+## Online composite-index execution outcome
+
+Current decision: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`.
+
+The approved online procedure used an explicitly verified isolated database
+(`ai_lab_chunk09_online_20260819`) and checked `current_database()` before DDL.
+The clone retained 4,262 Gmail sources / 6,984 total sources. Both candidate
+designs were built concurrently and compared on the same data:
+
+- partial received/time: 80 KiB, about 215 ms;
+- composite direction/time: 208 KiB, about 242 ms;
+- partial read/time: 152 KiB, about 107 ms on the clone;
+- composite read-state/time: 184 KiB, about 105 ms on the clone.
+
+Production required the partial received/time index and composite
+read-state/time index. Revision `followup_mail_composite_indexes_20260819`
+uses Alembic `autocommit_block()` and only concurrent create/drop operations.
+Its updated isolated upgrade/downgrade/re-upgrade passed. Production indexes
+are valid and ready; no waiting lock was observed, backend remained HTTP 200,
+and no rows or counts changed.
+
+After statistics refresh, received uses
+`ix_candidate_sources_gmail_received_time` and returns 50 IDs in about 244 ms
+(baseline exact clone plan: 27.3 s). The common read query still does not pass:
+the planner chooses `ix_candidate_sources_gmail_read_state`, reads historical
+TOAST JSON and sorts 4,242 rows. The exact query took about 18.5 s; adding the
+full index key or a bounded optimizer-barrier subquery took about 19.9–25.4 s.
+The new ordered read index remained ignored despite being valid/ready.
+
+The explicit performance gate therefore stopped execution before Global Mail
+API, Flutter workspace or UI tests. Source changes are limited to the applied
+migration, its structural test and this truthful documentation. A further
+architecture decision is required before Stage 1 can continue; likely options
+must be evaluated under a new explicit approval because removing/superseding
+the baseline read-state index or persisting a canonical projection was not in
+this approval. Email sending remains separately gated by
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.

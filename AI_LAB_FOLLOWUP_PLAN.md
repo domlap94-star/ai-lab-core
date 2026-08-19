@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — QUERY INDEX BASELINE APPLIED / ONLINE COMPOSITE INDEX APPROVAL REQUIRED
+## [~] FOLLOW-UP CHUNK 09 — ONLINE INDEXES APPLIED / QUERY ARCHITECTURE BLOCKED
 
 **Priority: P1**
 
@@ -548,8 +548,42 @@ Execution record (2026-08-19):
   Normal transactional construction on the 524 MB table is materially
   blocking, so no additional index or Stage 1 API/UI was implemented.
 
-Current gate: `FOLLOWUP_MAIL_INDEX_ONLINE_BUILD_APPROVAL_REQUIRED`.
-Stage 2 remains separately blocked by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+Online-index execution record (2026-08-19):
+
+- The isolated target was explicitly verified as
+  `ai_lab_chunk09_online_20260819` using `POSTGRES_DB` plus
+  `current_database()` before DDL; this prevents recurrence of the earlier
+  production-first sequencing exception.
+- On the full isolated clone, narrow partial indexes measured 80 KiB
+  (`received`) and 152 KiB (`read`) with 215/107 ms plans. Full composite
+  alternatives measured 208/184 KiB with 242/105 ms plans. Production
+  evidence required the final hybrid: partial `(message_time, id)` for
+  `received`, and composite `(read_state, message_time, id)` for `read`.
+- Revision `followup_mail_composite_indexes_20260819` uses Alembic
+  `autocommit_block()` with `CREATE/DROP INDEX CONCURRENTLY`. Isolated
+  upgrade/downgrade/re-upgrade passed; the three baseline indexes remained,
+  both new indexes are valid/ready, and counts remained 4,262 Gmail / 6,984
+  total sources.
+- Production online construction kept backend health at 200, observed zero
+  waiting locks, rewrote zero rows, and produced valid/ready 80/184 KiB
+  indexes. After `ANALYZE`, `received LIMIT 50` uses the new index and improved
+  to about 244 ms.
+- The hard gate still failed for `read`: PostgreSQL continues to choose the
+  older single-column `ix_candidate_sources_gmail_read_state`, evaluates
+  historical TOAST JSON and sorts 4,242 rows. Exact, full-key and bounded
+  ordered-subquery forms took about 18.5–25.4 s and ignored the ordered
+  composite path. Therefore Stage 1 API/Flutter was not implemented.
+- Production safety audit remained unchanged: Clients 3,243; Candidates
+  3,561; Documents 5,915; Change History 0; Activity 0; Qdrant 57; backend,
+  Vision and n8n healthy. No email, link, Candidate, n8n, Vision or Qdrant
+  write occurred.
+
+Current blocker: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`.
+Required next work remains CHUNK 09: obtain an explicit design decision for a
+planner-safe query architecture (for example superseding the redundant legacy
+read-state index or a different persisted projection). Do not start API/UI or
+CHUNK 10. Stage 2 remains separately blocked by
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 
