@@ -76,7 +76,7 @@ zatrzymuje pracę do czasu podania właściwego approval tokenu.
 - **P2** — istotne rozszerzenie lub zadanie operacyjne.
 - **P3** — cleanup, optymalizacja albo R&D.
 
-## FOLLOW-UP CHUNK 01 — DOCUMENT PROCESSING ANOMALIES
+## [~] FOLLOW-UP CHUNK 01 — DIAGNOSTIC COMPLETE / REMEDIATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -93,6 +93,25 @@ OCR/render, dokładną przyczynę oraz inne rekordy o tym samym wzorcu.
 Bez osobnego approval nie wykonywać retry, reset, delete ani rewrite.
 
 Human gate: `FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED`.
+
+Diagnostic result (2026-08-19):
+
+- Document `1913` has a valid 25-page PDF and 25 completed page renders, but no
+  database pages. Processing was interrupted after the committed `extracting`
+  transition and render completion, before extraction/OCR result persistence.
+  No historical stale-processing recovery scan exists, by design.
+- Document `5626` failed because EXIF GPS metadata contained non-finite `NaN`
+  values rejected by PostgreSQL JSON. Current source already sanitizes this
+  class of value (commit `f676b124`); read-only extraction of the unchanged file
+  now passes strict JSON serialization.
+- These are the only records matching their respective stale-extracting and
+  JSON/`NaN` failure patterns.
+- No schema migration or production write was performed. Both records require
+  a checksum-gated, single-document, non-force retry under
+  `FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED`.
+
+Evidence and remediation design:
+`FOLLOWUP_CHUNK01_DOCUMENT_ANOMALY_DIAGNOSIS.md`.
 
 ## FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY
 
@@ -644,7 +663,8 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 01 — DOCUMENT PROCESSING ANOMALIES**
+**FOLLOW-UP CHUNK 01 — PRODUCTION RECORD REMEDIATION (APPROVAL REQUIRED)**
 
-Pierwszy prompt ma wykonać wyłącznie diagnozę read-only i zatrzymać się przed
-`FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED`.
+Diagnoza read-only jest zakończona. Następny krok pozostaje w CHUNK 01 i wymaga
+`FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED` przed pojedynczymi,
+checksum-gated, non-force retries dokumentów `1913` i `5626`.

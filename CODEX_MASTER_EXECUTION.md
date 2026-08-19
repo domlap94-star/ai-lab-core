@@ -24,7 +24,9 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 01 — DOCUMENT PROCESSING ANOMALIES**.
+**FOLLOW-UP CHUNK 01 — PRODUCTION RECORD REMEDIATION**. Diagnoza jest
+zakończona; przed jakimkolwiek retry lub zapisem wymagany jest gate
+`FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED`.
 
 ## Zasada kompatybilności wdrożonych klientów
 
