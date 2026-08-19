@@ -12,6 +12,11 @@ class TimelineEvent {
     this.inspectionId,
     this.documentId,
     this.actorUserId,
+    this.actorDisplayName,
+    this.direction,
+    this.entityType,
+    this.entityId,
+    this.deepLink,
     this.metadata = const <String, dynamic>{},
   });
   final String stableKey;
@@ -26,6 +31,11 @@ class TimelineEvent {
   final String sourceType;
   final Object sourceId;
   final int? actorUserId;
+  final String? actorDisplayName;
+  final String? direction;
+  final String? entityType;
+  final int? entityId;
+  final String? deepLink;
   final Map<String, dynamic> metadata;
 
   factory TimelineEvent.fromJson(Map<String, dynamic> json) => TimelineEvent(
@@ -41,6 +51,11 @@ class TimelineEvent {
     sourceType: json['source_type'] as String,
     sourceId: json['source_id'] as Object,
     actorUserId: json['actor_user_id'] as int?,
+    actorDisplayName: json['actor_display_name'] as String?,
+    direction: json['direction'] as String?,
+    entityType: json['entity_type'] as String?,
+    entityId: json['entity_id'] as int?,
+    deepLink: json['deep_link'] as String?,
     metadata: (json['metadata'] as Map<String, dynamic>?) ?? const {},
   );
 }

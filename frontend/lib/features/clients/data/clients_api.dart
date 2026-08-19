@@ -219,6 +219,29 @@ class ClientsApi {
     return response.data ?? <String, dynamic>{};
   }
 
+  Future<Map<String, dynamic>> recordCallInitiated({
+    required int clientId,
+    required String operationId,
+    int? contactId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_clientsPath/$clientId/activities/call-initiated',
+      data: <String, dynamic>{
+        'operation_id': operationId,
+        'contact_id': contactId,
+      },
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+    return response.data ?? <String, dynamic>{};
+  }
+
   Future<Map<String, dynamic>> bulkSoftDelete({
     required List<int> clientIds,
     required String accessToken,

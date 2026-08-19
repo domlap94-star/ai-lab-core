@@ -24,11 +24,18 @@ void main() {
       'source_type': 'candidate_source',
       'source_id': 7,
       'actor_user_id': null,
+      'actor_display_name': null,
+      'direction': 'incoming',
+      'entity_type': 'candidate_source',
+      'entity_id': 7,
+      'deep_link': '/clients/3?email_source_id=7',
       'metadata': <String, dynamic>{'direction': 'received'},
     });
     expect(event.summary, 'Temat wiadomości');
     expect(event.metadata, isNot(contains('raw_payload')));
     expect(event.metadata, isNot(contains('body')));
+    expect(event.direction, 'incoming');
+    expect(event.deepLink, '/clients/3?email_source_id=7');
     expect(
       DocumentsApi.buildQueryParameters(
         filters: const DocumentFilters(documentId: 91),

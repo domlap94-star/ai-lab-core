@@ -6,6 +6,7 @@ from app.database.session import SessionLocal
 from app.models.client import Client
 from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
+from app.models.user import User
 from app.repositories.client_repository import ClientRepository
 from app.schemas.client_bulk import ClientWorkflowBatchRequest
 from app.services.client_bulk_service import ClientBulkService
@@ -129,12 +130,16 @@ def main() -> None:
         db.commit = db.flush  # type: ignore[method-assign]
         try:
             service = ClientBulkService(db)
+            actor_row = db.query(User.id).filter(User.is_active.is_(True)).order_by(User.id).first()
+            actor_id = actor_row[0] if actor_row is not None else None
+            assert actor_id is not None
             status = service.set_workflow_status(
                 ClientWorkflowBatchRequest(
                     client_ids=ids + [2_147_483_647],
                     status="inspection",
                     effective_date=date(2026, 8, 17),
-                )
+                ),
+                actor_user_id=actor_id,
             )
             assert status.succeeded == 2 and status.failed == 1
             assert all(

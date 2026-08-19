@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,9 +13,17 @@ import '../application/clients_providers.dart';
 import '../application/clients_controller.dart';
 import '../application/client_workflow_status.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../timeline/application/timeline_providers.dart';
+import '../../timeline/domain/timeline.dart';
 import '../domain/client.dart';
 import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
+
+final phoneUriLauncherProvider = Provider<Future<bool> Function(Uri)>((
+  Ref ref,
+) {
+  return (Uri uri) => launchUrl(uri);
+});
 
 class ClientDetailsPage extends ConsumerWidget {
   const ClientDetailsPage({
@@ -259,7 +269,7 @@ class ClientDetailsPage extends ConsumerWidget {
   }
 }
 
-class _ClientDetails extends StatelessWidget {
+class _ClientDetails extends ConsumerStatefulWidget {
   const _ClientDetails({
     required this.client,
     required this.onEdit,
@@ -273,6 +283,18 @@ class _ClientDetails extends StatelessWidget {
   final VoidCallback onEditNotes;
   final VoidCallback onDelete;
   final int? emailSourceId;
+
+  @override
+  ConsumerState<_ClientDetails> createState() => _ClientDetailsState();
+}
+
+class _ClientDetailsState extends ConsumerState<_ClientDetails> {
+  bool _callPending = false;
+  Client get client => widget.client;
+  VoidCallback get onEdit => widget.onEdit;
+  VoidCallback get onEditNotes => widget.onEditNotes;
+  VoidCallback get onDelete => widget.onDelete;
+  int? get emailSourceId => widget.emailSourceId;
 
   @override
   Widget build(BuildContext context) {
@@ -431,9 +453,19 @@ class _ClientDetails extends StatelessWidget {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: FilledButton.icon(
-                          onPressed: () {
-                            _callPhone(context, client.primaryPhone!);
-                          },
+                          key: const Key('client-call-button'),
+                          onPressed: _callPending
+                              ? null
+                              : () {
+                                  final points = client.phones.where(
+                                    (item) => item.isPrimary && item.id > 0,
+                                  );
+                                  _callPhone(
+                                    context,
+                                    client.primaryPhone!,
+                                    points.isEmpty ? null : points.first.id,
+                                  );
+                                },
                           icon: const Icon(Icons.phone_outlined),
                           label: const Text('Zadzwoń'),
                         ),
@@ -627,7 +659,12 @@ class _ClientDetails extends StatelessWidget {
     return isMobile && phoneNumber != null && phoneNumber.trim().isNotEmpty;
   }
 
-  Future<void> _callPhone(BuildContext context, String phoneNumber) async {
+  Future<void> _callPhone(
+    BuildContext context,
+    String phoneNumber,
+    int? contactId,
+  ) async {
+    if (_callPending) return;
     final String normalizedPhone = phoneNumber.trim().replaceAll(
       RegExp(r'[^\d+]'),
       '',
@@ -637,9 +674,53 @@ class _ClientDetails extends StatelessWidget {
       return;
     }
 
+    setState(() => _callPending = true);
+    final operationId = _uuidV4();
+    bool logFailed = false;
+    try {
+      final authState = await ref.read(authControllerProvider.future);
+      final session = authState.session;
+      if (session == null || !session.isAuthenticated) {
+        logFailed = true;
+      } else {
+        await ref
+            .read(clientsRepositoryProvider)
+            .recordCallInitiated(
+              session: session,
+              clientId: client.id,
+              operationId: operationId,
+              contactId: contactId,
+            );
+        ref.invalidate(
+          timelinePageProvider(
+            TimelineRequest(scope: TimelineScope.client, id: client.id),
+          ),
+        );
+      }
+    } catch (_) {
+      logFailed = true;
+    }
+
+    if (logFailed && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nie udało się zapisać rozpoczęcia połączenia. Telefon zostanie otwarty.',
+          ),
+        ),
+      );
+    }
+
     final Uri uri = Uri(scheme: 'tel', path: normalizedPhone);
 
-    final bool opened = await launchUrl(uri);
+    bool opened = false;
+    try {
+      opened = await ref.read(phoneUriLauncherProvider)(uri);
+    } catch (_) {
+      opened = false;
+    } finally {
+      if (mounted) setState(() => _callPending = false);
+    }
 
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context)
@@ -650,6 +731,17 @@ class _ClientDetails extends StatelessWidget {
           ),
         );
     }
+  }
+
+  String _uuidV4() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> _openGoogleMaps(BuildContext context, String address) async {

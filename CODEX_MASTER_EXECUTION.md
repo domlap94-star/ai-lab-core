@@ -24,14 +24,12 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 06 — ACTIVITY AUDIT MIGRATION APPROVAL REQUIRED**. Audit i
-design są zakończone: obecna Timeline jest read-only projekcją i nie ma
-kanonicznego źródła dla `call_initiated`, natomiast workflow status nie
-zachowuje historii. Projekt `FOLLOWUP_CHUNK06_CLIENT_ACTIVITY_DESIGN.md`
-proponuje minimalną addytywną tabelę `client_activity_events`, bez backfillu.
-Nie tworzyć migracji, ORM, endpointu ani UI przed tokenem
-`FOLLOWUP_ACTIVITY_AUDIT_MIGRATION_APPROVAL_REQUIRED`; nie przechodzić do
-CHUNK 07.
+**FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY**. CHUNK 06 jest zakończony:
+addytywna tabela `client_activity_events` przechowuje tylko call/status,
+Timeline V2 nadal wyprowadza email/Documents/Inspections/Candidate merge z
+kanonicznych źródeł, a historyczny backfill nie został wykonany. CHUNK 07 musi
+pozostać osobnym admin-only audytem before/after i zatrzymać się przed każdym
+jawnym schema/migration gate.
 
 ## Zasada kompatybilności wdrożonych klientów
 

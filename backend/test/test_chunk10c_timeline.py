@@ -14,6 +14,7 @@ from app.database.engine import engine
 from app.database.session import get_db
 from app.main import app
 from app.models.candidate_source import CandidateSource
+from app.models.candidate_merge_event import CandidateMergeEvent
 from app.models.client import Client
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
@@ -151,6 +152,23 @@ class TimelineReadModelTests(unittest.TestCase):
         )
         self.db.add(self.link)
         self.db.flush()
+        self.merge = CandidateMergeEvent(
+            operation_id=str(uuid.uuid4()),
+            actor_user_id=self.actor.id,
+            candidate_id=candidate.id,
+            target_client_id=self.client.id,
+            action="candidate_merged",
+            changed_fields=[],
+            relation_counts={
+                "contacts_added": 0,
+                "addresses_added": 0,
+                "documents_relinked": 0,
+                "emails_relinked": 0,
+                "sources_preserved": 1,
+            },
+        )
+        self.db.add(self.merge)
+        self.db.flush()
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
@@ -176,6 +194,7 @@ class TimelineReadModelTests(unittest.TestCase):
                 "photo_captured",
                 "email_received",
                 "document_client_linked",
+                "candidate_merged",
             }.issubset(kinds)
         )
         serialized = json.dumps(

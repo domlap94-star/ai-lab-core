@@ -17,6 +17,7 @@ import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
 import 'package:ai_lab/features/auth/domain/current_user.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +35,20 @@ final Client _client = Client(
   workflowStatus: 'inspection',
   workflowStatusLabel: 'Oględziny',
   workflowEffectiveDate: DateTime.utc(2026, 8, 19),
+);
+
+final Client _phoneClient = Client(
+  id: 123,
+  clientType: ClientType.person,
+  name: 'Telefon testowy',
+  countryCode: 'PL',
+  primaryPhone: '+48 123 456 789',
+  phones: const <ClientContactPoint>[
+    ClientContactPoint(id: 77, value: '+48 123 456 789', isPrimary: true),
+  ],
+  effectiveAddedDate: DateTime(2026, 8, 19),
+  createdAt: DateTime.utc(2026, 8, 19),
+  updatedAt: DateTime.utc(2026, 8, 19),
 );
 
 class _HotfixClientsController extends ClientsController {
@@ -109,6 +124,9 @@ class _StatusRepository extends ClientsRepository {
   _StatusRepository() : super(ClientsApi(Dio()));
 
   String? writtenStatus;
+  int callWrites = 0;
+  int? callContactId;
+  bool failCallWrite = false;
 
   @override
   Future<Map<String, dynamic>> bulkWorkflowStatus({
@@ -119,6 +137,19 @@ class _StatusRepository extends ClientsRepository {
   }) async {
     writtenStatus = status;
     return <String, dynamic>{'succeeded': 1, 'failed': 0};
+  }
+
+  @override
+  Future<Map<String, dynamic>> recordCallInitiated({
+    required AuthSession session,
+    required int clientId,
+    required String operationId,
+    int? contactId,
+  }) async {
+    if (failCallWrite) throw StateError('synthetic activity failure');
+    callWrites++;
+    callContactId = contactId;
+    return <String, dynamic>{'event_id': 1, 'operation_id': operationId};
   }
 }
 
@@ -497,6 +528,79 @@ void main() {
     expect(find.byKey(const Key('client-address-902')), findsOneWidget);
     expect(find.text('Pochodzenie: dane zastane'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+  testWidgets(
+    'call action logs once before mocked dialer and carries contact reference',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final repository = _StatusRepository();
+      var launcherCalls = 0;
+      final router = _router(initialLocation: '/clients/123');
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith(_StatusAuthController.new),
+            clientsRepositoryProvider.overrideWithValue(repository),
+            clientDetailsProvider.overrideWith(
+              (Ref ref, int id) async => _phoneClient,
+            ),
+            phoneUriLauncherProvider.overrideWithValue((Uri uri) async {
+              launcherCalls++;
+              expect(uri.scheme, 'tel');
+              return true;
+            }),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final callButton = find.byKey(const Key('client-call-button'));
+      await tester.ensureVisible(callButton);
+      await tester.tap(callButton);
+      await tester.pumpAndSettle();
+      expect(repository.callWrites, 1);
+      expect(repository.callContactId, 77);
+      expect(launcherCalls, 1);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  testWidgets('activity logging failure warns but still opens mocked dialer', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final repository = _StatusRepository()..failCallWrite = true;
+    var launcherCalls = 0;
+    final router = _router(initialLocation: '/clients/123');
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_StatusAuthController.new),
+          clientsRepositoryProvider.overrideWithValue(repository),
+          clientDetailsProvider.overrideWith(
+            (Ref ref, int id) async => _phoneClient,
+          ),
+          phoneUriLauncherProvider.overrideWithValue((Uri uri) async {
+            launcherCalls++;
+            return true;
+          }),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final callButton = find.byKey(const Key('client-call-button'));
+    await tester.ensureVisible(callButton);
+    await tester.tap(callButton);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Nie udało się zapisać rozpoczęcia'),
+      findsOneWidget,
+    );
+    expect(launcherCalls, 1);
+    debugDefaultTargetPlatformOverride = null;
   });
 }
 

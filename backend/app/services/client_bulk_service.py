@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,7 @@ from app.schemas.client_bulk import (
 from app.services.client_workflow_status_projection_service import (
     ClientWorkflowStatusProjectionService,
 )
+from app.services.client_activity_service import ClientActivityService
 
 
 class ClientBulkService:
@@ -39,10 +41,17 @@ class ClientBulkService:
             if client_id in active_ids
         ]
 
-    def set_workflow_status(self, request: ClientWorkflowBatchRequest) -> ClientBatchResponse:
+    def set_workflow_status(
+        self,
+        request: ClientWorkflowBatchRequest,
+        *,
+        actor_user_id: int,
+    ) -> ClientBatchResponse:
         clients = {
             row.id: row
-            for row in self.db.query(Client).filter(Client.id.in_(request.client_ids)).with_for_update()
+            for row in self.db.query(Client)
+            .filter(Client.id.in_(request.client_ids))
+            .with_for_update()
         }
         records = {
             row.client_id: row
@@ -52,19 +61,36 @@ class ClientBulkService:
             ).with_for_update()
         }
         results: list[ClientBatchResultItem] = []
+        operation_id = request.operation_id or uuid4()
         for client_id in request.client_ids:
             client = clients.get(client_id)
             if client is None or client.deleted_at is not None:
                 results.append(ClientBatchResultItem(client_id=client_id, result="not_found"))
                 continue
             record = records.get(client_id)
+            old_status = record.status if record is not None else "untouched"
+            old_date = record.effective_date if record is not None else None
+            changed = old_status != request.status or old_date != request.effective_date
             if record is None:
                 record = ClientWorkflowStatus(client_id=client_id, status=request.status)
                 self.db.add(record)
             record.status = request.status
             record.effective_date = request.effective_date
+            if changed:
+                ClientActivityService(self.db).add_status_change(
+                    client_id=client_id,
+                    actor_user_id=actor_user_id,
+                    old_status=old_status,
+                    new_status=request.status,
+                    effective_date=request.effective_date,
+                    source_key=f"status:{operation_id}:{client_id}",
+                )
             results.append(ClientBatchResultItem(client_id=client_id, result="updated"))
-        self.db.commit()
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
         succeeded = sum(item.result == "updated" for item in results)
         return ClientBatchResponse(
             requested=len(request.client_ids), succeeded=succeeded,

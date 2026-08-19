@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database.engine import engine
 from app.models.client import Client
 from app.models.client_workflow_status import ClientWorkflowStatus
+from app.models.user import User
 from app.schemas.client import ClientRead
 from app.schemas.client_bulk import ClientWorkflowBatchRequest
 from app.services.client_bulk_service import ClientBulkService
@@ -92,12 +93,16 @@ class FollowupChunk02ClientStatusTests(unittest.TestCase):
         self.assertIsNone(detail.workflow_effective_date)
 
     def test_supported_status_write_is_visible_in_every_projection(self) -> None:
+        actor_row = self.db.query(User.id).filter(User.is_active.is_(True)).order_by(User.id).first()
+        actor_id = actor_row[0] if actor_row is not None else None
+        self.assertIsNotNone(actor_id)
         result = ClientBulkService(self.db).set_workflow_status(
             ClientWorkflowBatchRequest(
                 client_ids=[self.client.id],
                 status="phone_contact",
                 effective_date=date(2026, 8, 20),
-            )
+            ),
+            actor_user_id=actor_id,
         )
         self.assertEqual(result.succeeded, 1)
 

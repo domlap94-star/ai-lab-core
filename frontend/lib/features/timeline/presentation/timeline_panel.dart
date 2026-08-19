@@ -96,6 +96,18 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
                     value: 'inspection_created',
                     child: Text('Wizje lokalne'),
                   ),
+                  DropdownMenuItem(
+                    value: 'call_initiated',
+                    child: Text('Telefon'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'client_status_changed',
+                    child: Text('Status'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'candidate_merged',
+                    child: Text('Połączenia danych'),
+                  ),
                 ],
                 onChanged: (value) => setState(() {
                   _eventType = value;
@@ -155,6 +167,8 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
       children: <Widget>[
         if (event.summary?.isNotEmpty == true)
           Text(event.summary!, maxLines: 3, overflow: TextOverflow.ellipsis),
+        if (event.actorDisplayName?.isNotEmpty == true)
+          Text('Użytkownik: ${event.actorDisplayName}'),
         Text(formatPolishDateTime(event.occurredAt)),
       ],
     ),
@@ -207,6 +221,9 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
     if (type.startsWith('email_')) return Icons.email_outlined;
     if (type.startsWith('inspection_')) return Icons.fact_check_outlined;
     if (type.startsWith('document_client_')) return Icons.link_outlined;
+    if (type == 'call_initiated') return Icons.phone_outlined;
+    if (type == 'client_status_changed') return Icons.sync_alt;
+    if (type == 'candidate_merged') return Icons.merge_outlined;
     return switch (type) {
       'client_created' => Icons.person_add_alt,
       'project_created' => Icons.work_outline,
@@ -214,5 +231,4 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
       _ => Icons.description_outlined,
     };
   }
-
 }

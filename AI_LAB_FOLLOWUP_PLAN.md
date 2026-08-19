@@ -307,7 +307,7 @@ Migration: prawdopodobna.
 Human gate: osobny schema/migration approval wymagany po audycie projektu
 danych; żadnej konfiguracji produkcyjnej bez jawnego apply approval.
 
-## [~] FOLLOW-UP CHUNK 06 — DESIGN COMPLETE / ACTIVITY AUDIT MIGRATION APPROVAL REQUIRED
+## [✓] FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2 — COMPLETE
 
 **Priority: P1**
 
@@ -352,7 +352,30 @@ Design audit (2026-08-19):
   body/raw payload metadata leakage. Production writes: `0`.
 - Full schema, endpoint, transaction, UI, rollback and 25-case acceptance spec:
   `FOLLOWUP_CHUNK06_CLIENT_ACTIVITY_DESIGN.md`.
-- Migration/implementation: NOT CREATED. Release: NOT PERFORMED.
+- Approved implementation completed with additive revision
+  `followup_client_activity_20260819`; isolated upgrade/downgrade/re-upgrade
+  PASS, production apply PASS, no backfill, and zero production activity rows
+  after apply.
+- `client_activity_events` persists only `call_initiated` and future
+  `client_status_changed`. Strict per-event metadata contains no phone value,
+  email/document content, raw payload, secrets or arbitrary JSON. Actor always
+  comes from JWT; content-free `source_key` provides idempotency.
+- The call endpoint validates active Client-owned phone contacts, rejects
+  cross-Client references and operation conflicts, and the Flutter dialer
+  remains available after a bounded logging warning. Dialer acceptance was
+  mocked; real phone calls: `0`.
+- Workflow-status change and its activity row share one DB transaction; no-op
+  status updates create no event. Prior status history was not invented.
+- Timeline V2 is hybrid: persistent call/status events plus derived canonical
+  Gmail, Document/photo, Inspection, Document-link and Candidate-merge events.
+  Stable prefixed keys, deterministic sorting, bounded backend pagination,
+  batch actor projection, bounded metadata and deep links are preserved.
+- Tests: isolated Activity focused `7/7 PASS`; Timeline/status and selected
+  Candidate/Inspection/Agent regressions PASS; Flutter analyze PASS, focused
+  call/Timeline `14/14 PASS`, full suite `182/182 PASS`. No production Client/status
+  write, email, Vision job, Qdrant write or n8n change occurred.
+- Implementation commit: `Add client activity log and timeline`.
+- Release: NOT PERFORMED; remains `NEXT Stabil 1.0.2+21`.
 - Design commit: `Design client activity log and timeline`.
 
 ## FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY
@@ -882,10 +905,8 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 06 — ACTIVITY AUDIT MIGRATION APPROVAL REQUIRED**
+**FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY**
 
-Design CHUNK 06 potwierdził konieczność minimalnej addytywnej tabeli
-`client_activity_events`: obecna Timeline nie ma źródła dla `call_initiated`, a
-workflow status przechowuje tylko bieżący stan. Active work pozostaje CHUNK 06
-i jest zatrzymane na `FOLLOWUP_ACTIVITY_AUDIT_MIGRATION_APPROVAL_REQUIRED`.
-Nie rozpoczynać CHUNK 07 przed pełnym zakończeniem CHUNK 06.
+CHUNK 06 jest zakończony w source i DB, bez release. Następny etap projektuje
+oddzielny admin-only audit zmian; nie wolno przeciążać nim user-facing
+`client_activity_events` ani rozpoczynać migracji bez właściwego human gate.

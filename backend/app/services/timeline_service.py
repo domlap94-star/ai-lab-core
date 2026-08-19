@@ -7,14 +7,19 @@ from sqlalchemy import String, cast, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
+from app.models.client_activity_event import ClientActivityEvent
+from app.models.candidate_merge_event import CandidateMergeEvent
 from app.models.document import Document
 from app.models.document_client_link_event import DocumentClientLinkEvent
 from app.models.inspection import Inspection
 from app.models.project import Project
+from app.models.user import User
+from app.schemas.client_activity import CallActivityMetadata, StatusActivityMetadata
 from app.repositories.client_email_repository import ClientEmailRepository
 from app.schemas.timeline import TimelineEvent, TimelineEventType, TimelinePage
 from app.services.client_email_service import ClientEmailService
 from app.services.client_service import ClientNotFoundError
+from app.services.client_workflow_status_projection_service import CLIENT_WORKFLOW_STATUS_LABELS
 from app.services.project_service import ProjectNotFoundError
 
 
@@ -60,6 +65,10 @@ class TimelineService:
                     )
                 )
                 totals.append(1)
+
+        if project_id is None:
+            self._activity_events(events, totals, client_id, event_type, date_from, date_to, window)
+            self._candidate_merge_events(events, totals, client_id, event_type, date_from, date_to, window)
 
         project_query = self.db.query(Project).filter(
             Project.client_id == client_id,
@@ -148,6 +157,52 @@ class TimelineService:
             window,
         )
         return self._page(events, sum(totals), skip, limit)
+
+    def _activity_events(self, events, totals, client_id, requested, date_from, date_to, window) -> None:
+        allowed = [kind for kind in ("call_initiated", "client_status_changed") if requested in (None, kind)]
+        if not allowed:
+            return
+        query = self.db.query(ClientActivityEvent).filter(
+            ClientActivityEvent.client_id == client_id,
+            ClientActivityEvent.event_type.in_(allowed),
+        )
+        query = self._date_filter(query, ClientActivityEvent.occurred_at, date_from, date_to)
+        totals.append(query.count())
+        rows = query.order_by(ClientActivityEvent.occurred_at.desc(), ClientActivityEvent.id.desc()).limit(window).all()
+        for row in rows:
+            if row.event_type == "call_initiated":
+                safe = CallActivityMetadata.model_validate(row.event_metadata).model_dump(mode="json")
+                title = "Rozpoczęto połączenie telefoniczne"
+                summary = None
+            else:
+                safe = StatusActivityMetadata.model_validate(row.event_metadata).model_dump(mode="json")
+                title = "Zmieniono status klienta"
+                summary = f"{CLIENT_WORKFLOW_STATUS_LABELS.get(safe['old_status'], safe['old_status'])} → {CLIENT_WORKFLOW_STATUS_LABELS.get(safe['new_status'], safe['new_status'])}"
+            events.append(TimelineEvent(
+                stable_key=f"activity:{row.id}", event_type=row.event_type,
+                occurred_at=row.occurred_at, title=title, summary=summary,
+                client_id=client_id, source_type="client_activity_event", source_id=row.id,
+                actor_user_id=row.actor_user_id, direction=row.direction,
+                entity_type=row.entity_type, entity_id=row.entity_id,
+                deep_link=f"/clients/{client_id}", metadata=safe,
+            ))
+
+    def _candidate_merge_events(self, events, totals, client_id, requested, date_from, date_to, window) -> None:
+        if requested not in (None, "candidate_merged"):
+            return
+        query = self.db.query(CandidateMergeEvent).filter(CandidateMergeEvent.target_client_id == client_id)
+        query = self._date_filter(query, CandidateMergeEvent.created_at, date_from, date_to)
+        totals.append(query.count())
+        rows = query.order_by(CandidateMergeEvent.created_at.desc(), CandidateMergeEvent.id.desc()).limit(window).all()
+        for row in rows:
+            events.append(TimelineEvent(
+                stable_key=f"candidate-merge:{row.id}", event_type="candidate_merged",
+                occurred_at=row.created_at, title="Połączono kandydata z klientem",
+                summary=None, client_id=client_id, source_type="candidate_merge_event",
+                source_id=row.id, actor_user_id=row.actor_user_id,
+                entity_type="client_candidate", entity_id=row.candidate_id,
+                deep_link=f"/client-candidates/{row.candidate_id}", metadata={},
+            ))
 
     def get_project_timeline(
         self,
@@ -307,6 +362,10 @@ class TimelineService:
                         "from_name": sender[0][0] if sender else None,
                         "from_address": sender[0][1] if sender else None,
                     },
+                    direction="outgoing" if event_kind == "email_sent" else "incoming",
+                    entity_type="candidate_source",
+                    entity_id=row.source_id,
+                    deep_link=f"/clients/{client_id}?email_source_id={row.source_id}",
                 )
             )
 
@@ -398,10 +457,13 @@ class TimelineService:
     def _within(value: datetime, date_from: datetime | None, date_to: datetime | None) -> bool:
         return (date_from is None or value >= date_from) and (date_to is None or value <= date_to)
 
-    @staticmethod
-    def _page(events: Iterable[TimelineEvent], total: int, skip: int, limit: int) -> TimelinePage:
+    def _page(self, events: Iterable[TimelineEvent], total: int, skip: int, limit: int) -> TimelinePage:
         ordered = sorted(events, key=lambda item: (item.occurred_at, item.stable_key), reverse=True)
-        return TimelinePage(items=ordered[skip : skip + limit], total=total, skip=skip, limit=limit)
+        items = ordered[skip : skip + limit]
+        actor_ids = {item.actor_user_id for item in items if item.actor_user_id is not None}
+        names = dict(self.db.query(User.id, User.username).filter(User.id.in_(actor_ids)).all()) if actor_ids else {}
+        items = [item.model_copy(update={"actor_display_name": names.get(item.actor_user_id)}) for item in items]
+        return TimelinePage(items=items, total=total, skip=skip, limit=limit)
 
     def _active_client(self, client_id: int) -> Client:
         client = self.db.query(Client).filter(Client.id == client_id, Client.deleted_at.is_(None)).one_or_none()

@@ -119,6 +119,19 @@ class ClientsRepository {
     tokenType: session.tokenType,
   );
 
+  Future<Map<String, dynamic>> recordCallInitiated({
+    required AuthSession session,
+    required int clientId,
+    required String operationId,
+    int? contactId,
+  }) => _api.recordCallInitiated(
+    clientId: clientId,
+    operationId: operationId,
+    contactId: contactId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
   Future<Map<String, dynamic>> bulkSoftDelete({
     required AuthSession session,
     required List<int> clientIds,

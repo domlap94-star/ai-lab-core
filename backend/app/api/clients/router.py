@@ -32,6 +32,7 @@ from app.schemas.client_bulk import (
 )
 from app.schemas.client_email import ClientEmailPage
 from app.schemas.client_ai_knowledge import ClientAiAskRequest, ClientAiAskResponse
+from app.schemas.client_activity import CallInitiatedRequest, CallInitiatedResponse
 from app.schemas.document import DocumentRead, DocumentUploadResponse
 from app.schemas.industry import IndustryRead
 from app.schemas.timeline import TimelineEventType, TimelinePage
@@ -43,6 +44,12 @@ from app.services.client_service import (
     IndustryNotFoundError,
 )
 from app.services.client_bulk_service import ClientBulkService
+from app.services.client_activity_service import (
+    ActivityConflictError,
+    ActivityNotFoundError,
+    ActivityValidationError,
+    ClientActivityService,
+)
 from app.services.client_email_service import ClientEmailService
 from app.services.client_knowledge_service import (
     ClientKnowledgeContextService,
@@ -116,8 +123,11 @@ def get_client_workflow_statuses(
 def set_client_workflow_status(
     data: ClientWorkflowBatchRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ClientBatchResponse:
-    return ClientBulkService(db).set_workflow_status(data)
+    return ClientBulkService(db).set_workflow_status(
+        data, actor_user_id=current_user.id
+    )
 
 
 @router.post("/bulk/soft-delete", response_model=ClientBatchResponse)
@@ -242,6 +252,35 @@ def get_client_timeline(
         raise HTTPException(status_code=404, detail="Client not found") from error
     except ProjectNotFoundError as error:
         raise HTTPException(status_code=404, detail="Project not found") from error
+
+
+@router.post(
+    "/{client_id}/activities/call-initiated",
+    response_model=CallInitiatedResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def record_call_initiated(
+    client_id: int,
+    data: CallInitiatedRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CallInitiatedResponse:
+    try:
+        return ClientActivityService(db).record_call(
+            client_id=client_id,
+            actor_user_id=current_user.id,
+            operation_id=data.operation_id,
+            contact_id=data.contact_id,
+        )
+    except ActivityNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ActivityValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except ActivityConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "CALL_OPERATION_CONFLICT", "message": str(error)},
+        ) from error
 
 
 @router.post("/{client_id}/ai/ask", response_model=ClientAiAskResponse)

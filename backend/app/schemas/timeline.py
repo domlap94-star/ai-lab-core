@@ -20,6 +20,9 @@ TimelineEventType = Literal[
     "document_client_linked",
     "document_client_moved",
     "document_client_unlinked",
+    "call_initiated",
+    "client_status_changed",
+    "candidate_merged",
 ]
 
 
@@ -38,6 +41,11 @@ class TimelineEvent(BaseModel):
     source_type: str
     source_id: int | str
     actor_user_id: int | None = None
+    actor_display_name: str | None = None
+    direction: Literal["incoming", "outgoing"] | None = None
+    entity_type: str | None = None
+    entity_id: int | None = None
+    deep_link: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

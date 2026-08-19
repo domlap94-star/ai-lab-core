@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -24,6 +25,7 @@ class ClientIdBatchRequest(BaseModel):
 class ClientWorkflowBatchRequest(ClientIdBatchRequest):
     status: ClientWorkflowState
     effective_date: date | None = None
+    operation_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_date(self):
