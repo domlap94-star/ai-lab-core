@@ -1369,7 +1369,7 @@ class _ClientCard extends StatelessWidget {
                         _ClientInformation(
                           icon: Icons.calendar_today_outlined,
                           value:
-                              'Dodano: ${formatPolishDate(client.displayCreatedDate)}',
+                              'Dodano: ${formatPolishDate(client.effectiveAddedDate)}',
                         ),
                       ],
                     ),

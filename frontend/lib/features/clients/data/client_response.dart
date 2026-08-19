@@ -9,10 +9,12 @@ class ClientResponse {
     required this.countryCode,
     required this.createdAt,
     required this.updatedAt,
+    required this.effectiveAddedDate,
     this.workflowStatus = 'untouched',
     this.workflowStatusLabel = 'Brak modyfikacji',
     this.workflowEffectiveDate,
     this.sourceRecordDate,
+    this.clientAddedAt,
     this.legalName,
     this.taxId,
     this.registrationNumber,
@@ -57,6 +59,8 @@ class ClientResponse {
   final String workflowStatusLabel;
   final DateTime? workflowEffectiveDate;
   final DateTime? sourceRecordDate;
+  final DateTime? clientAddedAt;
+  final DateTime effectiveAddedDate;
   final DateTime? deletedAt;
   final List<Map<String, dynamic>> emails;
   final List<Map<String, dynamic>> phones;
@@ -87,6 +91,8 @@ class ClientResponse {
       countryCode: json['country_code']?.toString() ?? 'PL',
       notes: _parseNullableString(json['notes']),
       sourceRecordDate: _parseNullableDateTime(json['source_record_date']),
+      clientAddedAt: _parseNullableDateTime(json['client_added_at']),
+      effectiveAddedDate: _parseDateTime(json['effective_added_date']),
       createdAt: _parseDateTime(json['created_at']),
       updatedAt: _parseDateTime(json['updated_at']),
       workflowStatus: json['workflow_status']?.toString() ?? 'untouched',
@@ -123,6 +129,8 @@ class ClientResponse {
       countryCode: countryCode,
       notes: notes,
       sourceRecordDate: sourceRecordDate,
+      clientAddedAt: clientAddedAt,
+      effectiveAddedDate: effectiveAddedDate,
       createdAt: createdAt,
       updatedAt: updatedAt,
       workflowStatus: workflowStatus,

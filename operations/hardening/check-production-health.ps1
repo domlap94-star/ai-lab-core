@@ -2,7 +2,7 @@
 param(
     [string]$RepositoryRoot = "C:\ai-lab-core",
     [string]$BackupRoot = "C:\ai-lab-core-backups",
-    [string]$ExpectedRevision = "chunk16audit_20260819",
+    [string]$ExpectedRevision = "followup_clientdate_20260819",
     [int]$MaximumBackupAgeHours = 36,
     [int64]$MinimumFreeBytes = 20GB
 )

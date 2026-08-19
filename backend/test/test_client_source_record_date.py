@@ -9,6 +9,9 @@ from app.database.session import SessionLocal
 from app.main import app
 from app.models.user import User
 from app.models.industry import Industry
+from app.services.client_added_date_projection_service import (
+    ClientAddedDateProjectionService,
+)
 from app.services.client_source_record_date_service import (
     ClientSourceRecordDateService,
 )
@@ -20,9 +23,7 @@ def require(condition: bool, message: str) -> None:
 
 
 def effective_key(item: dict) -> tuple[date, int]:
-    effective = date.fromisoformat(
-        item["source_record_date"] or item["created_at"][:10]
-    )
+    effective = date.fromisoformat(item["effective_added_date"])
     return effective, item["id"]
 
 
@@ -47,22 +48,22 @@ def main() -> None:
 
     utc = timezone.utc
     candidates = [
-        (1, datetime(2026, 1, 1, tzinfo=utc)),
-        (2, datetime(2024, 1, 1, tzinfo=utc)),
-        (3, datetime(2026, 1, 1, tzinfo=utc)),
-        (4, datetime(2026, 1, 1, tzinfo=utc)),
+        (1, datetime(2026, 1, 1, tzinfo=utc), None),
+        (2, datetime(2024, 1, 1, tzinfo=utc), None),
+        (3, datetime(2026, 1, 1, tzinfo=utc), None),
+        (4, datetime(2026, 1, 1, tzinfo=utc), None),
     ]
     source_dates = {
         1: date(2023, 1, 1),
         3: date(2025, 1, 1),
         4: date(2025, 1, 1),
     }
-    newest_ids = ClientSourceRecordDateService.order_client_ids(
+    newest_ids = ClientAddedDateProjectionService.order_client_ids(
         candidates,
         source_dates,
         sort_order="newest",
     )
-    oldest_ids = ClientSourceRecordDateService.order_client_ids(
+    oldest_ids = ClientAddedDateProjectionService.order_client_ids(
         candidates,
         source_dates,
         sort_order="oldest",
@@ -71,14 +72,14 @@ def main() -> None:
     require(oldest_ids == [1, 2, 3, 4], f"Oldest cases: {oldest_ids}")
 
     boundary_candidates = [
-        (client_id, datetime(2020, 1, 1, tzinfo=utc))
+        (client_id, datetime(2020, 1, 1, tzinfo=utc), None)
         for client_id in range(1, 66)
     ]
     boundary_sources = {
         client_id: date(2020, 1, client_id % 28 + 1)
         for client_id in range(1, 66)
     }
-    boundary_ids = ClientSourceRecordDateService.order_client_ids(
+    boundary_ids = ClientAddedDateProjectionService.order_client_ids(
         boundary_candidates,
         boundary_sources,
         sort_order="newest",
@@ -114,6 +115,11 @@ def main() -> None:
         require(
             all("source_record_date" in item for item in payload["items"]),
             "Additive field missing from page",
+        )
+        require(
+            all("client_added_at" in item for item in payload["items"])
+            and all("effective_added_date" in item for item in payload["items"]),
+            "Canonical added-date fields missing from page",
         )
         require(
             all("raw_payload" not in item for item in payload["items"]),

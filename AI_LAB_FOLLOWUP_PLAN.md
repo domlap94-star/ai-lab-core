@@ -177,7 +177,7 @@ Completion record (2026-08-19):
   Vision jobs: `0`. Release: NOT PERFORMED.
 - Implementation commit: `Unify client status and date presentation`.
 
-## [~] FOLLOW-UP CHUNK 03 — DESIGN COMPLETE / CLIENT SCHEMA MIGRATION APPROVAL REQUIRED
+## [✓] FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING — COMPLETE
 
 **Priority: P1**
 
@@ -211,7 +211,36 @@ Design audit 2026-08-19:
 - Migration: REQUIRED, not created or applied. Implementation/UI: NOT STARTED.
 - Design commit: `Design editable client added date`.
 
-Human gate: `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+Completion record (2026-08-19):
+
+- Human gate `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED` został
+  udzielony i wykorzystany wyłącznie dla addytywnej kolumny
+  `clients.client_added_at DATE NULL`.
+- Migration `followup_clientdate_20260819` (parent
+  `chunk16audit_20260819`) przeszła isolated upgrade, downgrade i re-upgrade,
+  następnie została zastosowana na produkcji. Server default, index, trigger,
+  backfill i rewrite: NO.
+- Historyczne Clients z explicit `client_added_at`: `0`; Clients total po
+  migracji: `3243`; `created_at` coverage: `3243/3243`.
+- Canonical backend fallback:
+  `client_added_at → source_record_date → created_at.date()`.
+- Additive API zwraca `client_added_at` i `effective_added_date`; PATCH rozróżnia
+  omitted, set i explicit NULL/clear. Daty przed 1900-01-01 oraz przyszłe są
+  odrzucane.
+- `sort_order=newest|oldest` pozostał kompatybilny; backend sortuje po effective
+  date przed paginacją, z deterministycznym tie-breakiem Client ID. Search i
+  filtry zachowano bez zmian CHUNK 04.
+- Flutter Client edit ma date picker i clear do źródłowego/technicznego
+  fallbacku; lista i szczegóły używają wyłącznie backendowego
+  `effective_added_date` w formacie `dd.MM.yyyy`.
+- Tests: isolated migration round-trip PASS; backend CHUNK 03 `6/6 PASS`,
+  focused Client/workflow/Global Search `16/16 PASS`, Client source/list oraz
+  Auth/Admin PASS; Flutter analyze PASS, focused `22/22 PASS`, full
+  `174/174 PASS`; production health aggregate PASS.
+- Data safety: production Client value writes `0`; historical backfill `0`;
+  Qdrant writes `0`; Vision jobs `0`; n8n changes `0`.
+- Implementation commit: `Add editable client added date and sorting`.
+- Release: NOT PERFORMED; pozostaje `NEXT Stabil 1.0.2+21`.
 
 ## FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE
 
@@ -729,9 +758,9 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**
+**FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE**
 
-Design i read-only live audit są zakończone. Brakuje osobnego trwałego pola
-biznesowego, dlatego aktywna praca pozostaje w CHUNK 03 i czeka na human gate
-`FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. Migracja nie została
-utworzona ani zastosowana; nie wykonano żadnego backfillu ani Client write.
+FOLLOW-UP CHUNK 03 został zakończony: osobna data biznesowa jest trwała i
+edytowalna, canonical fallback pozostaje backendowy, a sortowanie jest
+deterministyczne i wykonywane przed paginacją. Release pozostaje osobnym
+przyszłym promptem Release A.

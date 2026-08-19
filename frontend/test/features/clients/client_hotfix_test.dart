@@ -28,6 +28,7 @@ final Client _client = Client(
   name: 'Klient testowy',
   countryCode: 'PL',
   sourceRecordDate: DateTime(2025, 1, 17),
+  effectiveAddedDate: DateTime(2025, 1, 17),
   createdAt: DateTime.utc(2026, 8, 14, 12),
   updatedAt: DateTime.utc(2026, 8, 14, 12),
   workflowStatus: 'inspection',
@@ -154,6 +155,8 @@ void main() {
       'name': 'Klient testowy',
       'country_code': 'PL',
       'source_record_date': '2025-01-17',
+      'client_added_at': null,
+      'effective_added_date': '2025-01-17',
       'created_at': '2026-08-14T12:00:00Z',
       'updated_at': '2026-08-14T12:00:00Z',
       'workflow_status': 'inspection',
@@ -162,7 +165,7 @@ void main() {
     }).toDomain();
 
     expect(parsed.sourceRecordDate, DateTime(2025, 1, 17));
-    expect(parsed.displayCreatedDate, DateTime(2025, 1, 17));
+    expect(parsed.effectiveAddedDate, DateTime(2025, 1, 17));
     expect(parsed.workflowStatus, 'inspection');
     expect(parsed.workflowStatusLabel, 'Oględziny');
     expect(
@@ -175,11 +178,12 @@ void main() {
       clientType: ClientType.other,
       name: 'Manual',
       countryCode: 'PL',
+      effectiveAddedDate: DateTime.utc(2026, 8, 14),
       createdAt: DateTime.utc(2026, 8, 14),
       updatedAt: DateTime.utc(2026, 8, 14),
     );
 
-    expect(fallback.displayCreatedDate, fallback.createdAt);
+    expect(fallback.effectiveAddedDate, fallback.createdAt);
   });
 
   testWidgets('status write refreshes its canonical client projection', (
@@ -415,6 +419,7 @@ void main() {
       legalName:
           'Bardzo Długa Nazwa Prawna Spółki z Ograniczoną Odpowiedzialnością',
       countryCode: 'PL',
+      effectiveAddedDate: DateTime.utc(2026, 8, 16),
       addresses: const <ClientAddress>[
         ClientAddress(
           id: 901,

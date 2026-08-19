@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import (
     CheckConstraint,
+    Date,
     ForeignKey,
     Index,
     String,
@@ -134,6 +137,11 @@ class Client(BusinessBase):
 
     notes: Mapped[str | None] = mapped_column(
         Text,
+        nullable=True,
+    )
+
+    client_added_at: Mapped[date | None] = mapped_column(
+        Date,
         nullable=True,
     )
 

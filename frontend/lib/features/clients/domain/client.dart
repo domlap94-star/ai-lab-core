@@ -105,10 +105,12 @@ class Client {
     required this.countryCode,
     required this.createdAt,
     required this.updatedAt,
+    required this.effectiveAddedDate,
     this.workflowStatus = 'untouched',
     this.workflowStatusLabel = 'Brak modyfikacji',
     this.workflowEffectiveDate,
     this.sourceRecordDate,
+    this.clientAddedAt,
     this.legalName,
     this.taxId,
     this.registrationNumber,
@@ -153,12 +155,12 @@ class Client {
   final String workflowStatusLabel;
   final DateTime? workflowEffectiveDate;
   final DateTime? sourceRecordDate;
+  final DateTime? clientAddedAt;
+  final DateTime effectiveAddedDate;
   final DateTime? deletedAt;
   final List<ClientContactPoint> emails;
   final List<ClientContactPoint> phones;
   final List<ClientAddress> addresses;
-
-  DateTime get displayCreatedDate => sourceRecordDate ?? createdAt;
 
   String get displayName {
     return name.trim().isEmpty ? 'Klient bez nazwy' : name.trim();

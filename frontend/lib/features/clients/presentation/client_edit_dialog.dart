@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/formatters/polish_date_time.dart';
 import '../domain/client.dart';
 
 class ClientEditDialog extends StatefulWidget {
@@ -13,6 +14,8 @@ class ClientEditDialog extends StatefulWidget {
 class _ClientEditDialogState extends State<ClientEditDialog> {
   final _formKey = GlobalKey<FormState>();
   late ClientType _type;
+  late DateTime? _clientAddedAt;
+  bool _explicitDateCleared = false;
   late final Map<String, TextEditingController> _fields;
   late List<TextEditingController> _emails;
   late List<TextEditingController> _phones;
@@ -25,6 +28,7 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
     super.initState();
     final c = widget.client;
     _type = c.clientType;
+    _clientAddedAt = c.clientAddedAt;
     _fields = <String, TextEditingController>{
       'name': TextEditingController(text: c.name),
       'legal_name': TextEditingController(text: c.legalName),
@@ -90,6 +94,7 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               DropdownButtonFormField<ClientType>(
+                isExpanded: true,
                 initialValue: _type,
                 decoration: const InputDecoration(labelText: 'Typ klienta'),
                 items: ClientType.values
@@ -101,6 +106,46 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
                     )
                     .toList(),
                 onChanged: (v) => setState(() => _type = v ?? _type),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: InputDecorator(
+                  key: const Key('client-added-date-field'),
+                  decoration: const InputDecoration(
+                    labelText: 'Data dodania',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          _clientAddedAt == null
+                              ? _explicitDateCleared
+                                    ? 'Po zapisie: data źródłowa lub techniczna'
+                                    : 'Automatyczna: ${formatPolishDate(widget.client.effectiveAddedDate)}'
+                              : formatPolishDate(_clientAddedAt!),
+                        ),
+                      ),
+                      IconButton(
+                        key: const Key('client-added-date-picker'),
+                        tooltip: 'Wybierz datę dodania',
+                        onPressed: _selectAddedDate,
+                        icon: const Icon(Icons.calendar_today_outlined),
+                      ),
+                      if (_clientAddedAt != null)
+                        IconButton(
+                          key: const Key('client-added-date-clear'),
+                          tooltip:
+                              'Wyczyść i wróć do daty źródłowej lub technicznej',
+                          onPressed: () => setState(() {
+                            _clientAddedAt = null;
+                            _explicitDateCleared = true;
+                          }),
+                          icon: const Icon(Icons.clear),
+                        ),
+                    ],
+                  ),
+                ),
               ),
               ..._fields.entries.map(
                 (e) => Padding(
@@ -196,6 +241,9 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
       },
     );
     final data = <String, dynamic>{'client_type': _type.value};
+    data['client_added_at'] = _clientAddedAt == null
+        ? null
+        : _dateToIso(_clientAddedAt!);
     for (final entry in _fields.entries) {
       data[entry.key] = entry.value.text.trim().isEmpty
           ? null
@@ -206,6 +254,31 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
     data['addresses'] = _addresses.map((item) => item.toJson()).toList();
     Navigator.pop(context, data);
   }
+
+  Future<void> _selectAddedDate() async {
+    final DateTime today = DateUtils.dateOnly(DateTime.now());
+    final DateTime selected =
+        _clientAddedAt ?? widget.client.effectiveAddedDate;
+    final DateTime initialDate = selected.isAfter(today) ? today : selected;
+    final DateTime? value = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(1900),
+      lastDate: today,
+      helpText: 'Wybierz datę dodania klienta',
+    );
+    if (value != null && mounted) {
+      setState(() {
+        _clientAddedAt = DateUtils.dateOnly(value);
+        _explicitDateCleared = false;
+      });
+    }
+  }
+
+  String _dateToIso(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
 
   String _label(String key) => <String, String>{
     'name': 'Nazwa / imię i nazwisko',
@@ -425,17 +498,33 @@ class _ContactEditor extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: <Widget>[
       const SizedBox(height: 18),
-      Row(
-        children: <Widget>[
-          Expanded(
-            child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-          ),
-          TextButton.icon(
+      LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final Widget heading = Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium,
+          );
+          final Widget addButton = TextButton.icon(
             onPressed: onAdd,
             icon: const Icon(Icons.add),
             label: Text('Dodaj ${title == 'E-maile' ? 'e-mail' : 'telefon'}'),
-          ),
-        ],
+          );
+          if (constraints.maxWidth < 280) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                heading,
+                Align(alignment: Alignment.centerRight, child: addButton),
+              ],
+            );
+          }
+          return Row(
+            children: <Widget>[
+              Expanded(child: heading),
+              addButton,
+            ],
+          );
+        },
       ),
       RadioGroup<int>(
         groupValue: primary,

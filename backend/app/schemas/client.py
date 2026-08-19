@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 import re
 
@@ -16,6 +17,18 @@ ClientType = Literal[
 ]
 
 ClientPageSortOrder = Literal["newest", "oldest"]
+CLIENT_ADDED_DATE_MIN = date(1900, 1, 1)
+CLIENT_BUSINESS_TIMEZONE = ZoneInfo("Europe/Warsaw")
+
+
+def _validate_client_added_at(value: date | None) -> date | None:
+    if value is None:
+        return None
+    if value < CLIENT_ADDED_DATE_MIN:
+        raise ValueError("Client added date must be on or after 1900-01-01")
+    if value > datetime.now(CLIENT_BUSINESS_TIMEZONE).date():
+        raise ValueError("Client added date cannot be in the future")
+    return value
 
 
 class ClientContactInput(BaseModel):
@@ -188,6 +201,12 @@ class ClientBase(BaseModel):
         max_length=2,
     )
     notes: str | None = None
+    client_added_at: date | None = None
+
+    @field_validator("client_added_at")
+    @classmethod
+    def validate_client_added_at(cls, value: date | None) -> date | None:
+        return _validate_client_added_at(value)
 
     @field_validator(
         "name",
@@ -306,9 +325,15 @@ class ClientUpdate(BaseModel):
         max_length=2,
     )
     notes: str | None = None
+    client_added_at: date | None = None
     emails: list[ClientContactInput] | None = None
     phones: list[ClientContactInput] | None = None
     addresses: list[ClientAddressInput] | None = None
+
+    @field_validator("client_added_at")
+    @classmethod
+    def validate_client_added_at(cls, value: date | None) -> date | None:
+        return _validate_client_added_at(value)
 
     @field_validator(
         "name",
@@ -364,6 +389,7 @@ class ClientRead(ClientBase):
     id: int
     industry: IndustryRead | None
     source_record_date: date | None = None
+    effective_added_date: date
     workflow_status: ClientWorkflowState = "untouched"
     workflow_status_label: str = "Brak modyfikacji"
     workflow_effective_date: date | None = None

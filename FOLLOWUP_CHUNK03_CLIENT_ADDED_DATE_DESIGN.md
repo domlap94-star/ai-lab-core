@@ -3,11 +3,32 @@
 Audit date: 2026-08-19  
 Source HEAD: `c481d74f411d779978dc6ac963a665760e9290f9`  
 Release: `NEXT Stabil 1.0.2+21`  
-Live DB revision: `chunk16audit_20260819`
+Design baseline DB revision: `chunk16audit_20260819`
+Current DB revision: `followup_clientdate_20260819`
 
-Status: **DESIGN COMPLETE / CLIENT SCHEMA MIGRATION APPROVAL REQUIRED**
+Status: **IMPLEMENTED / VERIFIED / NOT RELEASED**
 
-Required gate: `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+Approved gate: `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+
+## Implementation result
+
+The approved migration `followup_clientdate_20260819` passed an isolated
+upgrade/downgrade/re-upgrade drill and is the live single Alembic head. It added
+only `clients.client_added_at DATE NULL`; all 3243 historical rows remained
+NULL and no Client data was backfilled.
+
+The backend now exposes `client_added_at` and canonical
+`effective_added_date`, validates set/clear and date bounds, and sorts newest or
+oldest before pagination with Client ID as the deterministic tie-breaker.
+`created_at`, source evidence, and workflow effective dates remain separate and
+immutable under this update.
+
+Flutter uses the server-projected effective date for list/details, offers a
+bounded date picker and explicit clear action, and does not reproduce the
+fallback hierarchy. Isolated backend tests, current read-only contracts,
+Flutter analyze, focused `22/22`, full `174/174`, runtime API smoke, and the
+production health aggregate passed. The client release remains
+`NEXT Stabil 1.0.2+21`; publication is deferred to Release A.
 
 ## Evidence and semantic decision
 
@@ -187,4 +208,3 @@ Flutter:
 - Emails sent: 0.
 - Cleanup: 0.
 - Release: not performed; remains `NEXT Stabil 1.0.2+21`.
-

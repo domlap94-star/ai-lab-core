@@ -90,36 +90,6 @@ class ClientSourceRecordDateService:
 
         return result
 
-    @staticmethod
-    def effective_created_date(
-        created_at: datetime,
-        source_record_date: date | None,
-    ) -> date:
-        return source_record_date or created_at.date()
-
-    @classmethod
-    def order_client_ids(
-        cls,
-        candidates: list[tuple[int, datetime]],
-        source_dates: dict[int, date],
-        *,
-        sort_order: str,
-    ) -> list[int]:
-        reverse = sort_order == "newest"
-
-        ordered = sorted(
-            candidates,
-            key=lambda row: (
-                cls.effective_created_date(
-                    row[1],
-                    source_dates.get(row[0]),
-                ),
-                row[0],
-            ),
-            reverse=reverse,
-        )
-
-        return [client_id for client_id, _ in ordered]
 
     @staticmethod
     def _normalize_key(value: object) -> str:

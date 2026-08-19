@@ -591,7 +591,7 @@ class _ClientDetails extends StatelessWidget {
                   _DetailRow(label: 'ID klienta', value: client.id.toString()),
                   _DetailRow(
                     label: 'Data dodania',
-                    value: formatPolishDate(client.displayCreatedDate),
+                    value: formatPolishDate(client.effectiveAddedDate),
                   ),
                   _DetailRow(
                     label: 'Ostatnia aktualizacja',

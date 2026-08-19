@@ -24,11 +24,10 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**. Read-only design
-i live schema audit są zakończone. Wymagana jest addytywna kolumna
-`clients.client_added_at DATE NULL`, bez backfillu; implementacja pozostaje
-zatrzymana na gate `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
-Szczegóły: `FOLLOWUP_CHUNK03_CLIENT_ADDED_DATE_DESIGN.md`.
+**FOLLOW-UP CHUNK 04 — CLIENT SEARCH USING GLOBAL SEARCH ENGINE**. FOLLOW-UP
+CHUNK 03 został zakończony migracją `followup_clientdate_20260819`: nullable
+business date bez backfillu, canonical backend fallback, set/clear w Client
+edit oraz server-side ASC/DESC przed paginacją. Release nie został wykonany.
 
 ## Zasada kompatybilności wdrożonych klientów
 
@@ -104,7 +103,7 @@ kontraktu.
 
 | Obszar | Stan | Dowód / luka |
 |---|---|---|
-| Auth, role, wymuszona zmiana hasła | DONE | JWT, `User.role`, `must_change_password`, admin API i Flutter flow; live head to `chunk16audit_20260819`. |
+| Auth, role, wymuszona zmiana hasła | DONE | JWT, `User.role`, `must_change_password`, admin API i Flutter flow; live head to `followup_clientdate_20260819`. |
 | Flutter Windows / Android / Web | DONE | produkcyjne platformy i frontend są wydane w 1.0.2+21; analyze PASS i pełny suite 168/168 PASS. iOS/macOS są świadomie nieobecne. |
 | Release channel / self-update | DONE | stable manifest 1.0.2+21, zweryfikowane SHA-256 i reguły forced/optional/no-update. Publikacja pozostaje human-gated. |
 | Supervisor i gateway split | DONE | bindy 8787/8788/8789 na loopback; public gateway jawnie odrzuca `/control`. |

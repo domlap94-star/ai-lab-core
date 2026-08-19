@@ -120,6 +120,73 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('business added date can be cleared and opens a bounded picker', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pumpDialog(
+      tester,
+      _client(
+        clientAddedAt: DateTime(2020, 5, 6),
+        effectiveAddedDate: DateTime(2020, 5, 6),
+      ),
+    );
+
+    expect(find.text('06.05.2020'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('client-added-date-clear')));
+    await tester.pump();
+    expect(
+      find.text('Po zapisie: data źródłowa lub techniczna'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('client-added-date-picker')));
+    await tester.pumpAndSettle();
+    expect(find.text('Wybierz datę dodania klienta'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('save sends explicit ISO date and clear sends null', (
+    WidgetTester tester,
+  ) async {
+    Map<String, dynamic>? result = await _openAndSaveDialog(
+      tester,
+      _client(
+        clientAddedAt: DateTime(2020, 5, 6),
+        effectiveAddedDate: DateTime(2020, 5, 6),
+      ),
+    );
+    expect(result?['client_added_at'], '2020-05-06');
+
+    result = await _openAndSaveDialog(
+      tester,
+      _client(
+        clientAddedAt: DateTime(2020, 5, 6),
+        effectiveAddedDate: DateTime(2020, 5, 6),
+      ),
+      clear: true,
+    );
+    expect(result?.containsKey('client_added_at'), isTrue);
+    expect(result?['client_added_at'], isNull);
+  });
+
+  for (final double width in <double>[600, 1200]) {
+    testWidgets('added date editor is responsive at ${width.toInt()} px', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _pumpDialog(tester, _client());
+      expect(find.byKey(const Key('client-added-date-field')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 Future<void> _pumpDialog(WidgetTester tester, Client client) async {
@@ -131,9 +198,44 @@ Future<void> _pumpDialog(WidgetTester tester, Client client) async {
   await tester.pumpAndSettle();
 }
 
+Future<Map<String, dynamic>?> _openAndSaveDialog(
+  WidgetTester tester,
+  Client client, {
+  bool clear = false,
+}) async {
+  Map<String, dynamic>? result;
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Builder(
+        builder: (BuildContext context) => ElevatedButton(
+          key: const Key('open-client-edit'),
+          onPressed: () async {
+            result = await showDialog<Map<String, dynamic>>(
+              context: context,
+              builder: (_) => ClientEditDialog(client: client),
+            );
+          },
+          child: const Text('Open'),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.byKey(const Key('open-client-edit')));
+  await tester.pumpAndSettle();
+  if (clear) {
+    await tester.tap(find.byKey(const Key('client-added-date-clear')));
+    await tester.pump();
+  }
+  await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+  await tester.pumpAndSettle();
+  return result;
+}
+
 Client _client({
   String? primaryEmail,
   String? primaryPhone,
+  DateTime? clientAddedAt,
+  DateTime? effectiveAddedDate,
   List<ClientContactPoint> emails = const <ClientContactPoint>[],
   List<ClientContactPoint> phones = const <ClientContactPoint>[],
   List<ClientAddress> addresses = const <ClientAddress>[],
@@ -145,9 +247,11 @@ Client _client({
     countryCode: 'PL',
     primaryEmail: primaryEmail,
     primaryPhone: primaryPhone,
+    clientAddedAt: clientAddedAt,
     emails: emails,
     phones: phones,
     addresses: addresses,
+    effectiveAddedDate: effectiveAddedDate ?? DateTime.utc(2026, 8, 16),
     createdAt: DateTime.utc(2026, 8, 16),
     updatedAt: DateTime.utc(2026, 8, 16),
   );

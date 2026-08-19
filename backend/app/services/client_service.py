@@ -14,8 +14,8 @@ from app.schemas.client import (
     ClientUpdate,
 )
 from app.services.base_service import BaseService
-from app.services.client_source_record_date_service import (
-    ClientSourceRecordDateService,
+from app.services.client_added_date_projection_service import (
+    ClientAddedDateProjectionService,
 )
 from app.services.client_workflow_status_projection_service import (
     ClientWorkflowStatusProjectionService,
@@ -39,7 +39,7 @@ class ClientService(BaseService[Client]):
         self.db = db
         self.client_repository = ClientRepository(db)
         self.industry_repository = IndustryRepository(db)
-        self.source_record_date_service = ClientSourceRecordDateService(db)
+        self.added_date_projection = ClientAddedDateProjectionService(db)
         self.workflow_status_projection = ClientWorkflowStatusProjectionService(db)
 
         super().__init__(self.client_repository)
@@ -50,10 +50,7 @@ class ClientService(BaseService[Client]):
         if client is None:
             raise ClientNotFoundError
 
-        source_dates = self.source_record_date_service.get_for_client_ids(
-            [client.id]
-        )
-        client.source_record_date = source_dates.get(client.id)
+        self.added_date_projection.attach([client])
         self.workflow_status_projection.attach([client])
 
         return client
@@ -86,7 +83,7 @@ class ClientService(BaseService[Client]):
             limit=limit,
         )
 
-        self._attach_source_dates(items)
+        self.added_date_projection.attach(items)
         self.workflow_status_projection.attach(items)
 
         return ClientPage(
@@ -111,10 +108,10 @@ class ClientService(BaseService[Client]):
             client_type=client_type,
             industry_id=industry_id,
         )
-        source_dates = self.source_record_date_service.get_for_client_ids(
-            [client_id for client_id, _ in candidates]
+        source_dates = self.added_date_projection.source_dates_for(
+            [client_id for client_id, _, _ in candidates]
         )
-        ordered_ids = self.source_record_date_service.order_client_ids(
+        ordered_ids = self.added_date_projection.order_client_ids(
             candidates,
             source_dates,
             sort_order=sort_order,
@@ -130,8 +127,7 @@ class ClientService(BaseService[Client]):
             if client_id in clients_by_id
         ]
 
-        for item in items:
-            item.source_record_date = source_dates.get(item.id)
+        self.added_date_projection.attach(items, source_dates=source_dates)
         self.workflow_status_projection.attach(items)
 
         return ClientPage(
@@ -140,13 +136,6 @@ class ClientService(BaseService[Client]):
             skip=skip,
             limit=limit,
         )
-
-    def _attach_source_dates(self, items: list[Client]) -> None:
-        source_dates = self.source_record_date_service.get_for_client_ids(
-            [item.id for item in items]
-        )
-        for item in items:
-            item.source_record_date = source_dates.get(item.id)
 
     def create_client(
         self,
