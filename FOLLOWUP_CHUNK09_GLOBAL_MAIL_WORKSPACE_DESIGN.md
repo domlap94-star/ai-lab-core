@@ -162,3 +162,24 @@ must be evaluated under a new explicit approval because removing/superseding
 the baseline read-state index or persisting a canonical projection was not in
 this approval. Email sending remains separately gated by
 `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+
+## Isolated legacy-index supersession proof
+
+Current gate: `FOLLOWUP_MAIL_LEGACY_READ_INDEX_DROP_APPROVAL_REQUIRED`.
+
+The fresh full-size clone `ai_lab_chunk09_planner_20260819` was verified with
+`current_database()` before any test DDL. After isolated `ANALYZE`, the exact
+read query reproduced production behavior: the legacy single-expression index
+scanned 4,242 rows, performed a top-N sort and completed in 17,907.796 ms.
+
+Removing only `ix_candidate_sources_gmail_read_state` on the clone caused the
+same query to select `ix_candidate_sources_gmail_read_time`, avoid the sort and
+complete in 87.232 ms. Four pages / 200 ordered IDs had zero set or positional
+differences. Unread (29.990 ms), nullable read state (0.039 ms), latest
+(132.239 ms), received (205.964 ms) and sent/outgoing (2,878.154 ms) remained
+below the UI timeout.
+
+There are no PostgreSQL dependent objects and no runtime/script reference to
+the legacy index name. Production was not changed. Exact plan evidence,
+dependency results, production concurrent-drop design and concurrent recreate
+rollback are recorded in `FOLLOWUP_CHUNK09_READ_PLANNER_REMEDIATION.md`.

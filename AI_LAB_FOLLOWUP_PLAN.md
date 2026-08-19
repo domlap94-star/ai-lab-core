@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — ONLINE INDEXES APPLIED / QUERY ARCHITECTURE BLOCKED
+## [~] FOLLOW-UP CHUNK 09 — LEGACY READ INDEX SUPERSESSION VALIDATED / PRODUCTION DROP APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -578,12 +578,28 @@ Online-index execution record (2026-08-19):
   Vision and n8n healthy. No email, link, Candidate, n8n, Vision or Qdrant
   write occurred.
 
-Current blocker: `FOLLOWUP_CHUNK09_QUERY_ARCHITECTURE_BLOCKED`.
-Required next work remains CHUNK 09: obtain an explicit design decision for a
-planner-safe query architecture (for example superseding the redundant legacy
-read-state index or a different persisted projection). Do not start API/UI or
-CHUNK 10. Stage 2 remains separately blocked by
-`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
+Planner-remediation evidence (2026-08-19):
+
+- A fresh full-size clone was verified as
+  `ai_lab_chunk09_planner_20260819`; production `ai_lab` received no DDL.
+- After isolated `ANALYZE`, the exact read query reproduced the conflict:
+  legacy read-state index, 4,242 rows, top-N sort and 17,907.796 ms.
+- Dropping only `ix_candidate_sources_gmail_read_state` on the isolated clone
+  took about 20.3 ms. After `ANALYZE`, the planner used the valid/ready ordered
+  read/time index and completed in 87.232 ms without a sort.
+- The first 200 IDs and positions were identical before/after (0 ID-set and 0
+  order mismatches). Unread was 29.990 ms, nullable state 0.039 ms, latest
+  132.239 ms, received 205.964 ms and sent/outgoing 2,878.154 ms.
+- Repo search and production `pg_depend` found no runtime/dependent consumer
+  of the legacy index name outside its historical migration and documentation.
+  Full evidence and rollback are in
+  `FOLLOWUP_CHUNK09_READ_PLANNER_REMEDIATION.md`.
+
+Current gate: `FOLLOWUP_MAIL_LEGACY_READ_INDEX_DROP_APPROVAL_REQUIRED`.
+Required production method is `DROP INDEX CONCURRENTLY` in an Alembic
+autocommit revision, with pre/post plans and concurrent recreation of the
+exact historical index as rollback. Do not start API/UI or CHUNK 10. Stage 2
+remains separately blocked by `FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 
