@@ -177,7 +177,7 @@ Completion record (2026-08-19):
   Vision jobs: `0`. Release: NOT PERFORMED.
 - Implementation commit: `Unify client status and date presentation`.
 
-## FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING
+## [~] FOLLOW-UP CHUNK 03 — DESIGN COMPLETE / CLIENT SCHEMA MIGRATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -188,7 +188,28 @@ Jeśli tak, nie wolno go edytować. Wprowadzić osobne pole, np.
 `client_added_at`, wraz z edycją, walidacją, sortowaniem ASC/DESC, filtrami i
 auditem kto/kiedy zmienił.
 
-Migration: prawdopodobna.
+Design audit 2026-08-19:
+
+- `clients.created_at` jest technicznym, immutable timestampem z
+  `TimestampMixin` i nie może być edytowany.
+- `source_record_date` jest read-only projekcją daty źródłowej Google Sheets,
+  a `workflow_effective_date` opisuje zmianę statusu; żadne z tych pól nie może
+  przejąć semantyki ręcznie ustawianej daty dodania.
+- Live schema nie ma odpowiedniego trwałego pola. Wymagana jest addytywna
+  kolumna `clients.client_added_at DATE NULL`, bez server default i bez
+  historycznego backfillu.
+- Canonical fallback: `client_added_at → source_record_date → created_at.date()`.
+  W audycie 1010 z 3237 aktywnych Clients miało datę źródłową, a 2227 bezpieczny
+  fallback do niepustego `created_at`.
+- Istniejący kompatybilny kontrakt `sort_order=newest|oldest` pozostaje i po
+  implementacji będzie sortował po canonical effective added date z
+  deterministycznym tie-breakiem po Client ID.
+- Pełny projekt migracji, API, UI, rollbacku i testów:
+  `FOLLOWUP_CHUNK03_CLIENT_ADDED_DATE_DESIGN.md`.
+- Baseline verification: backend health PASS; source-date/sorting contract PASS;
+  Client list pagination/search contract PASS; production writes `0`.
+- Migration: REQUIRED, not created or applied. Implementation/UI: NOT STARTED.
+- Design commit: `Design editable client added date`.
 
 Human gate: `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
 
@@ -710,6 +731,7 @@ DATA SAFETY
 
 **FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**
 
-FOLLOW-UP CHUNK 02 został zakończony bez migracji: wszystkie aktualne widoki
-korzystają ze wspólnej backendowej projekcji workflow statusu, daty zawierają
-rok, a Client/Global Search pokazują aktualny status.
+Design i read-only live audit są zakończone. Brakuje osobnego trwałego pola
+biznesowego, dlatego aktywna praca pozostaje w CHUNK 03 i czeka na human gate
+`FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. Migracja nie została
+utworzona ani zastosowana; nie wykonano żadnego backfillu ani Client write.

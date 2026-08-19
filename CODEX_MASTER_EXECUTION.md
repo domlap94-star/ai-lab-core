@@ -24,10 +24,11 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**. FOLLOW-UP
-CHUNK 02 został zakończony bez migracji: Client list/detail/search korzystają
-ze wspólnej backendowej projekcji workflow statusu, daty zawierają rok, a
-cache listy i szczegółów jest odświeżany po zapisie statusu.
+**FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**. Read-only design
+i live schema audit są zakończone. Wymagana jest addytywna kolumna
+`clients.client_added_at DATE NULL`, bez backfillu; implementacja pozostaje
+zatrzymana na gate `FOLLOWUP_CLIENT_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+Szczegóły: `FOLLOWUP_CHUNK03_CLIENT_ADDED_DATE_DESIGN.md`.
 
 ## Zasada kompatybilności wdrożonych klientów
 
