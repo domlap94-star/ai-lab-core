@@ -56,7 +56,14 @@ kontraktu.
   Hard limits are 5 planner rounds, 8 calls and 180 seconds. Write tools,
   shell/SQL, Docker/supervisor control, general browser access, live Vision
   triggers and conversation persistence are absent.
-- CHUNK 17 — PRODUCTION HARDENING: NOT STARTED.
+- CHUNK 17 — PRODUCTION HARDENING: SOURCE/RUNTIME HARDENING VERIFIED WITH
+  OPEN HUMAN GATES. Known-good service images are pinned without upgrades;
+  backup plus isolated PostgreSQL/storage/n8n restore and migration roundtrip
+  drills passed; bounded health, retention and recovery runbooks exist.
+  Qdrant snapshot creation passed while isolated restore remains blocked by
+  the supported 1.18.3 recovery path. Backup scheduling, a real host reboot
+  proof and public security-header changes remain separately approval-gated.
+  The final masterplan audit has not started.
 - LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
   during authentication, errors are user-facing, token persistence is read
   back after save, and stale 401 responses are generation-scoped. The +17
