@@ -27,4 +27,6 @@ Vision jobs are serialized (one visible Temporary Chat at a time), use only
 the `data/vision-spool` tree, and expire terminal working directories after
 72 hours.
 
-This phase does not install a Windows service or scheduled task.
+The production host starts this process through the existing limited-user
+Windows Scheduled Task `NEXT Stabil - Supervisor`. It is not installed as a
+Windows service. Task creation and host startup remain operationally gated.

@@ -68,7 +68,10 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+21
     restore remains technically blocked; protected environment-secret escrow
     is a manual external requirement; physical Android final smoke remains
     unverified without ADB. No destructive retention or cleanup was enabled.
-[!] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT REQUIRED.
+[✓] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT COMPLETE.
+    Canonical reconciliation, residual-risk register and evidence are recorded
+    in `FINAL_SYSTEM_AUDIT.md`. Earlier unchecked target checklists remain as
+    historical design scope; they are not the current delivery-status ledger.
 [✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
     the form mounted while validating, reports invalid credentials and network
     failures clearly, verifies secure-storage persistence, and guards session
@@ -5507,7 +5510,9 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     secret escrow is manual, and physical Android final smoke is unverified.
     No destructive retention, historical cleanup, Qdrant write/backfill/
     upgrade or business-data mutation occurred.
-[!] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT REQUIRED.
+[✓] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT COMPLETE.
+    See `FINAL_SYSTEM_AUDIT.md` for the evidence-based current state and the
+    explicit deferred/blocked/future-decision register.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 

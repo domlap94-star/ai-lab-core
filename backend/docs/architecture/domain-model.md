@@ -1,5 +1,11 @@
 # AI Lab - Domain Model
 
+> Historical target-design draft. It is not the canonical description of the
+> current production schema. Production is Client/Document/Inspection-centric;
+> Projects are retained as legacy/read-only and no `Case` table is deployed.
+> See `AI_LAB_MASTER_PLAN.txt`, `CODEX_MASTER_EXECUTION.md` and
+> `FINAL_SYSTEM_AUDIT.md` for the reconciled current state.
+
 ## Główna zasada
 
 Centralnym elementem systemu jest **Case**.

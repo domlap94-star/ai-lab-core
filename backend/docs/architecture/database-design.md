@@ -1,5 +1,10 @@
 # AI Lab — Database Design
 
+> Historical target-design draft, not an as-built schema reference. The live
+> database at the final audit is Alembic head `chunk16audit_20260819`; several
+> entities below (including `Case`) remain conceptual and are not deployed.
+> Use migrations/models plus `FINAL_SYSTEM_AUDIT.md` for current evidence.
+
 ## 1. Purpose
 
 This document defines the target relational database structure for AI Lab.

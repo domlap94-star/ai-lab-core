@@ -65,7 +65,9 @@ kontraktu.
   approval, Qdrant isolated restore remains technically blocked on 1.18.3,
   protected environment-secret escrow is manual, and physical Android final
   smoke is unverified without ADB.
-- MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT REQUIRED.
+- MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT COMPLETE. Canonical
+  reconciliation, residual-risk register and evidence are in
+  `FINAL_SYSTEM_AUDIT.md`.
 - LOGIN / SESSION HOTFIX: RELEASED in 1.0.2+18. The Login page remains mounted
   during authentication, errors are user-facing, token persistence is read
   back after save, and stale 401 responses are generation-scoped. The +17
@@ -76,17 +78,17 @@ kontraktu.
 
 | Obszar | Stan | Dowód / luka |
 |---|---|---|
-| Auth, role, wymuszona zmiana hasła | DONE | JWT, `User.role`, `must_change_password`, admin API i Flutter flow; migracja `authv1_20260813` jest aktualnym headem. |
-| Flutter Windows / Android / Web | DONE | katalogi platform i działający frontend; analyze oraz 28 testów PASS. iOS/macOS są świadomie nieobecne. Linux istnieje, lecz nie jest celem produkcyjnym. |
-| Release channel / self-update | DONE | stable manifest 1.0.1+4, SHA-256, testy decyzji/hash, instalacja Windows/Android. Publikacja pozostaje human-gated. |
+| Auth, role, wymuszona zmiana hasła | DONE | JWT, `User.role`, `must_change_password`, admin API i Flutter flow; live head to `chunk16audit_20260819`. |
+| Flutter Windows / Android / Web | DONE | produkcyjne platformy i frontend są wydane w 1.0.2+21; analyze PASS i pełny suite 168/168 PASS. iOS/macOS są świadomie nieobecne. |
+| Release channel / self-update | DONE | stable manifest 1.0.2+21, zweryfikowane SHA-256 i reguły forced/optional/no-update. Publikacja pozostaje human-gated. |
 | Supervisor i gateway split | DONE | bindy 8787/8788/8789 na loopback; public gateway jawnie odrzuca `/control`. |
 | Document Intelligence | DONE | centralny pipeline, pages/assets/OCR/Office/archive oraz testy regresyjne. Batch 30 istnieje; pełny cel jakościowy pozostaje częściowo otwarty. |
 | Chunking / embeddings / Qdrant / semantic retrieval | DONE | migracja chunk 2.0, embedding service, Qdrant store i realny baseline Hit@3/5 3/3. |
 | RAG / citations / evidence | DONE | chroniony `/api/v1/ai/rag`; test 401/200/422 i claim→evidence→source PASS. |
-| CRM frontend | PARTIAL | paginowana lista klientów, repozytorium dokumentów oraz lazy Client 360 Documents i Email History istnieją; dalsze workspace panels są TODO. |
+| CRM frontend | DONE WITH DEFERRED SCOPE | lista klientów, repozytorium dokumentów, Client 360, inspections/timeline i trzy tryby AI są wydane; nazwany model Contact Person pozostaje osobną decyzją. |
 | Candidate pipeline | DONE/PARTIAL | review/promotion, duplicate protection i read-only identity projection działają; trwały multi-contact i quality cleanup są otwarte. |
 | Document read API/UI | DONE | bezpieczne auth list/detail/content API oraz responsywne Flutter Documents UI działają na wspólnej sesji i Dio. |
-| Dane CRM | QUALITY DEBT | 3194 aktywnych; 463 email-name, 284 phone-name, 1 file-name, 3193 bez structured address, 809 mail transcripts w notes. |
+| Dane CRM | QUALITY DEBT | Live audit: 3,243 Clients and 3,561 Candidates. Historical identity/notes cleanup was not applied and remains separately gated; see `FINAL_SYSTEM_AUDIT.md`. |
 
 ## Problemy źródłowe wykryte w CHUNK 0
 
@@ -602,56 +604,56 @@ Status: DONE / RELEASE NOT PUBLISHED.
   complete 120-test Flutter suite: PASS. Production business writes: 0.
 - Commit: `Add global hybrid search`.
 
-### 12. AI client knowledge — TODO
+### 12. AI client knowledge — DONE / RELEASED IN 1.0.2+15
 
-- Cel: grounded „co wiemy o kliencie?”. Zależności: 4–5,10–11.
-- Zakres: client-scoped retrieval, summary/timeline/open topics/actions z
-  citations. Migracje: brak początkowo. Ryzyko: cross-client leakage.
-- Acceptance: strict client filter, no-source safety, evidence mapping.
-- Commit: `Add grounded client knowledge summary`.
+- Wydany zakres: client-scoped retrieval, deterministic direct answers,
+  `llama3.2`, backend-owned source map, citations and semantic fail-open.
+- Brak conversation persistence i write actions. Strict client scope and
+  cross-client tests remain mandatory.
+- Commits: `Add client-scoped AI knowledge`, release `5ee7f25`.
 
-### 13. Business assistant — TODO
+### 13. Business assistant — DONE / RELEASED IN 1.0.2+17
 
-- Cel: drafty ofert/umów/maili z approval. Zależności: 10–12.
-- Zakres: templates, versions, approval states. Migracje: tak.
-- Ryzyko: wysłanie/zaakceptowanie bez zgody. Dane: drafts; finalizacja gated.
-- Acceptance: provenance/versioning/audit i brak automatycznej publikacji.
-- Commit: `Add approval-gated business drafts`.
+- Wydany zakres to read-only Business Assistant: deterministic analytics,
+  Global Search/Client AI retrieval, `llama3.2` and deterministic citations.
+- Nie tworzy ani nie publikuje ofert, umów lub maili; draft/write workflow z
+  pierwotnego targetu pozostaje future scope, nie ukrytą częścią release.
+- Commits: `Add read-only business assistant`, release `4f1b99c`.
 
 ### 14. Technical AI — DONE / RELEASED IN 1.0.2+19
 
-- Cel: deterministyczne, weryfikowalne obliczenia. Zależności: 11–13.
-- Zakres: units/formulas/assumptions/intermediate results/source standards.
-- Migracje: możliwe. Ryzyko: bezpieczeństwo inżynierskie. Dane: nowe analizy.
-- Acceptance: golden calculations, dimensional validation, verification state.
-- Commit: `Add deterministic calculation engine foundation`.
+- Wydany zakres: scoped technical retrieval and synthesis with explicit
+  facts/hypotheses/missing information, measurement caution and deterministic
+  original-source citations. Model remains `llama3.2`.
+- Dedykowany calculation engine/normative database from the original target is
+  not claimed as delivered.
+- Commits: `Add evidence-grounded technical AI`, release `188e5b8`.
 
-### 15. Vision / multimodal — TODO
+### 15. Vision / multimodal — DONE / RELEASED IN 1.0.2+20
 
-- Cel: analiza stron, assetów i zdjęć. Zależności: 9,11,14.
-- Zakres: OCR/vision/image embeddings/multimodal retrieval/before-after.
-- Migracje: wersje analizy/embeddingu możliwe. Ryzyko: koszt i false positives.
-- Acceptance: versioned outputs, source asset/page, benchmark i human review.
-- Commit: `Add versioned multimodal retrieval foundation`.
+- Deterministic classification covers genuinely new Documents; bounded pages/
+  images use a private supervisor and Temporary Chat worker. V1 results are
+  validated, checksummed, persisted and supplied to Technical AI.
+- Historical Vision is on-demand. Local Vision, OpenAI API, image embeddings,
+  Qdrant writes and historical backfill are not part of the release.
+- Commits: `f102b64`, `8db57be`, `31b257e`, `f0752f3`, release `b13d413`.
 
-### 16. Agent — TODO
+### 16. Agent — DONE / RELEASED IN 1.0.2+21
 
-- Cel: bezpieczne narzędzia najpierw read, potem draft/write. Zależności: 12–15.
-- Zakres: permissions, tool registry, audit, approval gates. Migracje: audit log.
-- Ryzyko: nieautoryzowane działania. Dane: read-only w pierwszym subchunku.
-- Acceptance: deny-by-default, tenant/client scoping, pełny audit, high-risk gate.
-- Commit: `Add read-only agent tool framework`.
+- Read-only, deny-by-default registry with strict Client/Inspection scope,
+  deterministic sources and sanitized persistent `agent_executions` audit.
+- Hard bounds: 5 rounds / 8 calls / 180 seconds. No write, SQL, shell,
+  Docker/supervisor, general browser or live Vision execution tools.
+- Commits: `7550453`, `17e9e5b`, `4441e33`, release `bbe37db`.
 
-### 17. Production hardening — TODO
+### 17. Production hardening — COMPLETE / VERIFIED
 
-- Cel: odtwarzalna i monitorowana produkcja. Zależności: wszystkie releasowane
-  chunki; prace można dzielić wcześniej.
-- Zakres: pin images, backup/restore drill, retention, monitoring/audit/security,
-  migration rollback, compatibility i forced-update verification.
-- Migracje: zależne; destructive wymagają gate. Ryzyko: downtime/data loss.
-- Dane: backup/restore na izolowanym celu; produkcja bez mutacji bez approval.
-- Acceptance: udokumentowany restore, alerts, version matrix i rollback drill.
-- Commit: osobne checkpointy, zaczynając `Pin production service versions`.
+- Known-good images are pinned without upgrades; protected backup, isolated
+  PostgreSQL/storage/n8n restore, migration roundtrip and controlled host reboot
+  recovery passed. Daily backup runs at 03:00.
+- Residuals remain explicit: public headers, Qdrant isolated restore, manual
+  secret escrow and physical Android validation. No destructive retention.
+- Commits: `e83d81f`, `9b4ff83`, `9d59c30`, `c3f388a`.
 
 ### POST-RELEASE HOTFIX — NEXT STABIL 1.0.2+6 — PUBLISHED
 
