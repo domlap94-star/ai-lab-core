@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 import unittest
@@ -26,6 +27,11 @@ class _Llm:
         action = self.actions.pop(0)
         if isinstance(action, Exception): raise action
         return {"model": "llama3.2", "response": action if isinstance(action, str) else json.dumps(action)}
+
+
+class _BlockingLlm:
+    async def generate(self, **kwargs):
+        await asyncio.Event().wait()
 
 
 class _Registry:
@@ -164,6 +170,36 @@ class Chunk16AgentTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(AgentModelUnavailable):
             await AgentService(self.db, llm_client=_Llm([ConnectionError("offline")]), registry_factory=_Registry).ask(question="Sprawdź dane", user_id=self.user.id, client_id=self.client.id, inspection_id=None, conversation=[])
         self.assertEqual(self.db.query(AgentExecution).order_by(AgentExecution.id.desc()).first().status, "failed")
+
+    async def test_cancel_finalizes_audit_without_orphan_started_row(self):
+        task = asyncio.create_task(AgentService(self.db, llm_client=_BlockingLlm(), registry_factory=_Registry).ask(
+            question="Sprawdź dane", user_id=self.user.id, client_id=self.client.id,
+            inspection_id=None, conversation=[],
+        ))
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        audit = self.db.query(AgentExecution).order_by(AgentExecution.id.desc()).first()
+        self.assertEqual((audit.status, audit.tool_count), ("cancelled", 0))
+        self.assertIsNotNone(audit.completed_at)
+
+    async def test_round_limit_prevents_sixth_and_ninth_tool_calls(self):
+        actions = [
+            {"action":"tool","tool":name,"arguments":{"query":f"query-{index}"},"answer":None,"source_ids":[]}
+            for index, name in enumerate((
+                "search_clients", "search_documents", "search_emails",
+                "search_inspections", "search_projects", "global_search",
+                "business_analytics", "get_visual_analysis", "get_client",
+            ), 1)
+        ]
+        result = await AgentService(self.db, llm_client=_Llm(actions), registry_factory=_Registry).ask(
+            question="Zbierz szeroki zestaw danych", user_id=self.user.id,
+            client_id=self.client.id, inspection_id=None, conversation=[],
+        )
+        self.assertEqual(len(_Registry.executions), 5)
+        self.assertEqual(len(result.tool_trace), 5)
+        self.assertIn("limitu", result.limitations[-1])
 
     def test_registry_contains_only_approved_read_tools_and_scope_guard(self):
         registry = AgentToolRegistry(self.db, client_id=self.client.id)

@@ -14,7 +14,7 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+20
+## CURRENT RELEASE — NEXT STABIL 1.0.2+21
 
 - CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
   read-only copilotem; deterministic analytics, Global Search retrieval,
@@ -49,7 +49,7 @@ kontraktu.
   image embeddings i Qdrant writes nie są używane. Produkcyjna automatyzacja
   jest aktywna dla nowych Documents; historia pozostaje on-demand bez
   backfillu. Temporary Chat podlega aktualnej polityce retencji OpenAI.
-- CHUNK 16 — AGENT: COMPLETE IN SOURCE / NOT RELEASED. The JWT-protected
+- CHUNK 16 — AGENT: RELEASED IN NEXT STABIL 1.0.2+21. The JWT-protected
   `/api/v1/ai/agent/ask` orchestrates a deny-by-default allowlist of bounded
   application-service reads with `llama3.2`, deterministic source mapping,
   strict Client/Inspection scope and sanitized persistent execution audit.

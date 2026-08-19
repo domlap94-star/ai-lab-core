@@ -2,7 +2,7 @@ name: ai_lab
 description: "NEXT Stabil CRM and knowledge assistant."
 publish_to: 'none'
 
-version: 1.0.2+20
+version: 1.0.2+21
 
 environment:
   sdk: ^3.12.2
