@@ -342,7 +342,7 @@ Nie zapisywać passwords, tokens, secrets, full emails ani full documents.
 Human gate: schema/migration approval po projekcie audytu; trwały log nie może
 powstać jako niekontrolowane pole JSON.
 
-## [~] FOLLOW-UP CHUNK 08 — DIAGNOSTIC COMPLETE / MERGE AUDIT MIGRATION APPROVAL REQUIRED
+## [✓] FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT CONFLICT + MERGE — COMPLETE
 
 **Priority: P1**
 
@@ -364,13 +364,25 @@ evidence, and repeated promotion is not an idempotent prior-result response.
 Synthetic rollback characterization: `12/12 PASS`; production Clients and
 Candidates changed: 0.
 
-The existing Candidate state model already supports `merged` and
-`matched_client_id`, but existing audit tables cannot persist the required actor,
-target and bounded field/relation effects. Design and evidence are recorded in
-`FOLLOWUP_CHUNK08_CANDIDATE_406_MERGE_DIAGNOSIS.md`. Required next gate:
-`FOLLOWUP_CANDIDATE_MERGE_AUDIT_MIGRATION_APPROVAL_REQUIRED`. No merge/apply,
-migration, frontend change or release was performed. Active work remains CHUNK
-08 until the audited merge flow is implemented and verified.
+Implementation 2026-08-19: the additive migration
+`followup_candidate_merge_audit_20260819` added the bounded
+`candidate_merge_events` audit table without backfill or business-row rewrite.
+Candidate promotion keeps the compatible typed HTTP 409 fields and now exposes
+up to 10 deterministic `matches[]` with exact NIP, e-mail and phone evidence.
+The JWT-protected preview is read-only; apply requires a canonical operation
+UUID, current preview version, explicit conflict decisions and a second UI
+confirmation. Merge is transactional and idempotent, preserves provenance,
+deduplicates contacts/addresses, relinks existing Documents without copying or
+Vision restart, retains Candidate history and writes exactly one metadata-only
+actor/effect audit event.
+
+Acceptance used only the isolated `ai_lab_chunk08_isolated` database and
+rollback fixtures: migration upgrade/downgrade/re-upgrade PASS; focused backend
+26/26 PASS; Client Search regression 4/4 PASS; Candidate/API compatibility PASS;
+Flutter analyze PASS and full Flutter suite 180/180 PASS. No real production
+Candidate or Client was merged; production received only the approved schema
+migration and the audit table remained empty. No release was performed.
+Implementation commit: `Add audited candidate merge flow` (this change).
 
 ## FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE
 
@@ -809,9 +821,9 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT 406 + MERGE**
+**FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2**
 
-FOLLOW-UP CHUNK 04 został zakończony wspólnym Client matching primitive dla
-Clients i Global Search, bez zmiany publicznych endpointów, migracji ani
-release. Zgodnie z kolejnością Phase A następną pracą jest CHUNK 08; CHUNK 05
+FOLLOW-UP CHUNK 08 został zakończony audytowanym, jawnie potwierdzanym merge z
+deterministycznym multi-match i bez realnego produkcyjnego merge podczas
+acceptance. Zgodnie z kolejnością Phase A następna praca to CHUNK 11; CHUNK 05
 pozostaje w późniejszej fazie Communication.

@@ -24,13 +24,12 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT 406 + MERGE**. Diagnostyka potwierdziła,
-że aktualny kontrakt duplikatu używa typed HTTP 409, nie 406. Model Candidate ma
-już stan/link potrzebny do merge, lecz brakuje trwałego audytu aktora, celu i
-zakresu zmian. Następna wymagana bramka to
-`FOLLOWUP_CANDIDATE_MERGE_AUDIT_MIGRATION_APPROVAL_REQUIRED`; przed jej zgodą nie
-wolno implementować ani uruchamiać merge/apply. CHUNK 11 pozostaje następny
-dopiero po pełnym zamknięciu CHUNK 08.
+**FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2**. CHUNK 08 jest
+zakończony w source: typed HTTP 409 zachowuje kompatybilność, deterministyczny
+multi-match prowadzi do read-only preview i jawnie potwierdzanego,
+transakcyjnego merge z persistent metadata-only audytem. Acceptance nie
+wykonało żadnego realnego produkcyjnego merge; wydanie nadal pozostaje częścią
+przyszłego Release A. Następna praca zgodnie z Phase A to CHUNK 11.
 
 ## Zasada kompatybilności wdrożonych klientów
 

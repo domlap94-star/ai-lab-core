@@ -19,8 +19,18 @@ from app.schemas.client_candidate_review import (
     CandidateBulkAcceptRequest,
     CandidateBulkAcceptResponse,
     CandidateRejectResponse,
+    CandidateMergePreviewResponse,
+    CandidateMergeRequest,
+    CandidateMergeResponse,
     ClientCandidateContextResponse,
     ClientCandidateListItem,
+)
+from app.models.user import User
+from app.services.candidate_merge_service import (
+    CandidateMergeConflictError,
+    CandidateMergeNotFoundError,
+    CandidateMergeService,
+    CandidateMergeValidationError,
 )
 from app.services.client_candidate_promotion_service import (
     CandidateAlreadyMatchedError,
@@ -192,6 +202,9 @@ def accept_client_candidate(
                 "matched_by": (
                     error.matched_by
                 ),
+                "matches": CandidateMergeService(db).duplicate_schemas(
+                    error.matches
+                ),
             },
         ) from error
 
@@ -211,6 +224,64 @@ def accept_client_candidate(
             detail=str(error),
         ) from error
 
+
+@router.get(
+    "/{candidate_id}/merge-preview",
+    response_model=CandidateMergePreviewResponse,
+)
+def preview_candidate_merge(
+    candidate_id: int,
+    target_client_id: int = Query(gt=0),
+    db: Session = Depends(get_db),
+) -> CandidateMergePreviewResponse:
+    try:
+        return CandidateMergeService(db).preview(
+            candidate_id=candidate_id,
+            target_client_id=target_client_id,
+        )
+    except CandidateMergeNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "MERGE_ENTITY_NOT_FOUND", "message": str(error)},
+        ) from error
+    except CandidateMergeConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": error.code, "message": str(error)},
+        ) from error
+
+
+@router.post(
+    "/{candidate_id}/merge",
+    response_model=CandidateMergeResponse,
+)
+def merge_client_candidate(
+    candidate_id: int,
+    data: CandidateMergeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CandidateMergeResponse:
+    try:
+        return CandidateMergeService(db).merge(
+            candidate_id=candidate_id,
+            actor_user_id=current_user.id,
+            request=data,
+        )
+    except CandidateMergeNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "MERGE_ENTITY_NOT_FOUND", "message": str(error)},
+        ) from error
+    except CandidateMergeValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "MERGE_DECISION_INVALID", "message": str(error)},
+        ) from error
+    except CandidateMergeConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": error.code, "message": str(error)},
+        ) from error
 
 @router.post(
     "/{candidate_id}/reject",

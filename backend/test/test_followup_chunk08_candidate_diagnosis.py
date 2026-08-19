@@ -238,6 +238,7 @@ class FollowupChunk08CandidateDiagnosisTests(unittest.TestCase):
                 "message": "Candidate matches an existing client.",
                 "matched_client_id": 123,
                 "matched_by": "email",
+                "matches": [],
             },
         )
 

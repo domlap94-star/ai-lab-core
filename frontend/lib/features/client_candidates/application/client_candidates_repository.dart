@@ -60,6 +60,34 @@ class ClientCandidatesRepository {
     );
   }
 
+  Future<CandidateMergePreview> fetchMergePreview({
+    required AuthSession session,
+    required int candidateId,
+    required int targetClientId,
+  }) => _api.fetchMergePreview(
+    candidateId: candidateId,
+    targetClientId: targetClientId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  Future<CandidateMergeResult> merge({
+    required AuthSession session,
+    required int candidateId,
+    required int targetClientId,
+    required String operationId,
+    required String expectedCandidateVersion,
+    required Map<String, String> fieldDecisions,
+  }) => _api.merge(
+    candidateId: candidateId,
+    targetClientId: targetClientId,
+    operationId: operationId,
+    expectedCandidateVersion: expectedCandidateVersion,
+    fieldDecisions: fieldDecisions,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
   Future<Map<String, dynamic>> bulkAccept({
     required AuthSession session,
     required List<int> candidateIds,

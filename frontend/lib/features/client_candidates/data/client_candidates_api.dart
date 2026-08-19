@@ -118,6 +118,16 @@ class ClientCandidatesApi {
             throw CandidateDuplicateException(
               clientId: (detail['matched_client_id'] as num).toInt(),
               matchedBy: detail['matched_by']?.toString() ?? 'unknown',
+              matches:
+                  (detail['matches'] as List<dynamic>? ?? const <dynamic>[])
+                      .whereType<Map>()
+                      .map(
+                        (Map<dynamic, dynamic> value) =>
+                            CandidateDuplicateMatch.fromJson(
+                              Map<String, dynamic>.from(value),
+                            ),
+                      )
+                      .toList(growable: false),
             );
           }
         }
@@ -125,6 +135,60 @@ class ClientCandidatesApi {
 
       rethrow;
     }
+  }
+
+  Future<CandidateMergePreview> fetchMergePreview({
+    required int candidateId,
+    required int targetClientId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '$_path/$candidateId/merge-preview',
+      queryParameters: <String, dynamic>{'target_client_id': targetClientId},
+      options: Options(
+        headers: _headers(accessToken: accessToken, tokenType: tokenType),
+      ),
+    );
+    final data = response.data;
+    if (data == null) {
+      throw const FormatException('Podgląd połączenia jest pusty.');
+    }
+    return CandidateMergePreview.fromJson(data);
+  }
+
+  Future<CandidateMergeResult> merge({
+    required int candidateId,
+    required int targetClientId,
+    required String operationId,
+    required String expectedCandidateVersion,
+    required Map<String, String> fieldDecisions,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '$_path/$candidateId/merge',
+      data: <String, dynamic>{
+        'operation_id': operationId,
+        'target_client_id': targetClientId,
+        'field_decisions': fieldDecisions,
+        'expected_candidate_version': expectedCandidateVersion,
+      },
+      options: Options(
+        headers: _headers(accessToken: accessToken, tokenType: tokenType),
+      ),
+    );
+    final data = response.data;
+    if (data == null) {
+      throw const FormatException(
+        'Operacja połączenia zwróciła pustą odpowiedź.',
+      );
+    }
+    return CandidateMergeResult(
+      clientId: (data['client_id'] as num).toInt(),
+      clientName: data['client_name']?.toString() ?? '',
+      idempotentReplay: data['idempotent_replay'] == true,
+    );
   }
 
   Future<void> reject({

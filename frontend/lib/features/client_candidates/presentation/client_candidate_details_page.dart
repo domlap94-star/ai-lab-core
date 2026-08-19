@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -231,34 +233,7 @@ class _ClientCandidateDetailsPageState
       if (!mounted) {
         return;
       }
-
-      await showDialog<void>(
-        context: context,
-        builder: (BuildContext dialogContext) {
-          return AlertDialog(
-            title: const Text('Możliwy duplikat'),
-            content: Text(
-              'Kandydat pasuje do istniejącego klienta '
-              '#${error.clientId}.\n\n'
-              'Dopasowanie: ${error.matchedBy}.\n\n'
-              'Na razie nie wykonano żadnej zmiany.',
-            ),
-            actions: <Widget>[
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('OK'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                  context.go('/clients/${error.clientId}');
-                },
-                child: const Text('Otwórz klienta'),
-              ),
-            ],
-          );
-        },
-      );
+      await _showDuplicateDialog(error);
     } on DioException catch (error) {
       if (mounted) {
         _showError(
@@ -271,6 +246,296 @@ class _ClientCandidateDetailsPageState
         setState(() => _mutating = false);
       }
     }
+  }
+
+  Future<void> _showDuplicateDialog(CandidateDuplicateException error) async {
+    final List<CandidateDuplicateMatch> matches = error.matches.isEmpty
+        ? <CandidateDuplicateMatch>[
+            CandidateDuplicateMatch(
+              clientId: error.clientId,
+              clientName: 'Klient #${error.clientId}',
+              workflowStatus: 'untouched',
+              workflowStatusLabel: 'Brak modyfikacji',
+              confidence: 'certain',
+              reasons: <String>[error.matchedBy],
+            ),
+          ]
+        : error.matches;
+
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: const Text('Znaleziono istniejącego klienta'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 640),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: matches
+                  .map(
+                    (CandidateDuplicateMatch match) => Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              match.clientName.isEmpty
+                                  ? 'Klient #${match.clientId}'
+                                  : match.clientName,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${match.workflowStatusLabel}\n'
+                              'Powody: ${match.reasons.map(_reasonLabel).join(', ')}',
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              children: <Widget>[
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.pop(dialogContext);
+                                    context.go('/clients/${match.clientId}');
+                                  },
+                                  child: const Text('Otwórz klienta'),
+                                ),
+                                FilledButton(
+                                  onPressed: () {
+                                    Navigator.pop(dialogContext);
+                                    _previewMerge(match);
+                                  },
+                                  child: const Text('Połącz'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Anuluj'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _previewMerge(CandidateDuplicateMatch match) async {
+    setState(() => _mutating = true);
+    try {
+      final AuthSession session = await _session();
+      final repository = ref.read(clientCandidatesRepositoryProvider);
+      final preview = await repository.fetchMergePreview(
+        session: session,
+        candidateId: widget.candidateId,
+        targetClientId: match.clientId,
+      );
+      if (!mounted) return;
+
+      final Map<String, String> decisions = <String, String>{};
+      for (final proposal in preview.fieldProposals) {
+        final field = proposal['field']?.toString() ?? '';
+        final action =
+            proposal['proposed_action']?.toString() ?? 'keep_existing';
+        if (field.isNotEmpty && action != 'manual_conflict') {
+          decisions[field] = action;
+        }
+      }
+
+      final bool? reviewed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dialogContext) => StatefulBuilder(
+          builder: (BuildContext context, StateSetter setDialogState) {
+            return AlertDialog(
+              title: const Text('Podgląd połączenia'),
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(
+                        '${preview.candidate['name']}  →  ${preview.target['name']}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      ...preview.fieldProposals.map((proposal) {
+                        final field = proposal['field']?.toString() ?? '';
+                        final required =
+                            proposal['required_resolution'] == true;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                _fieldLabel(field),
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              Text(
+                                'Kandydat: ${proposal['candidate_value'] ?? '—'}\n'
+                                'Klient: ${proposal['target_value'] ?? '—'}',
+                              ),
+                              const SizedBox(height: 6),
+                              if (required)
+                                DropdownButton<String>(
+                                  value: decisions[field],
+                                  hint: const Text('Wybierz'),
+                                  isExpanded: true,
+                                  items: const <DropdownMenuItem<String>>[
+                                    DropdownMenuItem(
+                                      value: 'keep_existing',
+                                      child: Text('Zachowaj klienta'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'take_candidate',
+                                      child: Text('Użyj kandydata'),
+                                    ),
+                                  ],
+                                  onChanged: (String? value) {
+                                    if (value != null) {
+                                      setDialogState(
+                                        () => decisions[field] = value,
+                                      );
+                                    }
+                                  },
+                                )
+                              else
+                                Text(
+                                  _actionLabel(
+                                    decisions[field] ?? 'keep_existing',
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const Divider(),
+                      Text(
+                        'Dokumenty: ${preview.relationCounts['documents_relinked'] ?? 0}, '
+                        'maile: ${preview.relationCounts['emails_relinked'] ?? 0}, '
+                        'źródła zachowane: ${preview.relationCounts['sources_preserved'] ?? 0}.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Anuluj'),
+                ),
+                FilledButton(
+                  onPressed:
+                      preview.fieldProposals.any(
+                        (proposal) =>
+                            proposal['required_resolution'] == true &&
+                            !decisions.containsKey(
+                              proposal['field']?.toString(),
+                            ),
+                      )
+                      ? null
+                      : () => Navigator.pop(dialogContext, true),
+                  child: const Text('Dalej'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (reviewed != true || !mounted) return;
+
+      final bool? confirmed = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext dialogContext) => AlertDialog(
+          title: const Text('Potwierdź połączenie'),
+          content: Text(
+            'Czy na pewno chcesz połączyć tego kandydata z klientem '
+            '${preview.target['name']}? Powiązania zostaną przeniesione, '
+            'a operacja zostanie zapisana w historii audytu.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Połącz'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+
+      final result = await repository.merge(
+        session: session,
+        candidateId: widget.candidateId,
+        targetClientId: match.clientId,
+        operationId: _operationId(),
+        expectedCandidateVersion: preview.expectedCandidateVersion,
+        fieldDecisions: decisions,
+      );
+      ref.invalidate(clientCandidatesProvider);
+      ref.invalidate(clientCandidateContextProvider(widget.candidateId));
+      if (!mounted) return;
+      context.go('/clients/${result.clientId}');
+    } on DioException catch (error) {
+      if (mounted) {
+        _showError(
+          'Nie udało się połączyć kandydata. '
+          'HTTP ${error.response?.statusCode ?? '-'}.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _mutating = false);
+    }
+  }
+
+  static String _reasonLabel(String value) => switch (value) {
+    'exact_tax_id' => 'identyczny NIP',
+    'exact_email' => 'identyczny e-mail',
+    'exact_phone' => 'identyczny telefon',
+    'verified_source_identity' => 'zweryfikowane źródło',
+    _ => value,
+  };
+
+  static String _fieldLabel(String value) => switch (value) {
+    'name' => 'Nazwa',
+    'legal_name' => 'Nazwa prawna',
+    'tax_id' => 'NIP',
+    'primary_email' => 'E-mail',
+    'primary_phone' => 'Telefon',
+    'address' => 'Adres',
+    _ => value,
+  };
+
+  static String _actionLabel(String value) => switch (value) {
+    'take_candidate' => 'Użyj danych kandydata',
+    'add' => 'Dodaj',
+    _ => 'Zachowaj istniejące',
+  };
+
+  static String _operationId() {
+    final Random random = Random.secure();
+    final List<int> bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final String hex = bytes
+        .map((int value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> _reject() async {

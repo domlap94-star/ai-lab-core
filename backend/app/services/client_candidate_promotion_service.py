@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, func, or_
@@ -43,9 +44,11 @@ class CandidateDuplicateClientError(Exception):
         *,
         client_id: int,
         matched_by: str,
+        matches: tuple["CandidateDuplicateMatch", ...] = (),
     ) -> None:
         self.client_id = client_id
         self.matched_by = matched_by
+        self.matches = matches
 
         super().__init__(
             "Candidate matches existing client "
@@ -55,6 +58,16 @@ class CandidateDuplicateClientError(Exception):
 
 class CandidatePromotionError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class CandidateDuplicateMatch:
+    client: Client
+    reasons: tuple[str, ...]
+
+    @property
+    def matched_by(self) -> str:
+        return self.reasons[0].removeprefix("exact_")
 
 
 class ClientCandidatePromotionService:
@@ -111,40 +124,45 @@ class ClientCandidatePromotionService:
         Client | None,
         str | None,
     ]:
-        if candidate.tax_id:
-            normalized_tax_id = self._normalize_identifier(
-                candidate.tax_id
+        matches = self.find_existing_clients(candidate)
+        if not matches:
+            return None, None
+        primary = matches[0]
+        return primary.client, primary.matched_by
+
+    def find_existing_clients(
+        self,
+        candidate: ClientCandidate,
+        *,
+        limit: int = 10,
+    ) -> tuple[CandidateDuplicateMatch, ...]:
+        reasons_by_id: dict[int, list[str]] = {}
+        clients_by_id: dict[int, Client] = {}
+
+        def collect(query, reason: str) -> None:
+            for client in query.order_by(Client.id.asc()).limit(limit).all():
+                clients_by_id[client.id] = client
+                reasons_by_id.setdefault(client.id, []).append(reason)
+
+        normalized_tax_id = ClientIdentityNameQualityService.normalize_tax_id(
+            candidate.tax_id
+        )
+        if normalized_tax_id:
+            collect(
+                self.db.query(Client).filter(
+                    Client.deleted_at.is_(None),
+                    func.regexp_replace(Client.tax_id, r"[^0-9]", "", "g")
+                    == normalized_tax_id,
+                ),
+                "exact_tax_id",
             )
 
-            if normalized_tax_id:
-                client = (
-                    self.db.query(Client)
-                    .filter(
-                        Client.deleted_at.is_(None),
-                        func.regexp_replace(
-                            func.lower(Client.tax_id),
-                            r"[^a-z0-9]",
-                            "",
-                            "g",
-                        )
-                        == normalized_tax_id,
-                    )
-                    .first()
-                )
-
-                if client is not None:
-                    return client, "tax_id"
-
-        if candidate.primary_email:
-            normalized_email = (
-                candidate.primary_email
-                .strip()
-                .lower()
-            )
-
-            client = (
-                self.db.query(Client)
-                .filter(
+        normalized_email = ClientIdentityNameQualityService.normalize_email(
+            candidate.primary_email
+        )
+        if normalized_email:
+            collect(
+                self.db.query(Client).filter(
                     Client.deleted_at.is_(None),
                     or_(
                         func.lower(func.trim(Client.primary_email))
@@ -158,47 +176,51 @@ class ClientCandidatePromotionService:
                             )
                         ),
                     ),
-                )
-                .first()
+                ),
+                "exact_email",
             )
 
-            if client is not None:
-                return client, "email"
-
-        if candidate.primary_phone:
-            normalized_phone = self._normalize_phone(
-                candidate.primary_phone
-            )
-
-            if normalized_phone:
-                client = (
-                    self.db.query(Client)
-                    .filter(
-                        Client.deleted_at.is_(None),
-                        or_(
-                            func.regexp_replace(
-                                Client.primary_phone,
-                                r"[^0-9]",
-                                "",
-                                "g",
-                            ).in_((normalized_phone, f"48{normalized_phone}")),
-                            Client.contact_points.any(
-                                and_(
-                                    ClientContactPoint.deleted_at.is_(None),
-                                    ClientContactPoint.kind == "phone",
-                                    ClientContactPoint.normalized_value.in_(
-                                        (normalized_phone, f"48{normalized_phone}")
-                                    ),
-                                )
-                            ),
+        normalized_phone = ClientIdentityNameQualityService.normalize_phone(
+            candidate.primary_phone
+        )
+        if normalized_phone:
+            phone_forms = (normalized_phone, f"48{normalized_phone}")
+            collect(
+                self.db.query(Client).filter(
+                    Client.deleted_at.is_(None),
+                    or_(
+                        func.regexp_replace(
+                            Client.primary_phone, r"[^0-9]", "", "g"
+                        ).in_(phone_forms),
+                        Client.contact_points.any(
+                            and_(
+                                ClientContactPoint.deleted_at.is_(None),
+                                ClientContactPoint.kind == "phone",
+                                ClientContactPoint.normalized_value.in_(phone_forms),
+                            )
                         ),
-                    )
-                    .first()
-                )
-                if client is not None:
-                    return client, "phone"
+                    ),
+                ),
+                "exact_phone",
+            )
 
-        return None, None
+        reason_order = {"exact_tax_id": 0, "exact_email": 1, "exact_phone": 2}
+        ordered_ids = sorted(
+            reasons_by_id,
+            key=lambda client_id: (
+                min(reason_order[reason] for reason in reasons_by_id[client_id]),
+                client_id,
+            ),
+        )[:limit]
+        return tuple(
+            CandidateDuplicateMatch(
+                client=clients_by_id[client_id],
+                reasons=tuple(
+                    sorted(reasons_by_id[client_id], key=reason_order.__getitem__)
+                ),
+            )
+            for client_id in ordered_ids
+        )
 
     def promote(
         self,
@@ -217,19 +239,14 @@ class ClientCandidatePromotionService:
         )
         self._validate_projection_status(identity_projection.status)
 
-        existing_client, matched_by = (
-            self.find_existing_client(
-                candidate
-            )
-        )
+        matches = self.find_existing_clients(candidate)
 
-        if existing_client is not None:
+        if matches:
+            primary = matches[0]
             raise CandidateDuplicateClientError(
-                client_id=existing_client.id,
-                matched_by=(
-                    matched_by
-                    or "unknown"
-                ),
+                client_id=primary.client.id,
+                matched_by=primary.matched_by,
+                matches=matches,
             )
 
         client = Client(
