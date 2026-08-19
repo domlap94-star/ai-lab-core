@@ -342,7 +342,7 @@ Nie zapisywać passwords, tokens, secrets, full emails ani full documents.
 Human gate: schema/migration approval po projekcie audytu; trwały log nie może
 powstać jako niekontrolowane pole JSON.
 
-## FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT 406 + MERGE
+## [~] FOLLOW-UP CHUNK 08 — DIAGNOSTIC COMPLETE / MERGE AUDIT MIGRATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -354,6 +354,23 @@ provenance, documents/emails i audit. Zakaz automatic fuzzy merge; human
 confirmation jest obowiązkowe.
 
 Human gate: osobne approval przed jakimkolwiek merge/apply danych.
+
+Diagnostic 2026-08-19: current source and available runtime logs do not expose
+an HTTP 406 Candidate accept path. Since the review endpoint was introduced,
+exact duplicates have used an additive typed HTTP 409 response
+(`candidate_matches_existing_client`). The real gap is that the matcher returns
+only the first tax-id/email/phone match, does not expose conflicting or multiple
+evidence, and repeated promotion is not an idempotent prior-result response.
+Synthetic rollback characterization: `12/12 PASS`; production Clients and
+Candidates changed: 0.
+
+The existing Candidate state model already supports `merged` and
+`matched_client_id`, but existing audit tables cannot persist the required actor,
+target and bounded field/relation effects. Design and evidence are recorded in
+`FOLLOWUP_CHUNK08_CANDIDATE_406_MERGE_DIAGNOSIS.md`. Required next gate:
+`FOLLOWUP_CANDIDATE_MERGE_AUDIT_MIGRATION_APPROVAL_REQUIRED`. No merge/apply,
+migration, frontend change or release was performed. Active work remains CHUNK
+08 until the audited merge flow is implemented and verified.
 
 ## FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE
 
