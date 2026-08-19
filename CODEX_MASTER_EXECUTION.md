@@ -24,12 +24,14 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY**. CHUNK 06 jest zakończony:
-addytywna tabela `client_activity_events` przechowuje tylko call/status,
-Timeline V2 nadal wyprowadza email/Documents/Inspections/Candidate merge z
-kanonicznych źródeł, a historyczny backfill nie został wykonany. CHUNK 07 musi
-pozostać osobnym admin-only audytem before/after i zatrzymać się przed każdym
-jawnym schema/migration gate.
+**FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY — MIGRATION APPROVAL GATE**.
+Read-only audit potwierdził, że obecne tabele są domenowe/operacyjne i nie mają
+ogólnego bounded kontraktu before/after. Projekt addytywnej tabeli
+`change_history_events`, strict sanitizerów, transakcji i admin-only API jest w
+`FOLLOWUP_CHUNK07_ADMIN_CHANGE_HISTORY_DESIGN.md`. Nie wolno tworzyć/aplikować
+migracji ani rozpoczynać Flutter UI przed approval
+`FOLLOWUP_CHANGE_HISTORY_MIGRATION_APPROVAL_REQUIRED`. CHUNK 06
+`client_activity_events` pozostaje oddzielnym user-facing business timeline.
 
 ## Zasada kompatybilności wdrożonych klientów
 

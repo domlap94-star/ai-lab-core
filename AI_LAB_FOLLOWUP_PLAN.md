@@ -378,7 +378,7 @@ Design audit (2026-08-19):
 - Release: NOT PERFORMED; remains `NEXT Stabil 1.0.2+21`.
 - Design commit: `Design client activity log and timeline`.
 
-## FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY
+## [~] FOLLOW-UP CHUNK 07 — DESIGN COMPLETE / CHANGE HISTORY MIGRATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -393,6 +393,42 @@ Nie zapisywać passwords, tokens, secrets, full emails ani full documents.
 
 Human gate: schema/migration approval po projekcie audytu; trwały log nie może
 powstać jako niekontrolowane pole JSON.
+
+Design audit (2026-08-19):
+
+- Live DB ma wyłącznie domenowe/operacyjne audyty:
+  `candidate_merge_events`, `client_activity_events`,
+  `document_client_link_events`, `user_lifecycle_events` i
+  `agent_executions`; żadna z tych tabel nie ma ogólnego, bounded kontraktu
+  entity/action/before/after. `change_history_events` nie istnieje.
+- CHUNK 06 Activity pozostaje user-facing business timeline. Candidate merge,
+  Document link i User lifecycle pozostają kanonicznymi audytami domenowymi i
+  będą projektowane read-only zamiast kopiowane do drugiego store'u.
+- Wymagana jest addytywna rewizja `followup_change_history_20260819` z parentem
+  `followup_client_activity_20260819`, tworząca wyłącznie
+  `change_history_events`. Backfill, trigger i business-row rewrite: NO.
+- `ChangeHistoryService` będzie mieć ścisłe allowlisty entity/action/pól,
+  server-side JWT actor, deterministyczny diff, bounded before/after i
+  fail-closed zapis w tej samej transakcji co business write. Arbitrary JSON,
+  secrets, email/document/OCR body oraz raw payload są zakazane.
+- Contact policy: email/phone/NIP są maskowane i opatrywane digestem; adresy
+  zapisują tylko faktycznie zmienione, bounded pola; long notes przechowują
+  wyłącznie length/hash descriptor. Nie ma generic write endpointu.
+- Current Client create/edit/delete oraz Candidate accept/reject nie przekazują
+  aktora do service i część ich repozytoriów wykonuje commit wewnętrznie. Implementacja
+  po approval musi przenieść granicę transakcji do application services, aby
+  audit failure wycofywał business write.
+- Admin API będzie JWT/admin-only (401/403), paginowane 50/max 200 i filtrowane
+  po entity, actor, action i date range. Flutter UI nie jest częścią etapu
+  design-only.
+- Read-only design audit PASS: live revision
+  `followup_client_activity_20260819`, ungranted locks `0`, production writes
+  `0`. Pełny schema/API/sanitizer/transaction/test design:
+  `FOLLOWUP_CHUNK07_ADMIN_CHANGE_HISTORY_DESIGN.md`.
+- Migration i implementacja: NOT CREATED / NOT APPLIED. Release: NOT
+  PERFORMED. Active work pozostaje CHUNK 07 do czasu gate
+  `FOLLOWUP_CHANGE_HISTORY_MIGRATION_APPROVAL_REQUIRED`.
+- Design commit: `Design admin change history`.
 
 ## [✓] FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT CONFLICT + MERGE — COMPLETE
 
@@ -907,6 +943,7 @@ DATA SAFETY
 
 **FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY**
 
-CHUNK 06 jest zakończony w source i DB, bez release. Następny etap projektuje
-oddzielny admin-only audit zmian; nie wolno przeciążać nim user-facing
-`client_activity_events` ani rozpoczynać migracji bez właściwego human gate.
+Design oddzielnego admin-only audytu jest zakończony. Wymagana addytywna tabela
+`change_history_events`; nie wolno przeciążać user-facing
+`client_activity_events` ani tworzyć/aplikować migracji przed approval
+`FOLLOWUP_CHANGE_HISTORY_MIGRATION_APPROVAL_REQUIRED`.
