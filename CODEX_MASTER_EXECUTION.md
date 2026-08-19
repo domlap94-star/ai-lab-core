@@ -24,14 +24,15 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY — MIGRATION APPROVAL GATE**.
-Read-only audit potwierdził, że obecne tabele są domenowe/operacyjne i nie mają
-ogólnego bounded kontraktu before/after. Projekt addytywnej tabeli
-`change_history_events`, strict sanitizerów, transakcji i admin-only API jest w
-`FOLLOWUP_CHUNK07_ADMIN_CHANGE_HISTORY_DESIGN.md`. Nie wolno tworzyć/aplikować
-migracji ani rozpoczynać Flutter UI przed approval
-`FOLLOWUP_CHANGE_HISTORY_MIGRATION_APPROVAL_REQUIRED`. CHUNK 06
-`client_activity_events` pozostaje oddzielnym user-facing business timeline.
+**FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE**.
+CHUNK 07 jest kompletny w source i DB: addytywna tabela
+`change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
+Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only
+API/UI przeszły isolated migration round-trip, regresje backendowe i pełne
+Flutter 191/191. Backfill i realne acceptance writes nie były wykonywane;
+release pozostaje NEXT Stabil 1.0.2+21. Nie rozpoczynać CHUNK 09 bez osobnego
+promptu wykonawczego; wysyłanie maili nadal wymaga jawnego
+`FOLLOWUP_EMAIL_SEND_APPROVAL_REQUIRED`.
 
 ## Zasada kompatybilności wdrożonych klientów
 

@@ -12,6 +12,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/application/auth_state.dart';
 import '../../auth/presentation/admin_users_page.dart';
 import '../../auth/presentation/change_password_page.dart';
+import '../../change_history/presentation/admin_change_history_page.dart';
 import '../../system_status/application/system_status_provider.dart';
 import '../../system_status/domain/backend_status.dart';
 
@@ -142,6 +143,21 @@ class SettingsPage extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     context.push('/system');
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.manage_history),
+                  title: const Text('Historia zmian'),
+                  subtitle: const Text(
+                    'Admin-only audyt zmian danych i operacji.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const AdminChangeHistoryPage(),
+                      ),
+                    );
                   },
                 ),
               ],

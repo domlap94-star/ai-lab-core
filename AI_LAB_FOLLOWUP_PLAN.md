@@ -378,7 +378,7 @@ Design audit (2026-08-19):
 - Release: NOT PERFORMED; remains `NEXT Stabil 1.0.2+21`.
 - Design commit: `Design client activity log and timeline`.
 
-## [~] FOLLOW-UP CHUNK 07 — DESIGN COMPLETE / CHANGE HISTORY MIGRATION APPROVAL REQUIRED
+## [✓] FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY — COMPLETE
 
 **Priority: P1**
 
@@ -425,10 +425,31 @@ Design audit (2026-08-19):
   `followup_client_activity_20260819`, ungranted locks `0`, production writes
   `0`. Pełny schema/API/sanitizer/transaction/test design:
   `FOLLOWUP_CHUNK07_ADMIN_CHANGE_HISTORY_DESIGN.md`.
-- Migration i implementacja: NOT CREATED / NOT APPLIED. Release: NOT
-  PERFORMED. Active work pozostaje CHUNK 07 do czasu gate
-  `FOLLOWUP_CHANGE_HISTORY_MIGRATION_APPROVAL_REQUIRED`.
-- Design commit: `Design admin change history`.
+- Implementacja 2026-08-19: addytywna rewizja
+  `followup_change_history_20260819` utworzyła wyłącznie tabelę
+  `change_history_events`; backfill i business-row rewrite: NO. Isolated
+  upgrade/downgrade/re-upgrade zachował 3243 Clients, 3561 Candidates, 5915
+  Documents oraz istniejące audyty, a produkcyjna tabela po apply pozostała
+  pusta.
+- `ChangeHistoryService` zapisuje bounded diff w transakcji caller-a, ma ścisłe
+  allowlisty i limit 40 pól / 8 KiB na before i after. Email, telefon i NIP są
+  maskowane z digestem; notes mają wyłącznie length/hash; secrets, content i
+  arbitrary nested JSON są odrzucane.
+- Current Client create/update/delete, Client contacts/addresses, workflow
+  status oraz Candidate accept/reject emitują audyt z aktorem JWT. Awaria
+  audytu wycofuje business write; status Activity i Change History są
+  atomowe. Candidate merge, Document link i User lifecycle są projektowane z
+  ich kanonicznych audytów bez duplikowania persistence. CHUNK 06 Activity
+  pozostaje oddzielnym business timeline.
+- Admin-only `GET /api/v1/admin/change-history` ma filtry entity/entity ID,
+  actor, action i date range, stabilne sortowanie oraz paginację 50/max 200.
+  Flutter Settings zawiera admin-only `Historia zmian`, bounded expandable
+  diff, masked values, filtry i responsive layout 360/390/600/1200.
+- Acceptance: migration round-trip PASS; focused backend 11/11 i jawne
+  regresje 26/26 PASS; unauthenticated 401, non-admin 403, admin 200; Flutter
+  analyze PASS, focused 9/9 PASS, full 191/191 PASS. Production Client/
+  Candidate writes: 0; release: NOT PERFORMED.
+- Implementation commit: `Add admin change history` (this change).
 
 ## [✓] FOLLOW-UP CHUNK 08 — CANDIDATE ACCEPT CONFLICT + MERGE — COMPLETE
 

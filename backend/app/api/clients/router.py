@@ -92,11 +92,12 @@ def get_industries(
 def create_client(
     data: ClientCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ClientRead:
     service = ClientService(db)
 
     try:
-        return service.create_client(data)
+        return service.create_client(data, actor_user_id=current_user.id)
 
     except IndustryNotFoundError as error:
         raise HTTPException(
@@ -134,8 +135,11 @@ def set_client_workflow_status(
 def bulk_soft_delete_clients(
     data: ClientIdBatchRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ClientBatchResponse:
-    return ClientBulkService(db).soft_delete(data.client_ids)
+    return ClientBulkService(db).soft_delete(
+        data.client_ids, actor_user_id=current_user.id
+    )
 
 
 @router.get(
@@ -379,6 +383,7 @@ def update_client(
     client_id: int,
     data: ClientUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ClientRead:
     service = ClientService(db)
 
@@ -386,6 +391,7 @@ def update_client(
         return service.update_client(
             client_id,
             data,
+            actor_user_id=current_user.id,
         )
 
     except ClientNotFoundError as error:
@@ -414,11 +420,12 @@ def update_client(
 def delete_client(
     client_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     service = ClientService(db)
 
     try:
-        service.delete_client(client_id)
+        service.delete_client(client_id, actor_user_id=current_user.id)
 
     except ClientNotFoundError as error:
         raise HTTPException(

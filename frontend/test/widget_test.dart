@@ -157,6 +157,76 @@ void main() {
       '/dashboard',
     );
   });
+
+  testWidgets('admin Settings exposes Change History navigation', (
+    WidgetTester tester,
+  ) async {
+    appRouter.go('/settings');
+    addTearDown(() => appRouter.go('/dashboard'));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_AuthenticatedAuthController.new),
+          backendStatusProvider.overrideWith(
+            (Ref ref) async => const BackendStatus(
+              isOnline: true,
+              application: 'AI-Lab',
+              version: 'test',
+              environment: 'test',
+              debug: false,
+              latencyMilliseconds: 1,
+              baseUrl: 'https://example.invalid',
+            ),
+          ),
+          appVersionProvider.overrideWith(
+            (Ref ref) async =>
+                const AppVersionInfo(version: '1.0.2', buildNumber: '21'),
+          ),
+          updateCheckProvider.overrideWith(
+            (Ref ref) async => throw StateError('offline in navigation test'),
+          ),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Historia zmian'), findsOneWidget);
+  });
+
+  testWidgets('normal user Settings hides Change History navigation', (
+    WidgetTester tester,
+  ) async {
+    appRouter.go('/settings');
+    addTearDown(() => appRouter.go('/dashboard'));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_NormalUserAuthController.new),
+          backendStatusProvider.overrideWith(
+            (Ref ref) async => const BackendStatus(
+              isOnline: true,
+              application: 'AI-Lab',
+              version: 'test',
+              environment: 'test',
+              debug: false,
+              latencyMilliseconds: 1,
+              baseUrl: 'https://example.invalid',
+            ),
+          ),
+          appVersionProvider.overrideWith(
+            (Ref ref) async =>
+                const AppVersionInfo(version: '1.0.2', buildNumber: '21'),
+          ),
+          updateCheckProvider.overrideWith(
+            (Ref ref) async => throw StateError('offline in navigation test'),
+          ),
+        ],
+        child: const App(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Historia zmian'), findsNothing);
+  });
 }
 
 class _UnauthenticatedAuthController extends AuthController {
@@ -192,6 +262,27 @@ class _ExpiredSessionAuthController extends AuthController {
   Future<AuthState> build() async {
     return const AuthState.unauthenticated(
       notice: 'Sesja wygasła. Zaloguj się ponownie.',
+    );
+  }
+}
+
+class _NormalUserAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async {
+    return const AuthState(
+      session: AuthSession(
+        accessToken: 'normal-user-token',
+        tokenType: 'bearer',
+      ),
+      user: CurrentUser(
+        id: 2,
+        username: 'user',
+        email: 'user@example.com',
+        role: 'User',
+        isActive: true,
+        mustChangePassword: false,
+        passwordResetRequested: false,
+      ),
     );
   }
 }

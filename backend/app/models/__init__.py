@@ -1,6 +1,7 @@
 from app.models.agent_execution import AgentExecution
 from app.models.candidate_source import CandidateSource
 from app.models.candidate_merge_event import CandidateMergeEvent
+from app.models.change_history_event import ChangeHistoryEvent
 from app.models.client import Client
 from app.models.client_activity_event import ClientActivityEvent
 from app.models.client_workflow_status import ClientWorkflowStatus
@@ -27,6 +28,7 @@ __all__ = [
     "AgentExecution",
     "CandidateSource",
     "CandidateMergeEvent",
+    "ChangeHistoryEvent",
     "Client",
     "ClientActivityEvent",
     "ClientWorkflowStatus",

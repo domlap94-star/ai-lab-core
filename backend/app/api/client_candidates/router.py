@@ -59,12 +59,15 @@ router = APIRouter(
 def bulk_accept_client_candidates(
     data: CandidateBulkAcceptRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> CandidateBulkAcceptResponse:
     service = ClientCandidateReviewService(db)
     results: list[CandidateBulkAcceptItem] = []
     for candidate_id in data.candidate_ids:
         try:
-            client = service.accept_candidate(candidate_id)
+            client = service.accept_candidate(
+                candidate_id, actor_user_id=current_user.id
+            )
             results.append(CandidateBulkAcceptItem(
                 candidate_id=candidate_id, result="promoted", client_id=client.id
             ))
@@ -168,6 +171,7 @@ def get_client_candidate(
 def accept_client_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> CandidateAcceptResponse:
     service = ClientCandidateReviewService(
         db
@@ -175,7 +179,7 @@ def accept_client_candidate(
 
     try:
         client = service.accept_candidate(
-            candidate_id
+            candidate_id, actor_user_id=current_user.id
         )
 
         return CandidateAcceptResponse(
@@ -290,6 +294,7 @@ def merge_client_candidate(
 def reject_client_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> CandidateRejectResponse:
     service = ClientCandidateReviewService(
         db
@@ -297,7 +302,7 @@ def reject_client_candidate(
 
     try:
         candidate = service.reject_candidate(
-            candidate_id
+            candidate_id, actor_user_id=current_user.id
         )
 
         return CandidateRejectResponse(

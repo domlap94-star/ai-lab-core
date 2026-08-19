@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,7 @@ from app.services.client_added_date_projection_service import (
 from app.services.client_workflow_status_projection_service import (
     ClientWorkflowStatusProjectionService,
 )
+from app.services.change_history_service import ChangeHistoryService
 
 
 class ClientNotFoundError(Exception):
@@ -140,6 +142,9 @@ class ClientService(BaseService[Client]):
     def create_client(
         self,
         data: ClientCreate,
+        *,
+        actor_user_id: int | None = None,
+        operation_id: UUID | None = None,
     ) -> Client:
         payload = data.model_dump(exclude={"emails", "phones", "addresses"})
         if data.emails is not None:
@@ -152,31 +157,73 @@ class ClientService(BaseService[Client]):
 
         client = Client(**payload)
 
-        self.client_repository.create(client)
+        operation = str(operation_id or uuid4())
+        try:
+            self.db.add(client)
+            self.db.flush()
 
-        if data.emails is not None:
-            self._replace_contacts(client, "email", data.emails)
-        elif client.primary_email:
-            self._replace_contacts(client, "email", [{"value": client.primary_email, "is_primary": True}])
-        if data.phones is not None:
-            self._replace_contacts(client, "phone", data.phones)
-        elif client.primary_phone:
-            self._replace_contacts(client, "phone", [{"value": client.primary_phone, "is_primary": True}])
-        if data.addresses is not None:
-            self._replace_addresses(client, data.addresses)
-            self._sync_primary_address_scalars(client)
-        elif self._has_scalar_address(client):
-            self._replace_addresses(client, [self._scalar_address_payload(client)])
-        self.db.commit()
+            if data.emails is not None:
+                self._replace_contacts(client, "email", data.emails)
+            elif client.primary_email:
+                self._replace_contacts(client, "email", [{"value": client.primary_email, "is_primary": True}])
+            if data.phones is not None:
+                self._replace_contacts(client, "phone", data.phones)
+            elif client.primary_phone:
+                self._replace_contacts(client, "phone", [{"value": client.primary_phone, "is_primary": True}])
+            if data.addresses is not None:
+                self._replace_addresses(client, data.addresses)
+                self._sync_primary_address_scalars(client)
+            elif self._has_scalar_address(client):
+                self._replace_addresses(client, [self._scalar_address_payload(client)])
+            self.db.flush()
 
-        return self.get_client(client.id)
+            history = ChangeHistoryService(self.db)
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client",
+                entity_id=client.id,
+                action="created",
+                before={},
+                after=history.client_snapshot(client, include_nulls=False),
+                operation_id=operation,
+                source_key=f"client:{operation}:created",
+            )
+            self._persist_created_relations(history, client, operation, actor_user_id)
+            self.db.commit()
+            return self.get_client(client.id)
+        except Exception:
+            self.db.rollback()
+            raise
 
     def update_client(
         self,
         client_id: int,
         data: ClientUpdate,
+        *,
+        actor_user_id: int | None = None,
+        operation_id: UUID | None = None,
     ) -> Client:
-        client = self.get_client(client_id)
+        client = (
+            self.db.query(Client)
+            .filter(Client.id == client_id, Client.deleted_at.is_(None))
+            .with_for_update()
+            .first()
+        )
+        if client is None:
+            raise ClientNotFoundError
+        operation = str(operation_id or uuid4())
+        history = ChangeHistoryService(self.db)
+        before_client = history.client_snapshot(client)
+        before_contacts = {
+            (item.kind, item.normalized_value): (item.id, history.contact_snapshot(item))
+            for item in client.contact_points
+            if item.deleted_at is None
+        }
+        before_addresses = {
+            self._address_identity(item): (item.id, history.address_snapshot(item))
+            for item in client.address_records
+            if item.deleted_at is None
+        }
 
         payload = data.model_dump(
             exclude_unset=True,
@@ -194,40 +241,152 @@ class ClientService(BaseService[Client]):
                 excluded_client_id=client.id,
             )
 
-        for field_name, value in payload.items():
-            setattr(client, field_name, value)
+        try:
+            for field_name, value in payload.items():
+                setattr(client, field_name, value)
 
-        if "emails" in data.model_fields_set:
-            self._replace_contacts(client, "email", data.emails or [])
-            client.primary_email = self._primary_value(data.emails or [])
-        elif "primary_email" in payload:
-            self._set_legacy_primary(client, "email", payload["primary_email"])
-        if "phones" in data.model_fields_set:
-            self._replace_contacts(client, "phone", data.phones or [])
-            client.primary_phone = self._primary_value(data.phones or [])
-        elif "primary_phone" in payload:
-            self._set_legacy_primary(client, "phone", payload["primary_phone"])
-        if "addresses" in data.model_fields_set:
-            self._replace_addresses(client, data.addresses or [])
-            self._sync_primary_address_scalars(client)
-        elif any(
-            field in payload
-            for field in (
-                "street", "building_number", "unit_number", "postal_code", "city", "country_code"
+            if "emails" in data.model_fields_set:
+                self._replace_contacts(client, "email", data.emails or [])
+                client.primary_email = self._primary_value(data.emails or [])
+            elif "primary_email" in payload:
+                self._set_legacy_primary(client, "email", payload["primary_email"])
+            if "phones" in data.model_fields_set:
+                self._replace_contacts(client, "phone", data.phones or [])
+                client.primary_phone = self._primary_value(data.phones or [])
+            elif "primary_phone" in payload:
+                self._set_legacy_primary(client, "phone", payload["primary_phone"])
+            if "addresses" in data.model_fields_set:
+                self._replace_addresses(client, data.addresses or [])
+                self._sync_primary_address_scalars(client)
+            elif any(
+                field in payload
+                for field in (
+                    "street", "building_number", "unit_number", "postal_code", "city", "country_code"
+                )
+            ):
+                self._set_legacy_primary_address(client)
+
+            self.db.add(client)
+            self.db.flush()
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client",
+                entity_id=client.id,
+                action="updated",
+                before=before_client,
+                after=history.client_snapshot(client),
+                operation_id=operation,
+                source_key=f"client:{operation}:updated",
             )
-        ):
-            self._set_legacy_primary_address(client)
-
-        self.client_repository.update(client)
-
-        return self.get_client(client.id)
+            self._persist_relation_diffs(
+                history, client, before_contacts, before_addresses,
+                operation, actor_user_id,
+            )
+            self.db.commit()
+            return self.get_client(client.id)
+        except Exception:
+            self.db.rollback()
+            raise
 
     def delete_client(
         self,
         client_id: int,
+        *,
+        actor_user_id: int | None = None,
+        operation_id: UUID | None = None,
     ) -> None:
-        client = self.get_client(client_id)
-        self.client_repository.soft_delete(client)
+        client = (
+            self.db.query(Client).filter(Client.id == client_id).with_for_update().first()
+        )
+        if client is None or client.deleted_at is not None:
+            raise ClientNotFoundError
+        operation = str(operation_id or uuid4())
+        before = {"deleted_at": client.deleted_at}
+        try:
+            client.deleted_at = datetime.now(timezone.utc)
+            ChangeHistoryService(self.db).persist(
+                actor_user_id=actor_user_id,
+                entity_type="client",
+                entity_id=client.id,
+                action="deleted",
+                before=before,
+                after={"deleted_at": client.deleted_at},
+                operation_id=operation,
+                source_key=f"client:{operation}:deleted",
+            )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def _persist_created_relations(self, history, client, operation, actor_user_id):
+        for item in client.contact_points:
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client_contact", entity_id=item.id, action="created",
+                before={}, after=history.contact_snapshot(item),
+                operation_id=operation,
+                source_key=f"client:{operation}:contact:{item.id}:created",
+            )
+        for item in client.address_records:
+            if item.deleted_at is None:
+                history.persist(
+                    actor_user_id=actor_user_id,
+                    entity_type="client_address", entity_id=item.id, action="created",
+                    before={}, after=history.address_snapshot(item),
+                    operation_id=operation,
+                    source_key=f"client:{operation}:address:{item.id}:created",
+                )
+
+    def _persist_relation_diffs(
+        self, history, client, before_contacts, before_addresses,
+        operation, actor_user_id,
+    ) -> None:
+        after_contacts = {
+            (item.kind, item.normalized_value): (item.id, history.contact_snapshot(item))
+            for item in client.contact_points if item.deleted_at is None
+        }
+        for key in sorted(set(before_contacts) | set(after_contacts)):
+            before_item = before_contacts.get(key)
+            after_item = after_contacts.get(key)
+            entity_id = (after_item or before_item)[0]
+            action = "updated" if before_item and after_item else "created" if after_item else "deleted"
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client_contact", entity_id=entity_id, action=action,
+                before=before_item[1] if before_item else {},
+                after=after_item[1] if after_item else {},
+                operation_id=operation,
+                source_key=f"client:{operation}:contact:{entity_id}:{action}",
+            )
+
+        after_addresses = {
+            self._address_identity(item): (item.id, history.address_snapshot(item))
+            for item in client.address_records if item.deleted_at is None
+        }
+        for key in sorted(set(before_addresses) | set(after_addresses)):
+            before_item = before_addresses.get(key)
+            after_item = after_addresses.get(key)
+            entity_id = (after_item or before_item)[0]
+            action = "updated" if before_item and after_item else "created" if after_item else "deleted"
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client_address", entity_id=entity_id, action=action,
+                before=before_item[1] if before_item else {},
+                after=after_item[1] if after_item else {},
+                operation_id=operation,
+                source_key=f"client:{operation}:address:{entity_id}:{action}",
+            )
+
+    @staticmethod
+    def _address_identity(address) -> tuple[str, ...]:
+        return tuple(
+            (getattr(address, field) or "").strip().casefold()
+            for field in (
+                "street", "building_number", "unit_number", "postal_code",
+                "city", "country_code",
+            )
+        )
 
     def _replace_contacts(self, client: Client, kind: str, contacts: list) -> None:
         client.contact_points[:] = [item for item in client.contact_points if item.kind != kind]

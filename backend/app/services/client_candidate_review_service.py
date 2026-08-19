@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+from uuid import uuid4
+
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -16,6 +18,7 @@ from app.services.client_candidate_promotion_service import (
     CandidatePromotionError,
     ClientCandidatePromotionService,
 )
+from app.services.change_history_service import ChangeHistoryService
 
 
 class CandidateReviewNotFoundError(Exception):
@@ -119,12 +122,41 @@ class ClientCandidateReviewService:
     def accept_candidate(
         self,
         candidate_id: int,
+        *,
+        actor_user_id: int | None = None,
     ):
         try:
+            candidate = self.promotion_service.get_candidate_for_update(candidate_id)
+            before_candidate = ChangeHistoryService.candidate_snapshot(candidate)
             client = (
                 self.promotion_service.promote(
                     candidate_id
                 )
+            )
+
+            operation = str(uuid4())
+            history = ChangeHistoryService(self.db)
+            after_candidate = history.candidate_snapshot(candidate)
+            after_candidate["resulting_client_id"] = client.id
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client_candidate",
+                entity_id=candidate.id,
+                action="accepted",
+                before=before_candidate,
+                after=after_candidate,
+                operation_id=operation,
+                source_key=f"candidate:{operation}:accepted",
+            )
+            history.persist(
+                actor_user_id=actor_user_id,
+                entity_type="client",
+                entity_id=client.id,
+                action="created",
+                before={},
+                after=history.client_snapshot(client, include_nulls=False),
+                operation_id=operation,
+                source_key=f"candidate:{operation}:client-created",
             )
 
             self.db.commit()
@@ -149,6 +181,8 @@ class ClientCandidateReviewService:
     def reject_candidate(
         self,
         candidate_id: int,
+        *,
+        actor_user_id: int | None = None,
     ) -> ClientCandidate:
         try:
             candidate = (
@@ -183,9 +217,21 @@ class ClientCandidateReviewService:
                     f"{candidate.matched_client_id}."
                 )
 
+            before = ChangeHistoryService.candidate_snapshot(candidate)
             candidate.status = "rejected"
 
             self.db.flush()
+            operation = str(uuid4())
+            ChangeHistoryService(self.db).persist(
+                actor_user_id=actor_user_id,
+                entity_type="client_candidate",
+                entity_id=candidate.id,
+                action="rejected",
+                before=before,
+                after=ChangeHistoryService.candidate_snapshot(candidate),
+                operation_id=operation,
+                source_key=f"candidate:{operation}:rejected",
+            )
             self.db.commit()
             self.db.refresh(candidate)
 
