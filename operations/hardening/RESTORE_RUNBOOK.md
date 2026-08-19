@@ -15,7 +15,7 @@ explicit human gate. Always restore to an isolated target first.
 | Open WebUI | revision `ecd48e2f...` | `ghcr.io/open-webui/open-webui@sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0` |
 | Backend | Python 3.12.13 | local image `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`; base `python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36` |
 
-Flutter is 3.38.5 / Dart 3.10.4. The Vision worker requires Node 24.18.0,
+Flutter is 3.44.8 / Dart 3.12.2. The Vision worker requires Node 24.18.0,
 Playwright 1.62.1 and the Microsoft Edge channel. The supervisor uses the
 same host Node runtime.
 
@@ -84,6 +84,11 @@ The Qdrant snapshot was created and hashed, but isolated restore is currently
 `QDRANT_RESTORE_DRILL_BLOCKED_BY_ISOLATION`: local-file recovery was rejected
 by path isolation and the official upload recovery returned HTTP 500 on the
 same 1.18.3 image. The 57-point production collection was never modified.
+Closing this gap requires a separate isolated Qdrant 1.18.3 target with no
+production port or volume, a supported snapshot upload/mount path, enough
+temporary storage for the snapshot and collection, and verification of 57
+points at 1024 dimensions before disposal. It must not be attempted by changing
+the production image, collection or storage topology.
 
 ## Migration and application rollback
 

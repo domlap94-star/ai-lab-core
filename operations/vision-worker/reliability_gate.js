@@ -10,11 +10,13 @@ const PROJECT = 'C:\\ai-lab-core';
 const FIXTURES = path.join(PROJECT, 'data', 'vision-controlled');
 const SPOOL = path.join(PROJECT, 'data', 'vision-spool');
 const requestedCount = Number(process.argv[2] || '20');
-if (![3, 20].includes(requestedCount)) throw new Error('GATE_COUNT_MUST_BE_3_OR_20');
+if (![1, 3, 20].includes(requestedCount)) throw new Error('GATE_COUNT_MUST_BE_1_3_OR_20');
 const REPORT = path.join(
   'C:\\ChatGPT-Vision-Worker',
   'output',
-  requestedCount === 3 ? 'chunk15_micro_gate.json' : 'chunk15_reliability_gate.json',
+  requestedCount === 1
+    ? 'chunk17_reboot_smoke.json'
+    : (requestedCount === 3 ? 'chunk15_micro_gate.json' : 'chunk15_reliability_gate.json'),
 );
 
 function envFile() {
@@ -151,8 +153,8 @@ async function main() {
   fs.mkdirSync(path.dirname(REPORT), { recursive: true });
   fs.writeFileSync(REPORT, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
   process.stdout.write(`GATE_REPORT=${REPORT}\n`);
-  const minimumUploads = requestedCount === 3 ? 3 : 19;
-  const minimumFirst = requestedCount === 3 ? 0 : 18;
+  const minimumUploads = requestedCount === 20 ? 19 : requestedCount;
+  const minimumFirst = requestedCount === 20 ? 18 : 0;
   if (results.length !== requestedCount
     || report.temporary_chat_verified !== requestedCount
     || report.upload_success < minimumUploads

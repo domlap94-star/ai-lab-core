@@ -94,14 +94,16 @@ $releaseArchive = Join-Path $artifacts "release-stable.tar.gz"
 Invoke-CheckedCommand "tar.exe" @("-czf", $releaseArchive, "-C", $repo, "release-channel/stable")
 
 $qdrantResponse = Invoke-RestMethod -Method Post `
-    -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots" -TimeoutSec 120
+    -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots" -TimeoutSec 900
 if ($qdrantResponse.status -ne "ok" -or [string]::IsNullOrWhiteSpace($qdrantResponse.result.name)) {
     throw "Qdrant did not return a valid snapshot name."
 }
 $qdrantSnapshot = Join-Path $artifacts "qdrant.snapshot"
-Invoke-WebRequest -UseBasicParsing `
-    -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$($qdrantResponse.result.name)" `
-    -OutFile $qdrantSnapshot -TimeoutSec 300
+Invoke-CheckedCommand "curl.exe" @(
+    "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
+    "--output", $qdrantSnapshot,
+    "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$($qdrantResponse.result.name)"
+)
 
 $n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
 $n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"

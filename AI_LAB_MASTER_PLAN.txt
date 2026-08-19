@@ -57,14 +57,18 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+21
     sanitized `agent_executions` audit. Limits: 5 rounds / 8 calls / 180 s.
     No write tools, shell, SQL, Docker/supervisor control, general browser,
     live Vision trigger or conversation persistence exist.
-[~] CHUNK 17 — PRODUCTION HARDENING — SOURCE HARDENING VERIFIED; EXPLICIT
-    OPERATIONAL GATES REMAIN. Current service images are pinned without
-    upgrades; a protected checkpoint and isolated PostgreSQL/storage/n8n
-    restore drills passed; health, retention, Vision and Agent runbooks are
-    present. Qdrant snapshot creation passed but isolated restore remains
-    blocked by the supported recovery path. Installing a backup schedule,
-    proving host-reboot startup and changing public security headers require
-    separate approvals. Final system audit has not started.
+[✓] CHUNK 17 — PRODUCTION HARDENING — COMPLETE / VERIFIED. Current service
+    images are pinned without upgrades; protected checkpoint creation,
+    isolated PostgreSQL/storage/n8n restore and migration roundtrip drills
+    passed. Daily 03:00 backup scheduling and a controlled host-reboot recovery
+    proof passed, including post-reboot Vision and Agent smokes. Health,
+    retention and recovery runbooks are present.
+    DEFERRED / EXPLICIT: public security-header hardening awaits a separate
+    compatibility decision; Qdrant snapshot creation passes but isolated
+    restore remains technically blocked; protected environment-secret escrow
+    is a manual external requirement; physical Android final smoke remains
+    unverified without ADB. No destructive retention or cleanup was enabled.
+[!] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT REQUIRED.
 [✓] LOGIN / SESSION HOTFIX — RELEASED as NEXT Stabil 1.0.2+18. Login keeps
     the form mounted while validating, reports invalid credentials and network
     failures clearly, verifies secure-storage persistence, and guards session
@@ -5496,10 +5500,14 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     deny-by-default tool registry; persistent sanitized audit; hard limits of
     5 rounds and 8 calls; strict Client/Inspection scope. No write, shell,
     arbitrary SQL/browser, live Vision action or conversation persistence.
-[~] CHUNK 17 — PRODUCTION HARDENING: NON-GATED SOURCE/RUNTIME WORK VERIFIED;
-    awaiting explicit backup-schedule, host-reboot and public-header decisions
-    before it can be marked complete. No destructive retention, historical
-    cleanup, Qdrant write/backfill/upgrade or business-data mutation occurred.
+[✓] CHUNK 17 — PRODUCTION HARDENING: COMPLETE / VERIFIED. Daily backup task,
+    valid checkpoint and controlled host reboot recovery passed. Residual items
+    remain explicit: public security headers are deferred pending compatibility
+    approval, Qdrant isolated restore is technically blocked, environment
+    secret escrow is manual, and physical Android final smoke is unverified.
+    No destructive retention, historical cleanup, Qdrant write/backfill/
+    upgrade or business-data mutation occurred.
+[!] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT REQUIRED.
 
 PRE-CHUNK 11 CRM USABILITY / SOURCE CONSISTENCY PATCH:
 

@@ -44,16 +44,23 @@ scope.
 - n8n executions: existing history is preserved. No destructive pruning was
   enabled in this chunk.
 - Backups: proposed policy is 7 daily, 5 weekly and 12 monthly checkpoints.
-  No automatic purge or Scheduled Task is installed. A scheduler and any
-  destructive retention require separate approvals.
+  The approved `NEXT Stabil - Daily Backup` Scheduled Task runs every day at
+  03:00 local time as the interactive `domai` account with limited run level.
+  It invokes only `backup-production.ps1`, has no secret command-line values,
+  and was manually verified on 2026-08-19. Automatic purge remains disabled;
+  any destructive retention still requires separate approval.
 
 ## Startup and recovery readiness
 
-Docker Desktop, Compose, supervisor and both gateways already have dedicated
-Windows Scheduled Tasks. The Compose task waits for Docker and then backend
-health. The Vision worker is on-demand and does not require a persistent
-browser process. Host reboot was not performed during CHUNK 17; a reboot proof
-requires `CHUNK17_HOST_REBOOT_APPROVAL_REQUIRED`.
+Docker Desktop, Compose, supervisor and both gateways have dedicated Windows
+Scheduled Tasks. The Compose task waits for Docker and then backend health.
+The Vision worker is on-demand and does not require a persistent browser
+process. A controlled host reboot on 2026-08-19 verified automatic recovery:
+gateway/supervisor listeners started about 19 seconds after boot, containers
+about 46 seconds after boot, PostgreSQL was ready at about 55 seconds, backend
+at about 57 seconds and n8n at about 66--71 seconds. No manual service start
+was required. A post-reboot synthetic Vision job and read-only Agent smoke
+passed.
 
 ## Security baseline
 
@@ -73,6 +80,13 @@ their existing explicit evidence/call/time limits.
 Security headers remain an audited deployment gap: CSP must not be introduced
 without Flutter Web compatibility testing, and any change to public HSTS/frame
 policy requires `CHUNK17_PUBLIC_SECURITY_CHANGE_APPROVAL_REQUIRED`.
+The current evidence, proposed staged headers and rollback plan are recorded in
+`PUBLIC_SECURITY_HEADERS_PROPOSAL.md`; no public header was changed in this
+operational gate.
+
+The backup deliberately contains environment variable names but not `.env`
+values. `ENV_SECRET_ESCROW_CHECKLIST.md` documents the required external,
+encrypted and ACL-restricted manual escrow procedure.
 
 ## Release compatibility
 
