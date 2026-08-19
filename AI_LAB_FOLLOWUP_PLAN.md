@@ -76,7 +76,7 @@ zatrzymuje pracę do czasu podania właściwego approval tokenu.
 - **P2** — istotne rozszerzenie lub zadanie operacyjne.
 - **P3** — cleanup, optymalizacja albo R&D.
 
-## [~] FOLLOW-UP CHUNK 01 — DIAGNOSTIC COMPLETE / REMEDIATION APPROVAL REQUIRED
+## [✓] FOLLOW-UP CHUNK 01 — DOCUMENT PROCESSING ANOMALIES — COMPLETE
 
 **Priority: P1**
 
@@ -112,6 +112,21 @@ Diagnostic result (2026-08-19):
 
 Evidence and remediation design:
 `FOLLOWUP_CHUNK01_DOCUMENT_ANOMALY_DIAGNOSIS.md`.
+
+Remediation result (2026-08-19):
+
+- Human gate `FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED` was granted.
+- Stored size and SHA-256 were verified independently immediately before each
+  retry.
+- Documents `1913` and `5626` were processed sequentially through the existing
+  production service with `force=False`; no bulk/history scan was used.
+- Document `1913` finished `processed` with 25 unique pages and no error.
+- Document `5626` finished `processed` with one page, strict JSON metadata,
+  zero non-finite values, and no error.
+- No duplicate page numbers or asset checksums were created. Source checksums
+  remained unchanged.
+- Vision jobs: `0`; Qdrant writes: `0`; assets remained unchanged.
+- No automatic historical retry/recovery mechanism was added.
 
 ## FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY
 
@@ -663,8 +678,7 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 01 — PRODUCTION RECORD REMEDIATION (APPROVAL REQUIRED)**
+**FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY**
 
-Diagnoza read-only jest zakończona. Następny krok pozostaje w CHUNK 01 i wymaga
-`FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED` przed pojedynczymi,
-checksum-gated, non-force retries dokumentów `1913` i `5626`.
+FOLLOW-UP CHUNK 01 został zakończony po zatwierdzonej, checksum-gated,
+pojedynczej remediation dokumentów `1913` i `5626` z `force=False`.

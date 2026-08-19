@@ -189,9 +189,29 @@ Before any future systemic implementation, add isolated tests for:
 3. failure finalization without malformed JSON reaching PostgreSQL,
 4. a second non-force attempt producing no duplicate pages or assets.
 
-## Gate
+## Remediation approval and completion
 
-Both documents still require a production processing write to become healthy.
-The required token is:
+The required production-write token was granted:
 
 `FOLLOWUP_DOCUMENT_REMEDIATION_APPROVAL_REQUIRED`
+
+Controlled remediation was completed on 2026-08-19:
+
+- each source independently passed existence, stored-size, and SHA-256 gates,
+- Document `1913` was processed once with `force=False` and changed from
+  `extracting` with zero database pages to `processed` with 25 unique pages,
+- Document `5626` was processed once with `force=False` and changed from
+  `failed` to `processed` with one page and processed metadata,
+- persisted metadata for `5626` contains zero `NaN`, positive infinity, or
+  negative infinity values and passes strict JSON serialization,
+- both processing errors are now empty and source checksums are unchanged,
+- no duplicate page numbers or duplicate asset checksums exist,
+- global Document count remained `5915`, DocumentPages increased from `271`
+  to `297`, and DocumentAssets remained `10`,
+- stale `extracting` documents and unresolved JSON/`NaN` failures are both `0`,
+- Qdrant remained at 57 points and no Vision job was created,
+- no bulk retry, history scan, direct SQL reset, `force=True`, deletion,
+  re-import, source-code change, or migration was performed.
+
+FOLLOW-UP CHUNK 01 is complete. Automatic historical recovery remains outside
+this chunk and was not introduced.
