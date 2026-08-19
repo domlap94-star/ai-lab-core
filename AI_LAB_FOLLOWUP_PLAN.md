@@ -307,7 +307,7 @@ Migration: prawdopodobna.
 Human gate: osobny schema/migration approval wymagany po audycie projektu
 danych; żadnej konfiguracji produkcyjnej bez jawnego apply approval.
 
-## FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2
+## [~] FOLLOW-UP CHUNK 06 — DESIGN COMPLETE / ACTIVITY AUDIT MIGRATION APPROVAL REQUIRED
 
 **Priority: P1**
 
@@ -325,6 +325,35 @@ generic activity-event model.
 Migration: prawdopodobna.
 
 Human gate: `FOLLOWUP_ACTIVITY_AUDIT_MIGRATION_APPROVAL_REQUIRED`.
+
+Design audit (2026-08-19):
+
+- Current Timeline is a bounded read-only projection over Clients, legacy
+  Projects, Inspections, Documents/photos, deduplicated Gmail sources and
+  document Client-link events. It has no durable source for `call_initiated`,
+  does not project Candidate merge, and `client_workflow_statuses` retains only
+  current state rather than status history.
+- Existing Candidate merge, Document link, user lifecycle and Agent execution
+  tables are domain-specific and cannot safely be reused as a generic business
+  activity log.
+- Required architecture is hybrid: persist only actions without another
+  canonical source (initially call and future status-change history), while
+  continuing to derive email, Document, Inspection and Candidate merge events.
+- Proposed additive revision `followup_client_activity_20260819` creates
+  `client_activity_events` with strict event/metadata contracts, JWT actor,
+  unique content-free source key and `(client_id, occurred_at, id)` index.
+  Backfill, trigger and business-row rewrite: NO.
+- Call endpoint is explicit and idempotent; it validates a Client-owned phone
+  contact, never accepts actor/event type/arbitrary metadata from Flutter and
+  stores no phone value. A log failure must not block the mocked/real dialer.
+- Live read-only evidence: table absent; 3243 Clients, 4262 Gmail sources,
+  workflow status rows 3; representative 127-event history returned a bounded
+  20-item page in 82.048–127.701 ms with zero duplicate stable keys and zero
+  body/raw payload metadata leakage. Production writes: `0`.
+- Full schema, endpoint, transaction, UI, rollback and 25-case acceptance spec:
+  `FOLLOWUP_CHUNK06_CLIENT_ACTIVITY_DESIGN.md`.
+- Migration/implementation: NOT CREATED. Release: NOT PERFORMED.
+- Design commit: `Design client activity log and timeline`.
 
 ## FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY
 
@@ -853,10 +882,10 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2**
+**FOLLOW-UP CHUNK 06 — ACTIVITY AUDIT MIGRATION APPROVAL REQUIRED**
 
-FOLLOW-UP CHUNK 11 zakończył Phase A: matching nowych wiadomości jest
-deterministyczny, bounded i auto-linkuje wyłącznie `certain`; niepewne oraz
-sprzeczne dowody pozostają w review, bez historycznego relinkowania. Zgodnie z
-Phase B następna praca to CHUNK 06, ponieważ Activity Log będzie wspólną bazą
-dla Mail workspace, Admin History i Dashboard Last Activity.
+Design CHUNK 06 potwierdził konieczność minimalnej addytywnej tabeli
+`client_activity_events`: obecna Timeline nie ma źródła dla `call_initiated`, a
+workflow status przechowuje tylko bieżący stan. Active work pozostaje CHUNK 06
+i jest zatrzymane na `FOLLOWUP_ACTIVITY_AUDIT_MIGRATION_APPROVAL_REQUIRED`.
+Nie rozpoczynać CHUNK 07 przed pełnym zakończeniem CHUNK 06.

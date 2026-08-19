@@ -24,12 +24,14 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2**. CHUNK 11 zakończył
-Phase A w source: Gmail matching zbiera bounded deterministic evidence,
-auto-linkuje wyłącznie jeden niesprzeczny wynik `certain`, a niepewne i
-sprzeczne przypadki pozostawia do review. Nie wykonano historycznego relinku,
-zmiany n8n ani produkcyjnych zmian linków; wydanie nadal pozostaje częścią
-przyszłego Release A. Phase B zaczyna się od wspólnego modelu Activity Log.
+**FOLLOW-UP CHUNK 06 — ACTIVITY AUDIT MIGRATION APPROVAL REQUIRED**. Audit i
+design są zakończone: obecna Timeline jest read-only projekcją i nie ma
+kanonicznego źródła dla `call_initiated`, natomiast workflow status nie
+zachowuje historii. Projekt `FOLLOWUP_CHUNK06_CLIENT_ACTIVITY_DESIGN.md`
+proponuje minimalną addytywną tabelę `client_activity_events`, bez backfillu.
+Nie tworzyć migracji, ORM, endpointu ani UI przed tokenem
+`FOLLOWUP_ACTIVITY_AUDIT_MIGRATION_APPROVAL_REQUIRED`; nie przechodzić do
+CHUNK 07.
 
 ## Zasada kompatybilności wdrożonych klientów
 
