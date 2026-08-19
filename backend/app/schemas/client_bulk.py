@@ -49,4 +49,5 @@ class ClientBatchResponse(BaseModel):
 class ClientWorkflowStatusRead(BaseModel):
     client_id: int
     status: ClientWorkflowState
+    label: str
     effective_date: date | None = None

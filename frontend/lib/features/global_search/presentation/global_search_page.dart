@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/network/friendly_api_error.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
 import '../application/global_search_providers.dart';
@@ -322,6 +323,12 @@ class _SearchResultTile extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             label: Text(result.type.label),
           ),
+          if (result.type == GlobalSearchType.client &&
+              result.clientWorkflowStatusLabel?.isNotEmpty == true)
+            Chip(
+              visualDensity: VisualDensity.compact,
+              label: Text(result.clientWorkflowStatusLabel!),
+            ),
           Text(result.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         ],
       ),
@@ -336,6 +343,11 @@ class _SearchResultTile extends StatelessWidget {
             ),
           if (result.snippet?.isNotEmpty == true)
             Text(result.snippet!, maxLines: 3, overflow: TextOverflow.ellipsis),
+          if (result.occurredAt != null)
+            Text(
+              formatPolishDateTime(result.occurredAt!),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           Text(
             'Dopasowanie: ${result.matchReasons.map(_reasonLabel).join(', ')}',
             style: Theme.of(context).textTheme.bodySmall,

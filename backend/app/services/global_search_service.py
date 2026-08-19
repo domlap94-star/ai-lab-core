@@ -19,6 +19,10 @@ from app.models.project import Project
 from app.repositories.client_email_repository import LINKED_CANDIDATE_STATUSES
 from app.schemas.search import GlobalSearchPage, GlobalSearchResult
 from app.services.client_email_service import ClientEmailService
+from app.services.client_workflow_status_projection_service import (
+    ClientWorkflowStatusProjection,
+    ClientWorkflowStatusProjectionService,
+)
 from app.services.semantic_search_service import SemanticSearchService
 
 
@@ -59,6 +63,7 @@ class GlobalSearchService:
         self.db = db
         self.semantic_service = semantic_service or SemanticSearchService()
         self.email_projection = ClientEmailService(db)
+        self.client_status_projection = ClientWorkflowStatusProjectionService(db)
 
     @staticmethod
     def parse_types(value: str | None) -> tuple[str, ...]:
@@ -199,9 +204,20 @@ class GlobalSearchService:
             .limit(limit)
             .all()
         )
-        return [self._client_result(row, q) for row in rows]
+        statuses = self.client_status_projection.get_for_client_ids(
+            [row.id for row in rows]
+        )
+        return [
+            self._client_result(row, q, statuses[row.id])
+            for row in rows
+        ]
 
-    def _client_result(self, row: Client, q: _TextQuery) -> GlobalSearchResult:
+    def _client_result(
+        self,
+        row: Client,
+        q: _TextQuery,
+        workflow: ClientWorkflowStatusProjection,
+    ) -> GlobalSearchResult:
         emails = [row.primary_email, *(item.value for item in row.emails)]
         phones = [row.primary_phone, *(item.value for item in row.phones)]
         reasons: list[str] = []
@@ -272,6 +288,9 @@ class GlobalSearchService:
             reasons=reasons,
             occurred_at=row.updated_at,
             client_id=row.id,
+            client_workflow_status=workflow.status,
+            client_workflow_status_label=workflow.label,
+            client_workflow_effective_date=workflow.effective_date,
             route=f"/clients/{row.id}",
         )
 

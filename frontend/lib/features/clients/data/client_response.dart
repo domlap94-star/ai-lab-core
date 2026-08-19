@@ -9,6 +9,9 @@ class ClientResponse {
     required this.countryCode,
     required this.createdAt,
     required this.updatedAt,
+    this.workflowStatus = 'untouched',
+    this.workflowStatusLabel = 'Brak modyfikacji',
+    this.workflowEffectiveDate,
     this.sourceRecordDate,
     this.legalName,
     this.taxId,
@@ -50,6 +53,9 @@ class ClientResponse {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String workflowStatus;
+  final String workflowStatusLabel;
+  final DateTime? workflowEffectiveDate;
   final DateTime? sourceRecordDate;
   final DateTime? deletedAt;
   final List<Map<String, dynamic>> emails;
@@ -83,6 +89,12 @@ class ClientResponse {
       sourceRecordDate: _parseNullableDateTime(json['source_record_date']),
       createdAt: _parseDateTime(json['created_at']),
       updatedAt: _parseDateTime(json['updated_at']),
+      workflowStatus: json['workflow_status']?.toString() ?? 'untouched',
+      workflowStatusLabel:
+          json['workflow_status_label']?.toString() ?? 'Brak modyfikacji',
+      workflowEffectiveDate: _parseNullableDateTime(
+        json['workflow_effective_date'],
+      ),
       deletedAt: _parseNullableDateTime(json['deleted_at']),
       emails: _parseContacts(json['emails']),
       phones: _parseContacts(json['phones']),
@@ -113,6 +125,9 @@ class ClientResponse {
       sourceRecordDate: sourceRecordDate,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      workflowStatus: workflowStatus,
+      workflowStatusLabel: workflowStatusLabel,
+      workflowEffectiveDate: workflowEffectiveDate,
       deletedAt: deletedAt,
       emails: emails
           .map(

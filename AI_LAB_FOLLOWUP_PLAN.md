@@ -128,7 +128,7 @@ Remediation result (2026-08-19):
 - Vision jobs: `0`; Qdrant writes: `0`; assets remained unchanged.
 - No automatic historical retry/recovery mechanism was added.
 
-## FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY
+## [✓] FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY — COMPLETE
 
 **Priority: P1**
 
@@ -146,6 +146,36 @@ rok.
 
 Human gate: brak przed audytem/source implementation; osobny release prompt,
 jeżeli zmiana ma zostać wydana.
+
+Completion record (2026-08-19):
+
+- Root cause: Client list i Client Details pobierały workflow status osobnym
+  endpointem i łączyły go przez procesowy singleton Fluttera. Po zapisie
+  szczegóły i lista nie odświeżały tej samej projekcji, a Global Search nie
+  zwracał statusu w ogóle. Business/Client AI miały dodatkowo własne
+  interpretacje labeli.
+- Canonical source: `client_workflow_statuses.status` wraz z
+  `effective_date`; brak aktywnego rekordu oznacza `untouched`. Nowy wspólny
+  `ClientWorkflowStatusProjectionService` zasila Client list/detail,
+  compatibility endpoint, Global Search, Business Analytics, Client AI i
+  read-only Agent tools.
+- API zmieniono wyłącznie addytywnie: Client projection zawiera
+  `workflow_status`, `workflow_status_label`, `workflow_effective_date`, a
+  Global Search odpowiadające pola `client_workflow_*`. Legacy endpoint
+  workflow statuses pozostaje dostępny.
+- Flutter Client model korzysta bezpośrednio z projekcji serwera; usunięto
+  niezależny `ClientWorkflowMemory`. Po zapisie statusu odświeżane są Client
+  Details i lista, więc Back/re-fetch nie przywraca starego statusu. Clients
+  Search, Global Search i istniejące Client cards pokazują status.
+- Daty związane z klientem używają wspólnego formatera UI:
+  `dd.MM.yyyy` lub `dd.MM.yyyy, HH:mm`; API nadal zwraca ISO i timestampy nie
+  są trwale konwertowane.
+- Tests: backend focused/regression `42/42 PASS`, dodatkowe kontrakty
+  Client/Auth i rollback PASS, Client list contract E2E PASS; Flutter analyze
+  PASS, focused status/search `21/21 PASS`, full Flutter `170/170 PASS`.
+- Migration: NO. Production business writes: `0`. Qdrant writes: `0`.
+  Vision jobs: `0`. Release: NOT PERFORMED.
+- Implementation commit: `Unify client status and date presentation`.
 
 ## FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING
 
@@ -678,7 +708,8 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY**
+**FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**
 
-FOLLOW-UP CHUNK 01 został zakończony po zatwierdzonej, checksum-gated,
-pojedynczej remediation dokumentów `1913` i `5626` z `force=False`.
+FOLLOW-UP CHUNK 02 został zakończony bez migracji: wszystkie aktualne widoki
+korzystają ze wspólnej backendowej projekcji workflow statusu, daty zawierają
+rok, a Client/Global Search pokazują aktualny status.

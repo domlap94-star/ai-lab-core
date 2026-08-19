@@ -66,6 +66,7 @@ final clientWorkflowStatusesProvider =
                 row['status']?.toString() ?? '',
               ),
               date: DateTime.tryParse(row['effective_date']?.toString() ?? ''),
+              serverLabel: row['label']?.toString(),
             ),
       };
     });

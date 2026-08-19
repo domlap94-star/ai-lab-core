@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/widgets/app_shell.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../application/clients_providers.dart';
 import '../application/clients_controller.dart';
 import '../application/client_workflow_status.dart';
@@ -149,6 +150,7 @@ class ClientDetailsPage extends ConsumerWidget {
           .read(clientsRepositoryProvider)
           .updateClient(session: session, clientId: id, data: data);
       ref.invalidate(clientDetailsProvider(id));
+      ref.invalidate(clientsControllerProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
@@ -589,11 +591,11 @@ class _ClientDetails extends StatelessWidget {
                   _DetailRow(label: 'ID klienta', value: client.id.toString()),
                   _DetailRow(
                     label: 'Data dodania',
-                    value: _formatDate(client.displayCreatedDate),
+                    value: formatPolishDate(client.displayCreatedDate),
                   ),
                   _DetailRow(
                     label: 'Ostatnia aktualizacja',
-                    value: _formatDateTime(client.updatedAt),
+                    value: formatPolishDateTime(client.updatedAt),
                   ),
                 ],
               ),
@@ -682,21 +684,6 @@ class _ClientDetails extends StatelessWidget {
     }
   }
 
-  String _formatDateTime(DateTime value) {
-    final DateTime local = value.toLocal();
-
-    String twoDigits(int number) => number.toString().padLeft(2, '0');
-
-    return '${twoDigits(local.day)}.${twoDigits(local.month)}.${local.year} '
-        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
-  }
-
-  String _formatDate(DateTime value) {
-    String twoDigits(int number) => number.toString().padLeft(2, '0');
-
-    return '${twoDigits(value.day)}.${twoDigits(value.month)}.${value.year}';
-  }
-
   String _originLabel(String origin) => switch (origin) {
     'gmail' => 'Gmail',
     'sheets' => 'Google Sheets',
@@ -713,11 +700,7 @@ class _ClientWorkflowStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final key = client.id.toString();
-    final value = ref.watch(clientWorkflowStatusesProvider(key));
-    final status =
-        value.value?[client.id] ??
-        ClientWorkflowMemory.instance.statusFor(client);
+    final status = ClientWorkflowStatus.fromClient(client);
     return Card(
       key: const Key('client-workflow-status-card'),
       child: ListTile(
@@ -773,11 +756,8 @@ class _ClientWorkflowStatusCard extends ConsumerWidget {
           status: selected.apiValue,
           effectiveDate: date?.toIso8601String().split('T').first,
         );
-    ClientWorkflowMemory.instance.setStatus(
-      client.id,
-      ClientWorkflowStatus(state: selected, date: date),
-    );
     ref.invalidate(clientWorkflowStatusesProvider(client.id.toString()));
+    ref.invalidate(clientDetailsProvider(client.id));
     ref.invalidate(clientsControllerProvider);
   }
 }

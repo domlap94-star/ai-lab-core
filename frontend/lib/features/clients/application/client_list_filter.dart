@@ -27,8 +27,6 @@ List<Client> filterClientsForCurrentPage(
 }) {
   final String normalizedLocation = locationQuery.trim().toLowerCase();
 
-  final ClientWorkflowMemory workflowMemory = ClientWorkflowMemory.instance;
-
   final List<Client> result = clients.where((Client client) {
     if (normalizedLocation.isNotEmpty) {
       final String locationHaystack = <String>[
@@ -48,7 +46,8 @@ List<Client> filterClientsForCurrentPage(
     }
 
     if (workflowStatusFilter != null &&
-        workflowMemory.statusFor(client).state != workflowStatusFilter) {
+        ClientWorkflowStatus.fromClient(client).state !=
+            workflowStatusFilter) {
       return false;
     }
 

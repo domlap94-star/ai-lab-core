@@ -24,9 +24,10 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current next recommended work:
-**FOLLOW-UP CHUNK 02 — CLIENT STATUS CONSISTENCY + DATE DISPLAY**. FOLLOW-UP
-CHUNK 01 został zakończony po zatwierdzonej, checksum-gated remediation dwóch
-wskazanych dokumentów przez istniejący processing service z `force=False`.
+**FOLLOW-UP CHUNK 03 — EDITABLE CLIENT ADDED DATE + SORTING**. FOLLOW-UP
+CHUNK 02 został zakończony bez migracji: Client list/detail/search korzystają
+ze wspólnej backendowej projekcji workflow statusu, daty zawierają rok, a
+cache listy i szczegółów jest odświeżany po zapisie statusu.
 
 ## Zasada kompatybilności wdrożonych klientów
 

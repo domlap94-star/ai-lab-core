@@ -6,6 +6,7 @@ import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.industry import IndustryRead
+from app.schemas.client_bulk import ClientWorkflowState
 
 ClientType = Literal[
     "company",
@@ -363,6 +364,9 @@ class ClientRead(ClientBase):
     id: int
     industry: IndustryRead | None
     source_record_date: date | None = None
+    workflow_status: ClientWorkflowState = "untouched"
+    workflow_status_label: str = "Brak modyfikacji"
+    workflow_effective_date: date | None = None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None

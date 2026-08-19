@@ -14,16 +14,15 @@ class ClientWorkflowAvatar extends ConsumerWidget {
   });
 
   final Client client;
-  final VoidCallback onStatusChanged;
+  final Future<void> Function() onStatusChanged;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ThemeData theme = Theme.of(context);
-    final ClientWorkflowStatus status = ClientWorkflowMemory.instance.statusFor(
-      client,
-    );
+    final ClientWorkflowStatus status = ClientWorkflowStatus.fromClient(client);
 
     return PopupMenuButton<ClientWorkflowState>(
+      key: ValueKey<String>('client-workflow-status-${client.id}'),
       tooltip: 'Status klienta',
       onSelected: (ClientWorkflowState value) async {
         DateTime? date;
@@ -58,12 +57,8 @@ class ClientWorkflowAvatar extends ConsumerWidget {
               status: value.apiValue,
               effectiveDate: date?.toIso8601String().split('T').first,
             );
-        ClientWorkflowMemory.instance.setStatus(
-          client.id,
-          ClientWorkflowStatus(state: value, date: date),
-        );
         ref.invalidate(clientWorkflowStatusesProvider);
-        onStatusChanged();
+        await onStatusChanged();
       },
       itemBuilder: (BuildContext context) {
         return ClientWorkflowState.values
@@ -110,11 +105,11 @@ class _WorkflowCircle extends StatelessWidget {
     return Tooltip(
       message: status.displayLabel,
       child: Container(
-        width: 52,
+        width: 76,
         height: 52,
         decoration: BoxDecoration(
           color: fill,
-          shape: BoxShape.circle,
+          borderRadius: BorderRadius.circular(26),
           border: Border.all(color: theme.colorScheme.outlineVariant),
         ),
         child: Center(
@@ -132,10 +127,10 @@ class _WorkflowCircle extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      ClientWorkflowStatus.formatBadgeDate(status.date!),
+                      ClientWorkflowStatus.formatDate(status.date!),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: foreground,
-                        fontSize: 9,
+                        fontSize: 8,
                         fontWeight: FontWeight.w700,
                         height: 1,
                       ),

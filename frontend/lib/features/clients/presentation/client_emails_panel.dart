@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/formatters/polish_date_time.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
 import '../../documents/application/documents_providers.dart';
@@ -502,10 +503,7 @@ String _preview(String? value) {
 
 String _formatDate(DateTime? value) {
   if (value == null) return 'data nieustalona';
-  final DateTime local = value.toLocal();
-  String two(int number) => number.toString().padLeft(2, '0');
-  return '${two(local.day)}.${two(local.month)}.${local.year} '
-      '${two(local.hour)}:${two(local.minute)}';
+  return formatPolishDateTime(value);
 }
 
 String _attachmentWord(int count) {

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -29,6 +29,9 @@ class GlobalSearchResult(BaseModel):
     client_id: int | None = None
     project_id: int | None = None
     inspection_id: int | None = None
+    client_workflow_status: str | None = None
+    client_workflow_status_label: str | None = None
+    client_workflow_effective_date: date | None = None
     route: str
 
 

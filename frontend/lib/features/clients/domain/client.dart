@@ -105,6 +105,9 @@ class Client {
     required this.countryCode,
     required this.createdAt,
     required this.updatedAt,
+    this.workflowStatus = 'untouched',
+    this.workflowStatusLabel = 'Brak modyfikacji',
+    this.workflowEffectiveDate,
     this.sourceRecordDate,
     this.legalName,
     this.taxId,
@@ -146,6 +149,9 @@ class Client {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String workflowStatus;
+  final String workflowStatusLabel;
+  final DateTime? workflowEffectiveDate;
   final DateTime? sourceRecordDate;
   final DateTime? deletedAt;
   final List<ClientContactPoint> emails;

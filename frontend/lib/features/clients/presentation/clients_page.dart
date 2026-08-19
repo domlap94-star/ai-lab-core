@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_shell.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../../auth/application/auth_controller.dart';
 import 'client_form_dialog.dart';
 
@@ -192,12 +193,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
             status: status.apiValue,
             effectiveDate: date?.toIso8601String().split('T').first,
           );
-      for (final id in _selectedClientIds) {
-        ClientWorkflowMemory.instance.setStatus(
-          id,
-          ClientWorkflowStatus(state: status, date: date),
-        );
-      }
+      ref.invalidate(clientWorkflowStatusesProvider);
+      await ref.read(clientsControllerProvider.notifier).refresh();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -433,17 +430,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
               },
               data: (ClientPage page) {
                 final List<Client> clients = page.items;
-                if (clients.isNotEmpty) {
-                  final String statusKey = clients
-                      .map((client) => client.id)
-                      .join(',');
-                  final statuses = ref
-                      .watch(clientWorkflowStatusesProvider(statusKey))
-                      .value;
-                  if (statuses != null) {
-                    ClientWorkflowMemory.instance.setStatuses(statuses);
-                  }
-                }
                 final List<Client> visibleClients = filterClientsForCurrentPage(
                   clients,
                   locationQuery: _locationController.text,
@@ -542,9 +528,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                                         : _selectedClientIds.add(client.id),
                                   )
                                 : context.push('/clients/${client.id}'),
-                            onStatusChanged: () {
-                              setState(() {});
-                            },
+                            onStatusChanged: _refresh,
                           ),
                         ),
                       ),
@@ -1039,15 +1023,15 @@ class _ClientStatusSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    final ClientWorkflowMemory workflowMemory = ClientWorkflowMemory.instance;
-
     final Map<ClientWorkflowState, int> counts = <ClientWorkflowState, int>{
       for (final ClientWorkflowState status in ClientWorkflowState.values)
         status: 0,
     };
 
     for (final Client client in clients) {
-      final ClientWorkflowState status = workflowMemory.statusFor(client).state;
+      final ClientWorkflowState status = ClientWorkflowStatus.fromClient(
+        client,
+      ).state;
 
       counts[status] = (counts[status] ?? 0) + 1;
     }
@@ -1277,7 +1261,7 @@ class _ClientCard extends StatelessWidget {
 
   final Client client;
   final VoidCallback onTap;
-  final VoidCallback onStatusChanged;
+  final Future<void> Function() onStatusChanged;
   final bool selectionMode;
   final bool selected;
   final VoidCallback onSelected;
@@ -1385,7 +1369,7 @@ class _ClientCard extends StatelessWidget {
                         _ClientInformation(
                           icon: Icons.calendar_today_outlined,
                           value:
-                              'Dodano: ${_formatClientDate(client.displayCreatedDate)}',
+                              'Dodano: ${formatPolishDate(client.displayCreatedDate)}',
                         ),
                       ],
                     ),
@@ -1399,15 +1383,6 @@ class _ClientCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _formatClientDate(DateTime value) {
-    final DateTime local = value.toLocal();
-    String twoDigits(int number) => number.toString().padLeft(2, '0');
-
-    return '${twoDigits(local.day)}.'
-        '${twoDigits(local.month)}.'
-        '${local.year}';
   }
 }
 

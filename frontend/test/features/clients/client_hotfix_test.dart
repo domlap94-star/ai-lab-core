@@ -1,13 +1,22 @@
 import 'package:ai_lab/features/clients/application/client_list_view_memory.dart';
 import 'package:ai_lab/features/clients/application/client_list_filter.dart';
+import 'package:ai_lab/features/clients/application/client_workflow_status.dart';
 import 'package:ai_lab/features/clients/application/clients_controller.dart';
 import 'package:ai_lab/features/clients/application/clients_providers.dart';
+import 'package:ai_lab/features/clients/application/clients_repository.dart';
+import 'package:ai_lab/features/clients/data/clients_api.dart';
 import 'package:ai_lab/features/clients/data/client_response.dart';
 import 'package:ai_lab/features/clients/domain/client.dart';
 import 'package:ai_lab/features/clients/domain/client_page.dart';
 import 'package:ai_lab/features/clients/domain/industry.dart';
 import 'package:ai_lab/features/clients/presentation/client_details_page.dart';
+import 'package:ai_lab/features/clients/presentation/client_workflow_widgets.dart';
 import 'package:ai_lab/features/clients/presentation/clients_page.dart';
+import 'package:ai_lab/features/auth/application/auth_controller.dart';
+import 'package:ai_lab/features/auth/application/auth_state.dart';
+import 'package:ai_lab/features/auth/domain/auth_session.dart';
+import 'package:ai_lab/features/auth/domain/current_user.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +30,9 @@ final Client _client = Client(
   sourceRecordDate: DateTime(2025, 1, 17),
   createdAt: DateTime.utc(2026, 8, 14, 12),
   updatedAt: DateTime.utc(2026, 8, 14, 12),
+  workflowStatus: 'inspection',
+  workflowStatusLabel: 'Oględziny',
+  workflowEffectiveDate: DateTime.utc(2026, 8, 19),
 );
 
 class _HotfixClientsController extends ClientsController {
@@ -76,6 +88,39 @@ class _HotfixClientsController extends ClientsController {
   Future<void> refresh() async {}
 }
 
+class _StatusAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async => const AuthState(
+    session: AuthSession(accessToken: 'test-token', tokenType: 'Bearer'),
+    user: CurrentUser(
+      id: 1,
+      username: 'tester',
+      email: 'tester@example.com',
+      role: 'User',
+      isActive: true,
+      mustChangePassword: false,
+      passwordResetRequested: false,
+    ),
+  );
+}
+
+class _StatusRepository extends ClientsRepository {
+  _StatusRepository() : super(ClientsApi(Dio()));
+
+  String? writtenStatus;
+
+  @override
+  Future<Map<String, dynamic>> bulkWorkflowStatus({
+    required AuthSession session,
+    required List<int> clientIds,
+    required String status,
+    String? effectiveDate,
+  }) async {
+    writtenStatus = status;
+    return <String, dynamic>{'succeeded': 1, 'failed': 0};
+  }
+}
+
 ProviderContainer _container() {
   return ProviderContainer(
     overrides: [
@@ -111,10 +156,19 @@ void main() {
       'source_record_date': '2025-01-17',
       'created_at': '2026-08-14T12:00:00Z',
       'updated_at': '2026-08-14T12:00:00Z',
+      'workflow_status': 'inspection',
+      'workflow_status_label': 'Oględziny',
+      'workflow_effective_date': '2026-08-19',
     }).toDomain();
 
     expect(parsed.sourceRecordDate, DateTime(2025, 1, 17));
     expect(parsed.displayCreatedDate, DateTime(2025, 1, 17));
+    expect(parsed.workflowStatus, 'inspection');
+    expect(parsed.workflowStatusLabel, 'Oględziny');
+    expect(
+      ClientWorkflowStatus.fromClient(parsed).displayLabel,
+      'Oględziny 19.08.2026',
+    );
 
     final Client fallback = Client(
       id: 1,
@@ -126,6 +180,51 @@ void main() {
     );
 
     expect(fallback.displayCreatedDate, fallback.createdAt);
+  });
+
+  testWidgets('status write refreshes its canonical client projection', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final _StatusRepository repository = _StatusRepository();
+    var refreshCalls = 0;
+    final ProviderContainer container = ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(_StatusAuthController.new),
+        clientsRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(authControllerProvider.future);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            body: ClientWorkflowAvatar(
+              client: _client,
+              onStatusChanged: () async {
+                refreshCalls++;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final PopupMenuButton<ClientWorkflowState> button = tester.widget(
+      find.byKey(const Key('client-workflow-status-123')),
+    );
+    button.onSelected!(ClientWorkflowState.obsolete);
+    await tester.pumpAndSettle();
+
+    expect(repository.writtenStatus, 'obsolete');
+    expect(refreshCalls, 1);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('server filters are collapsed and remain server-side', (
@@ -206,6 +305,8 @@ void main() {
     expect(find.byKey(const Key('client-pagination-top')), findsOneWidget);
     expect(find.byKey(const Key('client-pagination-bottom')), findsOneWidget);
     expect(find.text('Dodano: 17.01.2025'), findsOneWidget);
+    expect(find.byTooltip('Oględziny 19.08.2026'), findsOneWidget);
+    expect(find.text('19.08.2026'), findsOneWidget);
     expect(find.text('2 / 3'), findsNWidgets(2));
 
     await tester.tap(
@@ -276,6 +377,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Data dodania'), findsOneWidget);
     expect(find.text('17.01.2025'), findsOneWidget);
+    expect(find.text('Oględziny 19.08.2026'), findsOneWidget);
     expect(find.text('Utworzono w CRM'), findsNothing);
     expect(find.text('Data rekordu źródłowego'), findsNothing);
     await tester.binding.handlePopRoute();

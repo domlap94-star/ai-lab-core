@@ -172,7 +172,20 @@ class AgentToolRegistry:
             items = [scoped] if args.query.casefold() in scoped.name.casefold() else []
         else:
             items = self.clients.get_clients(search=args.query, skip=0, limit=args.limit).items
-        rows = [{"id": x.id, "name": x.name, "city": x.city} for x in items]
+        rows = [
+            {
+                "id": x.id,
+                "name": x.name,
+                "city": x.city,
+                "workflow_status": getattr(x, "workflow_status", "untouched"),
+                "workflow_status_label": getattr(
+                    x,
+                    "workflow_status_label",
+                    "Brak modyfikacji",
+                ),
+            }
+            for x in items
+        ]
         sources = [self._source("client", x.id, x.name, f"/clients/{x.id}", x.city or "", x.updated_at) for x in items]
         return AgentToolResult({"clients": rows}, sources, {"clients": len(rows)}, [])
 
@@ -180,7 +193,19 @@ class AgentToolRegistry:
         self._require_client(args.id)
         x = self.clients.get_client(args.id)
         address = " ".join(filter(None, [x.street, x.building_number, x.postal_code, x.city]))
-        data = {"id": x.id, "name": x.name, "type": x.client_type, "address": address, "created_at": x.created_at.isoformat()}
+        data = {
+            "id": x.id,
+            "name": x.name,
+            "type": x.client_type,
+            "address": address,
+            "created_at": x.created_at.isoformat(),
+            "workflow_status": getattr(x, "workflow_status", "untouched"),
+            "workflow_status_label": getattr(
+                x,
+                "workflow_status_label",
+                "Brak modyfikacji",
+            ),
+        }
         return AgentToolResult(data, [self._source("client", x.id, x.name, f"/clients/{x.id}", address, x.updated_at)], {"clients": 1}, [])
 
     def _get_contacts(self, args: ClientIdArgs) -> AgentToolResult:

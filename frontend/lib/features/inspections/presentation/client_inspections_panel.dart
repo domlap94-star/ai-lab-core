@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/formatters/polish_date_time.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../application/inspections_providers.dart';
@@ -91,12 +92,11 @@ class _ClientInspectionsPanelState
                                 title: const Text('Wizja lokalna'),
                                 subtitle: Text(inspection.status.label),
                                 trailing: Text(
-                                  inspection.scheduledAt
-                                          ?.toLocal()
-                                          .toString()
-                                          .split(' ')
-                                          .first ??
-                                      'bez terminu',
+                                  inspection.scheduledAt == null
+                                      ? 'bez terminu'
+                                      : formatPolishDate(
+                                          inspection.scheduledAt!,
+                                        ),
                                 ),
                                 onTap: () => context.push(
                                   AppShell.inspectionPathWithReturn(

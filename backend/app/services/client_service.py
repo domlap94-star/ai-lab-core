@@ -17,6 +17,9 @@ from app.services.base_service import BaseService
 from app.services.client_source_record_date_service import (
     ClientSourceRecordDateService,
 )
+from app.services.client_workflow_status_projection_service import (
+    ClientWorkflowStatusProjectionService,
+)
 
 
 class ClientNotFoundError(Exception):
@@ -37,6 +40,7 @@ class ClientService(BaseService[Client]):
         self.client_repository = ClientRepository(db)
         self.industry_repository = IndustryRepository(db)
         self.source_record_date_service = ClientSourceRecordDateService(db)
+        self.workflow_status_projection = ClientWorkflowStatusProjectionService(db)
 
         super().__init__(self.client_repository)
 
@@ -50,6 +54,7 @@ class ClientService(BaseService[Client]):
             [client.id]
         )
         client.source_record_date = source_dates.get(client.id)
+        self.workflow_status_projection.attach([client])
 
         return client
 
@@ -82,6 +87,7 @@ class ClientService(BaseService[Client]):
         )
 
         self._attach_source_dates(items)
+        self.workflow_status_projection.attach(items)
 
         return ClientPage(
             items=items,
@@ -126,6 +132,7 @@ class ClientService(BaseService[Client]):
 
         for item in items:
             item.source_record_date = source_dates.get(item.id)
+        self.workflow_status_projection.attach(items)
 
         return ClientPage(
             items=items,

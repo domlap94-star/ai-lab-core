@@ -81,6 +81,25 @@ void main() {
     expect(result.snippet, 'Krótki fragment');
   });
 
+  test('client result parses canonical workflow projection', () {
+    final result = GlobalSearchResult.fromJson(<String, dynamic>{
+      'type': 'client',
+      'id': 3,
+      'title': 'Klient',
+      'score': 1,
+      'match_reason': 'name',
+      'match_reasons': <String>['name'],
+      'client_id': 3,
+      'client_workflow_status': 'inspection',
+      'client_workflow_status_label': 'Oględziny',
+      'client_workflow_effective_date': '2026-08-19',
+      'route': '/clients/3',
+    });
+    expect(result.clientWorkflowStatus, 'inspection');
+    expect(result.clientWorkflowStatusLabel, 'Oględziny');
+    expect(result.clientWorkflowEffectiveDate, DateTime(2026, 8, 19));
+  });
+
   testWidgets('debounces, filters and opens exact result route', (
     WidgetTester tester,
   ) async {
@@ -100,6 +119,8 @@ void main() {
     expect(gateway.queries, <String>['orion']);
     expect(find.byKey(const Key('global-search-client-3')), findsOneWidget);
     expect(find.text('Dopasowanie: nazwa, e-mail'), findsOneWidget);
+    expect(find.text('Oględziny'), findsOneWidget);
+    expect(find.text('19.08.2026, 12:34'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const Key('global-search-filter-client')));
@@ -322,7 +343,7 @@ GoRouter _dashboardRouter() => GoRouter(
   ],
 );
 
-GlobalSearchPageData _page() => const GlobalSearchPageData(
+GlobalSearchPageData _page() => GlobalSearchPageData(
   items: <GlobalSearchResult>[
     GlobalSearchResult(
       type: GlobalSearchType.client,
@@ -335,8 +356,12 @@ GlobalSearchPageData _page() => const GlobalSearchPageData(
       matchReasons: <String>['name', 'email'],
       route: '/clients/3',
       clientId: 3,
+      occurredAt: DateTime(2026, 8, 19, 12, 34),
+      clientWorkflowStatus: 'inspection',
+      clientWorkflowStatusLabel: 'Oględziny',
+      clientWorkflowEffectiveDate: DateTime.utc(2026, 8, 19),
     ),
-    GlobalSearchResult(
+    const GlobalSearchResult(
       type: GlobalSearchType.document,
       id: 9,
       title: 'bardzo-dluga-nazwa-dokumentu-orion.pdf',

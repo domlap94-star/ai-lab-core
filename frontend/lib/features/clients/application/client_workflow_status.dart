@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/formatters/polish_date_time.dart';
 import '../domain/client.dart';
 
 enum ClientWorkflowState {
@@ -76,51 +77,37 @@ enum ClientWorkflowState {
 }
 
 class ClientWorkflowStatus {
-  const ClientWorkflowStatus({required this.state, this.date});
+  const ClientWorkflowStatus({
+    required this.state,
+    this.date,
+    this.serverLabel,
+  });
 
   final ClientWorkflowState state;
   final DateTime? date;
+  final String? serverLabel;
+
+  factory ClientWorkflowStatus.fromClient(Client client) {
+    return ClientWorkflowStatus(
+      state: ClientWorkflowState.fromApi(client.workflowStatus),
+      date: client.workflowEffectiveDate,
+      serverLabel: client.workflowStatusLabel,
+    );
+  }
 
   String get displayLabel {
     if (!state.requiresDate || date == null) {
-      return state.label;
+      return serverLabel?.trim().isNotEmpty == true
+          ? serverLabel!.trim()
+          : state.label;
     }
-    return '${state.label} ${formatDate(date!)}';
+    final String label = serverLabel?.trim().isNotEmpty == true
+        ? serverLabel!.trim()
+        : state.label;
+    return '$label ${formatDate(date!)}';
   }
 
   static String formatDate(DateTime value) {
-    final DateTime local = value.toLocal();
-    String twoDigits(int number) => number.toString().padLeft(2, '0');
-    return '${twoDigits(local.day)}.'
-        '${twoDigits(local.month)}.'
-        '${local.year}';
-  }
-
-  static String formatBadgeDate(DateTime value) {
-    final DateTime local = value.toLocal();
-    String twoDigits(int number) => number.toString().padLeft(2, '0');
-    return '${twoDigits(local.day)}.'
-        '${twoDigits(local.month)}';
-  }
-}
-
-class ClientWorkflowMemory {
-  ClientWorkflowMemory._();
-
-  static final ClientWorkflowMemory instance = ClientWorkflowMemory._();
-
-  final Map<int, ClientWorkflowStatus> _entries = <int, ClientWorkflowStatus>{};
-
-  ClientWorkflowStatus statusFor(Client client) {
-    return _entries[client.id] ??
-        const ClientWorkflowStatus(state: ClientWorkflowState.untouched);
-  }
-
-  void setStatus(int clientId, ClientWorkflowStatus status) {
-    _entries[clientId] = status;
-  }
-
-  void setStatuses(Map<int, ClientWorkflowStatus> statuses) {
-    _entries.addAll(statuses);
+    return formatPolishDate(value);
   }
 }

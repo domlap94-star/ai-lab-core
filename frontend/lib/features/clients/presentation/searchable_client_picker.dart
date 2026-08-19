@@ -153,7 +153,12 @@ class _SearchableClientPickerState
             dense: true,
             title: Text(client.displayName),
             subtitle: Text(
-              client.availableAddress ?? client.primaryEmail ?? '',
+              <String>[
+                client.workflowStatusLabel,
+                if ((client.availableAddress ?? client.primaryEmail)
+                    case final String detail when detail.trim().isNotEmpty)
+                  detail,
+              ].join(' · '),
             ),
             onTap: () {
               final selected = ClientPickerSelection(

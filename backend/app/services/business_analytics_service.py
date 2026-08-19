@@ -16,13 +16,9 @@ from app.models.inspection import Inspection
 from app.models.project import Project
 from app.repositories.client_email_repository import LINKED_CANDIDATE_STATUSES
 from app.schemas.business_assistant import BusinessCoverage, BusinessSource
-
-
-STATUS_LABELS = {
-    "obsolete": "Nieaktualne", "in_progress": "W toku",
-    "inspection": "Oględziny", "completed": "Zakończone",
-    "untouched": "Nietknięte", "phone_contact": "Kontakt telefoniczny",
-}
+from app.services.client_workflow_status_projection_service import (
+    CLIENT_WORKFLOW_STATUS_LABELS as STATUS_LABELS,
+)
 
 
 @dataclass(frozen=True)

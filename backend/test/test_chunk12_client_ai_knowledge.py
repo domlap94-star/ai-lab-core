@@ -213,7 +213,7 @@ class ClientAiKnowledgeTests(unittest.IsolatedAsyncioTestCase):
             "Jaki jest email klienta?": "@example.com",
             "Jaki jest adres?": "Testowa",
             "Jaki jest NIP?": "5211234567",
-            "Jaki jest status klienta?": "nie ma ustawionego statusu",
+            "Jaki jest status klienta?": "Brak modyfikacji",
         }
         for question, expected in cases.items():
             with self.subTest(question=question):

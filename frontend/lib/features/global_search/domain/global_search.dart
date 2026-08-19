@@ -33,6 +33,9 @@ class GlobalSearchResult {
     this.clientId,
     this.projectId,
     this.inspectionId,
+    this.clientWorkflowStatus,
+    this.clientWorkflowStatusLabel,
+    this.clientWorkflowEffectiveDate,
   });
 
   final GlobalSearchType type;
@@ -47,6 +50,9 @@ class GlobalSearchResult {
   final int? clientId;
   final int? projectId;
   final int? inspectionId;
+  final String? clientWorkflowStatus;
+  final String? clientWorkflowStatusLabel;
+  final DateTime? clientWorkflowEffectiveDate;
   final String route;
 
   factory GlobalSearchResult.fromJson(Map<String, dynamic> json) {
@@ -67,6 +73,12 @@ class GlobalSearchResult {
       clientId: (json['client_id'] as num?)?.toInt(),
       projectId: (json['project_id'] as num?)?.toInt(),
       inspectionId: (json['inspection_id'] as num?)?.toInt(),
+      clientWorkflowStatus: json['client_workflow_status']?.toString(),
+      clientWorkflowStatusLabel: json['client_workflow_status_label']
+          ?.toString(),
+      clientWorkflowEffectiveDate: DateTime.tryParse(
+        json['client_workflow_effective_date']?.toString() ?? '',
+      ),
       route: json['route']?.toString() ?? '',
     );
   }

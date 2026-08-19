@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.ai.clients.ollama_client import OllamaClient
 from app.models.client import Client
-from app.models.client_workflow_status import ClientWorkflowStatus
 from app.models.document import Document
 from app.models.inspection import Inspection
 from app.models.project import Project
@@ -23,6 +22,9 @@ from app.schemas.client_ai_knowledge import (
 )
 from app.services.client_email_service import ClientEmailService
 from app.services.client_service import ClientNotFoundError
+from app.services.client_workflow_status_projection_service import (
+    ClientWorkflowStatusProjectionService,
+)
 from app.services.semantic_search_service import SemanticSearchService
 from app.services.timeline_service import TimelineService
 
@@ -316,19 +318,15 @@ class ClientKnowledgeContextService:
                 else "Nie znalazłem adresu w danych klienta."
             )
         elif any(word in folded for word in ("status", "kategoria")):
-            row = (
-                self.db.query(ClientWorkflowStatus)
-                .filter(
-                    ClientWorkflowStatus.client_id == client.id,
-                    ClientWorkflowStatus.deleted_at.is_(None),
-                )
-                .first()
+            workflow = ClientWorkflowStatusProjectionService(
+                self.db
+            ).get_for_client_ids([client.id])[client.id]
+            date_suffix = (
+                f" ({workflow.effective_date.isoformat()})"
+                if workflow.effective_date is not None
+                else ""
             )
-            answer = (
-                f"Status klienta: {row.status}."
-                if row is not None
-                else "Klient nie ma ustawionego statusu roboczego."
-            )
+            answer = f"Status klienta: {workflow.label}{date_suffix}."
         if answer is None:
             return None
         return ClientAiAskResponse(

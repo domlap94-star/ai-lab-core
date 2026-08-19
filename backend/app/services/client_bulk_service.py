@@ -10,11 +10,15 @@ from app.schemas.client_bulk import (
     ClientWorkflowBatchRequest,
     ClientWorkflowStatusRead,
 )
+from app.services.client_workflow_status_projection_service import (
+    ClientWorkflowStatusProjectionService,
+)
 
 
 class ClientBulkService:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self.status_projection = ClientWorkflowStatusProjectionService(db)
 
     def workflow_statuses(self, client_ids: list[int]) -> list[ClientWorkflowStatusRead]:
         active_ids = {
@@ -23,18 +27,13 @@ class ClientBulkService:
                 Client.id.in_(client_ids), Client.deleted_at.is_(None)
             )
         }
-        records = {
-            row.client_id: row
-            for row in self.db.query(ClientWorkflowStatus).filter(
-                ClientWorkflowStatus.client_id.in_(active_ids),
-                ClientWorkflowStatus.deleted_at.is_(None),
-            )
-        }
+        projections = self.status_projection.get_for_client_ids(list(active_ids))
         return [
             ClientWorkflowStatusRead(
                 client_id=client_id,
-                status=records[client_id].status if client_id in records else "untouched",
-                effective_date=(records[client_id].effective_date if client_id in records else None),
+                status=projections[client_id].status,
+                label=projections[client_id].label,
+                effective_date=projections[client_id].effective_date,
             )
             for client_id in client_ids
             if client_id in active_ids

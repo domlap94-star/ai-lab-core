@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../../core/widgets/read_error_view.dart';
 import '../application/timeline_providers.dart';
@@ -154,7 +155,7 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
       children: <Widget>[
         if (event.summary?.isNotEmpty == true)
           Text(event.summary!, maxLines: 3, overflow: TextOverflow.ellipsis),
-        Text(_formatDate(event.occurredAt)),
+        Text(formatPolishDateTime(event.occurredAt)),
       ],
     ),
     trailing: _canOpen(event)
@@ -214,9 +215,4 @@ class _TimelinePanelState extends ConsumerState<TimelinePanel> {
     };
   }
 
-  String _formatDate(DateTime value) {
-    final local = value.toLocal();
-    String two(int number) => number.toString().padLeft(2, '0');
-    return '${two(local.day)}.${two(local.month)}.${local.year} ${two(local.hour)}:${two(local.minute)}';
-  }
 }

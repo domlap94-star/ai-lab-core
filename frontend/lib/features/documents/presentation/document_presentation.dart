@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../../../core/formatters/polish_date_time.dart';
+
 String documentSourceLabel(String value) => switch (value.toLowerCase()) {
   'gmail' => 'Gmail',
   'upload' => 'Przesłany plik',
@@ -79,10 +81,7 @@ String polishDocumentCode(String value) {
 }
 
 String formatDocumentDate(DateTime value) {
-  final DateTime local = value.toLocal();
-  String two(int number) => number.toString().padLeft(2, '0');
-  return '${two(local.day)}.${two(local.month)}.${local.year} '
-      '${two(local.hour)}:${two(local.minute)}';
+  return formatPolishDateTime(value);
 }
 
 String formatDocumentBytes(int bytes) {
