@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — EMAIL SEND DESIGN COMPLETE / SCHEMA MIGRATION APPROVAL REQUIRED
+## [~] FOLLOW-UP CHUNK 09 — SEND IMPLEMENTED / CONTROLLED TEST TARGET REQUIRED
 
 **Priority: P1**
 
@@ -715,6 +715,36 @@ Stage 2 send audit/design record (2026-08-19):
 Current gate and next work:
 `FOLLOWUP_EMAIL_SEND_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. CHUNK 10 and Release B
 remain stopped.
+
+Stage 2 approved implementation record (2026-08-19):
+
+- Approved additive revision `followup_mail_send_ops_20260819` created only the
+  bounded `mail_send_operations` ledger. Isolated upgrade/downgrade/re-upgrade
+  PASS; production apply PASS; ledger rows `0`, no backfill, trigger or
+  business-row rewrite. Current DB head is the new revision.
+- Backend implements authenticated compose/reply/forward, server-side payload
+  hashing, durable pre-provider operation claims, typed replay/conflict,
+  fail-closed unknown outcome, provider-accepted persistence and canonical
+  ImportIngest continuation without re-sending.
+- The inactive, tracked n8n adapter template supports exactly compose/reply/
+  forward, keeps Gmail OAuth inside n8n and requires a dedicated runtime
+  secret. Existing ingestion workflow/schedule was not modified and no CHUNK
+  10 behavior was added.
+- Flutter adds compose, reply and forward with transient drafts and mandatory
+  final confirmation. Backend attachment selection is Document-ID allowlisted,
+  path-safe, MIME/count/size bounded and never accepts a Flutter path/URL.
+- Verification: backend focused/migration/Auth/Stage 1 regressions PASS;
+  Flutter analyze PASS, focused Mail `9/9`, full `200/200`. Mock provider
+  replay count `1`; payload conflict `409`; `unknown` cannot resend.
+- Runtime audit found no explicitly configured controlled test target and no
+  activated send webhook URL/secret. Therefore the adapter was not activated,
+  provider calls and emails sent remained `0`, and live acceptance was not
+  claimed.
+
+Current gate and next work:
+`FOLLOWUP_EMAIL_SEND_TEST_TARGET_REQUIRED`. After a controlled mailbox and
+runtime secret are supplied, acceptance is limited to one compose, one reply
+and one forward. CHUNK 10 and Release B remain stopped.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 

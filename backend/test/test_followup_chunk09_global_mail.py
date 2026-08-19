@@ -176,6 +176,18 @@ class GlobalMailAuthTests(unittest.TestCase):
         response = TestClient(app).get("/api/v1/mail/threads/example")
         self.assertEqual(response.status_code, 401)
 
+    def test_compose_requires_jwt(self):
+        response = TestClient(app).post("/api/v1/mail/send", json={})
+        self.assertEqual(response.status_code, 401)
+
+    def test_reply_requires_jwt(self):
+        response = TestClient(app).post("/api/v1/mail/2/reply", json={})
+        self.assertEqual(response.status_code, 401)
+
+    def test_forward_requires_jwt(self):
+        response = TestClient(app).post("/api/v1/mail/2/forward", json={})
+        self.assertEqual(response.status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

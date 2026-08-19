@@ -2,9 +2,9 @@
 
 Date: 2026-08-19
 
-Status: **DESIGN COMPLETE / EMAIL SEND SCHEMA MIGRATION APPROVAL REQUIRED**
+Status: **SEND IMPLEMENTED / CONTROLLED TEST TARGET REQUIRED**
 
-Gate: `FOLLOWUP_EMAIL_SEND_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+Current gate: `FOLLOWUP_EMAIL_SEND_TEST_TARGET_REQUIRED`
 
 No email, provider write, n8n workflow change, schema change, Client link change
 or canonical Gmail-source write was performed during this design stage.
@@ -197,9 +197,35 @@ Required hard outcomes:
 - no duplicate Activity event and no Matching V2 relink;
 - no Agent write tool, customer message, bulk/background send or release.
 
+## Approved implementation outcome
+
+- Revision `followup_mail_send_ops_20260819` passed isolated
+  upgrade/downgrade/re-upgrade and was applied to production. The production
+  ledger contains zero rows; Clients, Candidates and 4,262 Gmail sources were
+  unchanged.
+- Backend source implements authenticated compose/reply/forward, server-side
+  recipient/body/attachment validation, durable claim, canonical payload hash,
+  provider accepted/unknown/failed state handling and canonical ImportIngest
+  continuation without a second provider call.
+- The tracked inactive n8n workflow template exposes exactly compose, reply
+  and forward, retains Gmail OAuth in n8n, validates a dedicated runtime secret
+  and returns only bounded provider identifiers. It is intentionally not
+  imported/activated until a controlled test target and runtime secret are
+  supplied.
+- Flutter implements compose, reply and forward entry points with a mandatory
+  second confirmation. Double execution is bounded by the operation UUID and
+  backend ledger. Draft state is transient.
+- Mocked backend verification: migration/service/Auth and Stage 1 regressions
+  PASS; provider replay count is one, changed payload conflicts, definitive
+  failure is terminal, and unknown outcome is fail-closed. Flutter analyze
+  PASS, focused Mail `9/9`, full suite `200/200`.
+- Production provider calls, send-ledger rows, canonical sent sources, Client
+  relinks, n8n workflow changes and emails sent: zero.
+
 ## Current decision
 
-`FOLLOWUP_EMAIL_SEND_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+`FOLLOWUP_EMAIL_SEND_TEST_TARGET_REQUIRED`
 
-Stage 2 implementation, n8n workflow change, Flutter write UI and provider
-acceptance remain not started. CHUNK 10 and release remain stopped.
+No controlled mailbox is configured, so the provider workflow remains
+inactive and live compose/reply/forward acceptance was not fabricated. CHUNK 09
+is not complete. CHUNK 10 and release remain stopped.

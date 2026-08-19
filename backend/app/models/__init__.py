@@ -19,6 +19,7 @@ from app.models.import_source import ImportSource
 from app.models.industry import Industry
 from app.models.inspection import Inspection
 from app.models.message import Message
+from app.models.mail_send_operation import MailSendOperation
 from app.models.project import Project
 from app.models.role import Role
 from app.models.user import User
@@ -46,6 +47,7 @@ __all__ = [
     "Industry",
     "Inspection",
     "Message",
+    "MailSendOperation",
     "Project",
     "Role",
     "User",

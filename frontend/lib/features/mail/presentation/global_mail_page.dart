@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -165,6 +166,14 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
               ? AppShell.mobileNavigationLeading(context)
               : BackButton(onPressed: () => setState(() => _selected = null)),
           title: const Text('Maile'),
+          actions: <Widget>[
+            IconButton(
+              key: const Key('mail-compose'),
+              tooltip: 'Nowa wiadomość',
+              onPressed: () => _compose('compose'),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+          ],
         ),
         body: desktop
             ? Row(
@@ -375,6 +384,18 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
         Wrap(
           spacing: 8,
           children: <Widget>[
+            FilledButton.tonalIcon(
+              key: const Key('mail-reply'),
+              onPressed: () => _compose('reply', source: item),
+              icon: const Icon(Icons.reply),
+              label: const Text('Odpowiedz'),
+            ),
+            OutlinedButton.icon(
+              key: const Key('mail-forward'),
+              onPressed: () => _compose('forward', source: item),
+              icon: const Icon(Icons.forward),
+              label: const Text('Przekaż dalej'),
+            ),
             if (item.clientId != null)
               ActionChip(
                 label: Text(item.clientName ?? 'Klient #${item.clientId}'),
@@ -461,6 +482,111 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
     if (range != null) {
       setState(() => _dates = range);
       await _reload();
+    }
+  }
+
+  String _operationId() {
+    final Random random = Random.secure();
+    String hex(int count) => List<String>.generate(
+      count,
+      (_) => random.nextInt(16).toRadixString(16),
+    ).join();
+    return '${hex(8)}-${hex(4)}-4${hex(3)}-${(8 + random.nextInt(4)).toRadixString(16)}${hex(3)}-${hex(12)}';
+  }
+
+  Future<void> _compose(String action, {GlobalMailItem? source}) async {
+    final TextEditingController to = TextEditingController(
+      text: action == 'reply' ? (source?.sender ?? '') : '',
+    );
+    final TextEditingController cc = TextEditingController();
+    final TextEditingController bcc = TextEditingController();
+    final TextEditingController subject = TextEditingController(
+      text: action == 'reply'
+          ? 'Re: ${source?.subject ?? ''}'
+          : action == 'forward'
+          ? 'Fwd: ${source?.subject ?? ''}'
+          : '',
+    );
+    final TextEditingController body = TextEditingController();
+    bool includeAttachments = false;
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) => StatefulBuilder(
+        builder: (BuildContext context, StateSetter setModalState) => AlertDialog(
+          title: Text(action == 'compose' ? 'Nowa wiadomość' : action == 'reply' ? 'Odpowiedz' : 'Przekaż dalej'),
+          content: SizedBox(
+            width: 620,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (action != 'reply') TextField(key: const Key('mail-to'), controller: to, decoration: const InputDecoration(labelText: 'Do')),
+                  if (action != 'reply') TextField(controller: cc, decoration: const InputDecoration(labelText: 'DW')),
+                  if (action != 'reply') TextField(controller: bcc, decoration: const InputDecoration(labelText: 'UDW')),
+                  if (action != 'reply') TextField(key: const Key('mail-subject'), controller: subject, decoration: const InputDecoration(labelText: 'Temat')),
+                  TextField(key: const Key('mail-body'), controller: body, minLines: 6, maxLines: 14, decoration: const InputDecoration(labelText: 'Treść')),
+                  if (source?.attachments.isNotEmpty == true)
+                    CheckboxListTile(
+                      value: includeAttachments,
+                      onChanged: (bool? value) => setModalState(() => includeAttachments = value == true),
+                      title: const Text('Dołącz widoczne załączniki'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Anuluj')),
+            FilledButton(
+              key: const Key('mail-review-send'),
+              onPressed: () async {
+                if (to.text.trim().isEmpty || body.text.trim().isEmpty || (action != 'reply' && subject.text.trim().isEmpty)) return;
+                final bool? send = await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext context) => AlertDialog(
+                    title: const Text('Wyślij wiadomość?'),
+                    content: Text('Do: ${to.text.trim()}\nTemat: ${subject.text.trim()}\nZałączniki: ${includeAttachments ? source?.attachments.length ?? 0 : 0}'),
+                    actions: <Widget>[
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Wróć')),
+                      FilledButton(key: const Key('mail-confirm-send'), onPressed: () => Navigator.pop(context, true), child: const Text('Wyślij')),
+                    ],
+                  ),
+                );
+                if (send == true && context.mounted) Navigator.pop(context, true);
+              },
+              child: const Text('Dalej'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final AuthSession? session = _session;
+    if (session == null) return;
+    final String operationId = _operationId();
+    try {
+      final MailSendResult result = await _api.send(
+        session,
+        operationId: operationId,
+        to: to.text.split(',').map((String value) => value.trim()).where((String value) => value.isNotEmpty).toList(),
+        cc: cc.text.split(',').map((String value) => value.trim()).where((String value) => value.isNotEmpty).toList(),
+        bcc: bcc.text.split(',').map((String value) => value.trim()).where((String value) => value.isNotEmpty).toList(),
+        subject: subject.text.trim(),
+        body: body.text.trim(),
+        attachmentDocumentIds: includeAttachments ? source?.attachments.map((GlobalMailAttachment item) => item.documentId).toList() ?? const <int>[] : const <int>[],
+        clientId: source?.clientId,
+        sourceId: source?.sourceId,
+        action: action,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.status == 'canonical_synced' ? 'Wiadomość wysłana.' : 'Stan wysyłki: ${result.status}')),
+      );
+      if (result.status == 'canonical_synced') await _reload();
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error, fallback: 'Nie udało się wysłać wiadomości.'))));
+    } finally {
+      to.dispose(); cc.dispose(); bcc.dispose(); subject.dispose(); body.dispose();
     }
   }
 }

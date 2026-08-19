@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     )
 
     n8n_url: str = "http://n8n:5678"
+    mail_send_webhook_url: str | None = None
+    mail_send_webhook_secret: str | None = None
+    mail_send_timeout_seconds: float = 45.0
 
     openai_api_key: str | None = None
     openai_client_reconstruction_model: str = "gpt-5.6"

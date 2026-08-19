@@ -35,6 +35,7 @@ class _FakeMailApi extends GlobalMailApi {
   _FakeMailApi() : super(Dio());
   int listCalls = 0;
   String? readState;
+  int sendCalls = 0;
 
   GlobalMailItem get item => GlobalMailItem(
     sourceId: 2,
@@ -88,6 +89,24 @@ class _FakeMailApi extends GlobalMailApi {
     AuthSession session,
     String threadId,
   ) async => <GlobalMailItem>[item];
+
+  @override
+  Future<MailSendResult> send(
+    AuthSession session, {
+    required String operationId,
+    required List<String> to,
+    required String subject,
+    required String body,
+    List<String> cc = const <String>[],
+    List<String> bcc = const <String>[],
+    List<int> attachmentDocumentIds = const <int>[],
+    int? clientId,
+    int? sourceId,
+    String action = 'compose',
+  }) async {
+    sendCalls += 1;
+    return MailSendResult(operationId: operationId, status: 'canonical_synced', canonicalSourceId: 99);
+  }
 }
 
 Future<void> _pump(
@@ -171,14 +190,31 @@ void main() {
     expect(api.listCalls, greaterThan(1));
   });
 
-  testWidgets('desktop detail exposes thread action without send controls', (
+  testWidgets('desktop detail exposes bounded reply and forward controls', (
     WidgetTester tester,
   ) async {
     await _pump(tester, _FakeMailApi());
     await tester.tap(find.text('Testowy temat'));
     await tester.pumpAndSettle();
     expect(find.text('Pokaż wątek'), findsOneWidget);
-    expect(find.textContaining('Wyślij'), findsNothing);
-    expect(find.textContaining('Odpowiedz'), findsNothing);
+    expect(find.text('Odpowiedz'), findsOneWidget);
+    expect(find.text('Przekaż dalej'), findsOneWidget);
+  });
+
+  testWidgets('compose requires final confirmation before one send', (WidgetTester tester) async {
+    final api = _FakeMailApi();
+    await _pump(tester, api);
+    await tester.tap(find.byKey(const Key('mail-compose')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('mail-to')), 'owner@example.invalid');
+    await tester.enterText(find.byKey(const Key('mail-subject')), 'Synthetic');
+    await tester.enterText(find.byKey(const Key('mail-body')), 'Synthetic body');
+    await tester.tap(find.byKey(const Key('mail-review-send')));
+    await tester.pumpAndSettle();
+    expect(find.text('Wyślij wiadomość?'), findsOneWidget);
+    expect(api.sendCalls, 0);
+    await tester.tap(find.byKey(const Key('mail-confirm-send')));
+    await tester.pumpAndSettle();
+    expect(api.sendCalls, 1);
   });
 }

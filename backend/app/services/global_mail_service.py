@@ -40,6 +40,10 @@ class GlobalMailService:
         if row is None:
             raise GlobalMailNotFoundError
         documents = self.repository.get_attachments([row["message_id"]])
+        payload = row["raw_payload"] if isinstance(row["raw_payload"], dict) else {}
+        selected = payload.get("attachment_document_ids")
+        if isinstance(selected, list):
+            documents = self._unique_documents(documents + self.repository.get_documents_by_ids([value for value in selected if isinstance(value, int)]))
         return self._detail(row, documents)
 
     def get_thread(self, thread_id: str, limit: int = 200) -> GlobalMailThread:
@@ -56,6 +60,10 @@ class GlobalMailService:
             thread_id=thread_id,
             items=[self._detail(row, grouped[row["message_id"]]) for row in rows],
         )
+
+    @staticmethod
+    def _unique_documents(documents: list[Any]) -> list[Any]:
+        return list({document.id: document for document in documents}.values())
 
     def _list_item(self, row: Any) -> GlobalMailListItem:
         payload = row["raw_payload"] if isinstance(row["raw_payload"], dict) else {}

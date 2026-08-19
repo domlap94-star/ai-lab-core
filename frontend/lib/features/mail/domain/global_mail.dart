@@ -109,3 +109,17 @@ class GlobalMailPageData {
   final List<GlobalMailItem> items;
   final bool hasMore;
 }
+
+class MailSendResult {
+  const MailSendResult({required this.operationId, required this.status, this.canonicalSourceId, this.errorCode});
+  factory MailSendResult.fromJson(Map<String, dynamic> json) => MailSendResult(
+    operationId: json['operation_id']?.toString() ?? '',
+    status: json['status']?.toString() ?? 'unknown',
+    canonicalSourceId: (json['canonical_source_id'] as num?)?.toInt(),
+    errorCode: json['error_code']?.toString(),
+  );
+  final String operationId;
+  final String status;
+  final int? canonicalSourceId;
+  final String? errorCode;
+}
