@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 from sqlalchemy import create_engine
@@ -105,6 +106,17 @@ class MailSendServiceTests(unittest.TestCase):
         self.assertNotIn(request.body, values)
         self.assertNotIn(request.subject, values)
         self.assertNotIn(request.to[0], values)
+
+    def test_provider_accepted_ingest_failure_never_resends(self):
+        provider = Provider()
+        request = self.request()
+        service = MailSendService(self.db, provider)
+        with patch.object(service, "_canonical_ingest", side_effect=RuntimeError("synthetic ingest failure")):
+            first = service.compose(self.actor, request)
+            replay = service.compose(self.actor, request)
+        self.assertEqual(first.status, "provider_accepted")
+        self.assertEqual(replay.status, "provider_accepted")
+        self.assertEqual(provider.calls, 1)
 
 
 if __name__ == "__main__":

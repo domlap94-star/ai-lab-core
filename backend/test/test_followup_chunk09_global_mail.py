@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 import unittest
 from unittest.mock import Mock
 
@@ -187,6 +188,31 @@ class GlobalMailAuthTests(unittest.TestCase):
     def test_forward_requires_jwt(self):
         response = TestClient(app).post("/api/v1/mail/2/forward", json={})
         self.assertEqual(response.status_code, 401)
+
+
+class GlobalMailSendRouteUniquenessTests(unittest.TestCase):
+    def test_send_routes_are_registered_exactly_once(self):
+        expected = (
+            "/api/v1/mail/send",
+            "/api/v1/mail/{source_id}/reply",
+            "/api/v1/mail/{source_id}/forward",
+        )
+        post_routes = [
+            route.path
+            for route in app.routes
+            if "POST" in getattr(route, "methods", set())
+        ]
+        for path in expected:
+            self.assertEqual(post_routes.count(path), 1, path)
+
+    def test_router_source_has_one_send_structure(self):
+        source = (Path(__file__).parents[1] / "app" / "api" / "mail.py").read_text(encoding="utf-8")
+        self.assertEqual(source.count("from app.schemas.mail_send import"), 1)
+        self.assertEqual(source.count("from app.services.mail_send_service import"), 1)
+        self.assertEqual(source.count("def _send_error("), 1)
+        self.assertEqual(source.count('@router.post("/send"'), 1)
+        self.assertEqual(source.count('@router.post("/{source_id}/reply"'), 1)
+        self.assertEqual(source.count('@router.post("/{source_id}/forward"'), 1)
 
 
 if __name__ == "__main__":
