@@ -1,0 +1,181 @@
+[CmdletBinding()]
+param(
+    [string]$RepositoryRoot = "C:\ai-lab-core",
+    [string]$BackupRoot = "C:\ai-lab-core-backups",
+    [string]$Release = "1.0.2+21",
+    [string]$QdrantCollection = "ai_lab_document_chunks"
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version 2.0
+
+function Invoke-CheckedCommand {
+    param([string]$FilePath, [string[]]$Arguments)
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "$FilePath failed with exit code $LASTEXITCODE." }
+}
+
+function Get-DirectoryBytes {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        throw "Required source directory does not exist: $Path"
+    }
+    $measurement = Get-ChildItem -LiteralPath $Path -File -Recurse -Force |
+        Measure-Object -Property Length -Sum
+    return [int64]$measurement.Sum
+}
+
+function Get-ArtifactRecord {
+    param([string]$BasePath, [string]$Path)
+    $item = Get-Item -LiteralPath $Path
+    $relative = $item.FullName.Substring($BasePath.Length).TrimStart('\')
+    return [ordered]@{
+        file = $relative.Replace('\', '/')
+        bytes = [int64]$item.Length
+        sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+}
+
+$repo = (Resolve-Path -LiteralPath $RepositoryRoot).Path.TrimEnd('\')
+$dataRoot = (Resolve-Path -LiteralPath (Join-Path $repo "data")).Path.TrimEnd('\')
+$backupBase = [System.IO.Path]::GetFullPath($BackupRoot).TrimEnd('\')
+if ($backupBase.StartsWith($repo + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "BackupRoot must be outside the repository."
+}
+if ($backupBase.StartsWith($dataRoot + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "BackupRoot must be outside the active data tree."
+}
+
+$documentSources = @("documents", "document-pages", "document-assets", "archive-extracted")
+$estimatedBytes = [int64]0
+foreach ($name in $documentSources) {
+    $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $dataRoot $name)
+}
+$estimatedBytes += Get-DirectoryBytes -Path (Join-Path $repo "release-channel\stable")
+$requiredFreeBytes = [int64]([math]::Ceiling($estimatedBytes * 1.35) + 2GB)
+$driveName = [System.IO.Path]::GetPathRoot($backupBase).TrimEnd('\').TrimEnd(':')
+$drive = Get-PSDrive -Name $driveName -PSProvider FileSystem
+if ([int64]$drive.Free -lt $requiredFreeBytes) {
+    throw "Insufficient backup space. Required at least $requiredFreeBytes bytes; available $($drive.Free)."
+}
+
+$stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+$checkpoint = Join-Path $backupBase $stamp
+$artifacts = Join-Path $checkpoint "artifacts"
+$configDir = Join-Path $checkpoint "configuration"
+New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
+New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+Invoke-CheckedCommand "icacls.exe" @(
+    $checkpoint, "/inheritance:r", "/grant:r", "*$currentSid`:(OI)(CI)F",
+    "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "/T", "/C"
+)
+
+$head = (& git -C $repo rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw "Unable to read source HEAD." }
+$dbRevision = (& docker exec postgres psql -U ai_lab -d ai_lab -At -c "SELECT version_num FROM alembic_version;").Trim()
+if ($LASTEXITCODE -ne 0) { throw "Unable to read Alembic revision." }
+
+$dbDump = Join-Path $artifacts "postgres.dump"
+$containerDump = "/tmp/next-stabil-$stamp.dump"
+try {
+    Invoke-CheckedCommand "docker.exe" @(
+        "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
+        "--format=custom", "--compress=6", "--no-owner", "--file=$containerDump"
+    )
+    Invoke-CheckedCommand "docker.exe" @("cp", "postgres`:$containerDump", $dbDump)
+}
+finally { & docker exec postgres rm -f $containerDump 2>$null }
+
+$documentsArchive = Join-Path $artifacts "document-storage.tar.gz"
+Invoke-CheckedCommand "tar.exe" (@("-czf", $documentsArchive, "-C", $dataRoot) + $documentSources)
+$releaseArchive = Join-Path $artifacts "release-stable.tar.gz"
+Invoke-CheckedCommand "tar.exe" @("-czf", $releaseArchive, "-C", $repo, "release-channel/stable")
+
+$qdrantResponse = Invoke-RestMethod -Method Post `
+    -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots" -TimeoutSec 120
+if ($qdrantResponse.status -ne "ok" -or [string]::IsNullOrWhiteSpace($qdrantResponse.result.name)) {
+    throw "Qdrant did not return a valid snapshot name."
+}
+$qdrantSnapshot = Join-Path $artifacts "qdrant.snapshot"
+Invoke-WebRequest -UseBasicParsing `
+    -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$($qdrantResponse.result.name)" `
+    -OutFile $qdrantSnapshot -TimeoutSec 300
+
+$n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
+$n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
+$n8nWorkflowTemp = "/tmp/next-stabil-$stamp-workflows.json"
+$n8nCredentialsTemp = "/tmp/next-stabil-$stamp-credentials.json"
+try {
+    Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all", "--output=$n8nWorkflowTemp")
+    Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all", "--output=$n8nCredentialsTemp")
+    Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nWorkflowTemp", $n8nWorkflows)
+    Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nCredentialsTemp", $n8nCredentials)
+}
+finally { & docker exec n8n rm -f $n8nWorkflowTemp $n8nCredentialsTemp 2>$null }
+
+$configFiles = @(
+    "compose.yaml", "compose/backend/docker-compose.yml", "compose/postgres/docker-compose.yml",
+    "compose/qdrant/docker-compose.yml", "compose/ollama/docker-compose.yml",
+    "compose/n8n/docker-compose.yml", "compose/open-webui/docker-compose.yml",
+    "backend/Dockerfile", "backend/requirements.txt", "release-channel/stable/manifest.json"
+)
+foreach ($relative in $configFiles) {
+    $source = Join-Path $repo $relative
+    $destination = Join-Path $configDir $relative
+    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+    Copy-Item -LiteralPath $source -Destination $destination
+}
+
+$envNamesPath = Join-Path $configDir "required-env-names.txt"
+if (Test-Path -LiteralPath (Join-Path $repo ".env")) {
+    Get-Content -LiteralPath (Join-Path $repo ".env") |
+        Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } |
+        ForEach-Object { (($_ -split '=', 2)[0]).Trim() } |
+        Sort-Object -Unique | Set-Content -LiteralPath $envNamesPath -Encoding UTF8
+} else { @() | Set-Content -LiteralPath $envNamesPath -Encoding UTF8 }
+
+$imageInventory = @()
+foreach ($containerName in @("postgres", "qdrant", "ollama", "n8n", "open-webui", "ai-lab-backend")) {
+    $container = (& docker inspect $containerName | ConvertFrom-Json | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0) { throw "Unable to inspect $containerName." }
+    $image = (& docker image inspect $container.Image | ConvertFrom-Json | Select-Object -First 1)
+    if ($LASTEXITCODE -ne 0) { throw "Unable to inspect image for $containerName." }
+    $imageInventory += [ordered]@{
+        container = $containerName; configured_image = $container.Config.Image
+        image_id = $container.Image; repo_digests = @($image.RepoDigests)
+    }
+}
+$imageInventory | ConvertTo-Json -Depth 6 |
+    Set-Content -LiteralPath (Join-Path $configDir "runtime-images.json") -Encoding UTF8
+
+$configArchive = Join-Path $artifacts "configuration.tar.gz"
+Invoke-CheckedCommand "tar.exe" @("-czf", $configArchive, "-C", $checkpoint, "configuration")
+$artifactRecords = @(
+    Get-ArtifactRecord $checkpoint $dbDump
+    Get-ArtifactRecord $checkpoint $documentsArchive
+    Get-ArtifactRecord $checkpoint $releaseArchive
+    Get-ArtifactRecord $checkpoint $qdrantSnapshot
+    Get-ArtifactRecord $checkpoint $n8nWorkflows
+    Get-ArtifactRecord $checkpoint $n8nCredentials
+    Get-ArtifactRecord $checkpoint $configArchive
+)
+
+$manifest = [ordered]@{
+    schema_version = "NEXT_STABIL_BACKUP_V1"
+    created_at = (Get-Date).ToUniversalTime().ToString("o")
+    source_head = $head; release = $Release; db_revision = $dbRevision
+    qdrant_collection = $QdrantCollection; qdrant_snapshot_name = $qdrantResponse.result.name
+    document_directories = $documentSources; estimated_source_bytes = $estimatedBytes
+    secrets_in_protected_backup = $false
+    secrets_note = "Encrypted n8n credential export is included; the separately protected environment secret escrow is required for credential recovery."
+    artifacts = $artifactRecords
+}
+$manifestPartial = Join-Path $checkpoint "backup-manifest.json.partial"
+$manifestPath = Join-Path $checkpoint "backup-manifest.json"
+$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPartial -Encoding UTF8
+Move-Item -LiteralPath $manifestPartial -Destination $manifestPath
+
+Write-Output ("BACKUP_COMPLETE={0}" -f $checkpoint)
+Write-Output ("MANIFEST={0}" -f $manifestPath)

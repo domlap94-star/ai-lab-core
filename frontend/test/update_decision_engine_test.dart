@@ -105,6 +105,38 @@ void main() {
       expect(manifest.buildNumber, 2);
       expect(manifest.releaseFor(AppUpdatePlatform.windows)?.available, isTrue);
     });
+
+    test('rejects malformed manifest newer minimum version', () {
+      expect(
+        () => UpdateManifest.fromJson(<String, dynamic>{
+          'channel': 'stable',
+          'version': '1.0.2',
+          'build_number': 21,
+          'minimum_version': '2.0.0',
+          'published_at': '2026-08-19T05:00:00Z',
+          'platforms': <String, dynamic>{
+            'web': <String, dynamic>{'available': true, 'url': '/'},
+          },
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects malformed manifest build type', () {
+      expect(
+        () => UpdateManifest.fromJson(<String, dynamic>{
+          'channel': 'stable',
+          'version': '1.0.2',
+          'build_number': '21',
+          'minimum_version': '1.0.0',
+          'published_at': '2026-08-19T05:00:00Z',
+          'platforms': <String, dynamic>{
+            'web': <String, dynamic>{'available': true, 'url': '/'},
+          },
+        }),
+        throwsFormatException,
+      );
+    });
   });
 }
 

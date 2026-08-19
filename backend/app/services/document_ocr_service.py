@@ -50,6 +50,8 @@ class OCRDocumentResult:
 
 class DocumentOCRService:
     OCR_LANGUAGES = "pol+eng"
+    MAX_PDF_PAGES = 250
+    PAGE_TIMEOUT_SECONDS = 60
 
     # Lekki tryb do pierwszego przejĹ›cia wszystkich PDF.
     DEFAULT_DPI = 150
@@ -225,11 +227,14 @@ class DocumentOCRService:
 
             total_pages = len(pdf)
 
-            selected_pages = total_pages
+            selected_pages = min(
+                total_pages,
+                self.MAX_PDF_PAGES,
+            )
 
             if max_pages is not None:
                 selected_pages = min(
-                    total_pages,
+                    selected_pages,
                     max_pages,
                 )
 
@@ -369,6 +374,7 @@ class DocumentOCRService:
                 output_type=(
                     pytesseract.Output.DICT
                 ),
+                timeout=self.PAGE_TIMEOUT_SECONDS,
             )
 
             words: list[str] = []

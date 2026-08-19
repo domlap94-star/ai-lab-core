@@ -24,6 +24,10 @@ class EmptyDocumentError(DocumentStorageError):
     pass
 
 
+class DocumentTooLargeError(DocumentStorageError):
+    pass
+
+
 class InvalidDocumentSourceTypeError(DocumentStorageError):
     pass
 
@@ -52,6 +56,8 @@ class StoredDocumentResult:
 
 
 class DocumentService:
+    MAX_DOCUMENT_BYTES = 250 * 1024 * 1024
+
     ALLOWED_SOURCE_TYPES = {
         "manual_upload",
         "gmail_attachment",
@@ -99,6 +105,11 @@ class DocumentService:
         if not content:
             raise EmptyDocumentError(
                 "The uploaded document is empty."
+            )
+
+        if len(content) > self.MAX_DOCUMENT_BYTES:
+            raise DocumentTooLargeError(
+                "The uploaded document exceeds the 250 MB limit."
             )
 
         self._validate_location_metadata(

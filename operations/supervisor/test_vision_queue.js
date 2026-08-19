@@ -31,6 +31,33 @@ setImmediate(() => {
   queue._set(created.job_id, { state: 'QUEUED', next_retry_at: new Date().toISOString() });
   const cancelled = queue.cancel(created.job_id);
   assert.strictEqual(cancelled.state, 'CANCELLED');
+
+  queue._set(created.job_id, {
+    state: 'UI_CHANGED',
+    attempt_count: 2,
+    error_code: 'UI_CHANGED',
+  });
+  const retryablePause = new VisionQueue({
+    spoolRoot: root,
+    workerScript: 'unused',
+    workerRoot: 'unused',
+    spawnWorker: () => new EventEmitter(),
+  });
+  assert.strictEqual(retryablePause.health().status, 'UI_CHANGED');
+
+  // An exhausted historical pause must not re-pause all jobs after restart.
+  queue._set(created.job_id, {
+    state: 'UI_CHANGED',
+    attempt_count: 3,
+    error_code: 'UI_CHANGED',
+  });
+  const recovered = new VisionQueue({
+    spoolRoot: root,
+    workerScript: 'unused',
+    workerRoot: 'unused',
+    spawnWorker: () => new EventEmitter(),
+  });
+  assert.strictEqual(recovered.health().status, 'READY');
   assert.strictEqual(cancelled.next_retry_at, null);
   assert.throws(() => queue.create({ request_key: 'b'.repeat(64), sources: [{ ...request.sources[0], incoming_relative_path: '../outside.png' }] }), /PATH/);
   assert.throws(() => queue.create({ ...request, request_key: 'c'.repeat(64), command: 'whoami' }), /FIELD/);

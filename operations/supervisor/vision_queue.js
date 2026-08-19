@@ -54,7 +54,10 @@ class VisionQueue {
         status.error_code = null;
         safeWriteJson(statusPath, status);
         this.queue.push(entry.name);
-      } else if (status.state === 'AUTH_REQUIRED' || status.state === 'UI_CHANGED') {
+      } else if (
+        (status.state === 'AUTH_REQUIRED' || status.state === 'UI_CHANGED')
+        && Number(status.attempt_count || 0) < 3
+      ) {
         this.pausedState = status.state;
       }
     }

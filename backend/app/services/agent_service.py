@@ -99,7 +99,21 @@ class AgentService:
         limitations: list[str] = []
         seen_calls: set[str] = set()
         for round_number in range(1, MAX_ROUNDS + 1):
-            action = await self._plan(question, conversation, registry, evidence, sources, client_id, inspection_id)
+            action = (
+                self._direct_read_action(question)
+                if round_number == 1 and not evidence
+                else None
+            )
+            if action is None:
+                action = await self._plan(
+                    question,
+                    conversation,
+                    registry,
+                    evidence,
+                    sources,
+                    client_id,
+                    inspection_id,
+                )
             if action.action == "answer":
                 source_map = {f"S{i}": source for i, source in enumerate(sources, 1)}
                 cited = [key for key in dict.fromkeys(action.source_ids) if key in source_map]
@@ -200,6 +214,24 @@ UNTRUSTED_TOOL_RESULT_END"""
 
     @staticmethod
     def _elapsed(started): return max(0, int((time.perf_counter() - started) * 1000))
+
+    @staticmethod
+    def _direct_read_action(question: str) -> AgentPlannerAction | None:
+        """Route only unambiguous, ID-scoped reads without model arithmetic."""
+        visual = re.search(
+            r"\b(?:analiz\w*\s+wizualn\w*|wizualn\w*\s+analiz\w*)"
+            r".*?\bdokument\w*\s+(\d+)\b",
+            question.casefold(),
+        )
+        if visual is None:
+            return None
+        return AgentPlannerAction(
+            action="tool",
+            tool="get_visual_analysis",
+            arguments={"id": int(visual.group(1))},
+            answer=None,
+            source_ids=[],
+        )
 
     @staticmethod
     def _is_write_request(question: str) -> bool:

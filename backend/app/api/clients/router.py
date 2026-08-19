@@ -49,7 +49,10 @@ from app.services.client_knowledge_service import (
     ClientKnowledgeModelUnavailable,
 )
 from app.services.document_service import (
-    DocumentService, DocumentStorageError, EmptyDocumentError,
+    DocumentService,
+    DocumentStorageError,
+    DocumentTooLargeError,
+    EmptyDocumentError,
 )
 from app.services.project_service import ProjectNotFoundError
 from app.services.timeline_service import TimelineService
@@ -291,10 +294,19 @@ async def upload_client_document(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
+    content = await file.read(
+        DocumentService.MAX_DOCUMENT_BYTES + 1,
+    )
+    if len(content) > DocumentService.MAX_DOCUMENT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="The uploaded document exceeds the 250 MB limit.",
+        )
+
     try:
         ClientService(db).get_client(client_id)
         result = DocumentService(db).store_document(
-            content=await file.read(),
+            content=content,
             original_filename=file.filename or "document.bin",
             content_type=file.content_type or "application/octet-stream",
             source_type="manual_upload",
@@ -314,6 +326,8 @@ async def upload_client_document(
         raise HTTPException(status_code=404, detail="Client not found") from error
     except EmptyDocumentError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    except DocumentTooLargeError as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
     except DocumentStorageError as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
 

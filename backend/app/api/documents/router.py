@@ -455,7 +455,14 @@ async def upload_document(
     ),
     db: Session = Depends(get_db),
 ) -> DocumentUploadResponse:
-    content = await file.read()
+    content = await file.read(
+        DocumentService.MAX_DOCUMENT_BYTES + 1,
+    )
+    if len(content) > DocumentService.MAX_DOCUMENT_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="The uploaded document exceeds the 250 MB limit.",
+        )
 
     service = DocumentService(db)
 

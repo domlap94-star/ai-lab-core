@@ -38,6 +38,12 @@ foreach ($url in @($ApiBaseUrl, $SupervisorBaseUrl)) {
     }
 }
 
+$apiUri = [System.Uri]$ApiBaseUrl
+$developmentApiHosts = @("127.0.0.1", "localhost", "10.0.2.2")
+if ($apiUri.Host.ToLowerInvariant() -in $developmentApiHosts) {
+    throw "Release API URL must not use a development host: $($apiUri.Host)"
+}
+
 Write-Host ""
 Write-Host "============================================================"
 Write-Host "NEXT STABIL RELEASE BUILD"

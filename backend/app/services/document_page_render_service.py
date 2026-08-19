@@ -39,6 +39,9 @@ class DocumentRenderResult:
 
 class DocumentPageRenderService:
     DEFAULT_DPI = 150
+    MIN_DPI = 72
+    MAX_DPI = 300
+    MAX_PAGES = 250
 
     def __init__(
         self,
@@ -58,6 +61,7 @@ class DocumentPageRenderService:
         document_id: int,
         path: Path,
         dpi: int | None = None,
+        max_pages: int | None = None,
         force: bool = False,
     ) -> DocumentRenderResult:
         selected_dpi = (
@@ -65,6 +69,32 @@ class DocumentPageRenderService:
             if dpi is not None
             else self.DEFAULT_DPI
         )
+
+        if not self.MIN_DPI <= selected_dpi <= self.MAX_DPI:
+            return DocumentRenderResult(
+                document_id=document_id,
+                status="failed",
+                page_count=0,
+                pages=[],
+                error=(
+                    f"Render DPI must be between {self.MIN_DPI} "
+                    f"and {self.MAX_DPI}."
+                ),
+            )
+
+        selected_page_limit = (
+            self.MAX_PAGES
+            if max_pages is None
+            else min(max_pages, self.MAX_PAGES)
+        )
+        if selected_page_limit < 1:
+            return DocumentRenderResult(
+                document_id=document_id,
+                status="failed",
+                page_count=0,
+                pages=[],
+                error="Render page limit must be positive.",
+            )
 
         if not path.exists():
             return DocumentRenderResult(
@@ -102,6 +132,10 @@ class DocumentPageRenderService:
 
             try:
                 total_pages = len(pdf)
+                pages_to_render = min(
+                    total_pages,
+                    selected_page_limit,
+                )
 
                 page_results: list[
                     PageRenderResult
@@ -118,7 +152,7 @@ class DocumentPageRenderService:
                 )
 
                 for page_index in range(
-                    total_pages
+                    pages_to_render
                 ):
                     page_number = (
                         page_index + 1
@@ -265,13 +299,19 @@ class DocumentPageRenderService:
                         "failed to render."
                     )
 
-                elif failed_pages:
+                elif failed_pages or total_pages > pages_to_render:
                     status = "partial"
-                    error = (
-                        f"{len(failed_pages)} "
-                        "page(s) failed "
-                        "to render."
-                    )
+                    reasons: list[str] = []
+                    if failed_pages:
+                        reasons.append(
+                            f"{len(failed_pages)} page(s) failed to render."
+                        )
+                    if total_pages > pages_to_render:
+                        reasons.append(
+                            f"Rendered first {pages_to_render} of "
+                            f"{total_pages} pages due to the safety limit."
+                        )
+                    error = " ".join(reasons)
 
                 else:
                     status = "rendered"

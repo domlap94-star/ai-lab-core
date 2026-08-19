@@ -51,6 +51,7 @@ class DocumentProcessingResult:
 
 class DocumentProcessingService:
     MIN_NATIVE_PAGE_TEXT = 40
+    MAX_PDF_PAGES = 250
 
     IMAGE_EXTENSIONS = {
         ".jpg",
@@ -507,6 +508,7 @@ class DocumentProcessingService:
                 document_id=document.id,
                 path=path,
                 dpi=render_dpi,
+                max_pages=self.MAX_PDF_PAGES,
                 force=force,
             )
         )
@@ -518,7 +520,8 @@ class DocumentProcessingService:
 
         native_pages = (
             self._extract_pdf_native_pages(
-                path
+                path,
+                max_pages=self.MAX_PDF_PAGES,
             )
         )
 
@@ -532,7 +535,7 @@ class DocumentProcessingService:
                     document.original_filename
                 ),
                 dpi=ocr_dpi,
-                max_pages=None,
+                max_pages=self.MAX_PDF_PAGES,
             )
         )
 
@@ -1521,6 +1524,8 @@ class DocumentProcessingService:
     def _extract_pdf_native_pages(
         self,
         path: Path,
+        *,
+        max_pages: int,
     ) -> list[str | None]:
         try:
             reader = PdfReader(
@@ -1543,7 +1548,7 @@ class DocumentProcessingService:
                 str | None
             ] = []
 
-            for page in reader.pages:
+            for page in reader.pages[:max_pages]:
                 try:
                     text = (
                         page.extract_text()

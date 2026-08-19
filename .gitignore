@@ -32,6 +32,15 @@ env/
 *.sqlite-shm
 *.sqlite-wal
 *.journal
+*.dump
+*.dump.gz
+*.sql.gz
+*.backup-manifest.json
+
+# Operational recovery material must stay outside Git.
+/backups/
+/**/vision-spool/
+/**/edge-profile/
 
 # IDE
 .vscode/
