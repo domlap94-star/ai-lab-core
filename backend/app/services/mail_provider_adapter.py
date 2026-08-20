@@ -40,7 +40,10 @@ class N8nMailProviderAdapter:
             raise MailProviderDefinitiveError("provider_rejected")
         if response.status_code >= 500:
             raise MailProviderUnknownError
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise MailProviderUnknownError from exc
         if data.get("accepted") is not True or not data.get("provider_message_id"):
             raise MailProviderUnknownError
         return MailProviderResult(

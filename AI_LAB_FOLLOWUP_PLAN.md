@@ -493,7 +493,7 @@ Candidate or Client was merged; production received only the approved schema
 migration and the audit table remained empty. No release was performed.
 Implementation commit: `Add audited candidate merge flow` (this change).
 
-## [~] FOLLOW-UP CHUNK 09 — SEND IMPLEMENTED / CONTROLLED TEST TARGET REQUIRED
+## [✓] FOLLOW-UP CHUNK 09 — GLOBAL MAIL WORKSPACE — COMPLETE
 
 **Priority: P1**
 
@@ -745,6 +745,50 @@ Current gate and next work:
 `FOLLOWUP_EMAIL_SEND_TEST_TARGET_REQUIRED`. After a controlled mailbox and
 runtime secret are supplied, acceptance is limited to one compose, one reply
 and one forward. CHUNK 10 and Release B remain stopped.
+
+Final live-acceptance record (2026-08-20):
+
+- Stage 1 READ remains complete, including the corrected nullable Gmail
+  read-state contract and its online query indexes. Stage 2 compose, reply and
+  forward are complete through the authenticated backend, durable
+  `mail_send_operations` idempotency ledger and bounded n8n Gmail adapter.
+- The n8n OAuth identity was verified as `podnoszenieposadzek@gmail.com` and
+  remained isolated inside n8n. Native Header Auth protects the unscheduled
+  send adapter; the backend is the application caller and Agent has no mail
+  write tool.
+- Controlled live acceptance sent exactly three synthetic app-generated
+  messages to `root.test112@gmail.com`: one compose, one reply and one forward.
+  The manual inbound reply seed is not an app send. Replay returned the prior
+  result without another provider call, changed payload under the same UUID
+  returned `409`, and customer/business or non-approved recipients were `0`.
+- Canonical Gmail evidence is retained: source `8038` compose, `8039` manual
+  seed, `8040` reply and `8041` forward. Provider IDs are unique, the reply
+  thread is `[8038, 8039, 8040]`, forward remains separate, and all four
+  sources remain unlinked.
+- Ledger evidence is retained truthfully: one technical pre-provider `failed`
+  operation and three `canonical_synced` operations. The ledger contains no
+  body, subject, recipient list, credential, token or arbitrary payload.
+- Candidates `5530`–`5533` are intentionally retained as **CHUNK 09 CONTROLLED
+  LIVE ACCEPTANCE ARTIFACTS**. Each is pending and unlinked, has no Client,
+  Document, contact/address or unrelated domain/audit relation, and owns only
+  its controlled synthetic Gmail source. The final Candidate count is `3565`.
+- This is existing canonical ingestion policy, not a CHUNK 09 defect:
+  `ImportIngestService._find_candidate_for_email()` intentionally creates a
+  pending Candidate for unresolved Gmail so it remains reviewable. CHUNK 09
+  does not change CandidateSource FK nullability, Candidate creation policy,
+  Matching V2 semantics or historical ingestion. A future unlinked-mail model
+  would require a separate owner-approved product/domain scope.
+- Final verification: Mail Send `7/7`, Global Mail `29/29`, Matching V2
+  `24/24`, Client Mail/attachment scope, Timeline `4/4`, Documents `9/9`,
+  Agent `13/13` and Auth regressions PASS; Flutter analyze PASS, focused Mail
+  `33/33`, full `200/200`. No additional provider send or release was made.
+
+**CURRENT EXECUTION PAUSED AFTER CHUNK 09.**
+
+**NEXT PLANNED CHUNK: FOLLOW-UP CHUNK 10 — OWNER SCOPE UPDATE REQUIRED BEFORE
+EXECUTION.** Do not start FOLLOW-UP CHUNK 10 until the owner supplies the
+additional requirement and a new execution prompt. Release B remains pending
+CHUNK 10 and CHUNK 05.
 
 ## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
 

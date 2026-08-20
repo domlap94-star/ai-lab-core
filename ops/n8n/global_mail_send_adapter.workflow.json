@@ -5,15 +5,17 @@
   "meta": {
     "templateOnly": true,
     "activationGate": "FOLLOWUP_EMAIL_SEND_TEST_TARGET_REQUIRED",
-    "credentialPolicy": "Bind the existing gmailOAuth2 credential in n8n; never export it. Configure AI_LAB_MAIL_SEND_WEBHOOK_SECRET only at runtime."
+    "credentialPolicy": "Bind the existing gmailOAuth2 credential and a dedicated native Header Auth credential in n8n; never export either secret."
   },
   "nodes": [
     {
       "name": "Internal Mail Send Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
+      "webhookId": "09d9d44d-5cf0-4d15-b15e-d6458ab168ef",
       "position": [0, 0],
-      "parameters": {"httpMethod": "POST", "path": "ai-lab-global-mail-send-v1", "responseMode": "responseNode"}
+      "parameters": {"httpMethod": "POST", "path": "ai-lab-global-mail-send-v1", "authentication": "headerAuth", "responseMode": "responseNode"},
+      "credentials": {"httpHeaderAuth": {"id": "BIND_MAIL_SEND_SECRET_CREDENTIAL", "name": "AI Lab Mail Send Webhook Secret"}}
     },
     {
       "name": "Validate Bounded Contract",
@@ -21,7 +23,7 @@
       "typeVersion": 2,
       "position": [240, 0],
       "parameters": {
-        "jsCode": "const h=$json.headers||{}; if(!process.env.AI_LAB_MAIL_SEND_WEBHOOK_SECRET||h['x-ai-lab-mail-secret']!==process.env.AI_LAB_MAIL_SEND_WEBHOOK_SECRET) throw new Error('unauthorized'); const p=$json.body||{}; if(!['compose','reply','forward'].includes(p.action)) throw new Error('invalid_action'); if(!p.operation_id||!Array.isArray(p.to)||typeof p.body!=='string'||p.body.length>100000) throw new Error('invalid_contract'); const binary={}; for(const [i,a] of (p.attachments||[]).entries()){ if(!a.content_base64||!a.filename||!a.mime_type) throw new Error('invalid_attachment'); binary['attachment_'+i]={data:a.content_base64,fileName:a.filename,mimeType:a.mime_type}; } p.attachment_fields=Object.keys(binary).join(','); return [{json:p,binary}];"
+        "jsCode": "const p=$json.body||{}; if(!['compose','reply','forward'].includes(p.action)) throw new Error('invalid_action'); if(!p.operation_id||!Array.isArray(p.to)||typeof p.body!=='string'||p.body.length>100000) throw new Error('invalid_contract'); const binary={}; for(const [i,a] of (p.attachments||[]).entries()){ if(!a.content_base64||!a.filename||!a.mime_type) throw new Error('invalid_attachment'); binary['attachment_'+i]={data:a.content_base64,fileName:a.filename,mimeType:a.mime_type}; } p.attachment_fields=Object.keys(binary).join(','); p.has_attachments=Object.keys(binary).length>0; return [{json:p,binary}];"
       }
     },
     {
@@ -31,9 +33,12 @@
       "position": [480, 0],
       "parameters": {
         "rules": {"values": [
-          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "compose", "operator": {"type": "string", "operation": "equals"}}]}},
-          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "reply", "operator": {"type": "string", "operation": "equals"}}]}},
-          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "forward", "operator": {"type": "string", "operation": "equals"}}]}}
+          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "compose", "operator": {"type": "string", "operation": "equals"}}, {"leftValue": "={{ $json.has_attachments }}", "rightValue": false, "operator": {"type": "boolean", "operation": "equals"}}]}},
+          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "reply", "operator": {"type": "string", "operation": "equals"}}, {"leftValue": "={{ $json.has_attachments }}", "rightValue": false, "operator": {"type": "boolean", "operation": "equals"}}]}},
+          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "forward", "operator": {"type": "string", "operation": "equals"}}, {"leftValue": "={{ $json.has_attachments }}", "rightValue": false, "operator": {"type": "boolean", "operation": "equals"}}]}},
+          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "compose", "operator": {"type": "string", "operation": "equals"}}, {"leftValue": "={{ $json.has_attachments }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}]}},
+          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "reply", "operator": {"type": "string", "operation": "equals"}}, {"leftValue": "={{ $json.has_attachments }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}]}},
+          {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "forward", "operator": {"type": "string", "operation": "equals"}}, {"leftValue": "={{ $json.has_attachments }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}]}}
         ]}
       }
     },
@@ -42,7 +47,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
       "position": [740, -160],
-      "parameters": {"resource": "message", "operation": "send", "sendTo": "={{ $json.to.join(',') }}", "subject": "={{ $json.subject }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"ccList": "={{ ($json.cc||[]).join(',') }}", "bccList": "={{ ($json.bcc||[]).join(',') }}", "attachmentsUi": {"attachmentsBinary": [{"property": "={{ $json.attachment_fields }}"}]}}},
+      "parameters": {"resource": "message", "operation": "send", "sendTo": "={{ $json.to.join(',') }}", "subject": "={{ $json.subject }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"ccList": "={{ ($json.cc||[]).join(',') }}", "bccList": "={{ ($json.bcc||[]).join(',') }}"}},
       "credentials": {"gmailOAuth2": {"id": "BIND_EXISTING_CREDENTIAL", "name": "BIND EXISTING GMAIL OAUTH2"}}
     },
     {
@@ -50,7 +55,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
       "position": [740, 0],
-      "parameters": {"resource": "message", "operation": "reply", "messageId": "={{ $json.source_provider_message_id }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"attachmentsUi": {"attachmentsBinary": [{"property": "={{ $json.attachment_fields }}"}]}}},
+      "parameters": {"resource": "message", "operation": "reply", "messageId": "={{ $json.source_provider_message_id }}", "emailType": "text", "message": "={{ $json.body }}"},
       "credentials": {"gmailOAuth2": {"id": "BIND_EXISTING_CREDENTIAL", "name": "BIND EXISTING GMAIL OAUTH2"}}
     },
     {
@@ -58,6 +63,30 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
       "position": [740, 160],
+      "parameters": {"resource": "message", "operation": "send", "sendTo": "={{ $json.to.join(',') }}", "subject": "={{ $json.subject }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"ccList": "={{ ($json.cc||[]).join(',') }}", "bccList": "={{ ($json.bcc||[]).join(',') }}"}},
+      "credentials": {"gmailOAuth2": {"id": "BIND_EXISTING_CREDENTIAL", "name": "BIND EXISTING GMAIL OAUTH2"}}
+    },
+    {
+      "name": "Gmail Compose With Attachments",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [740, 320],
+      "parameters": {"resource": "message", "operation": "send", "sendTo": "={{ $json.to.join(',') }}", "subject": "={{ $json.subject }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"ccList": "={{ ($json.cc||[]).join(',') }}", "bccList": "={{ ($json.bcc||[]).join(',') }}", "attachmentsUi": {"attachmentsBinary": [{"property": "={{ $json.attachment_fields }}"}]}}},
+      "credentials": {"gmailOAuth2": {"id": "BIND_EXISTING_CREDENTIAL", "name": "BIND EXISTING GMAIL OAUTH2"}}
+    },
+    {
+      "name": "Gmail Reply With Attachments",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [740, 480],
+      "parameters": {"resource": "message", "operation": "reply", "messageId": "={{ $json.source_provider_message_id }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"attachmentsUi": {"attachmentsBinary": [{"property": "={{ $json.attachment_fields }}"}]}}},
+      "credentials": {"gmailOAuth2": {"id": "BIND_EXISTING_CREDENTIAL", "name": "BIND EXISTING GMAIL OAUTH2"}}
+    },
+    {
+      "name": "Gmail Forward With Attachments",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [740, 640],
       "parameters": {"resource": "message", "operation": "send", "sendTo": "={{ $json.to.join(',') }}", "subject": "={{ $json.subject }}", "emailType": "text", "message": "={{ $json.body }}", "options": {"ccList": "={{ ($json.cc||[]).join(',') }}", "bccList": "={{ ($json.bcc||[]).join(',') }}", "attachmentsUi": {"attachmentsBinary": [{"property": "={{ $json.attachment_fields }}"}]}}},
       "credentials": {"gmailOAuth2": {"id": "BIND_EXISTING_CREDENTIAL", "name": "BIND EXISTING GMAIL OAUTH2"}}
     },
@@ -75,10 +104,16 @@
     "Route Allowed Action": {"main": [
       [{"node": "Gmail Compose", "type": "main", "index": 0}],
       [{"node": "Gmail Reply", "type": "main", "index": 0}],
-      [{"node": "Gmail Forward", "type": "main", "index": 0}]
+      [{"node": "Gmail Forward", "type": "main", "index": 0}],
+      [{"node": "Gmail Compose With Attachments", "type": "main", "index": 0}],
+      [{"node": "Gmail Reply With Attachments", "type": "main", "index": 0}],
+      [{"node": "Gmail Forward With Attachments", "type": "main", "index": 0}]
     ]},
     "Gmail Compose": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]},
     "Gmail Reply": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]},
-    "Gmail Forward": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]}
+    "Gmail Forward": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]},
+    "Gmail Compose With Attachments": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]},
+    "Gmail Reply With Attachments": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]},
+    "Gmail Forward With Attachments": {"main": [[{"node": "Provider Accepted Response", "type": "main", "index": 0}]]}
   }
 }

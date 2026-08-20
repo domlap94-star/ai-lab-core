@@ -23,16 +23,24 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 4. nie wykonywać po cichu późniejszych CHUNK-ów,
 5. zatrzymać się na każdym jawnym approval gate.
 
-Current next recommended work:
-**FOLLOW-UP CHUNK 09 — CONTROLLED EMAIL TEST TARGET GATE** — Stage 1 READ and
-Stage 2 source implementation are complete. Approved revision
-`followup_mail_send_ops_20260819` is applied with zero production ledger rows;
-backend compose/reply/forward, fail-closed durable idempotency, inactive bounded
-n8n adapter template and Flutter final-confirmation UX pass focused tests,
-Flutter analyze and full `200/200`. No controlled test mailbox or runtime send
-webhook secret/URL is configured, so the adapter was not activated and zero
-emails were sent. Next work remains CHUNK 09 at
-`FOLLOWUP_EMAIL_SEND_TEST_TARGET_REQUIRED`; do not start CHUNK 10 or Release B.
+Current execution state:
+**CURRENT EXECUTION PAUSED AFTER CHUNK 09.** FOLLOW-UP CHUNK 09 — GLOBAL MAIL
+WORKSPACE is complete: Stage 1 READ, corrected nullable read-state indexes,
+compose/reply/forward, durable fail-closed idempotency, native Header Auth and
+the bounded unscheduled n8n Gmail adapter passed. The verified sender was
+`podnoszenieposadzek@gmail.com`; exactly three controlled synthetic app sends
+went only to `root.test112@gmail.com`, with replay/no-resend and payload-conflict
+`409` proven. Customer/business recipients were `0`. Canonical sources
+`8038`–`8041`, the truthful send ledger and pending unlinked synthetic
+Candidates `5530`–`5533` remain as acceptance evidence under the existing
+intentional Gmail ingestion policy. Agent remains read-only. Final backend
+regressions, Flutter analyze, focused Mail `33/33` and full `200/200` pass.
+
+**NEXT PLANNED CHUNK: FOLLOW-UP CHUNK 10 — OWNER SCOPE UPDATE REQUIRED BEFORE
+EXECUTION.** Do not start FOLLOW-UP CHUNK 10 until the owner supplies the
+additional requirement and a new execution prompt. Release remains NEXT Stabil
+1.0.2+21; Release B is pending CHUNK 10 and CHUNK 05 and must not be performed
+now.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only
