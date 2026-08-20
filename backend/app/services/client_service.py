@@ -63,6 +63,7 @@ class ClientService(BaseService[Client]):
         search: str | None = None,
         client_type: str | None = None,
         industry_id: int | None = None,
+        exclude_statuses: list[str] | None = None,
         sort_order: ClientPageSortOrder | None = None,
         skip: int = 0,
         limit: int = 50,
@@ -72,6 +73,7 @@ class ClientService(BaseService[Client]):
                 search=search,
                 client_type=client_type,
                 industry_id=industry_id,
+                exclude_statuses=exclude_statuses,
                 sort_order=sort_order,
                 skip=skip,
                 limit=limit,
@@ -81,6 +83,7 @@ class ClientService(BaseService[Client]):
             search=search,
             client_type=client_type,
             industry_id=industry_id,
+            exclude_statuses=exclude_statuses,
             skip=skip,
             limit=limit,
         )
@@ -101,6 +104,7 @@ class ClientService(BaseService[Client]):
         search: str | None,
         client_type: str | None,
         industry_id: int | None,
+        exclude_statuses: list[str] | None,
         sort_order: ClientPageSortOrder,
         skip: int,
         limit: int,
@@ -109,6 +113,7 @@ class ClientService(BaseService[Client]):
             search=search,
             client_type=client_type,
             industry_id=industry_id,
+            exclude_statuses=exclude_statuses,
         )
         source_dates = self.added_date_projection.source_dates_for(
             [client_id for client_id, _, _ in candidates]

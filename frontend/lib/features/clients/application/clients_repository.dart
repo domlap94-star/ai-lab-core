@@ -4,6 +4,7 @@ import '../data/clients_api.dart';
 import '../domain/client.dart';
 import '../domain/client_page.dart';
 import '../domain/industry.dart';
+import 'client_workflow_status.dart';
 
 class ClientsRepository {
   const ClientsRepository(this._api);
@@ -15,6 +16,7 @@ class ClientsRepository {
     String? search,
     ClientType? clientType,
     int? industryId,
+    Set<ClientWorkflowState> excludeStatuses = const <ClientWorkflowState>{},
     String sortOrder = 'newest',
     int skip = 0,
     int limit = 50,
@@ -25,6 +27,7 @@ class ClientsRepository {
       search: search,
       clientType: clientType?.value,
       industryId: industryId,
+      excludeStatuses: excludeStatuses.map((value) => value.apiValue).toList(),
       sortOrder: sortOrder,
       skip: skip,
       limit: limit,

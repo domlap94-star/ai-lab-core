@@ -29,6 +29,7 @@ class GlobalMailListItem(BaseModel):
     client_id: int | None = None
     client_name: str | None = None
     review_state: str | None = None
+    ignored: bool = False
     has_attachments: bool
     attachment_count: int
 

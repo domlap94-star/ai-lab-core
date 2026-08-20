@@ -41,6 +41,7 @@ class ClientEmailResponse {
     required this.attachmentCount,
     required this.attachments,
     required this.createdAt,
+    this.ignored = false,
     this.threadId,
     this.messageAt,
     this.fromName,
@@ -66,6 +67,7 @@ class ClientEmailResponse {
   final int attachmentCount;
   final List<ClientEmailAttachmentResponse> attachments;
   final DateTime createdAt;
+  final bool ignored;
 
   factory ClientEmailResponse.fromJson(Map<String, dynamic> json) {
     final List<dynamic> rawAttachments = json['attachments'] is List<dynamic>
@@ -93,6 +95,7 @@ class ClientEmailResponse {
       createdAt:
           _nullableDateTime(json['created_at']) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      ignored: json['ignored'] == true,
     );
   }
 
@@ -115,6 +118,7 @@ class ClientEmailResponse {
         .map((item) => item.toDomain())
         .toList(growable: false),
     createdAt: createdAt,
+    ignored: ignored,
   );
 }
 

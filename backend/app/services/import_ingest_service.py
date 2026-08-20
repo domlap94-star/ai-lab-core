@@ -29,6 +29,7 @@ from app.services.forward_client_contact_service import (
 from app.services.forward_source_ingestion_service import (
     ForwardSourceIngestionService,
 )
+from app.services.ignored_mail_source_service import IgnoredMailSourceService
 from app.services.email_client_matching_service import (
     EMAIL_MATCH_METADATA_KEY,
     EmailClientMatch,
@@ -72,6 +73,7 @@ class EmailCandidateResolutionPreview:
     resolved_client_id: int | None
     expected_candidate_delta: int
     expected_new_client_link_delta: int
+    ignored_unresolved: bool = False
 
     def signature(self) -> tuple[object, ...]:
         return (
@@ -82,6 +84,7 @@ class EmailCandidateResolutionPreview:
             self.resolved_client_id,
             self.expected_candidate_delta,
             self.expected_new_client_link_delta,
+            self.ignored_unresolved,
         )
 
 
@@ -129,6 +132,12 @@ class ImportIngestService:
             match.matched_client is not None
             and (candidate is None or candidate.matched_client_id is None)
         )
+        ignored_unresolved = bool(
+            match.matched_client is None
+            and IgnoredMailSourceService(self.repository.db).matches(
+                prepared.candidate.primary_email
+            )
+        )
         return EmailCandidateResolutionPreview(
             request=prepared,
             email_match=email_match,
@@ -147,6 +156,7 @@ class ImportIngestService:
             ),
             expected_candidate_delta=int(candidate is None),
             expected_new_client_link_delta=int(creates_client_link),
+            ignored_unresolved=ignored_unresolved,
         )
 
     def ingest(
@@ -223,6 +233,10 @@ class ImportIngestService:
                 email_match = resolution.email_match
                 payload = dict(request.source.raw_payload or {})
                 payload[EMAIL_MATCH_METADATA_KEY] = email_match.metadata()
+                if resolution.ignored_unresolved:
+                    payload["next_stabil_ignored_sender_v1"] = {
+                        "ignored": True,
+                    }
                 request = request.model_copy(
                     update={
                         "source": request.source.model_copy(
@@ -255,6 +269,11 @@ class ImportIngestService:
                 candidate = self._create_candidate(
                     request=request,
                     matched_client=match.matched_client,
+                    ignored_unresolved=(
+                        resolution.ignored_unresolved
+                        if request.source.source_type == "gmail_message"
+                        else False
+                    ),
                 )
                 created_candidate = True
 
@@ -668,6 +687,7 @@ class ImportIngestService:
         *,
         request: ImportIngestRequest,
         matched_client: Client | None,
+        ignored_unresolved: bool = False,
     ) -> ClientCandidate:
         data = request.candidate
 
@@ -690,9 +710,8 @@ class ImportIngestService:
             country_code=data.country_code,
             notes=data.notes,
             status=(
-                "duplicate"
-                if matched_client is not None
-                else "pending"
+                "duplicate" if matched_client is not None else
+                "rejected" if ignored_unresolved else "pending"
             ),
             confidence=data.confidence,
             matched_client_id=(

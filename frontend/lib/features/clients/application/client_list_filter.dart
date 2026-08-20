@@ -46,8 +46,7 @@ List<Client> filterClientsForCurrentPage(
     }
 
     if (workflowStatusFilter != null &&
-        ClientWorkflowStatus.fromClient(client).state !=
-            workflowStatusFilter) {
+        ClientWorkflowStatus.fromClient(client).state != workflowStatusFilter) {
       return false;
     }
 

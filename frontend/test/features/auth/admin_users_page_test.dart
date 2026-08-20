@@ -70,6 +70,8 @@ class _FakeAccountApi extends AccountApi {
   int fetchCount = 0;
   int? deactivatedUserId;
   int? resetUserId;
+  int? updatedUserId;
+  int updateCount = 0;
   DioException? deactivateError;
 
   @override
@@ -113,6 +115,29 @@ class _FakeAccountApi extends AccountApi {
   }) async {
     resetUserId = userId;
   }
+
+  @override
+  Future<ManagedUser> updateUser({
+    required AuthSession session,
+    required int userId,
+    required String username,
+    required String email,
+    required String role,
+  }) async {
+    updatedUserId = userId;
+    updateCount += 1;
+    final updated = ManagedUser(
+      id: userId,
+      username: username,
+      email: email,
+      isActive: true,
+      role: role,
+      mustChangePassword: false,
+      passwordResetRequested: false,
+    );
+    users = users.map((user) => user.id == userId ? updated : user).toList();
+    return updated;
+  }
 }
 
 DioException _error(int statusCode, String detail) {
@@ -127,8 +152,12 @@ DioException _error(int statusCode, String detail) {
   );
 }
 
-Future<void> _pumpPage(WidgetTester tester, _FakeAccountApi api) async {
-  tester.view.physicalSize = const Size(1200, 1800);
+Future<void> _pumpPage(
+  WidgetTester tester,
+  _FakeAccountApi api, {
+  Size size = const Size(1200, 1800),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -297,5 +326,79 @@ void main() {
     expect(find.text('Nazwa użytkownika'), findsOneWidget);
     expect(find.text('E-mail'), findsOneWidget);
     expect(find.text('Hasło tymczasowe'), findsOneWidget);
+  });
+
+  for (final width in <double>[360, 390, 600, 1200]) {
+    testWidgets('user rows remain readable at width ${width.toInt()}', (
+      WidgetTester tester,
+    ) async {
+      final api = _FakeAccountApi()
+        ..users = <ManagedUser>[
+          const ManagedUser(
+            id: 2,
+            username: 'very.long.synthetic.username.for.mobile',
+            email: 'very.long.synthetic.email.address@example.invalid',
+            isActive: true,
+            role: 'Administrator',
+            mustChangePassword: false,
+            passwordResetRequested: false,
+          ),
+        ];
+      await _pumpPage(tester, api, size: Size(width, 1400));
+      await tester.ensureVisible(find.byKey(const Key('edit-user-2')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const Key('user-identity-2')),
+        width <= 600 ? findsOneWidget : findsNothing,
+      );
+      expect(find.byKey(const Key('edit-user-2')), findsOneWidget);
+      expect(find.byKey(const Key('reset-password-user-2')), findsOneWidget);
+      expect(find.byKey(const Key('deactivate-user-2')), findsOneWidget);
+      if (width <= 600) {
+        final identityWidth = tester
+            .getSize(find.byKey(const Key('user-identity-2')))
+            .width;
+        expect(identityWidth, greaterThan(180));
+      }
+    });
+  }
+
+  testWidgets('edit cancel performs zero writes and password stays separate', (
+    WidgetTester tester,
+  ) async {
+    final api = _FakeAccountApi();
+    await _pumpPage(tester, api);
+    await tester.tap(find.byKey(const Key('edit-user-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('Edytuj użytkownika'), findsOneWidget);
+    expect(find.textContaining('hasło', findRichText: true), findsNothing);
+    await tester.tap(find.text('Anuluj').last);
+    await tester.pumpAndSettle();
+    expect(api.updateCount, 0);
+    expect(find.byKey(const Key('reset-password-user-2')), findsOneWidget);
+  });
+
+  testWidgets('successful edit refreshes the list', (
+    WidgetTester tester,
+  ) async {
+    final api = _FakeAccountApi();
+    await _pumpPage(tester, api);
+    await tester.tap(find.byKey(const Key('edit-user-2')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('edit-user-username')),
+      'user.edited',
+    );
+    await tester.enterText(
+      find.byKey(const Key('edit-user-email')),
+      'user.edited@example.invalid',
+    );
+    await tester.tap(find.byKey(const Key('save-user-edit')));
+    await tester.pumpAndSettle();
+    expect(api.updatedUserId, 2);
+    expect(api.updateCount, 1);
+    expect(api.fetchCount, 2);
+    expect(find.text('user.edited'), findsOneWidget);
   });
 }

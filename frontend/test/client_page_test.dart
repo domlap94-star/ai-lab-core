@@ -1,6 +1,7 @@
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
 import 'package:ai_lab/features/clients/application/clients_repository.dart';
 import 'package:ai_lab/features/clients/application/client_list_filter.dart';
+import 'package:ai_lab/features/clients/application/client_workflow_status.dart';
 import 'package:ai_lab/features/clients/data/client_page_response.dart';
 import 'package:ai_lab/features/clients/data/clients_api.dart';
 import 'package:ai_lab/features/clients/domain/client.dart';
@@ -19,6 +20,7 @@ class _FakeClientsApi extends ClientsApi {
   String? capturedSortOrder;
   int? capturedSkip;
   int? capturedLimit;
+  List<String> capturedExcludeStatuses = const <String>[];
 
   @override
   Future<ClientPageResponse> fetchClients({
@@ -27,6 +29,7 @@ class _FakeClientsApi extends ClientsApi {
     String? search,
     String? clientType,
     int? industryId,
+    List<String> excludeStatuses = const <String>[],
     String sortOrder = 'newest',
     int skip = 0,
     int limit = 50,
@@ -37,6 +40,7 @@ class _FakeClientsApi extends ClientsApi {
     capturedSortOrder = sortOrder;
     capturedSkip = skip;
     capturedLimit = limit;
+    capturedExcludeStatuses = excludeStatuses;
     return const ClientPageResponse(
       items: <Never>[],
       total: 125,
@@ -76,6 +80,42 @@ void main() {
 
     expect(capturedRequest?.path, '/api/v1/clients/page');
     expect(capturedRequest?.queryParameters['sort_order'], 'newest');
+  });
+
+  test('ClientsApi sends repeated server-side status exclusions', () async {
+    final Dio dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
+    RequestOptions? capturedRequest;
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          capturedRequest = options;
+          handler.resolve(
+            Response<Map<String, dynamic>>(
+              requestOptions: options,
+              data: const <String, dynamic>{
+                'items': <dynamic>[],
+                'total': 0,
+                'skip': 0,
+                'limit': 50,
+              },
+            ),
+          );
+        },
+      ),
+    );
+    await ClientsApi(dio).fetchClients(
+      accessToken: 'token',
+      tokenType: 'bearer',
+      search: 'Acme',
+      sortOrder: 'oldest',
+      excludeStatuses: const <String>['completed', 'obsolete'],
+    );
+    expect(capturedRequest?.queryParameters['exclude_status'], const <String>[
+      'completed',
+      'obsolete',
+    ]);
+    expect(capturedRequest?.queryParameters['search'], 'Acme');
+    expect(capturedRequest?.queryParameters['sort_order'], 'oldest');
   });
 
   test('parses the paginated client API contract', () {
@@ -132,6 +172,10 @@ void main() {
       search: 'Kowalski',
       clientType: ClientType.person,
       industryId: 7,
+      excludeStatuses: const <ClientWorkflowState>{
+        ClientWorkflowState.completed,
+        ClientWorkflowState.obsolete,
+      },
       sortOrder: ClientSortOrder.oldestFirst.apiValue,
       skip: 50,
       limit: 50,
@@ -140,6 +184,10 @@ void main() {
     expect(api.capturedSearch, 'Kowalski');
     expect(api.capturedClientType, 'person');
     expect(api.capturedIndustryId, 7);
+    expect(
+      api.capturedExcludeStatuses,
+      containsAll(<String>['completed', 'obsolete']),
+    );
     expect(api.capturedSortOrder, 'oldest');
     expect(api.capturedSkip, 50);
     expect(api.capturedLimit, 50);

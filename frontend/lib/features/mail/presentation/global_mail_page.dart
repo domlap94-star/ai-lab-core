@@ -38,6 +38,7 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
   String? _readState;
   bool? _linked;
   bool? _attachments;
+  bool? _ignored;
   DateTimeRange? _dates;
   GlobalMailItem? _selected;
 
@@ -73,6 +74,7 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
         readState: _readState,
         linked: _linked,
         hasAttachments: _attachments,
+        ignored: _ignored,
         dateFrom: _dates?.start,
         dateTo: _dates?.end.add(const Duration(days: 1)),
       );
@@ -111,6 +113,7 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
         readState: _readState,
         linked: _linked,
         hasAttachments: _attachments,
+        ignored: _ignored,
         dateFrom: _dates?.start,
         dateTo: _dates?.end.add(const Duration(days: 1)),
       );
@@ -319,6 +322,18 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
                 _reload();
               },
             ),
+            _menu(
+              'Ignorowane',
+              _ignored?.toString(),
+              const <String, String>{
+                'true': 'Tylko ignorowane',
+                'false': 'Bez ignorowanych',
+              },
+              (v) {
+                _ignored = v == null ? null : v == 'true';
+                _reload();
+              },
+            ),
             TextButton.icon(
               onPressed: _pickDates,
               icon: const Icon(Icons.date_range),
@@ -429,6 +444,72 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
     );
   }
 
+  Future<void> _confirmIgnore(String sender) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ignoruj nadawcę?'),
+        content: Text(
+          '$sender\n\nNowe nierozstrzygnięte wiadomości tego nadawcy nie będą trafiać do kolejki przeglądu. Historia pozostanie bez zmian.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            key: const Key('confirm-ignore-mail-sender'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ignoruj nadawcę'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final session = _session;
+    if (session == null) return;
+    await _api.ignoreSender(session, value: sender);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Nadawca $sender został zignorowany.')),
+    );
+    await _reload();
+  }
+
+  Future<void> _confirmUnignore(String sender) async {
+    final session = _session;
+    if (session == null) return;
+    final rules = await _api.ignoredRules(session);
+    final normalized = sender.trim().toLowerCase();
+    final matches = rules.where(
+      (rule) =>
+          rule.isActive &&
+          rule.ruleType == 'email' &&
+          rule.normalizedValue == normalized,
+    );
+    if (matches.isEmpty || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Przestać ignorować?'),
+        content: Text(sender),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Przestań ignorować'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _api.unignoreSender(session, matches.first.id);
+    await _reload();
+  }
+
   Widget _detail(GlobalMailItem item) {
     return ListView(
       key: const Key('mail-detail'),
@@ -469,6 +550,27 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
                 label: const Text('Pokaż wątek'),
                 avatar: const Icon(Icons.forum_outlined, size: 18),
                 onPressed: () => _showThread(item.threadId!),
+              ),
+            if (item.ignored)
+              const Chip(
+                avatar: Icon(Icons.block, size: 18),
+                label: Text('Ignorowany nadawca'),
+              ),
+            if (item.sender != null &&
+                ref.read(authControllerProvider).value?.user?.role ==
+                    'Administrator')
+              ActionChip(
+                key: const Key('ignore-mail-sender'),
+                avatar: Icon(
+                  item.ignored ? Icons.undo : Icons.block_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  item.ignored ? 'Przestań ignorować' : 'Ignoruj nadawcę',
+                ),
+                onPressed: () => item.ignored
+                    ? _confirmUnignore(item.sender!)
+                    : _confirmIgnore(item.sender!),
               ),
           ],
         ),

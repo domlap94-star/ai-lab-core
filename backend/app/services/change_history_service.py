@@ -46,10 +46,12 @@ class ChangeHistoryService:
         "client_workflow_status": {"status", "effective_date"},
         "client_candidate": {"status", "matched_client_id", "resulting_client_id"},
         "candidate_merge": {"target_client_id"},
+        "ignored_mail_source": {"rule_type", "email", "domain", "is_active"},
+        "user": {"username", "email", "role"},
     }
     ACTIONS = {
         "created", "updated", "deleted", "restored", "status_changed",
-        "accepted", "rejected", "merged",
+        "accepted", "rejected", "merged", "activated", "deactivated",
     }
     SECRET_FIELD_PATTERN = re.compile(
         r"password|passwd|secret|token|cookie|authorization|api[_-]?key|"

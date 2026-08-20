@@ -35,6 +35,7 @@ PUBLIC_KEYS = {
     "attachment_count",
     "attachments",
     "created_at",
+    "ignored",
 }
 ATTACHMENT_KEYS = {
     "document_id",

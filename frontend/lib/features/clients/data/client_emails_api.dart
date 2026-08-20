@@ -14,6 +14,7 @@ class ClientEmailsApi {
     int skip = 0,
     int limit = 20,
     int? sourceId,
+    bool? ignored,
   }) async {
     final String normalizedType = tokenType.trim().isEmpty
         ? 'Bearer'
@@ -25,6 +26,7 @@ class ClientEmailsApi {
             'skip': skip,
             'limit': limit,
             'source_id': ?sourceId,
+            'ignored': ?ignored,
           },
           options: Options(
             headers: <String, Object>{

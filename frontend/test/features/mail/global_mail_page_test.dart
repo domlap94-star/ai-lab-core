@@ -41,6 +41,7 @@ class _FakeMailApi extends GlobalMailApi {
   final int missingCount;
   int listCalls = 0;
   String? readState;
+  bool? ignored;
   int sendCalls = 0;
   int reconciliationDryRuns = 0;
   int reconciliationApplies = 0;
@@ -80,11 +81,13 @@ class _FakeMailApi extends GlobalMailApi {
     String? readState,
     bool? linked,
     bool? hasAttachments,
+    bool? ignored,
     DateTime? dateFrom,
     DateTime? dateTo,
   }) async {
     listCalls += 1;
     this.readState = readState;
+    this.ignored = ignored;
     return GlobalMailPageData(items: <GlobalMailItem>[item], hasMore: false);
   }
 
@@ -236,6 +239,21 @@ void main() {
     await tester.tap(find.text('Nieznany').last);
     await tester.pumpAndSettle();
     expect(api.readState, 'unknown');
+    expect(api.listCalls, greaterThan(1));
+  });
+
+  testWidgets('ignored-state filter reloads from backend', (
+    WidgetTester tester,
+  ) async {
+    final api = _FakeMailApi();
+    await _pump(tester, api);
+    final Finder ignoredFilter = find.byType(DropdownButton<String?>).at(3);
+    await tester.ensureVisible(ignoredFilter);
+    await tester.tap(ignoredFilter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tylko ignorowane').last);
+    await tester.pumpAndSettle();
+    expect(api.ignored, isTrue);
     expect(api.listCalls, greaterThan(1));
   });
 

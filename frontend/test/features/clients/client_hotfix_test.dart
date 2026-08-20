@@ -73,6 +73,7 @@ class _HotfixClientsController extends ClientsController {
     ClientType? clientType,
     int? industryId,
     ClientSortOrder? sortOrder,
+    Set<ClientWorkflowState>? excludeStatuses,
   }) async {
     lastClientType = clientType;
     lastIndustryId = industryId;
@@ -293,7 +294,7 @@ void main() {
     expect(find.text('Branża'), findsOneWidget);
     expect(find.text('Lokalizacja'), findsOneWidget);
     expect(find.text('Sortowanie'), findsOneWidget);
-    expect(find.text('Status'), findsOneWidget);
+    expect(find.text('Nie pokazuj statusów'), findsOneWidget);
     expect(find.text('Wyczyść filtry'), findsOneWidget);
     expect(tester.takeException(), isNull);
 

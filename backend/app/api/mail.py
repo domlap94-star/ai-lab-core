@@ -102,6 +102,7 @@ def list_mail(
     linked: bool | None = None,
     has_attachments: bool | None = None,
     read_state: Literal["read", "unread", "unknown"] | None = None,
+    ignored: bool | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     thread_id: str | None = Query(default=None, min_length=1, max_length=1000),
@@ -113,6 +114,7 @@ def list_mail(
     return GlobalMailService(db).get_page(
         search=search, client_id=client_id, direction=direction, linked=linked,
         has_attachments=has_attachments, read_state=read_state,
+        ignored=ignored,
         date_from=date_from, date_to=date_to, thread_id=thread_id,
         skip=skip, limit=limit,
     )

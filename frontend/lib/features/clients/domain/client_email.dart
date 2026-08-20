@@ -27,6 +27,7 @@ class ClientEmail {
     required this.attachmentCount,
     required this.attachments,
     required this.createdAt,
+    this.ignored = false,
     this.threadId,
     this.messageAt,
     this.fromName,
@@ -52,6 +53,7 @@ class ClientEmail {
   final int attachmentCount;
   final List<ClientEmailAttachment> attachments;
   final DateTime createdAt;
+  final bool ignored;
 
   String get displaySubject => subject ?? '(bez tematu)';
 }

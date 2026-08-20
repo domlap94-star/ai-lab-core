@@ -126,6 +126,25 @@ class AccountApi {
     );
   }
 
+  Future<ManagedUser> updateUser({
+    required AuthSession session,
+    required int userId,
+    required String username,
+    required String email,
+    required String role,
+  }) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/api/v1/admin/users/$userId',
+      data: <String, Object>{
+        'username': username.trim(),
+        'email': email.trim(),
+        'role': role,
+      },
+      options: _authorizedOptions(session),
+    );
+    return ManagedUser.fromJson(response.data ?? <String, dynamic>{});
+  }
+
   Future<void> deactivateUser({
     required AuthSession session,
     required int userId,

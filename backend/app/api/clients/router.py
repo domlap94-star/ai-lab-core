@@ -29,6 +29,7 @@ from app.schemas.client_bulk import (
     ClientIdBatchRequest,
     ClientWorkflowBatchRequest,
     ClientWorkflowStatusRead,
+    ClientWorkflowState,
 )
 from app.schemas.client_email import ClientEmailPage
 from app.schemas.client_ai_knowledge import ClientAiAskRequest, ClientAiAskResponse
@@ -153,6 +154,7 @@ def get_clients_page(
     ),
     client_type: ClientType | None = Query(default=None),
     industry_id: int | None = Query(default=None, ge=1),
+    exclude_status: list[ClientWorkflowState] = Query(default=[]),
     sort_order: ClientPageSortOrder = Query(default="newest"),
     skip: int = Query(
         default=0,
@@ -171,6 +173,7 @@ def get_clients_page(
         search=search,
         client_type=client_type,
         industry_id=industry_id,
+        exclude_statuses=list(exclude_status),
         sort_order=sort_order,
         skip=skip,
         limit=limit,
@@ -215,6 +218,7 @@ def get_client_emails(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
     source_id: int | None = Query(default=None, ge=1),
+    ignored: bool | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> ClientEmailPage:
     try:
@@ -223,6 +227,7 @@ def get_client_emails(
             skip=skip,
             limit=limit,
             source_id=source_id,
+            ignored=ignored,
         )
     except ClientNotFoundError as error:
         raise HTTPException(

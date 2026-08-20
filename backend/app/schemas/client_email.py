@@ -30,6 +30,7 @@ class ClientEmailRead(BaseModel):
     subject: str | None
     body_text: str | None
     source_url: str | None
+    ignored: bool = False
     attachment_count: int
     attachments: list[ClientEmailAttachmentRead]
     created_at: datetime

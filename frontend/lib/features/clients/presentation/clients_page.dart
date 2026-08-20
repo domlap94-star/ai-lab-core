@@ -32,7 +32,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   final ScrollController _listScrollController = ScrollController();
 
   ClientSortOrder _sortOrder = ClientSortOrder.newestFirst;
-  ClientWorkflowState? _statusFilter;
+  Set<ClientWorkflowState> _excludedStatuses = <ClientWorkflowState>{};
   bool _filtersExpanded = false;
   ClientType? _clientTypeFilter;
   int? _industryIdFilter;
@@ -49,7 +49,9 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     _searchController.text = _viewMemory.searchQuery;
     _locationController.text = _viewMemory.locationQuery;
     _sortOrder = _viewMemory.sortOrder;
-    _statusFilter = _viewMemory.workflowStatusFilter;
+    _excludedStatuses = Set<ClientWorkflowState>.of(
+      _viewMemory.excludedWorkflowStatuses,
+    );
     _filtersExpanded = _viewMemory.filtersExpanded;
     _clientTypeFilter = _viewMemory.clientTypeFilter;
     _industryIdFilter = _viewMemory.industryIdFilter;
@@ -215,13 +217,13 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
   Future<void> _resetFilters() async {
     _locationController.clear();
     _viewMemory.clearLocation();
-    _viewMemory.workflowStatusFilter = null;
+    _viewMemory.excludedWorkflowStatuses.clear();
     _viewMemory.sortOrder = ClientSortOrder.newestFirst;
     _viewMemory.clientTypeFilter = null;
     _viewMemory.industryIdFilter = null;
 
     setState(() {
-      _statusFilter = null;
+      _excludedStatuses.clear();
       _sortOrder = ClientSortOrder.newestFirst;
       _clientTypeFilter = null;
       _industryIdFilter = null;
@@ -229,7 +231,10 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
 
     await ref
         .read(clientsControllerProvider.notifier)
-        .setFilters(sortOrder: ClientSortOrder.newestFirst);
+        .setFilters(
+          sortOrder: ClientSortOrder.newestFirst,
+          excludeStatuses: const <ClientWorkflowState>{},
+        );
   }
 
   Future<void> _changePage(Future<void> Function() action) async {
@@ -359,7 +364,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
               isLoading: clientsValue.isLoading,
               locationController: _locationController,
               sortOrder: _sortOrder,
-              workflowStatusFilter: _statusFilter,
+              excludedStatuses: _excludedStatuses,
               onExpandedChanged: (bool value) {
                 _viewMemory.filtersExpanded = value;
 
@@ -407,13 +412,19 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                     .read(clientsControllerProvider.notifier)
                     .setSortOrder(value);
               },
-              onWorkflowStatusChanged: (ClientWorkflowState? value) {
-                _viewMemory.workflowStatusFilter = value;
-
-                setState(() {
-                  _statusFilter = value;
-                });
-              },
+              onExcludedStatusesChanged:
+                  (Set<ClientWorkflowState> value) async {
+                    _viewMemory.excludedWorkflowStatuses =
+                        Set<ClientWorkflowState>.of(value);
+                    setState(() => _excludedStatuses = Set.of(value));
+                    await ref
+                        .read(clientsControllerProvider.notifier)
+                        .setFilters(
+                          clientType: _clientTypeFilter,
+                          industryId: _industryIdFilter,
+                          excludeStatuses: value,
+                        );
+                  },
               onReset: _resetFilters,
             ),
           ),
@@ -433,7 +444,6 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                 final List<Client> visibleClients = filterClientsForCurrentPage(
                   clients,
                   locationQuery: _locationController.text,
-                  workflowStatusFilter: _statusFilter,
                 );
                 if (visibleClients.isEmpty) {
                   final bool hasSearchQuery = ref
@@ -483,13 +493,23 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                       ],
                       _ClientStatusSummary(
                         clients: clients,
-                        selectedStatus: _statusFilter,
-                        onSelected: (ClientWorkflowState? value) {
-                          _viewMemory.workflowStatusFilter = value;
-
-                          setState(() {
-                            _statusFilter = value;
-                          });
+                        excludedStatuses: _excludedStatuses,
+                        onToggled: (ClientWorkflowState value) async {
+                          final next = Set<ClientWorkflowState>.of(
+                            _excludedStatuses,
+                          );
+                          next.contains(value)
+                              ? next.remove(value)
+                              : next.add(value);
+                          _viewMemory.excludedWorkflowStatuses = Set.of(next);
+                          setState(() => _excludedStatuses = next);
+                          await ref
+                              .read(clientsControllerProvider.notifier)
+                              .setFilters(
+                                clientType: _clientTypeFilter,
+                                industryId: _industryIdFilter,
+                                excludeStatuses: next,
+                              );
                         },
                       ),
                       const SizedBox(height: 10),
@@ -774,14 +794,14 @@ class _ClientFilterPanel extends StatelessWidget {
     required this.isLoading,
     required this.locationController,
     required this.sortOrder,
-    required this.workflowStatusFilter,
+    required this.excludedStatuses,
     required this.onExpandedChanged,
     required this.onClientTypeChanged,
     required this.onIndustryChanged,
     required this.onLocationChanged,
     required this.onClearLocation,
     required this.onSortChanged,
-    required this.onWorkflowStatusChanged,
+    required this.onExcludedStatusesChanged,
     required this.onReset,
   });
 
@@ -792,14 +812,14 @@ class _ClientFilterPanel extends StatelessWidget {
   final bool isLoading;
   final TextEditingController locationController;
   final ClientSortOrder sortOrder;
-  final ClientWorkflowState? workflowStatusFilter;
+  final Set<ClientWorkflowState> excludedStatuses;
   final ValueChanged<bool> onExpandedChanged;
   final ValueChanged<ClientType?> onClientTypeChanged;
   final ValueChanged<int?> onIndustryChanged;
   final VoidCallback onLocationChanged;
   final VoidCallback onClearLocation;
   final ValueChanged<ClientSortOrder> onSortChanged;
-  final ValueChanged<ClientWorkflowState?> onWorkflowStatusChanged;
+  final ValueChanged<Set<ClientWorkflowState>> onExcludedStatusesChanged;
   final VoidCallback onReset;
 
   int get activeFilterCount {
@@ -809,9 +829,7 @@ class _ClientFilterPanel extends StatelessWidget {
       count++;
     }
 
-    if (workflowStatusFilter != null) {
-      count++;
-    }
+    count += excludedStatuses.length;
 
     if (sortOrder != ClientSortOrder.newestFirst) {
       count++;
@@ -946,9 +964,9 @@ class _ClientFilterPanel extends StatelessWidget {
                         },
                       );
 
-                  final Widget statusField = ClientWorkflowStatusFilterField(
-                    value: workflowStatusFilter,
-                    onChanged: onWorkflowStatusChanged,
+                  final Widget statusField = _ExcludedStatusField(
+                    values: excludedStatuses,
+                    onChanged: onExcludedStatusesChanged,
                   );
 
                   final Widget resetButton = OutlinedButton.icon(
@@ -1009,16 +1027,53 @@ class _ClientFilterPanel extends StatelessWidget {
   }
 }
 
+class _ExcludedStatusField extends StatelessWidget {
+  const _ExcludedStatusField({required this.values, required this.onChanged});
+
+  final Set<ClientWorkflowState> values;
+  final ValueChanged<Set<ClientWorkflowState>> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Nie pokazuj statusów',
+        border: OutlineInputBorder(),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: ClientWorkflowState.values
+            .map((status) {
+              return FilterChip(
+                key: Key('exclude-client-status-${status.apiValue}'),
+                label: Text(status.label),
+                selected: values.contains(status),
+                onSelected: (_) {
+                  final next = Set<ClientWorkflowState>.of(values);
+                  next.contains(status)
+                      ? next.remove(status)
+                      : next.add(status);
+                  onChanged(next);
+                },
+              );
+            })
+            .toList(growable: false),
+      ),
+    );
+  }
+}
+
 class _ClientStatusSummary extends StatelessWidget {
   const _ClientStatusSummary({
     required this.clients,
-    required this.selectedStatus,
-    required this.onSelected,
+    required this.excludedStatuses,
+    required this.onToggled,
   });
 
   final List<Client> clients;
-  final ClientWorkflowState? selectedStatus;
-  final ValueChanged<ClientWorkflowState?> onSelected;
+  final Set<ClientWorkflowState> excludedStatuses;
+  final ValueChanged<ClientWorkflowState> onToggled;
 
   @override
   Widget build(BuildContext context) {
@@ -1040,14 +1095,7 @@ class _ClientStatusSummary extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: <Widget>[
-          _ClientStatusChip(
-            label: 'Ta strona',
-            count: clients.length,
-            selected: selectedStatus == null,
-            onTap: () {
-              onSelected(null);
-            },
-          ),
+          Text('Ukryj statusy:', style: theme.textTheme.labelLarge),
           const SizedBox(width: 8),
           ...ClientWorkflowState.values.expand((
             ClientWorkflowState status,
@@ -1056,10 +1104,8 @@ class _ClientStatusSummary extends StatelessWidget {
               label: status.label,
               count: counts[status] ?? 0,
               color: status.color(theme),
-              selected: selectedStatus == status,
-              onTap: () {
-                onSelected(selectedStatus == status ? null : status);
-              },
+              selected: excludedStatuses.contains(status),
+              onTap: () => onToggled(status),
             );
 
             yield const SizedBox(width: 8);

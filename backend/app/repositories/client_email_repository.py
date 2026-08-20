@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.candidate_source import CandidateSource
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
+from app.models.ignored_mail_source import IgnoredMailSource
 
 
 LINKED_CANDIDATE_STATUSES = (
@@ -66,6 +67,26 @@ class ClientEmailRepository:
                 CandidateSource.extracted_text,
                 CandidateSource.raw_payload,
                 CandidateSource.created_at,
+                ClientCandidate.primary_email,
+                self.db.query(IgnoredMailSource.id).filter(
+                    IgnoredMailSource.is_active.is_(True),
+                    or_(
+                        and_(
+                            IgnoredMailSource.rule_type == "email",
+                            IgnoredMailSource.normalized_value
+                            == func.lower(ClientCandidate.primary_email),
+                        ),
+                        and_(
+                            IgnoredMailSource.rule_type == "domain",
+                            IgnoredMailSource.normalized_value
+                            == func.split_part(
+                                func.lower(ClientCandidate.primary_email),
+                                "@",
+                                2,
+                            ),
+                        ),
+                    ),
+                ).exists().label("ignored"),
                 message_at.label("message_at"),
                 row_number.label("duplicate_rank"),
             )
@@ -90,6 +111,7 @@ class ClientEmailRepository:
         skip: int,
         limit: int,
         source_id: int | None = None,
+        ignored: bool | None = None,
     ) -> tuple[Sequence[object], int]:
         sources = self._deduplicated_sources(client_id)
         filtered = self.db.query(sources).filter(
@@ -97,6 +119,8 @@ class ClientEmailRepository:
         )
         if source_id is not None:
             filtered = filtered.filter(sources.c.source_id == source_id)
+        if ignored is not None:
+            filtered = filtered.filter(sources.c.ignored.is_(ignored))
 
         total = filtered.count()
         items = (

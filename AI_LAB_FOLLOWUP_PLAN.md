@@ -292,7 +292,7 @@ Completion record (2026-08-19):
 - Implementation commit: `Unify client search with global search matching`.
 - Release: NOT PERFORMED; pozostaje `NEXT Stabil 1.0.2+21`.
 
-## FOLLOW-UP CHUNK 05 — CLIENT FILTERS / HIDE STATUS / IGNORED MAIL SOURCES
+## [✓] FOLLOW-UP CHUNK 05 — FILTERS / IGNORED SENDERS + USER MANAGEMENT POLISH — COMPLETE
 
 **Priority: P1**
 
@@ -306,6 +306,51 @@ Migration: prawdopodobna.
 
 Human gate: osobny schema/migration approval wymagany po audycie projektu
 danych; żadnej konfiguracji produkcyjnej bez jawnego apply approval.
+
+Completion evidence (2026-08-20):
+
+- Client list accepts repeated canonical workflow-status exclusions and applies
+  them server-side before pagination. Search, effective-added-date ordering,
+  `newest|oldest`, stable ID tie-break and additive deployed-client response
+  compatibility remain unchanged. Flutter holds a multi-select exclusion set
+  and reloads backend paging instead of filtering a fetched page locally.
+- Approved additive revision `followup_ignored_mail_sources_20260820` creates
+  only `ignored_mail_sources`. Exact normalized email/domain rules are
+  admin-only, reactivatable and reversible; no wildcard, substring or subdomain
+  matching is accepted. The table remains empty in production.
+- Existing Gmail history and Client links are never rewritten. New unresolved
+  Gmail from an active ignored rule remains a canonical CandidateSource and is
+  suppressed from review as a rejected Candidate. A deterministic Matching V2
+  Client resolution wins over the ignore rule and remains linked safely.
+- Global Mail and Client Mail expose additive ignored-state filters and badges.
+  Existing linked Client correspondence remains visible by default; no Gmail
+  source, provider message, Candidate or historical link is deleted.
+- Approved constraint-only revision
+  `followup_change_history_entity_types_20260820` preserves all prior Change
+  History entity/action values and adds entities `ignored_mail_source`, `user`
+  plus actions `activated`, `deactivated`. Isolated upgrade/downgrade/re-upgrade
+  PASS in 0.443 s; production apply changed zero Change History/business rows.
+- Ignored-rule lifecycle writes `created`, `deactivated`, `activated` atomically
+  with the domain change. Email-like audit values are masked by the canonical
+  sanitizer. User edits use `entity_type=user`, `action=updated`, and audit only
+  username/email/role; passwords, hashes, tokens and secrets are excluded.
+- User Management uses a responsive identity card and separate wrapping action
+  row on narrow widths, keeping username, ellipsized email and role readable at
+  360/390/600/1200. Explicit `Edytuj użytkownika` updates only username, email
+  and role; password reset remains separate. Typed duplicate handling,
+  self-demotion and last-active-Administrator protections remain enforced.
+- Verification: CHUNK 05 focused backend PASS; migration round-trip PASS;
+  Client Search `4/4`, Global Mail `29/29`, Matching V2 `24/24`, reconciliation
+  recovery `13/13`, parity `8/8`, Mail Send `7/7`, Image Preview `11/11`,
+  Documents `9/9`, Timeline `4/4`, Client Mail and Admin lifecycle PASS.
+  Flutter analyze PASS, focused `51/51`, full `260/260`.
+- Production safety: Clients `3243`, Candidates `3570`, Documents `5922`, Gmail
+  sources `4272`, Candidate Client-links `3345`, mail-send ledger `4`, Activity
+  `0`, Change History `0`, ignored rules `0`, Qdrant points `57`. No production
+  User/Client/Candidate/mail-link mutation, Gmail send, n8n change, Vision job,
+  Qdrant write or release occurred.
+- Release B functional scope is complete. Release remains `NEXT Stabil
+  1.0.2+21`; release requires a separate owner-approved prompt.
 
 ## [✓] FOLLOW-UP CHUNK 06 — CLIENT ACTIVITY LOG + TIMELINE V2 — COMPLETE
 
@@ -783,11 +828,11 @@ Final live-acceptance record (2026-08-20):
   Agent `13/13` and Auth regressions PASS; Flutter analyze PASS, focused Mail
   `33/33`, full `200/200`. No additional provider send or release was made.
 
-**CURRENT EXECUTION COMPLETE THROUGH CHUNK 10.**
+**CURRENT EXECUTION COMPLETE THROUGH CHUNK 05. RELEASE B FUNCTIONAL SCOPE IS
+COMPLETE.**
 
-**NEXT PLANNED CHUNK: FOLLOW-UP CHUNK 05 — FILTERS / IGNORED SENDERS.** Do not
-start it automatically; it requires a separate owner execution prompt. Release
-B remains pending CHUNK 05.
+**NEXT GATE: RELEASE B — READY FOR SEPARATE OWNER-APPROVED RELEASE PROMPT.** Do
+not release automatically and do not start CHUNK 13.
 
 ## [✓] FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW — COMPLETE
 

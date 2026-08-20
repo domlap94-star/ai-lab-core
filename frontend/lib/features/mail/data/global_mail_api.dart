@@ -24,6 +24,7 @@ class GlobalMailApi {
     String? readState,
     bool? linked,
     bool? hasAttachments,
+    bool? ignored,
     DateTime? dateFrom,
     DateTime? dateTo,
   }) async {
@@ -37,12 +38,44 @@ class GlobalMailApi {
         'read_state': ?readState,
         'linked': ?linked,
         'has_attachments': ?hasAttachments,
+        'ignored': ?ignored,
         'date_from': ?dateFrom?.toUtc().toIso8601String(),
         'date_to': ?dateTo?.toUtc().toIso8601String(),
       },
       options: _options(session),
     );
     return GlobalMailPageData.fromJson(response.data ?? <String, dynamic>{});
+  }
+
+  Future<List<IgnoredMailSourceRule>> ignoredRules(AuthSession session) async {
+    final response = await _dio.get<List<dynamic>>(
+      '/api/v1/admin/ignored-mail-sources',
+      options: _options(session),
+    );
+    return (response.data ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(IgnoredMailSourceRule.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<IgnoredMailSourceRule> ignoreSender(
+    AuthSession session, {
+    required String value,
+    String ruleType = 'email',
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/ignored-mail-sources',
+      data: <String, dynamic>{'rule_type': ruleType, 'value': value},
+      options: _options(session),
+    );
+    return IgnoredMailSourceRule.fromJson(response.data ?? <String, dynamic>{});
+  }
+
+  Future<void> unignoreSender(AuthSession session, int ruleId) async {
+    await _dio.delete<void>(
+      '/api/v1/admin/ignored-mail-sources/$ruleId',
+      options: _options(session),
+    );
   }
 
   Future<GlobalMailItem> detail(AuthSession session, int sourceId) async {

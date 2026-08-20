@@ -23,12 +23,14 @@ class ChangeHistoryEvent(Base):
     __table_args__ = (
         CheckConstraint(
             "entity_type IN ('client','client_contact','client_address',"
-            "'client_workflow_status','client_candidate','candidate_merge')",
+            "'client_workflow_status','client_candidate','candidate_merge',"
+            "'ignored_mail_source','user')",
             name="ck_change_history_events_entity_type",
         ),
         CheckConstraint(
             "action IN ('created','updated','deleted','restored',"
-            "'status_changed','accepted','rejected','merged')",
+            "'status_changed','accepted','rejected','merged','activated',"
+            "'deactivated')",
             name="ck_change_history_events_action",
         ),
         UniqueConstraint(

@@ -188,6 +188,21 @@ void main() {
     expect(find.textContaining('Dodano 1 brakujące'), findsOneWidget);
     expect(find.text('1–10 z 12'), findsOneWidget);
   });
+
+  testWidgets('ignored filter stays scoped to Client Mail request', (
+    WidgetTester tester,
+  ) async {
+    final repository = _EmailRepository();
+    await _pumpPanel(tester, repository);
+    await tester.tap(find.byKey(const Key('client-emails-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('client-mail-ignored-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ignorowane').last);
+    await tester.pumpAndSettle();
+    expect(repository.calls.last.clientId, 7);
+    expect(repository.calls.last.ignored, isTrue);
+  });
 }
 
 Future<void> _pumpPanel(
@@ -288,11 +303,13 @@ class _EmailCall {
     required this.skip,
     required this.limit,
     this.sourceId,
+    this.ignored,
   });
   final int clientId;
   final int skip;
   final int limit;
   final int? sourceId;
+  final bool? ignored;
 }
 
 class _EmailRepository implements ClientEmailsRepository {
@@ -308,6 +325,7 @@ class _EmailRepository implements ClientEmailsRepository {
     int skip = 0,
     int limit = 20,
     int? sourceId,
+    bool? ignored,
   }) async {
     calls.add(
       _EmailCall(
@@ -315,6 +333,7 @@ class _EmailRepository implements ClientEmailsRepository {
         skip: skip,
         limit: limit,
         sourceId: sourceId,
+        ignored: ignored,
       ),
     );
     if (fail) throw StateError('email endpoint unavailable');

@@ -8,6 +8,7 @@ class GlobalMailItem {
     required this.occurredAt,
     required this.hasAttachments,
     required this.attachmentCount,
+    this.ignored = false,
     this.threadId,
     this.sender,
     this.subject,
@@ -37,6 +38,7 @@ class GlobalMailItem {
       reviewState: json['review_state']?.toString(),
       hasAttachments: json['has_attachments'] == true,
       attachmentCount: (json['attachment_count'] as num?)?.toInt() ?? 0,
+      ignored: json['ignored'] == true,
       cc: (json['cc'] as List<dynamic>? ?? const <dynamic>[])
           .map((dynamic value) => value.toString())
           .toList(growable: false),
@@ -62,9 +64,30 @@ class GlobalMailItem {
   final String? reviewState;
   final bool hasAttachments;
   final int attachmentCount;
+  final bool ignored;
   final List<String> cc;
   final String? bodyText;
   final List<GlobalMailAttachment> attachments;
+}
+
+class IgnoredMailSourceRule {
+  const IgnoredMailSourceRule({
+    required this.id,
+    required this.ruleType,
+    required this.normalizedValue,
+    required this.isActive,
+  });
+  factory IgnoredMailSourceRule.fromJson(Map<String, dynamic> json) =>
+      IgnoredMailSourceRule(
+        id: (json['id'] as num).toInt(),
+        ruleType: json['rule_type']?.toString() ?? 'email',
+        normalizedValue: json['normalized_value']?.toString() ?? '',
+        isActive: json['is_active'] == true,
+      );
+  final int id;
+  final String ruleType;
+  final String normalizedValue;
+  final bool isActive;
 }
 
 class GlobalMailAttachment {

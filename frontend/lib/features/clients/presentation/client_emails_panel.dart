@@ -39,6 +39,7 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
   final Set<int> _expandedMessageIds = <int>{};
   final Set<int> _openingDocumentIds = <int>{};
   bool _reconciling = false;
+  bool? _ignored;
 
   @override
   void initState() {
@@ -60,6 +61,7 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
     skip: _skip,
     limit: _pageSize,
     sourceId: widget.focusedSourceId,
+    ignored: _ignored,
   );
 
   @override
@@ -166,19 +168,35 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
-            key: const Key('client-emails-refresh'),
-            tooltip: 'Odśwież skrzynkę i maile klienta',
-            onPressed: _reconciling ? null : _reconcile,
-            icon: _reconciling
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync),
-          ),
+        Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            DropdownButton<bool?>(
+              key: const Key('client-mail-ignored-filter'),
+              value: _ignored,
+              items: const <DropdownMenuItem<bool?>>[
+                DropdownMenuItem(value: null, child: Text('Wszystkie')),
+                DropdownMenuItem(value: true, child: Text('Ignorowane')),
+                DropdownMenuItem(value: false, child: Text('Bez ignorowanych')),
+              ],
+              onChanged: (value) => setState(() {
+                _ignored = value;
+                _skip = 0;
+              }),
+            ),
+            IconButton(
+              key: const Key('client-emails-refresh'),
+              tooltip: 'Odśwież skrzynkę i maile klienta',
+              onPressed: _reconciling ? null : _reconcile,
+              icon: _reconciling
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+            ),
+          ],
         ),
         ...page.items.map(_buildEmailCard),
         const SizedBox(height: 8),
@@ -253,6 +271,12 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
                 runSpacing: 6,
                 children: <Widget>[
                   _DirectionBadge(direction: email.direction),
+                  if (email.ignored)
+                    const Chip(
+                      avatar: Icon(Icons.block, size: 16),
+                      label: Text('Ignorowany nadawca'),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   Text(_formatDate(email.messageAt)),
                 ],
               ),

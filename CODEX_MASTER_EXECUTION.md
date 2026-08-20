@@ -42,10 +42,18 @@ mail is ingested once and any Candidate/Client/document plan drift fails before
 write. Final production dry-runs are clean at 30 and 7 days; recovery `13/13`,
 parity `8/8`, focused Flutter `37/37` and full `214/214` pass.
 
-**NEXT PLANNED WORK: FOLLOW-UP CHUNK 05 — FILTERS / IGNORED SENDERS.** Do not
-start it automatically; wait for a separate owner execution prompt. Release
-remains NEXT Stabil 1.0.2+21; Release B is pending CHUNK 05 and must not be
-performed now.
+**FOLLOW-UP CHUNK 05 — FILTERS / IGNORED SENDERS + USER MANAGEMENT POLISH —
+COMPLETE.** Server-side multi-status exclusions, exact ignored email/domain
+rules with canonical historical preservation, responsive User Management and
+safe audited User Edit are complete. Approved migrations
+`followup_ignored_mail_sources_20260820` and
+`followup_change_history_entity_types_20260820` are applied; production ignored
+rules and Change History remain empty. Flutter analyze, focused `51/51` and
+full `260/260` pass with the backend regression matrix.
+
+**NEXT GATE: RELEASE B — READY FOR SEPARATE OWNER-APPROVED RELEASE PROMPT.**
+Release remains NEXT Stabil 1.0.2+21. Do not bump, build, publish or release in
+this execution, and do not start CHUNK 13 automatically.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only

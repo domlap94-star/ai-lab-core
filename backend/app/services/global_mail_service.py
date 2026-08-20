@@ -85,6 +85,7 @@ class GlobalMailService:
             client_id=row["client_id"],
             client_name=row["client_name"],
             review_state=row["review_state"],
+            ignored=bool(row["ignored"]),
             has_attachments=bool(row["attachment_count"]),
             attachment_count=int(row["attachment_count"]),
         )

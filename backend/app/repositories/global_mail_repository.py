@@ -25,6 +25,17 @@ DIRECTION_SQL = _source_expression(GMAIL_DIRECTION_SQL)
 READ_STATE_SQL = _source_expression(GMAIL_READ_STATE_SQL)
 MESSAGE_TIME_SQL = _source_expression(GMAIL_MESSAGE_TIME_SQL)
 SEARCH_DOCUMENT_SQL = _source_expression(GMAIL_SEARCH_DOCUMENT_SQL)
+IGNORED_SQL = """
+EXISTS (
+  SELECT 1 FROM ignored_mail_sources ims
+  WHERE ims.is_active
+    AND (
+      (ims.rule_type='email' AND ims.normalized_value=lower(cc.primary_email))
+      OR
+      (ims.rule_type='domain' AND ims.normalized_value=split_part(lower(cc.primary_email),'@',2))
+    )
+)
+"""
 
 
 class GlobalMailRepository:
@@ -45,6 +56,7 @@ SELECT cs.id AS source_id, cs.external_id AS message_id,
        CASE WHEN cc.status IN ('accepted','merged','duplicate')
             THEN c.name END AS client_name,
        cc.status AS review_state,
+       ({IGNORED_SQL}) AS ignored,
        (SELECT count(*) FROM documents d
         WHERE d.source_type='gmail_attachment'
           AND d.gmail_message_id=cs.external_id) AS attachment_count
@@ -63,6 +75,7 @@ LEFT JOIN clients c ON c.id=cc.matched_client_id AND c.deleted_at IS NULL
         linked: bool | None,
         has_attachments: bool | None,
         read_state: str | None,
+        ignored: bool | None = None,
         date_from: datetime | None,
         date_to: datetime | None,
         thread_id: str | None,
@@ -106,6 +119,10 @@ LEFT JOIN clients c ON c.id=cc.matched_client_id AND c.deleted_at IS NULL
             else:
                 conditions.append(f"({READ_STATE_SQL})=:read_state")
                 params["read_state"] = read_state
+        if ignored is not None:
+            conditions.append(
+                f"({IGNORED_SQL})" if ignored else f"NOT ({IGNORED_SQL})"
+            )
         if date_from is not None:
             conditions.append(f"({MESSAGE_TIME_SQL}) >= :date_from")
             params["date_from"] = date_from

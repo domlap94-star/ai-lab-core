@@ -238,6 +238,42 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
     }
   }
 
+  Future<void> _editUser(ManagedUser user) async {
+    final _UserEditValues? values = await showDialog<_UserEditValues>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _EditUserDialog(user: user),
+    );
+    if (values == null || !mounted) return;
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null || !session.isAuthenticated) return;
+    try {
+      await ref
+          .read(accountApiProvider)
+          .updateUser(
+            session: session,
+            userId: user.id,
+            username: values.username,
+            email: values.email,
+            role: values.role,
+          );
+      if (!mounted) return;
+      _showMessage('Dane użytkownika zostały zaktualizowane.');
+      await _loadUsers();
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final code = error.response?.statusCode;
+      _showMessage(
+        code == 409
+            ? 'Nazwa użytkownika lub e-mail są już zajęte.'
+            : code == 403
+            ? 'Brak uprawnień administratora.'
+            : 'Nie udało się zaktualizować użytkownika.',
+        isError: true,
+      );
+    }
+  }
+
   Future<void> _deactivateUser(ManagedUser user) async {
     final bool confirmed =
         await showDialog<bool>(
@@ -337,7 +373,13 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Zarządzanie użytkownikami'),
+        title: Text(
+          MediaQuery.sizeOf(context).width < 400
+              ? 'Użytkownicy'
+              : 'Zarządzanie użytkownikami',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         actions: <Widget>[
           IconButton(
             tooltip: 'Odśwież',
@@ -399,6 +441,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _role,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Rola',
                         border: OutlineInputBorder(),
@@ -498,6 +541,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                     (ManagedUser user) => _UserTile(
                       user: user,
                       isCurrentUser: user.id == currentUserId,
+                      onEdit: () => _editUser(user),
                       onResetPassword: () {
                         _resetPassword(user);
                       },
@@ -635,16 +679,130 @@ class _DeactivateUserDialogState extends State<_DeactivateUserDialog> {
   }
 }
 
+class _UserEditValues {
+  const _UserEditValues(this.username, this.email, this.role);
+  final String username;
+  final String email;
+  final String role;
+}
+
+class _EditUserDialog extends StatefulWidget {
+  const _EditUserDialog({required this.user});
+  final ManagedUser user;
+
+  @override
+  State<_EditUserDialog> createState() => _EditUserDialogState();
+}
+
+class _EditUserDialogState extends State<_EditUserDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _username;
+  late final TextEditingController _email;
+  late String _role;
+
+  @override
+  void initState() {
+    super.initState();
+    _username = TextEditingController(text: widget.user.username);
+    _email = TextEditingController(text: widget.user.email);
+    _role = widget.user.role;
+  }
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _email.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Edytuj użytkownika'),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                TextFormField(
+                  key: const Key('edit-user-username'),
+                  controller: _username,
+                  decoration: const InputDecoration(
+                    labelText: 'Nazwa użytkownika',
+                  ),
+                  validator: (value) => (value?.trim().length ?? 0) < 3
+                      ? 'Minimum 3 znaki.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('edit-user-email'),
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'E-mail'),
+                  validator: (value) {
+                    final text = value?.trim() ?? '';
+                    return text.contains('@') && text.contains('.')
+                        ? null
+                        : 'Wprowadź poprawny e-mail.';
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  key: const Key('edit-user-role'),
+                  initialValue: _role,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Rola'),
+                  items: const <DropdownMenuItem<String>>[
+                    DropdownMenuItem(value: 'User', child: Text('Użytkownik')),
+                    DropdownMenuItem(
+                      value: 'Administrator',
+                      child: Text('Administrator'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _role = value ?? _role),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Anuluj'),
+        ),
+        FilledButton(
+          key: const Key('save-user-edit'),
+          onPressed: () {
+            if (_formKey.currentState?.validate() != true) return;
+            Navigator.pop(
+              context,
+              _UserEditValues(_username.text.trim(), _email.text.trim(), _role),
+            );
+          },
+          child: const Text('Zapisz'),
+        ),
+      ],
+    );
+  }
+}
+
 class _UserTile extends StatelessWidget {
   const _UserTile({
     required this.user,
     required this.isCurrentUser,
+    required this.onEdit,
     required this.onResetPassword,
     required this.onDeactivate,
   });
 
   final ManagedUser user;
   final bool isCurrentUser;
+  final VoidCallback onEdit;
   final VoidCallback onResetPassword;
   final VoidCallback onDeactivate;
 
@@ -664,47 +822,82 @@ class _UserTile extends StatelessWidget {
       flags.add('nieaktywny');
     }
 
-    return ListTile(
-      leading: CircleAvatar(
-        child: Text(
-          user.username.isEmpty ? '?' : user.username[0].toUpperCase(),
+    final avatar = CircleAvatar(
+      child: Text(user.username.isEmpty ? '?' : user.username[0].toUpperCase()),
+    );
+    final identity = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(user.username, maxLines: 2, overflow: TextOverflow.ellipsis),
+        Tooltip(
+          message: user.email,
+          child: Text(user.email, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
-      ),
-      title: Text(user.username),
-      subtitle: Text(
-        <String>[
-          user.email,
-          user.role,
-          if (flags.isNotEmpty) flags.join(' • '),
-        ].join('\n'),
-      ),
-      isThreeLine: flags.isNotEmpty,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          IconButton(
-            key: Key('reset-password-user-${user.id}'),
-            tooltip: user.isActive
-                ? 'Ustaw hasło tymczasowe'
-                : 'Nie można resetować hasła nieaktywnego konta.',
-            onPressed: user.isActive ? onResetPassword : null,
-            icon: const Icon(Icons.lock_reset),
+        Text(user.role, maxLines: 1, overflow: TextOverflow.ellipsis),
+        if (flags.isNotEmpty)
+          Text(flags.join(' • '), maxLines: 2, overflow: TextOverflow.ellipsis),
+      ],
+    );
+    final actions = Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: <Widget>[
+        IconButton(
+          key: Key('edit-user-${user.id}'),
+          tooltip: 'Edytuj użytkownika',
+          onPressed: user.isActive ? onEdit : null,
+          icon: const Icon(Icons.edit_outlined),
+        ),
+        IconButton(
+          key: Key('reset-password-user-${user.id}'),
+          tooltip: user.isActive
+              ? 'Ustaw hasło tymczasowe'
+              : 'Nie można resetować hasła nieaktywnego konta.',
+          onPressed: user.isActive ? onResetPassword : null,
+          icon: const Icon(Icons.lock_reset),
+        ),
+        Tooltip(
+          key: Key('deactivate-user-${user.id}'),
+          message: isCurrentUser
+              ? 'Nie możesz usunąć własnego konta.'
+              : user.isActive
+              ? 'Usuń użytkownika'
+              : 'Konto jest nieaktywne.',
+          child: TextButton.icon(
+            onPressed: user.isActive && !isCurrentUser ? onDeactivate : null,
+            icon: const Icon(Icons.person_off_outlined),
+            label: const Text('Usuń użytkownika'),
           ),
-          Tooltip(
-            key: Key('deactivate-user-${user.id}'),
-            message: isCurrentUser
-                ? 'Nie możesz usunąć własnego konta.'
-                : user.isActive
-                ? 'Usuń użytkownika'
-                : 'Konto jest nieaktywne.',
-            child: TextButton.icon(
-              onPressed: user.isActive && !isCurrentUser ? onDeactivate : null,
-              icon: const Icon(Icons.person_off_outlined),
-              label: const Text('Usuń użytkownika'),
+        ),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    avatar,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      key: Key('user-identity-${user.id}'),
+                      child: identity,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
             ),
-          ),
-        ],
-      ),
+          );
+        }
+        return ListTile(leading: avatar, title: identity, trailing: actions);
+      },
     );
   }
 }

@@ -7,6 +7,7 @@ import '../data/client_create_request.dart';
 import '../domain/client.dart';
 import '../domain/client_page.dart';
 import 'client_list_filter.dart';
+import 'client_workflow_status.dart';
 import 'clients_providers.dart';
 import 'clients_repository.dart';
 
@@ -21,6 +22,7 @@ class ClientsController extends AsyncNotifier<ClientPage> {
   ClientType? _clientType;
   int? _industryId;
   ClientSortOrder _sortOrder = ClientSortOrder.newestFirst;
+  Set<ClientWorkflowState> _excludeStatuses = <ClientWorkflowState>{};
   int _skip = 0;
 
   String get searchQuery => _searchQuery;
@@ -44,6 +46,7 @@ class ClientsController extends AsyncNotifier<ClientPage> {
       clientType: _clientType,
       industryId: _industryId,
       sortOrder: _sortOrder.apiValue,
+      excludeStatuses: _excludeStatuses,
       skip: _skip,
       limit: pageSize,
     );
@@ -81,11 +84,15 @@ class ClientsController extends AsyncNotifier<ClientPage> {
     ClientType? clientType,
     int? industryId,
     ClientSortOrder? sortOrder,
+    Set<ClientWorkflowState>? excludeStatuses,
   }) async {
     _clientType = clientType;
     _industryId = industryId;
     if (sortOrder != null) {
       _sortOrder = sortOrder;
+    }
+    if (excludeStatuses != null) {
+      _excludeStatuses = Set<ClientWorkflowState>.of(excludeStatuses);
     }
     _skip = 0;
     state = const AsyncLoading<ClientPage>();

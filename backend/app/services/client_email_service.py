@@ -84,6 +84,7 @@ class ClientEmailService:
         skip: int,
         limit: int,
         source_id: int | None = None,
+        ignored: bool | None = None,
     ) -> ClientEmailPage:
         if self.client_repository.get(client_id) is None:
             raise ClientNotFoundError
@@ -93,6 +94,7 @@ class ClientEmailService:
             skip=skip,
             limit=limit,
             source_id=source_id,
+            ignored=ignored,
         )
         message_ids = [row.external_id for row in rows]
         attachments_by_message: dict[str, list[Any]] = defaultdict(list)
@@ -158,6 +160,7 @@ class ClientEmailService:
             ),
             body_text=self._body_text(payload, row.extracted_text),
             source_url=self._safe_source_url(row.source_url),
+            ignored=bool(row.ignored),
             attachment_count=len(attachment_models),
             attachments=attachment_models,
             created_at=row.created_at,

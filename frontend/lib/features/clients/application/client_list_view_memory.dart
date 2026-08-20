@@ -10,7 +10,7 @@ class ClientListViewMemory {
   String searchQuery = '';
   String locationQuery = '';
   ClientSortOrder sortOrder = ClientSortOrder.newestFirst;
-  ClientWorkflowState? workflowStatusFilter;
+  Set<ClientWorkflowState> excludedWorkflowStatuses = <ClientWorkflowState>{};
   ClientType? clientTypeFilter;
   int? industryIdFilter;
   bool filtersExpanded = false;
@@ -27,7 +27,7 @@ class ClientListViewMemory {
     searchQuery = '';
     locationQuery = '';
     sortOrder = ClientSortOrder.newestFirst;
-    workflowStatusFilter = null;
+    excludedWorkflowStatuses.clear();
     clientTypeFilter = null;
     industryIdFilter = null;
     filtersExpanded = false;

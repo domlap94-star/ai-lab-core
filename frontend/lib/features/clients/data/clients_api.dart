@@ -20,6 +20,7 @@ class ClientsApi {
     String? search,
     String? clientType,
     int? industryId,
+    List<String> excludeStatuses = const <String>[],
     String sortOrder = 'newest',
     int skip = 0,
     int limit = 50,
@@ -33,6 +34,7 @@ class ClientsApi {
             if (clientType != null && clientType.isNotEmpty)
               'client_type': clientType,
             'industry_id': ?industryId,
+            if (excludeStatuses.isNotEmpty) 'exclude_status': excludeStatuses,
             'sort_order': sortOrder,
             'skip': skip,
             'limit': limit,
