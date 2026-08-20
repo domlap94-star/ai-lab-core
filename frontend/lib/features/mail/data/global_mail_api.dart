@@ -67,6 +67,43 @@ class GlobalMailApi {
         .toList(growable: false);
   }
 
+  Options _reconciliationOptions(AuthSession session) =>
+      _options(session).copyWith(
+        receiveTimeout: const Duration(minutes: 2),
+        sendTimeout: const Duration(seconds: 15),
+      );
+
+  Future<MailReconciliationDryRun> reconciliationDryRun(
+    AuthSession session, {
+    int windowDays = 7,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/mail/reconcile/dry-run',
+      data: <String, dynamic>{'window_days': windowDays},
+      options: _reconciliationOptions(session),
+    );
+    return MailReconciliationDryRun.fromJson(
+      response.data ?? <String, dynamic>{},
+    );
+  }
+
+  Future<MailReconciliationResult> reconciliationApply(
+    AuthSession session,
+    MailReconciliationDryRun dryRun,
+  ) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/mail/reconcile/apply',
+      data: <String, dynamic>{
+        'window_days': dryRun.windowDays,
+        'dry_run_token': dryRun.dryRunToken,
+      },
+      options: _reconciliationOptions(session),
+    );
+    return MailReconciliationResult.fromJson(
+      response.data ?? <String, dynamic>{},
+    );
+  }
+
   Future<MailSendResult> send(
     AuthSession session, {
     required String operationId,

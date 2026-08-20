@@ -59,6 +59,32 @@ class CandidateMatch:
     matched_by: str | None
 
 
+@dataclass(frozen=True)
+class EmailCandidateResolutionPreview:
+    """Read-only projection of the exact Gmail Candidate resolution path."""
+
+    request: ImportIngestRequest
+    email_match: EmailClientMatch
+    match: CandidateMatch
+    classification: str
+    existing_candidate_id: int | None
+    existing_client_id: int | None
+    resolved_client_id: int | None
+    expected_candidate_delta: int
+    expected_new_client_link_delta: int
+
+    def signature(self) -> tuple[object, ...]:
+        return (
+            self.request.source.external_id,
+            self.classification,
+            self.existing_candidate_id,
+            self.existing_client_id,
+            self.resolved_client_id,
+            self.expected_candidate_delta,
+            self.expected_new_client_link_delta,
+        )
+
+
 class ImportIngestService:
     _SHEETS_TRANSPORT_METADATA_KEYS = frozenset(
         {
@@ -79,9 +105,55 @@ class ImportIngestService:
         self.forward_normalizer = ForwardSourceIngestionService()
         self.email_matching = EmailClientMatchingService(self.repository)
 
+    def preview_email_resolution(
+        self,
+        request: ImportIngestRequest,
+    ) -> EmailCandidateResolutionPreview:
+        """Resolve a Gmail Candidate without mutating ORM or database state."""
+        if request.source.source_type != "gmail_message":
+            raise ValueError("email_resolution_requires_gmail_message")
+        prepared = self.forward_normalizer.prepare(request)
+        email_match = self.email_matching.match(prepared)
+        match = self._find_candidate_for_email(
+            prepared.candidate,
+            email_match,
+        )
+        candidate = match.candidate
+        if candidate is None:
+            classification = "new_candidate"
+        elif candidate.matched_client_id is None:
+            classification = "reuse_existing_candidate_unlinked"
+        else:
+            classification = "reuse_existing_candidate_client_linked"
+        creates_client_link = bool(
+            match.matched_client is not None
+            and (candidate is None or candidate.matched_client_id is None)
+        )
+        return EmailCandidateResolutionPreview(
+            request=prepared,
+            email_match=email_match,
+            match=match,
+            classification=classification,
+            existing_candidate_id=(candidate.id if candidate is not None else None),
+            existing_client_id=(
+                candidate.matched_client_id
+                if candidate is not None
+                else None
+            ),
+            resolved_client_id=(
+                match.matched_client.id
+                if match.matched_client is not None
+                else None
+            ),
+            expected_candidate_delta=int(candidate is None),
+            expected_new_client_link_delta=int(creates_client_link),
+        )
+
     def ingest(
         self,
         request: ImportIngestRequest,
+        *,
+        email_resolution: EmailCandidateResolutionPreview | None = None,
     ) -> ImportIngestResponse:
         import_source = self._require_import_source(
             request.import_source_id,
@@ -130,10 +202,6 @@ class ImportIngestService:
                 ),
             )
 
-        # Forward-only boundary: existing historical CandidateSource rows are
-        # never reinterpreted by this normalization layer.
-        request = self.forward_normalizer.prepare(request)
-
         try:
             if import_run is not None:
                 self.repository.increment_import_run_counters(
@@ -143,7 +211,16 @@ class ImportIngestService:
 
             email_match: EmailClientMatch | None = None
             if request.source.source_type == "gmail_message":
-                email_match = self.email_matching.match(request)
+                resolution = email_resolution or self.preview_email_resolution(
+                    request
+                )
+                if (
+                    resolution.request.source.external_id
+                    != request.source.external_id
+                ):
+                    raise ValueError("email_resolution_source_mismatch")
+                request = resolution.request
+                email_match = resolution.email_match
                 payload = dict(request.source.raw_payload or {})
                 payload[EMAIL_MATCH_METADATA_KEY] = email_match.metadata()
                 request = request.model_copy(
@@ -153,11 +230,11 @@ class ImportIngestService:
                         )
                     }
                 )
-                match = self._find_candidate_for_email(
-                    request.candidate,
-                    email_match,
-                )
+                match = resolution.match
             else:
+                # Forward-only boundary: existing historical CandidateSource
+                # rows are never reinterpreted by this normalization layer.
+                request = self.forward_normalizer.prepare(request)
                 match = self._find_match(request.candidate)
 
             created_candidate = False

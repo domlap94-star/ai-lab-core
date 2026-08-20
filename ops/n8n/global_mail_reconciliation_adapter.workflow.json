@@ -1,0 +1,145 @@
+{
+  "name": "AI Lab Global Mail Reconciliation Adapter",
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "meta": {
+    "templateOnly": true,
+    "scope": "Bounded manual Gmail read-only audit/fetch; no schedule, Gmail mutation, ingest, send, or checkpoint state.",
+    "credentialPolicy": "Bind the existing gmailOAuth2 credential and a dedicated native Header Auth credential at runtime; never export either secret."
+  },
+  "nodes": [
+    {
+      "name": "Internal Mail Reconciliation Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "a52ad1df-475a-49cd-b2ce-c7d00468d2af",
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-lab-global-mail-reconcile-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "BIND_RECONCILIATION_SECRET_CREDENTIAL",
+          "name": "AI Lab Mail Reconciliation Webhook Secret"
+        }
+      }
+    },
+    {
+      "name": "Validate Bounded Read Contract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "jsCode": "const p=$json.body||{}; if(!['audit','fetch'].includes(p.action)) throw new Error('invalid_action'); if(p.action==='audit'){ const days=Number(p.window_days); const limit=Number(p.limit); if(!Number.isInteger(days)||days<1||days>30||!Number.isInteger(limit)||limit<1||limit>1000) throw new Error('invalid_bounds'); return [{json:{action:'audit',window_days:days,limit}}]; } if(!Array.isArray(p.provider_message_ids)||p.provider_message_ids.length<1||p.provider_message_ids.length>100) throw new Error('invalid_message_ids'); const ids=[...new Set(p.provider_message_ids.map(v=>String(v||'').trim()))]; if(ids.length!==p.provider_message_ids.length||ids.some(v=>!v||v.length>1000)) throw new Error('invalid_message_ids'); return [{json:{action:'fetch',provider_message_ids:ids}}];"
+      }
+    },
+    {
+      "name": "Route Read Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [480, 0],
+      "parameters": {
+        "rules": {
+          "values": [
+            {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "audit", "operator": {"type": "string", "operation": "equals"}}]}},
+            {"conditions": {"conditions": [{"leftValue": "={{ $json.action }}", "rightValue": "fetch", "operator": {"type": "string", "operation": "equals"}}]}}
+          ]
+        }
+      }
+    },
+    {
+      "name": "Gmail Audit Window",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [720, -120],
+      "alwaysOutputData": true,
+      "parameters": {
+        "operation": "getAll",
+        "limit": "={{ $json.limit + 1 }}",
+        "simple": false,
+        "filters": {
+          "readStatus": "both",
+          "receivedAfter": "={{ $now.minus({ days: $json.window_days }).toISO() }}"
+        },
+        "options": {"downloadAttachments": false}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BIND_EXISTING_CREDENTIAL",
+          "name": "BIND EXISTING GMAIL OAUTH2"
+        }
+      }
+    },
+    {
+      "name": "Bounded Audit Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, -120],
+      "parameters": {
+        "jsCode": "const ids=[...new Set($input.all().map(i=>String(i.json?.id||'').trim()).filter(Boolean))]; const limit=1000; return [{json:{message_ids:ids.slice(0,limit),truncated:ids.length>limit}}];"
+      }
+    },
+    {
+      "name": "Expand Exact Message IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 120],
+      "parameters": {
+        "jsCode": "return $json.provider_message_ids.map(id=>({json:{id}}));"
+      }
+    },
+    {
+      "name": "Gmail Fetch Exact Message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [960, 120],
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": true
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BIND_EXISTING_CREDENTIAL",
+          "name": "BIND EXISTING GMAIL OAUTH2"
+        }
+      }
+    },
+    {
+      "name": "Normalize Bounded Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 120],
+      "parameters": {
+        "jsCode": "const input=$input.all(); const messages=[]; let totalBytes=0; for(let i=0;i<input.length;i++){ const j=input[i].json||{}; const id=String(j.id||'').trim(); if(!id) throw new Error('missing_provider_id'); const entries=Object.entries(input[i].binary||{}); if(entries.length>20) throw new Error('too_many_attachments'); const attachments=[]; for(const [key,b] of entries){ const buffer=await this.helpers.getBinaryDataBuffer(i,key); totalBytes+=buffer.length; if(totalBytes>25*1024*1024) throw new Error('attachments_too_large'); const filename=String(b?.fileName||key).slice(0,255); attachments.push({external_id:(id+'|'+filename).slice(0,1000),filename,mime_type:String(b?.mimeType||'application/octet-stream').slice(0,255),content_base64:buffer.toString('base64')}); } messages.push({id,threadId:j.threadId||null,labelIds:Array.isArray(j.labelIds)?j.labelIds:null,from:j.from||j.From||null,to:j.to||j.To||null,cc:j.cc||j.Cc||null,subject:j.subject||j.Subject||null,text:j.text||j.textPlain||j.snippet||null,snippet:j.snippet||null,date:j.date||j.Date||null,internalDate:j.internalDate||null,attachments}); } return [{json:{messages}}];"
+      }
+    },
+    {
+      "name": "Read-Only Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1440, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "Internal Mail Reconciliation Webhook": {"main": [[{"node": "Validate Bounded Read Contract", "type": "main", "index": 0}]]},
+    "Validate Bounded Read Contract": {"main": [[{"node": "Route Read Action", "type": "main", "index": 0}]]},
+    "Route Read Action": {"main": [[{"node": "Gmail Audit Window", "type": "main", "index": 0}], [{"node": "Expand Exact Message IDs", "type": "main", "index": 0}]]},
+    "Gmail Audit Window": {"main": [[{"node": "Bounded Audit Result", "type": "main", "index": 0}]]},
+    "Bounded Audit Result": {"main": [[{"node": "Read-Only Response", "type": "main", "index": 0}]]},
+    "Expand Exact Message IDs": {"main": [[{"node": "Gmail Fetch Exact Message", "type": "main", "index": 0}]]},
+    "Gmail Fetch Exact Message": {"main": [[{"node": "Normalize Bounded Messages", "type": "main", "index": 0}]]},
+    "Normalize Bounded Messages": {"main": [[{"node": "Read-Only Response", "type": "main", "index": 0}]]}
+  }
+}

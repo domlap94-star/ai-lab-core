@@ -110,8 +110,86 @@ class GlobalMailPageData {
   final bool hasMore;
 }
 
+class MailReconciliationDryRun {
+  const MailReconciliationDryRun({
+    required this.windowDays,
+    required this.messagesExamined,
+    required this.alreadyPresent,
+    required this.missingCount,
+    required this.expectedCandidates,
+    required this.expectedDocuments,
+    required this.dryRunToken,
+  });
+
+  factory MailReconciliationDryRun.fromJson(Map<String, dynamic> json) =>
+      MailReconciliationDryRun(
+        windowDays: (json['window_days'] as num?)?.toInt() ?? 7,
+        messagesExamined: (json['messages_examined'] as num?)?.toInt() ?? 0,
+        alreadyPresent: (json['already_present'] as num?)?.toInt() ?? 0,
+        missingCount: (json['missing_count'] as num?)?.toInt() ?? 0,
+        expectedCandidates: (json['expected_candidates'] as num?)?.toInt() ?? 0,
+        expectedDocuments: (json['expected_documents'] as num?)?.toInt() ?? 0,
+        dryRunToken: json['dry_run_token']?.toString() ?? '',
+      );
+
+  final int windowDays;
+  final int messagesExamined;
+  final int alreadyPresent;
+  final int missingCount;
+  final int expectedCandidates;
+  final int expectedDocuments;
+  final String dryRunToken;
+}
+
+class MailReconciliationResult {
+  const MailReconciliationResult({
+    required this.messagesExamined,
+    required this.alreadyPresent,
+    required this.newMessagesIngested,
+    required this.failed,
+  });
+
+  factory MailReconciliationResult.fromJson(Map<String, dynamic> json) =>
+      MailReconciliationResult(
+        messagesExamined: (json['messages_examined'] as num?)?.toInt() ?? 0,
+        alreadyPresent: (json['already_present'] as num?)?.toInt() ?? 0,
+        newMessagesIngested:
+            (json['new_messages_ingested'] as num?)?.toInt() ?? 0,
+        failed: (json['failed'] as num?)?.toInt() ?? 0,
+      );
+
+  factory MailReconciliationResult.current(MailReconciliationDryRun dryRun) =>
+      MailReconciliationResult(
+        messagesExamined: dryRun.messagesExamined,
+        alreadyPresent: dryRun.alreadyPresent,
+        newMessagesIngested: 0,
+        failed: 0,
+      );
+
+  final int messagesExamined;
+  final int alreadyPresent;
+  final int newMessagesIngested;
+  final int failed;
+
+  String get userSummary {
+    if (newMessagesIngested == 0 && failed == 0) {
+      return 'Wiadomości są aktualne. Sprawdzono $messagesExamined.';
+    }
+    final String base =
+        'Sprawdzono $messagesExamined wiadomości. '
+        'Dodano $newMessagesIngested brakujące. '
+        '$alreadyPresent były już zsynchronizowane.';
+    return failed == 0 ? base : '$base Nie udało się dodać: $failed.';
+  }
+}
+
 class MailSendResult {
-  const MailSendResult({required this.operationId, required this.status, this.canonicalSourceId, this.errorCode});
+  const MailSendResult({
+    required this.operationId,
+    required this.status,
+    this.canonicalSourceId,
+    this.errorCode,
+  });
   factory MailSendResult.fromJson(Map<String, dynamic> json) => MailSendResult(
     operationId: json['operation_id']?.toString() ?? '',
     status: json['status']?.toString() ?? 'unknown',

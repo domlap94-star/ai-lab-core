@@ -35,11 +35,15 @@ class _AuthController extends AuthController {
 }
 
 class _FakeMailApi extends GlobalMailApi {
-  _FakeMailApi({this.imageAttachment = false}) : super(Dio());
+  _FakeMailApi({this.imageAttachment = false, this.missingCount = 0})
+    : super(Dio());
   final bool imageAttachment;
+  final int missingCount;
   int listCalls = 0;
   String? readState;
   int sendCalls = 0;
+  int reconciliationDryRuns = 0;
+  int reconciliationApplies = 0;
 
   GlobalMailItem get item => GlobalMailItem(
     sourceId: 2,
@@ -93,6 +97,37 @@ class _FakeMailApi extends GlobalMailApi {
     AuthSession session,
     String threadId,
   ) async => <GlobalMailItem>[item];
+
+  @override
+  Future<MailReconciliationDryRun> reconciliationDryRun(
+    AuthSession session, {
+    int windowDays = 7,
+  }) async {
+    reconciliationDryRuns += 1;
+    return MailReconciliationDryRun(
+      windowDays: windowDays,
+      messagesExamined: 25,
+      alreadyPresent: 25 - missingCount,
+      missingCount: missingCount,
+      expectedCandidates: missingCount,
+      expectedDocuments: 0,
+      dryRunToken: 'technical-plan-token',
+    );
+  }
+
+  @override
+  Future<MailReconciliationResult> reconciliationApply(
+    AuthSession session,
+    MailReconciliationDryRun dryRun,
+  ) async {
+    reconciliationApplies += 1;
+    return MailReconciliationResult(
+      messagesExamined: dryRun.messagesExamined,
+      alreadyPresent: dryRun.alreadyPresent,
+      newMessagesIngested: dryRun.missingCount,
+      failed: 0,
+    );
+  }
 
   @override
   Future<MailSendResult> send(
@@ -252,5 +287,35 @@ void main() {
     await tester.tap(find.byKey(const Key('mail-confirm-send')));
     await tester.pumpAndSettle();
     expect(api.sendCalls, 1);
+  });
+
+  testWidgets('refresh dry-run with no gaps reloads without apply', (
+    WidgetTester tester,
+  ) async {
+    final api = _FakeMailApi();
+    await _pump(tester, api);
+    final int initialListCalls = api.listCalls;
+    await tester.tap(find.byKey(const Key('mail-reconcile')));
+    await tester.pumpAndSettle();
+    expect(api.reconciliationDryRuns, 1);
+    expect(api.reconciliationApplies, 0);
+    expect(api.listCalls, initialListCalls + 1);
+    expect(find.textContaining('Wiadomości są aktualne'), findsOneWidget);
+  });
+
+  testWidgets('refresh requires explicit approval before applying gaps', (
+    WidgetTester tester,
+  ) async {
+    final api = _FakeMailApi(missingCount: 2);
+    await _pump(tester, api);
+    await tester.tap(find.byKey(const Key('mail-reconcile')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Dodać brakujące wiadomości?'), findsOneWidget);
+    expect(api.reconciliationApplies, 0);
+    await tester.tap(find.byKey(const Key('mail-reconcile-confirm')));
+    await tester.pumpAndSettle();
+    expect(api.reconciliationApplies, 1);
+    expect(find.textContaining('Dodano 2 brakujące'), findsOneWidget);
   });
 }

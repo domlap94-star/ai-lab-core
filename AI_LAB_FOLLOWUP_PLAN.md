@@ -783,14 +783,13 @@ Final live-acceptance record (2026-08-20):
   Agent `13/13` and Auth regressions PASS; Flutter analyze PASS, focused Mail
   `33/33`, full `200/200`. No additional provider send or release was made.
 
-**CURRENT EXECUTION PAUSED AFTER CHUNK 09.**
+**CURRENT EXECUTION COMPLETE THROUGH CHUNK 10.**
 
-**NEXT PLANNED CHUNK: FOLLOW-UP CHUNK 10 — OWNER SCOPE UPDATE REQUIRED BEFORE
-EXECUTION.** Do not start FOLLOW-UP CHUNK 10 until the owner supplies the
-additional requirement and a new execution prompt. Release B remains pending
-CHUNK 10 and CHUNK 05.
+**NEXT PLANNED CHUNK: FOLLOW-UP CHUNK 05 — FILTERS / IGNORED SENDERS.** Do not
+start it automatically; it requires a separate owner execution prompt. Release
+B remains pending CHUNK 05.
 
-## [~] FOLLOW-UP CHUNK 10 — IMAGE PREVIEW COMPLETE / MAIL REFRESH-RECONCILIATION PENDING
+## [✓] FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW — COMPLETE
 
 **Priority: P1**
 
@@ -839,9 +838,59 @@ approval.
   Candidates, Documents rows, Client links, Gmail/n8n, Vision i Qdrant nie
   zostały zmienione. Release nie został wykonany.
 
-Pozostały zakres CHUNK 10 — Mail Refresh/Reconciliation — jest nadal
-**PENDING** i nie został rozpoczęty. Wymaga osobnego nowego promptu oraz
-właściwego approval dla zmian n8n/schedule lub produkcyjnego reconciliation.
+### MAIL REFRESH / RECONCILIATION — COMPLETE (2026-08-20)
+
+- Global Mail i Client Mail mają wspólne `Odśwież`: JWT-protected dry-run,
+  jawną akceptację planu tylko przy brakach, disabled/loading/double-tap guard,
+  bounded summary i przeładowanie bieżącego kontekstu. Client refresh zachowuje
+  mailbox-wide semantics i nie przekazuje dowolnego Client-specific Gmail
+  query ani nie wymusza linku.
+- Backend i osobny n8n webhook realizują manualny, bounded reconciliation:
+  maks. 30 dni, 1000 zbadanych i 100 brakujących wiadomości. Adapter jest
+  chroniony Header Auth, ma wyłącznie Gmail `getAll/get`, nie ma schedule ani
+  background execution i nie zmienia normalnego workflow co 15 minut ani jego
+  checkpoint/history state. Gmail OAuth pozostaje wyłącznie w n8n.
+- Canonical provider message ID jest jedynym dedupe key. Dry-run jest
+  read-only; apply korzysta z `ImportIngestService`, canonical attachment path
+  i Matching V2. HMAC token jest ważny 10 minut i wiąże aktora, okno, kolejność
+  provider IDs, Candidate classification/reuse IDs, resolved Client ID,
+  confidence/evidence i wszystkie przewidywane delty. Pełny plan jest
+  przeliczany przed pierwszym zapisem; drift zwraca
+  `reconciliation_plan_drift`.
+- Pierwszy zatwierdzony apply ujawnił błąd starej predykcji. Plan przewidywał
+  `CandidateSources +2 / Candidates +2 / Documents +1 / new Client links +0`,
+  a canonical wynik wyniósł `+2 / +1 / +1 / +0`. Źródła `8047/8048`
+  zachowano; jedno utworzyło pending Candidate `5538`, drugie poprawnie użyło
+  istniejącego Candidate `3578`, już powiązanego z Client `3105`. Client,
+  Candidate i historyczny link nie zostały zmienione; rollback nie był
+  potrzebny.
+- Root cause: uproszczony dry-run pomijał canonical
+  `ForwardSourceIngestionService.prepare()` przed Matching V2. Wspólny
+  read-only resolver został wyodrębniony do `ImportIngestService`; predykcja i
+  apply korzystają teraz z tej samej normalizacji oraz rozstrzygnięcia
+  Candidate. Klasyfikacje to `new_candidate`,
+  `reuse_existing_candidate_unlinked` i
+  `reuse_existing_candidate_client_linked`.
+- Drugi rich plan objął `19ff76b8b8cfb56c` (`new_candidate`, certain
+  `exact_sender_email`, resolved Client `957`, Candidate/Document/link
+  `+1/+1/+1`) oraz `19fddf3a841ebabb` (`new_candidate`, unresolved,
+  `+1/+1/+0`). Podpisany plan i prewrite revalidation były identyczne; apply
+  zakończył się dokładnie `CandidateSources +2`, `Candidates +2`, `Documents
+  +2`, `new Client links +1`, failures `0`. Powstały sources `8049/8050` i
+  Candidates `5539/5540`; istniejący Client `957` i historyczne linki nie
+  zostały zmodyfikowane.
+- Końcowy read-only reconciliation: 30 dni `90 examined / 77 present / 0
+  missing`, 7 dni `36 / 30 / 0`; wszystkie cztery reviewed provider IDs są
+  canonical dokładnie raz. Final counts: Clients `3243`, Candidates `3570`,
+  Documents `5922`, Gmail sources `4272`, Client-linked Candidates `3345`,
+  Qdrant `57`. Gmail sends, n8n schedule changes i Qdrant writes: `0`.
+- Verification: recovery `13/13`, isolated parity `8/8`, Global Mail `29/29`,
+  Matching V2 `24/24`, Image Preview backend `11/11`, Client Mail, Documents,
+  Timeline `4/4`, Mail Send `7/7`, Agent `13/13` i Auth PASS. Flutter analyze
+  PASS, focused reconciliation/Mail/Client/media `37/37`, full `214/214`.
+- Automatyczne/daily reconciliation pozostaje niezaimplementowane i wymaga
+  osobnego `FOLLOWUP_EMAIL_RECONCILIATION_SCHEDULE_APPROVAL_REQUIRED`.
+  Release nie został wykonany.
 
 ## [✓] FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2 — COMPLETE
 

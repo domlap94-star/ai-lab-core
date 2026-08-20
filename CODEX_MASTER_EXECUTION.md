@@ -24,8 +24,8 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**FOLLOW-UP CHUNK 10 — IMAGE PREVIEW SUB-SCOPE COMPLETE; MAIL
-REFRESH/RECONCILIATION PENDING.** A shared `DocumentImageThumbnail` and
+**FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
+COMPLETE.** A shared `DocumentImageThumbnail` and
 `InternalImageViewer` now serve Documents, Client Documents, Document/Vision
 details, Client Mail and Global Mail attachments. JPEG/PNG/WebP render as lazy
 100-logical-pixel previews and open inside NEXT Stabil with fit/zoom/pan/Back;
@@ -34,13 +34,18 @@ without a new conversion subsystem. The JWT-protected bounded 200 px thumbnail
 endpoint reuses canonical Document authorization/storage resolution, validates
 decoded MIME, handles EXIF orientation and creates no persistent cache or DB
 state. Backend thumbnail `11/11`, Document/Vision/Mail regressions, Flutter
-analyze, focused `34/34` and full `211/211` pass.
+analyze and media regressions pass. Manual Global/Client Mail refresh now uses
+a Header-Auth protected, unscheduled n8n read adapter and bounded 30-day/1000
+message reconciliation. Exact provider-ID dedupe, canonical ImportIngest,
+Matching V2, attachment ingest and a rich actor/plan-bound HMAC ensure missing
+mail is ingested once and any Candidate/Client/document plan drift fails before
+write. Final production dry-runs are clean at 30 and 7 days; recovery `13/13`,
+parity `8/8`, focused Flutter `37/37` and full `214/214` pass.
 
-**NEXT PLANNED WORK: FOLLOW-UP CHUNK 10 — MAIL REFRESH/RECONCILIATION.** It was
-not started in the image-preview execution and still requires a new owner
-prompt plus the applicable n8n/schedule or production reconciliation approval.
-Release remains NEXT Stabil 1.0.2+21; Release B is pending the remainder of
-CHUNK 10 and CHUNK 05 and must not be performed now.
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 05 — FILTERS / IGNORED SENDERS.** Do not
+start it automatically; wait for a separate owner execution prompt. Release
+remains NEXT Stabil 1.0.2+21; Release B is pending CHUNK 05 and must not be
+performed now.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only

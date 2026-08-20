@@ -15,6 +15,9 @@ import 'package:ai_lab/features/documents/data/document_content.dart';
 import 'package:ai_lab/features/documents/domain/document.dart';
 import 'package:ai_lab/features/documents/domain/document_filters.dart';
 import 'package:ai_lab/features/documents/domain/document_page.dart';
+import 'package:ai_lab/features/mail/data/global_mail_api.dart';
+import 'package:ai_lab/features/mail/domain/global_mail.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -162,6 +165,29 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('client refresh discloses mailbox scope before apply', (
+    WidgetTester tester,
+  ) async {
+    final _EmailRepository repository = _EmailRepository();
+    final _ReconciliationApi reconciliationApi = _ReconciliationApi();
+    await _pumpPanel(tester, repository, reconciliationApi: reconciliationApi);
+    await tester.tap(find.byKey(const Key('client-emails-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('client-emails-refresh')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(
+      find.textContaining('Odświeżenie obejmuje całą skrzynkę'),
+      findsOneWidget,
+    );
+    expect(reconciliationApi.applyCalls, 0);
+    await tester.tap(find.byKey(const Key('mail-reconcile-confirm')));
+    await tester.pumpAndSettle();
+    expect(reconciliationApi.applyCalls, 1);
+    expect(find.textContaining('Dodano 1 brakujące'), findsOneWidget);
+    expect(find.text('1–10 z 12'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpPanel(
@@ -172,6 +198,7 @@ Future<void> _pumpPanel(
   String? clientMarker,
   int clientId = 7,
   int? focusedSourceId,
+  _ReconciliationApi? reconciliationApi,
 }) async {
   tester.view.physicalSize = const Size(390, 900);
   tester.view.devicePixelRatio = 1;
@@ -187,6 +214,8 @@ Future<void> _pumpPanel(
           documentsRepositoryProvider.overrideWithValue(documentRepository),
         if (openService != null)
           documentOpenServiceProvider.overrideWithValue(openService),
+        if (reconciliationApi != null)
+          globalMailApiProvider.overrideWithValue(reconciliationApi),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -206,6 +235,40 @@ Future<void> _pumpPanel(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _ReconciliationApi extends GlobalMailApi {
+  _ReconciliationApi() : super(Dio());
+
+  int applyCalls = 0;
+
+  @override
+  Future<MailReconciliationDryRun> reconciliationDryRun(
+    AuthSession session, {
+    int windowDays = 7,
+  }) async => MailReconciliationDryRun(
+    windowDays: windowDays,
+    messagesExamined: 12,
+    alreadyPresent: 11,
+    missingCount: 1,
+    expectedCandidates: 1,
+    expectedDocuments: 0,
+    dryRunToken: 'technical-plan-token',
+  );
+
+  @override
+  Future<MailReconciliationResult> reconciliationApply(
+    AuthSession session,
+    MailReconciliationDryRun dryRun,
+  ) async {
+    applyCalls += 1;
+    return const MailReconciliationResult(
+      messagesExamined: 12,
+      alreadyPresent: 11,
+      newMessagesIngested: 1,
+      failed: 0,
+    );
+  }
 }
 
 const AuthSession _session = AuthSession(

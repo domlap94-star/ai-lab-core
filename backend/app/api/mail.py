@@ -11,6 +11,19 @@ from app.schemas.global_mail import GlobalMailDetail, GlobalMailPage, GlobalMail
 from app.services.global_mail_service import GlobalMailNotFoundError, GlobalMailService
 from app.schemas.mail_send import MailForwardRequest, MailReplyRequest, MailSendRequest, MailSendResponse
 from app.services.mail_send_service import MailSendConflictError, MailSendNotFoundError, MailSendService, MailSendValidationError
+from app.schemas.mail_reconciliation import (
+    MailReconciliationApplyRequest,
+    MailReconciliationDryRunResponse,
+    MailReconciliationRequest,
+    MailReconciliationResponse,
+)
+from app.services.mail_reconciliation_provider import MailReconciliationProviderError
+from app.services.mail_reconciliation_service import (
+    MailReconciliationBusyError,
+    MailReconciliationScopeError,
+    MailReconciliationService,
+    MailReconciliationValidationError,
+)
 
 
 router = APIRouter(prefix="/mail", tags=["Mail"])
@@ -40,6 +53,45 @@ def reply_mail(source_id: int, request: MailReplyRequest, actor: User = Depends(
 def forward_mail(source_id: int, request: MailForwardRequest, actor: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MailSendResponse:
     try: return MailSendService(db).forward(source_id, actor, request)
     except (MailSendConflictError, MailSendNotFoundError, MailSendValidationError) as exc: _send_error(exc)
+
+
+@router.post("/reconcile/dry-run", response_model=MailReconciliationDryRunResponse)
+def reconcile_mail_dry_run(
+    request: MailReconciliationRequest,
+    actor: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MailReconciliationDryRunResponse:
+    try:
+        return MailReconciliationService(db).dry_run(
+            window_days=request.window_days,
+            actor_user_id=actor.id,
+        )
+    except MailReconciliationBusyError as error:
+        raise HTTPException(status_code=409, detail={"code": "reconciliation_busy"}) from error
+    except MailReconciliationScopeError as error:
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
+    except (MailReconciliationProviderError, MailReconciliationValidationError) as error:
+        raise HTTPException(status_code=502, detail={"code": str(error)}) from error
+
+
+@router.post("/reconcile/apply", response_model=MailReconciliationResponse)
+def reconcile_mail_apply(
+    request: MailReconciliationApplyRequest,
+    actor: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MailReconciliationResponse:
+    try:
+        return MailReconciliationService(db).apply(
+            window_days=request.window_days,
+            actor_user_id=actor.id,
+            dry_run_token=request.dry_run_token,
+        )
+    except MailReconciliationBusyError as error:
+        raise HTTPException(status_code=409, detail={"code": "reconciliation_busy"}) from error
+    except (MailReconciliationScopeError, MailReconciliationValidationError) as error:
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
+    except MailReconciliationProviderError as error:
+        raise HTTPException(status_code=502, detail={"code": str(error)}) from error
 
 
 @router.get("", response_model=GlobalMailPage)

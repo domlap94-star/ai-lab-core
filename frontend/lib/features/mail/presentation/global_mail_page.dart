@@ -16,6 +16,7 @@ import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
 import '../data/global_mail_api.dart';
 import '../domain/global_mail.dart';
+import 'mail_reconciliation_dialog.dart';
 
 class GlobalMailPage extends ConsumerStatefulWidget {
   const GlobalMailPage({super.key});
@@ -30,6 +31,7 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
   Timer? _debounce;
   bool _loading = true;
   bool _loadingMore = false;
+  bool _reconciling = false;
   bool _hasMore = false;
   String? _error;
   String? _direction;
@@ -172,6 +174,17 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
           title: const Text('Maile'),
           actions: <Widget>[
             IconButton(
+              key: const Key('mail-reconcile'),
+              tooltip: 'Odśwież skrzynkę',
+              onPressed: _reconciling ? null : _reconcile,
+              icon: _reconciling
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+            ),
+            IconButton(
               key: const Key('mail-compose'),
               tooltip: 'Nowa wiadomość',
               onPressed: () => _compose('compose'),
@@ -194,6 +207,51 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
             : (_selected == null ? _mailList() : _detail(_selected!)),
       ),
     );
+  }
+
+  Future<void> _reconcile() async {
+    if (_reconciling) return;
+    final AuthSession? session = _session;
+    if (session == null) return;
+    setState(() => _reconciling = true);
+    try {
+      final MailReconciliationDryRun dryRun = await _api.reconciliationDryRun(
+        session,
+      );
+      MailReconciliationResult result = MailReconciliationResult.current(
+        dryRun,
+      );
+      if (dryRun.missingCount > 0) {
+        if (!mounted ||
+            !await confirmMailReconciliation(
+              context,
+              dryRun,
+              openedFromClient: false,
+            )) {
+          return;
+        }
+        result = await _api.reconciliationApply(session, dryRun);
+      }
+      await _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.userSummary)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyApiError(
+              error,
+              fallback: 'Nie udało się odświeżyć skrzynki.',
+            ),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _reconciling = false);
+    }
   }
 
   Widget _mailList() => Column(

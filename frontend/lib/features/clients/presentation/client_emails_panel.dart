@@ -9,6 +9,9 @@ import '../../documents/application/documents_providers.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
+import '../../mail/data/global_mail_api.dart';
+import '../../mail/domain/global_mail.dart';
+import '../../mail/presentation/mail_reconciliation_dialog.dart';
 import '../application/client_emails_provider.dart';
 import '../domain/client_email.dart';
 import '../domain/client_email_page.dart';
@@ -35,6 +38,7 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
   int _skip = 0;
   final Set<int> _expandedMessageIds = <int>{};
   final Set<int> _openingDocumentIds = <int>{};
+  bool _reconciling = false;
 
   @override
   void initState() {
@@ -166,9 +170,14 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
           alignment: Alignment.centerRight,
           child: IconButton(
             key: const Key('client-emails-refresh'),
-            tooltip: 'Odśwież maile',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh),
+            tooltip: 'Odśwież skrzynkę i maile klienta',
+            onPressed: _reconciling ? null : _reconcile,
+            icon: _reconciling
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
           ),
         ),
         ...page.items.map(_buildEmailCard),
@@ -385,6 +394,56 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
 
   void _refresh() {
     ref.invalidate(clientEmailsPageProvider(_request));
+  }
+
+  Future<void> _reconcile() async {
+    if (_reconciling) return;
+    final AuthSession? session = ref
+        .read(authControllerProvider)
+        .value
+        ?.session;
+    if (session == null || !session.isAuthenticated) return;
+    setState(() => _reconciling = true);
+    try {
+      final GlobalMailApi api = ref.read(globalMailApiProvider);
+      final MailReconciliationDryRun dryRun = await api.reconciliationDryRun(
+        session,
+      );
+      MailReconciliationResult result = MailReconciliationResult.current(
+        dryRun,
+      );
+      if (dryRun.missingCount > 0) {
+        if (!mounted ||
+            !await confirmMailReconciliation(
+              context,
+              dryRun,
+              openedFromClient: true,
+            )) {
+          return;
+        }
+        result = await api.reconciliationApply(session, dryRun);
+      }
+      if (!mounted) return;
+      setState(() {
+        _skip = 0;
+        _expandedMessageIds.clear();
+      });
+      _refresh();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.userSummary)));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Nie udało się odświeżyć maili: ${friendlyDocumentError(error)}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _reconciling = false);
+    }
   }
 
   void _nextPage() {
