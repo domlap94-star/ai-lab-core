@@ -213,7 +213,11 @@ class WorkItemService:
 
     def link_document(self, item_id: int, document_id: int, note_id: int | None, actor: User):
         item = self._active(item_id)
-        document = self.db.query(Document).filter(Document.id == document_id).one_or_none()
+        document = self.db.query(Document).filter(
+            Document.id == document_id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).one_or_none()
         if document is None: raise WorkItemReferenceError("document_not_found")
         if item.client_id is not None and document.client_id not in (None, item.client_id): raise WorkItemReferenceError("cross_client_document")
         if note_id is not None and self.db.query(WorkItemNote).filter(WorkItemNote.id == note_id, WorkItemNote.work_item_id == item_id).one_or_none() is None: raise WorkItemReferenceError("note_not_found")
@@ -226,7 +230,12 @@ class WorkItemService:
 
     def list_documents(self, item_id: int):
         self._active(item_id)
-        rows = self.db.query(WorkItemDocument, Document).join(Document, Document.id == WorkItemDocument.document_id).filter(WorkItemDocument.work_item_id == item_id, WorkItemDocument.detached_at.is_(None)).order_by(WorkItemDocument.created_at, WorkItemDocument.id).all()
+        rows = self.db.query(WorkItemDocument, Document).join(Document, Document.id == WorkItemDocument.document_id).filter(
+            WorkItemDocument.work_item_id == item_id,
+            WorkItemDocument.detached_at.is_(None),
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).order_by(WorkItemDocument.created_at, WorkItemDocument.id).all()
         return [self._document_read(link, doc) for link, doc in rows]
 
     @staticmethod

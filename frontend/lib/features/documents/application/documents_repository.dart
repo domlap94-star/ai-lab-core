@@ -75,12 +75,27 @@ abstract class DocumentsRepository {
     required AuthSession session,
     required int documentId,
   }) => throw UnsupportedError('Vision analysis is not implemented.');
+
+  Future<void> trashDocument({
+    required AuthSession session,
+    required int documentId,
+  }) => throw UnsupportedError('Document Trash is not implemented.');
 }
 
 class ApiDocumentsRepository implements DocumentsRepository {
   const ApiDocumentsRepository(this._api);
 
   final DocumentsApi _api;
+
+  @override
+  Future<void> trashDocument({
+    required AuthSession session,
+    required int documentId,
+  }) => _api.trashDocument(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
 
   @override
   Future<void> upload({

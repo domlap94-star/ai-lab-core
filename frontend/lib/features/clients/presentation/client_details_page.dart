@@ -184,9 +184,10 @@ class ClientDetailsPage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Czy na pewno chcesz usunąć klienta?'),
+        title: const Text('Przenieść klienta do kosza?'),
         content: const Text(
-          'Klient zniknie z aktywnej listy.\nDane historyczne pozostaną zachowane.',
+          'Element będzie można przywrócić przez 7 dni.\n'
+          'Po tym czasie zostanie automatycznie usunięty na stałe.',
         ),
         actions: <Widget>[
           TextButton(
@@ -195,7 +196,7 @@ class ClientDetailsPage extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Usuń klienta'),
+            child: const Text('Przenieś do kosza'),
           ),
         ],
       ),
@@ -300,6 +301,11 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final String role =
+        ref.watch(authControllerProvider).value?.user?.role ?? '';
+    final bool isAdmin =
+        role.trim().toLowerCase() == 'administrator' ||
+        role.trim().toLowerCase() == 'admin';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
@@ -319,11 +325,12 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
                     icon: const Icon(Icons.edit_outlined),
                     label: const Text('Edytuj'),
                   ),
-                  TextButton.icon(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Usuń klienta'),
-                  ),
+                  if (isAdmin)
+                    TextButton.icon(
+                      onPressed: onDelete,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Przenieś do kosza'),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),

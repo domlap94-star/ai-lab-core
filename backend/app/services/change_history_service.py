@@ -32,7 +32,7 @@ class ChangeHistoryService:
             "registration_number", "industry_id", "website",
             "primary_email", "primary_phone", "street",
             "building_number", "unit_number", "postal_code", "city",
-            "country_code", "notes", "client_added_at", "deleted_at",
+            "country_code", "notes", "client_added_at", "deleted_at", "purged_at",
         },
         "client_contact": {
             "client_id", "kind", "email", "phone", "is_primary",
@@ -47,7 +47,8 @@ class ChangeHistoryService:
         "client_candidate": {"status", "matched_client_id", "resulting_client_id"},
         "candidate_merge": {"target_client_id"},
         "ignored_mail_source": {"rule_type", "email", "domain", "is_active"},
-        "user": {"username", "email", "role"},
+        "user": {"username", "email", "role", "is_active", "trashed_at", "purged_at", "auth_version"},
+        "document": {"trashed_at", "purged_at"},
         "work_item": {
             "item_type", "title", "description", "start_at", "due_at",
             "all_day", "timezone_name", "status", "priority",
@@ -65,6 +66,7 @@ class ChangeHistoryService:
     ACTIONS = {
         "created", "updated", "deleted", "restored", "status_changed",
         "accepted", "rejected", "merged", "activated", "deactivated",
+        "trashed", "purged",
     }
     SECRET_FIELD_PATTERN = re.compile(
         r"password|passwd|secret|token|cookie|authorization|api[_-]?key|"

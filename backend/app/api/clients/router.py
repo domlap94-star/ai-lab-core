@@ -14,8 +14,15 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.admin_users import require_admin
 from app.database.session import get_db
 from app.models.user import User
+from app.schemas.trash import TrashEntryRead
+from app.services.trash_lifecycle_service import (
+    TrashConflictError,
+    TrashLifecycleService,
+    TrashNotFoundError,
+)
 from app.schemas.client import (
     ClientCreate,
     ClientPage,
@@ -26,6 +33,7 @@ from app.schemas.client import (
 )
 from app.schemas.client_bulk import (
     ClientBatchResponse,
+    ClientBatchResultItem,
     ClientIdBatchRequest,
     ClientWorkflowBatchRequest,
     ClientWorkflowStatusRead,
@@ -136,10 +144,39 @@ def set_client_workflow_status(
 def bulk_soft_delete_clients(
     data: ClientIdBatchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> ClientBatchResponse:
-    return ClientBulkService(db).soft_delete(
-        data.client_ids, actor_user_id=current_user.id
+    results = []
+    service = TrashLifecycleService(db)
+    try:
+        for client_id in data.client_ids:
+            try:
+                service.trash(
+                    entity_type="client",
+                    entity_id=client_id,
+                    actor=current_user,
+                )
+                results.append(
+                    ClientBatchResultItem(client_id=client_id, result="deleted")
+                )
+            except TrashNotFoundError:
+                results.append(
+                    ClientBatchResultItem(client_id=client_id, result="not_found")
+                )
+            except TrashConflictError:
+                results.append(
+                    ClientBatchResultItem(client_id=client_id, result="already_deleted")
+                )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    succeeded = sum(item.result == "deleted" for item in results)
+    return ClientBatchResponse(
+        requested=len(data.client_ids),
+        succeeded=succeeded,
+        failed=len(results) - succeeded,
+        results=results,
     )
 
 
@@ -425,19 +462,44 @@ def update_client(
 def delete_client(
     client_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> Response:
-    service = ClientService(db)
-
     try:
-        service.delete_client(client_id, actor_user_id=current_user.id)
-
-    except ClientNotFoundError as error:
+        TrashLifecycleService(db).trash(
+            entity_type="client", entity_id=client_id, actor=current_user
+        )
+        db.commit()
+    except TrashNotFoundError as error:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Client not found",
+            detail={"code": str(error)},
         ) from error
+    except TrashConflictError as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
 
     return Response(
         status_code=status.HTTP_204_NO_CONTENT,
     )
+
+
+@router.post("/{client_id}/trash", response_model=TrashEntryRead)
+def trash_client(
+    client_id: int,
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> TrashEntryRead:
+    try:
+        entry = TrashLifecycleService(db).trash(
+            entity_type="client", entity_id=client_id, actor=actor
+        )
+        db.commit()
+        db.refresh(entry)
+        return TrashEntryRead.model_validate(entry)
+    except TrashNotFoundError as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail={"code": str(error)}) from error
+    except TrashConflictError as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error

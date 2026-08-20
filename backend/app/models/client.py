@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import (
     CheckConstraint,
@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    DateTime,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -143,6 +144,10 @@ class Client(BusinessBase):
     client_added_at: Mapped[date | None] = mapped_column(
         Date,
         nullable=True,
+    )
+
+    purged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
     )
 
     industry: Mapped["Industry | None"] = relationship(

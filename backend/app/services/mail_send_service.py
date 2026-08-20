@@ -185,7 +185,11 @@ class MailSendService:
 
     def _attachments(self, ids: list[int], client_id: int | None):
         if not ids: return [], []
-        docs = self.db.query(Document).filter(Document.id.in_(ids)).order_by(Document.id).all()
+        docs = self.db.query(Document).filter(
+            Document.id.in_(ids),
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).order_by(Document.id).all()
         if len(docs) != len(ids): raise MailSendValidationError("attachment_not_found")
         total = 0; encoded = []
         for document in docs:

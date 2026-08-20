@@ -516,8 +516,8 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: actions, matching: find.text('Usuń klienta')),
-      findsOneWidget,
+      find.descendant(of: actions, matching: find.text('Przenieś do kosza')),
+      findsNothing,
     );
     expect(find.descendant(of: headerCard, matching: actions), findsNothing);
     expect(find.descendant(of: headerRow, matching: actions), findsNothing);

@@ -23,7 +23,11 @@ logger = logging.getLogger("ai_lab.vision")
 def process_one_vision_document(document_id: int, *, explicit: bool = False):
     db = SessionLocal()
     try:
-        document = db.query(Document).filter(Document.id == document_id).first()
+        document = db.query(Document).filter(
+            Document.id == document_id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).first()
         if document is None:
             return None
         if document.processing_status in {"stored", "pending", "extracting"}:
@@ -80,6 +84,8 @@ class VisionDispatcher:
                         "failed_retryable", "pending_auth", "ui_changed",
                     ]),
                     Document.vision_attempt_count < 3,
+                    Document.trashed_at.is_(None),
+                    Document.purged_at.is_(None),
                     or_(Document.vision_next_retry_at.is_(None), Document.vision_next_retry_at <= now),
                 )
                 .order_by(Document.created_at.asc(), Document.id.asc())

@@ -435,6 +435,9 @@ class Document(Base):
         passive_deletes=True,
     )
 
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+
     project_id: Mapped[int | None] = mapped_column(
         BigInteger,
         ForeignKey("projects.id", ondelete="RESTRICT"),

@@ -1244,7 +1244,7 @@ ADMIN BACKUP UI. Do not start FOLLOW-UP CHUNK 15 without a new owner prompt.**
 
 ## PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION
 
-**[~] DESIGN COMPLETE — SCHEMA AND SCHEDULER APPROVAL REQUIRED.**
+**[~] SCHEMA + TRASH/RESTORE + SCHEDULER COMPLETE — QDRANT PURGE APPROVAL PENDING.**
 
 Owner inserted this bounded gate immediately before CHUNK 15. The audited
 design is recorded in `FOLLOWUP_ADMIN_TRASH_RETENTION_DESIGN.md`. Normal delete
@@ -1260,21 +1260,24 @@ Qdrant point deletion receives separate approval. Six legacy soft-deleted
 Clients and one inactive User are not backfilled and never become purge
 eligible automatically.
 
-Proposed migration `followup_admin_trash_retention_20260820` (parent
-`followup_calendar_tasks_20260820`) adds a canonical `trash_entries` lifecycle
-ledger, entity visibility/tombstone markers, User token versioning and the
-minimal Change History CHECK extensions. No migration file or production write
-was made in the design step.
+Migration `followup_admin_trash_retention_20260820` (parent
+`followup_calendar_tasks_20260820`) is applied in production. It adds the
+canonical `trash_entries` lifecycle ledger, entity visibility/tombstone
+markers, User token versioning and the minimal Change History CHECK extensions.
+There was no backfill: the six legacy soft-deleted Clients and one legacy
+inactive User remain outside the Trash lifecycle, and the production Trash
+queue was empty after activation.
 
-Proposed automated purge uses the existing Windows Task Scheduler operational
-pattern, never n8n, with a singleton guard, maximum 100 entries per run,
-row-lock revalidation, per-entity failure isolation and no early purge.
-Activation remains separately gated by
-`FOLLOWUP_TRASH_PURGE_SCHEDULER_APPROVAL_REQUIRED`; Qdrant deletion remains
+Automated purge uses the existing Windows Task Scheduler operational pattern,
+never n8n. `NEXT Stabil - Trash Purge` is enabled every four hours with a
+singleton guard, maximum 100 entries per run, row-lock revalidation,
+per-entity failure isolation and no early purge. Its controlled production
+acceptance run saw zero eligible entries and performed zero purges. Vectorized
+Documents fail closed before file/content mutation; Qdrant deletion remains
 gated by `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.
 
-**NEXT GATE: `FOLLOWUP_TRASH_RETENTION_SCHEMA_AND_SCHEDULER_APPROVAL_REQUIRED`.**
-Do not create/apply the migration, activate purge, start CHUNK 15 or release.
+**NEXT GATE: `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.**
+Do not delete Qdrant points, start CHUNK 15 or release.
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
@@ -1599,9 +1602,10 @@ DATA SAFETY
 
 ## Active next work
 
-**PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION — DESIGN COMPLETE.**
+**PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION — SCHEMA +
+TRASH/RESTORE + SCHEDULER COMPLETE; QDRANT PURGE APPROVAL PENDING.**
 
 Current gate:
-`FOLLOWUP_TRASH_RETENTION_SCHEMA_AND_SCHEDULER_APPROVAL_REQUIRED`.
+`FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.
 CHUNK 15 remains the canonical next roadmap chunk after this owner-inserted
 hotfix, is NOT STARTED, and retains its own scheduler/backup execution gates.

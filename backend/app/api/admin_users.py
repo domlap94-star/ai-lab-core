@@ -20,6 +20,12 @@ from app.services.user_lifecycle_service import (
     UserLifecycleService,
 )
 from app.services.change_history_service import ChangeHistoryService
+from app.schemas.trash import TrashEntryRead
+from app.services.trash_lifecycle_service import (
+    TrashConflictError,
+    TrashLifecycleService,
+    TrashNotFoundError,
+)
 
 
 router = APIRouter(
@@ -149,6 +155,7 @@ def list_users(
 ):
     users = (
         db.query(User)
+        .filter(User.trashed_at.is_(None), User.purged_at.is_(None))
         .order_by(User.id)
         .all()
     )
@@ -387,3 +394,24 @@ def deactivate_user(
         "user_id": user_id,
         "is_active": False,
     }
+
+
+@router.post("/{user_id}/trash", response_model=TrashEntryRead)
+def trash_user(
+    user_id: int,
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> TrashEntryRead:
+    try:
+        entry = TrashLifecycleService(db).trash(
+            entity_type="user", entity_id=user_id, actor=actor
+        )
+        db.commit()
+        db.refresh(entry)
+        return TrashEntryRead.model_validate(entry)
+    except TrashNotFoundError as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail={"code": str(error)}) from error
+    except TrashConflictError as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error

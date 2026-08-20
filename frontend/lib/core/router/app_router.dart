@@ -22,6 +22,7 @@ import '../../features/global_search/presentation/global_search_page.dart';
 import '../../features/mail/presentation/global_mail_page.dart';
 import '../../features/tasks/presentation/tasks_page.dart';
 import '../../features/tasks/presentation/task_detail_page.dart';
+import '../../features/trash/presentation/admin_trash_page.dart';
 import '../widgets/app_shell.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -234,6 +235,12 @@ final GoRouter appRouter = GoRouter(
           path: '/settings',
           builder: (BuildContext context, GoRouterState state) {
             return const SettingsPage();
+          },
+        ),
+        GoRoute(
+          path: '/settings/trash',
+          builder: (BuildContext context, GoRouterState state) {
+            return const AdminTrashPage();
           },
         ),
       ],

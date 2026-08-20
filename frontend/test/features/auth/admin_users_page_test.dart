@@ -207,7 +207,7 @@ void main() {
     final _FakeAccountApi api = _FakeAccountApi();
     await _pumpPage(tester, api);
 
-    expect(find.text('Usuń użytkownika'), findsNWidgets(3));
+    expect(find.text('Przenieś do kosza'), findsNWidgets(3));
     expect(tester.widget<TextButton>(_deactivateButton(1)).onPressed, isNull);
     expect(
       tester.widget<TextButton>(_deactivateButton(2)).onPressed,
@@ -233,8 +233,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'Konto zostanie dezaktywowane. Dane użytkownika i historia '
-        'pozostaną w systemie.',
+        'Element będzie można przywrócić przez 7 dni. '
+        'Po tym czasie zostanie automatycznie usunięty na stałe.',
       ),
       findsOneWidget,
     );
@@ -270,7 +270,7 @@ void main() {
     expect(api.fetchCount, 2);
     expect(tester.widget<TextButton>(_deactivateButton(2)).onPressed, isNull);
     expect(
-      find.text('Konto użytkownika zostało dezaktywowane.'),
+      find.text('Użytkownik został przeniesiony do Kosza.'),
       findsOneWidget,
     );
   });

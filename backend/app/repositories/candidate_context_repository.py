@@ -49,6 +49,8 @@ class CandidateContextRepository:
             self.db.query(Document)
             .filter(
                 Document.candidate_id == candidate_id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
             )
             .order_by(
                 Document.created_at.asc(),
@@ -66,6 +68,8 @@ class CandidateContextRepository:
                 Document.candidate_id.is_(None),
                 Document.client_id.is_(None),
                 Document.match_status == "unmatched",
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
             )
             .order_by(
                 Document.created_at.asc(),

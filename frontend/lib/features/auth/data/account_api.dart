@@ -145,13 +145,18 @@ class AccountApi {
     return ManagedUser.fromJson(response.data ?? <String, dynamic>{});
   }
 
-  Future<void> deactivateUser({
+  Future<void> trashUser({
     required AuthSession session,
     required int userId,
   }) async {
     await _dio.post<void>(
-      '/api/v1/admin/users/$userId/deactivate',
+      '/api/v1/admin/users/$userId/trash',
       options: _authorizedOptions(session),
     );
   }
+
+  Future<void> deactivateUser({
+    required AuthSession session,
+    required int userId,
+  }) => trashUser(session: session, userId: userId);
 }

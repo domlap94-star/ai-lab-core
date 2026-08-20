@@ -40,6 +40,8 @@ class DocumentRepository:
             self.db.query(Document)
             .filter(
                 Document.id == document_id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
             )
             .first()
         )
@@ -136,6 +138,10 @@ class DocumentRepository:
             .outerjoin(
                 ClientCandidate,
                 ClientCandidate.id == Document.candidate_id,
+            )
+            .filter(
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
             )
         )
 

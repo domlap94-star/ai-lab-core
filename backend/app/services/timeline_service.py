@@ -111,7 +111,9 @@ class TimelineService:
         )
 
         document_query = self.db.query(Document).filter(
-            Document.client_id == client_id
+            Document.client_id == client_id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
         )
         if project_id is not None:
             document_query = document_query.filter(
@@ -147,7 +149,11 @@ class TimelineService:
         if project_id is not None:
             link_query = link_query.join(
                 Document, Document.id == DocumentClientLinkEvent.document_id
-            ).filter(Document.project_id == project_id)
+            ).filter(
+                Document.project_id == project_id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
+            )
         self._link_events(
             events,
             totals,

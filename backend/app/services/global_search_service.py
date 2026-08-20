@@ -364,6 +364,8 @@ class GlobalSearchService:
             .outerjoin(Project, Project.id == Document.project_id)
             .outerjoin(Inspection, Inspection.id == Document.inspection_id)
             .filter(
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
                 or_(
                     Document.filename.ilike(pattern),
                     Document.original_filename.ilike(pattern),
@@ -626,7 +628,11 @@ class GlobalSearchService:
                 .outerjoin(Client, Client.id == Document.client_id)
                 .outerjoin(Project, Project.id == Document.project_id)
                 .outerjoin(Inspection, Inspection.id == Document.inspection_id)
-                .filter(Document.id.in_(document_ids))
+                .filter(
+                    Document.id.in_(document_ids),
+                    Document.trashed_at.is_(None),
+                    Document.purged_at.is_(None),
+                )
                 .all()
             )
         }

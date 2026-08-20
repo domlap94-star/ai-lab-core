@@ -101,6 +101,26 @@ class QdrantVectorStore:
 
         return result.count
 
+    def has_document_points(self, document_id: int) -> bool:
+        """Read-only exact ownership check used by fail-closed retention purge."""
+        if not self.client.collection_exists(self.collection_name):
+            return False
+        points, _ = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="document_id",
+                        match=models.MatchValue(value=document_id),
+                    )
+                ]
+            ),
+            limit=1,
+            with_payload=False,
+            with_vectors=False,
+        )
+        return bool(points)
+
     def upsert(
         self,
         *,

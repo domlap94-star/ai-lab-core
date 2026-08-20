@@ -111,9 +111,11 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Usuń wybrane'),
+        title: const Text('Przenieś wybrane do kosza'),
         content: Text(
-          'Czy na pewno chcesz usunąć ${_selectedClientIds.length} klientów? Dane historyczne pozostaną zachowane.',
+          'Elementy będzie można przywrócić przez 7 dni. '
+          'Po tym czasie zostaną automatycznie usunięte na stałe.\n\n'
+          'Liczba klientów: ${_selectedClientIds.length}',
         ),
         actions: <Widget>[
           TextButton(
@@ -122,7 +124,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Usuń wybrane'),
+            child: const Text('Przenieś do kosza'),
           ),
         ],
       ),
@@ -275,6 +277,10 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     final AsyncValue<List<Industry>> industriesValue = ref.watch(
       industriesProvider,
     );
+    final role = ref.watch(authControllerProvider).value?.user?.role ?? '';
+    final isAdmin =
+        role.trim().toLowerCase() == 'administrator' ||
+        role.trim().toLowerCase() == 'admin';
 
     return Scaffold(
       appBar: AppBar(
@@ -481,12 +487,14 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                                   : _bulkStatus,
                               child: const Text('Ustaw status/kategorię'),
                             ),
-                            OutlinedButton(
-                              onPressed: _selectedClientIds.isEmpty || _bulkBusy
-                                  ? null
-                                  : _bulkDelete,
-                              child: const Text('Usuń wybrane'),
-                            ),
+                            if (isAdmin)
+                              OutlinedButton(
+                                onPressed:
+                                    _selectedClientIds.isEmpty || _bulkBusy
+                                    ? null
+                                    : _bulkDelete,
+                                child: const Text('Przenieś do kosza'),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),

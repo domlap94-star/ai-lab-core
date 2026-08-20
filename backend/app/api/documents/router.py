@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.api.imports.dependencies import require_import_api_key
 from app.api.auth import get_current_user
+from app.api.admin_users import require_admin
 from app.database.session import get_db
 from app.schemas.document import (
     DocumentClientLinkRequest,
@@ -32,6 +33,7 @@ from app.schemas.document import (
     DocumentUploadResponse,
 )
 from app.schemas.vision import VisionAnalyzeResponse, VisionStatusRead
+from app.schemas.trash import TrashEntryRead
 from app.services.document_service import (
     DocumentService,
     DocumentStorageError,
@@ -63,11 +65,37 @@ from app.services.vision_supervisor_client import (
     VisionSupervisorClient,
     VisionSupervisorUnavailable,
 )
+from app.services.trash_lifecycle_service import (
+    TrashConflictError,
+    TrashLifecycleService,
+    TrashNotFoundError,
+)
 
 router = APIRouter(
     prefix="/documents",
     tags=["Documents"],
 )
+
+
+@router.post("/{document_id}/trash", response_model=TrashEntryRead)
+def trash_document(
+    document_id: int,
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> TrashEntryRead:
+    try:
+        entry = TrashLifecycleService(db).trash(
+            entity_type="document", entity_id=document_id, actor=actor
+        )
+        db.commit()
+        db.refresh(entry)
+        return TrashEntryRead.model_validate(entry)
+    except TrashNotFoundError as error:
+        db.rollback()
+        raise HTTPException(status_code=404, detail={"code": str(error)}) from error
+    except TrashConflictError as error:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
 
 MAX_USER_UPLOAD_BYTES = 250 * 1024 * 1024
 

@@ -65,6 +65,16 @@ def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    token_auth_version = payload.get("auth_version")
+    if token_auth_version is None:
+        if user.auth_version != 0:
+            raise credentials_exception
+    elif (
+        not isinstance(token_auth_version, int)
+        or token_auth_version != user.auth_version
+    ):
+        raise credentials_exception
+
     return user
 
 
@@ -96,6 +106,7 @@ def login(
             "sub": user.username,
             "email": user.email,
             "role": user.role.name,
+            "auth_version": user.auth_version,
         },
         expires_delta=timedelta(
             minutes=settings.access_token_expire_minutes,
@@ -123,6 +134,7 @@ def me(
         "password_reset_requested": (
             current_user.password_reset_requested
         ),
+        "auth_version": current_user.auth_version,
     }
 
 

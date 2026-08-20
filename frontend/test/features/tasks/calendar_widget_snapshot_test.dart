@@ -18,13 +18,18 @@ void main() {
               return null;
             },
           );
-      final day = DateTime(2026, 8, 20);
+      final now = DateTime.now();
+      final day = DateTime(now.year, now.month, now.day);
+      final dayText =
+          '${day.year.toString().padLeft(4, '0')}-'
+          '${day.month.toString().padLeft(2, '0')}-'
+          '${day.day.toString().padLeft(2, '0')}';
       await CalendarWidgetSnapshot.publish(
         CalendarMonthData(
-          year: 2026,
-          month: 8,
+          year: day.year,
+          month: day.month,
           total: 2,
-          dayCounts: const {'2026-08-20': 2},
+          dayCounts: {dayText: 2},
           truncated: false,
           items: [
             CalendarEntry(
@@ -57,7 +62,7 @@ void main() {
       expect(encoded, isNot(contains('client')));
       expect(encoded, isNot(contains('Employee Private')));
       expect((data['items'] as List).last['title'], 'Absencja');
-      expect((data['items'] as List).last['end_date'], '2026-08-20');
+      expect((data['items'] as List).last['end_date'], dayText);
     },
   );
 }

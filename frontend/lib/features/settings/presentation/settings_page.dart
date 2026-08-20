@@ -160,6 +160,16 @@ class SettingsPage extends ConsumerWidget {
                     );
                   },
                 ),
+                ListTile(
+                  key: const Key('admin-trash-settings-tile'),
+                  leading: const Icon(Icons.delete_outline),
+                  title: const Text('Kosz'),
+                  subtitle: const Text(
+                    'Przywracaj pliki, klientów i użytkowników przez 7 dni.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/trash'),
+                ),
               ],
             ),
           ],

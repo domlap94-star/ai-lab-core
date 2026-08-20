@@ -139,6 +139,17 @@ class DocumentsApi {
     );
   }
 
+  Future<void> trashDocument({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.post<void>(
+      '$_path/$documentId/trash',
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+  }
+
   Future<DocumentContent> fetchContent({
     required int documentId,
     required String fileName,

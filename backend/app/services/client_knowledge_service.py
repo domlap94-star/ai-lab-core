@@ -211,6 +211,8 @@ class ClientKnowledgeContextService:
                 self.db.query(Document)
                 .filter(
                     Document.client_id == client.id,
+                    Document.trashed_at.is_(None),
+                    Document.purged_at.is_(None),
                     or_(*conditions) if conditions else False,
                 )
                 .order_by(Document.updated_at.desc(), Document.id.desc())
@@ -218,7 +220,11 @@ class ClientKnowledgeContextService:
                 .all()
             )
             coverage.documents_lexical_searched = (
-                self.db.query(Document).filter(Document.client_id == client.id).count()
+                self.db.query(Document).filter(
+                    Document.client_id == client.id,
+                    Document.trashed_at.is_(None),
+                    Document.purged_at.is_(None),
+                ).count()
             )
             if rows:
                 answer = "Znalezione dokumenty klienta: " + "; ".join(
@@ -490,6 +496,8 @@ class ClientKnowledgeContextService:
             self.db.query(Document)
             .filter(
                 Document.client_id == client.id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
                 or_(*lexical_conditions) if lexical_conditions else False,
             )
             .order_by(Document.updated_at.desc(), Document.id.desc())
@@ -497,7 +505,11 @@ class ClientKnowledgeContextService:
         )
         documents = document_query.all()
         coverage.documents_lexical_searched = (
-            self.db.query(Document).filter(Document.client_id == client.id).count()
+            self.db.query(Document).filter(
+                Document.client_id == client.id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
+            ).count()
         )
         for item in documents:
             text = " ".join(
@@ -532,7 +544,12 @@ class ClientKnowledgeContextService:
                     continue
                 document = (
                     self.db.query(Document)
-                    .filter(Document.id == item.document_id, Document.client_id == client.id)
+                    .filter(
+                        Document.id == item.document_id,
+                        Document.client_id == client.id,
+                        Document.trashed_at.is_(None),
+                        Document.purged_at.is_(None),
+                    )
                     .first()
                 )
                 if document is None:

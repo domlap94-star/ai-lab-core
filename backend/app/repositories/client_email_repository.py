@@ -151,6 +151,8 @@ class ClientEmailRepository:
             .filter(
                 Document.source_type == "gmail_attachment",
                 Document.gmail_message_id.in_(message_ids),
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
                 or_(
                     Document.client_id == client_id,
                     and_(

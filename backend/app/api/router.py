@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.admin_users import router as admin_users_router
 from app.api.admin_ignored_mail_sources import router as admin_ignored_mail_sources_router
 from app.api.admin_change_history import router as admin_change_history_router
+from app.api.admin_trash import router as admin_trash_router
 from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
 from app.api.client_candidates.router import (
@@ -31,6 +32,7 @@ api_router.include_router(auth_router)
 api_router.include_router(admin_users_router)
 api_router.include_router(admin_ignored_mail_sources_router)
 api_router.include_router(admin_change_history_router)
+api_router.include_router(admin_trash_router)
 api_router.include_router(users_router)
 api_router.include_router(clients_router)
 api_router.include_router(client_candidates_router)

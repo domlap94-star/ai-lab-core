@@ -553,3 +553,23 @@ No Gmail send, n8n workflow/schedule change, Vision job or Qdrant write
 occurred. Qdrant remains at 57 points. Physical Android widget and CHUNK 13
 smokes are `UNVERIFIED` because no ADB device was connected. Next planned work
 is FOLLOW-UP CHUNK 15, which was not started.
+
+## Pre-CHUNK15 Trash lifecycle addendum — 2026-08-21
+
+The approved `followup_admin_trash_retention_20260820` migration is active with
+no backfill and an initially empty `trash_entries` ledger. Documents, Clients
+and Users now use a seven-day recoverable Trash lifecycle with Administrator
+restore, safe active-query exclusions, Change History evidence and User JWT
+`auth_version` invalidation. Clients and Users permanently become anonymized
+tombstones; non-vector Documents retain a minimal provenance tombstone after
+safe content/file purge.
+
+The Windows task `NEXT Stabil - Trash Purge` is enabled every four hours with a
+100-entry limit, singleton advisory lock, row-lock revalidation and per-entry
+failure isolation. The production acceptance run reported zero eligible and
+zero purged entries. Vectorized Documents are blocked before any file or DB
+content mutation with `qdrant_purge_approval_required`; Qdrant remains at 57
+points and awaits `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`. Flutter
+analyze and the full discovered `246/246` suite pass. No real Client, Document,
+User or the owner's WorkItem realization was modified for acceptance; CHUNK 15
+was not started and no release was performed.

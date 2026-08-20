@@ -729,11 +729,59 @@ class _DocumentDetailsDialog extends ConsumerWidget {
   final int documentId;
   final ValueChanged<RepositoryDocument> onOpen;
 
+  Future<void> _trash(
+    BuildContext context,
+    WidgetRef ref,
+    RepositoryDocument document,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Przenieść dokument do kosza?'),
+        content: const Text(
+          'Element będzie można przywrócić przez 7 dni. '
+          'Po tym czasie zostanie automatycznie usunięty na stałe.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Przenieś do kosza'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await ref
+        .read(documentsRepositoryProvider)
+        .trashDocument(
+          session: requireDocumentSessionFromAuth(
+            ref.read(authControllerProvider),
+          ),
+          documentId: document.id,
+        );
+    ref.invalidate(documentDetailsProvider(document.id));
+    ref.invalidate(documentsControllerProvider);
+    if (context.mounted) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dokument przeniesiono do Kosza.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<RepositoryDocument> details = ref.watch(
       documentDetailsProvider(documentId),
     );
+    final role = ref.watch(authControllerProvider).value?.user?.role ?? '';
+    final isAdmin =
+        role.trim().toLowerCase() == 'administrator' ||
+        role.trim().toLowerCase() == 'admin';
     return AlertDialog(
       title: const Text('Szczegóły dokumentu'),
       content: SizedBox(
@@ -805,6 +853,13 @@ class _DocumentDetailsDialog extends ConsumerWidget {
         ),
       ),
       actions: <Widget>[
+        if (isAdmin && details.value != null)
+          TextButton.icon(
+            key: const Key('trash-document-action'),
+            onPressed: () => _trash(context, ref, details.value!),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Przenieś do kosza'),
+          ),
         if (details.value case final RepositoryDocument document
             when documentSupportsVision(
               document.contentType,

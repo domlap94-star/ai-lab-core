@@ -25,13 +25,13 @@ class ChangeHistoryEvent(Base):
             "entity_type IN ('client','client_contact','client_address',"
             "'client_workflow_status','client_candidate','candidate_merge',"
             "'ignored_mail_source','user','work_item','work_item_note',"
-            "'work_item_document','absence_request')",
+            "'work_item_document','absence_request','document')",
             name="ck_change_history_events_entity_type",
         ),
         CheckConstraint(
             "action IN ('created','updated','deleted','restored',"
             "'status_changed','accepted','rejected','merged','activated',"
-            "'deactivated')",
+            "'deactivated','trashed','purged')",
             name="ck_change_history_events_action",
         ),
         UniqueConstraint(

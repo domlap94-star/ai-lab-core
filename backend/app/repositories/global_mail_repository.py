@@ -167,6 +167,8 @@ LEFT JOIN clients c ON c.id=cc.matched_client_id AND c.deleted_at IS NULL
             .filter(
                 Document.source_type == "gmail_attachment",
                 Document.gmail_message_id.in_(message_ids),
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
             )
             .order_by(Document.gmail_message_id.asc(), Document.id.asc())
             .all()
@@ -175,4 +177,13 @@ LEFT JOIN clients c ON c.id=cc.matched_client_id AND c.deleted_at IS NULL
     def get_documents_by_ids(self, document_ids: list[int]) -> list[Document]:
         if not document_ids:
             return []
-        return self.db.query(Document).filter(Document.id.in_(document_ids)).order_by(Document.id).all()
+        return (
+            self.db.query(Document)
+            .filter(
+                Document.id.in_(document_ids),
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
+            )
+            .order_by(Document.id)
+            .all()
+        )

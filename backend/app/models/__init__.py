@@ -29,6 +29,7 @@ from app.models.work_item import WorkItem
 from app.models.work_item_note import WorkItemNote
 from app.models.work_item_document import WorkItemDocument
 from app.models.absence_request import AbsenceRequest
+from app.models.trash_entry import TrashEntry
 
 __all__ = [
     "AgentExecution",
@@ -62,4 +63,5 @@ __all__ = [
     "WorkItemNote",
     "WorkItemDocument",
     "AbsenceRequest",
+    "TrashEntry",
 ]

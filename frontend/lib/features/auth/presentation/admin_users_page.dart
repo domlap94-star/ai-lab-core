@@ -300,7 +300,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
       if (!mounted) {
         return;
       }
-      _showMessage('Konto użytkownika zostało dezaktywowane.');
+      _showMessage('Użytkownik został przeniesiony do Kosza.');
       await _loadUsers();
     } on DioException catch (error) {
       if (!mounted) {
@@ -640,14 +640,14 @@ class _DeactivateUserDialogState extends State<_DeactivateUserDialog> {
   Widget build(BuildContext context) {
     final bool exactMatch = _controller.text == widget.username;
     return AlertDialog(
-      title: Text('Usuń użytkownika: ${widget.username}'),
+      title: Text('Przenieś do kosza: ${widget.username}'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           const Text(
-            'Konto zostanie dezaktywowane. Dane użytkownika '
-            'i historia pozostaną w systemie.',
+            'Element będzie można przywrócić przez 7 dni. '
+            'Po tym czasie zostanie automatycznie usunięty na stałe.',
           ),
           const SizedBox(height: 16),
           Text('Aby potwierdzić, wpisz:\n${widget.username}'),
@@ -672,7 +672,7 @@ class _DeactivateUserDialogState extends State<_DeactivateUserDialog> {
         FilledButton(
           key: const Key('confirm-user-deactivation'),
           onPressed: exactMatch ? () => Navigator.of(context).pop(true) : null,
-          child: const Text('Usuń użytkownika'),
+          child: const Text('Przenieś do kosza'),
         ),
       ],
     );
@@ -861,12 +861,12 @@ class _UserTile extends StatelessWidget {
           message: isCurrentUser
               ? 'Nie możesz usunąć własnego konta.'
               : user.isActive
-              ? 'Usuń użytkownika'
+              ? 'Przenieś do kosza'
               : 'Konto jest nieaktywne.',
           child: TextButton.icon(
             onPressed: user.isActive && !isCurrentUser ? onDeactivate : null,
             icon: const Icon(Icons.person_off_outlined),
-            label: const Text('Usuń użytkownika'),
+            label: const Text('Przenieś do kosza'),
           ),
         ),
       ],

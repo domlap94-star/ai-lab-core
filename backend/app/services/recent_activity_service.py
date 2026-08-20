@@ -280,7 +280,10 @@ class RecentActivityService:
         ]
 
     def _document_rows(self, limit: int) -> list[_Projected]:
-        rows = self.db.query(Document).order_by(Document.created_at.desc(), Document.id.desc()).limit(limit).all()
+        rows = self.db.query(Document).filter(
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).order_by(Document.created_at.desc(), Document.id.desc()).limit(limit).all()
         return [
             _Projected(
                 stable_key=f"document-created:{row.id}", timestamp=row.created_at,
@@ -345,6 +348,7 @@ class RecentActivityService:
             "restored": "Przywrócono", "status_changed": "Zmieniono status",
             "accepted": "Zaakceptowano", "rejected": "Odrzucono", "merged": "Scalono",
             "activated": "Aktywowano", "deactivated": "Dezaktywowano",
+            "trashed": "Przeniesiono do kosza", "purged": "Usunięto trwale",
         }
         entities = {
             "client": "klienta", "client_contact": "kontakt klienta", "client_address": "adres klienta",
@@ -352,6 +356,7 @@ class RecentActivityService:
             "candidate_merge": "kandydata", "ignored_mail_source": "regułę ignorowania nadawcy",
             "user": "użytkownika", "work_item": "zadanie", "work_item_note": "notatkę do zadania",
             "work_item_document": "załącznik zadania", "absence_request": "wniosek o absencję",
+            "document": "dokument",
         }
         base = f"{action_labels.get(row.action, 'Zmieniono')} {entities.get(row.entity_type, 'element')}"
         if row.entity_type == "work_item" and work_item is not None:

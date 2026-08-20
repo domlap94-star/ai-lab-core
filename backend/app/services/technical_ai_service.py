@@ -316,6 +316,8 @@ class TechnicalAiService:
             conditions.extend((Document.original_filename.ilike(pattern), Document.filename.ilike(pattern), Document.extracted_text.ilike(pattern)))
         docs = self.db.query(Document).filter(
             Document.inspection_id == inspection.id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
             True if intent == "document_analysis" else (
                 or_(*conditions) if conditions else True
             ),
@@ -356,6 +358,8 @@ class TechnicalAiService:
                     Document.id == hit.document_id,
                     Document.client_id == inspection.client_id,
                     Document.inspection_id == inspection.id,
+                    Document.trashed_at.is_(None),
+                    Document.purged_at.is_(None),
                 ).first()
                 if doc is None or hit.client_id != inspection.client_id:
                     continue
@@ -509,12 +513,18 @@ EVIDENCE:\n{evidence_text}"""
         return "UNTRUSTED_VISUAL_EVIDENCE_BEGIN " + " ".join(lines[:12]) + " UNTRUSTED_VISUAL_EVIDENCE_END"
 
     def _vision_missing(self, document_id: int) -> bool:
-        document = self.db.query(Document).filter(Document.id == document_id).first()
+        document = self.db.query(Document).filter(
+            Document.id == document_id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).first()
         return bool(document and document.vision_status not in {"complete", "partial", "not_needed"})
 
     def _pending_visual_count(self, client, inspection) -> int:
         query = self.db.query(Document).filter(
-            Document.vision_status.in_(["pending", "queued", "processing", "pending_auth", "ui_changed", "failed_retryable"])
+            Document.vision_status.in_(["pending", "queued", "processing", "pending_auth", "ui_changed", "failed_retryable"]),
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
         )
         if inspection is not None:
             query = query.filter(Document.inspection_id == inspection.id)
