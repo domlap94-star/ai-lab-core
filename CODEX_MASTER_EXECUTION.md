@@ -24,7 +24,8 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**RELEASE B COMPLETE — NEXT STABIL 1.0.2+22 PUBLISHED.** Web, Windows and
+**FOLLOW-UP CHUNK 13 DESIGN COMPLETE — CALENDAR/TASKS MIGRATION APPROVAL
+REQUIRED.** Release B remains published as NEXT Stabil 1.0.2+22. Web, Windows and
 Android artifacts use the production endpoints; public artifact hashes match
 the stable manifest, `minimum_version` remains `1.0.0`, and the previous
 `1.0.2+21` artifacts remain available for rollback. Release validation passed
@@ -33,8 +34,10 @@ suite (`223/223`), focused updater/version tests (`16/16`) and the public Web
 login smoke. No business-data write, Gmail send, migration, n8n workflow
 change, Vision job or Qdrant write was performed by the release.
 
-**NEXT PLANNED WORK: PHASE C — FOLLOW-UP CHUNK 13. DO NOT START CHUNK 13
-WITHOUT A NEW OWNER PROMPT.**
+**NEXT GATE: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`. The audited
+design is in `FOLLOWUP_CHUNK13_CALENDAR_TASKS_DESIGN.md`. Do not create or apply
+the migration, start source implementation, start CHUNK 12/14, or release
+without a new owner prompt.**
 
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and

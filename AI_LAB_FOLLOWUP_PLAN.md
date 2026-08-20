@@ -1035,7 +1035,7 @@ placeholderów.
 
 Human gate: brak przed source implementation; release osobnym promptem.
 
-## FOLLOW-UP CHUNK 13 — CALENDAR / TASKS / REALIZATIONS / NOTES
+## [~] FOLLOW-UP CHUNK 13 — DESIGN COMPLETE / CALENDAR-TASKS MIGRATION APPROVAL REQUIRED
 
 **Priority: P1 — MAJOR FEATURE**
 
@@ -1058,6 +1058,33 @@ provenance.
 Migration: TAK.
 
 Human gate: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.
+
+### PRODUCTION DESIGN COMPLETE (2026-08-20)
+
+- Audyt potwierdził brak canonical Task/Calendar domain. Istniejące `projects`
+  (legacy Realizacje) i `inspections` nie spełniają kontraktu opcjonalnego
+  Client, assignee, priority, reminder/event i notes; pozostają kompatybilne,
+  bez backfillu i bez automatycznej konwersji.
+- Zaprojektowano jeden addytywny `work_items` dla `task`, `order` (UI:
+  zlecenie), `realization`, `reminder` i `event`, z bounded status/priority,
+  `TIMESTAMPTZ`, all-day/timezone, optional assignee/Client/party, actor
+  provenance, soft archive i optimistic version.
+- Notes i Document provenance używają projektowanych `work_item_notes` oraz
+  `work_item_documents`; canonical Document storage, camera/gallery,
+  foreground GPS, Android STT i internal image viewer są współdzielone, bez
+  drugiego file store'u lub audio uploadu. Odmowa GPS nie blokuje uploadu.
+- Client Details pokazuje canonical Client-linked realizations i Documents bez
+  kopiowania. Timeline jest derived z WorkItem/Note i nie tworzy duplikatów w
+  `client_activity_events`. Change History wymaga dodania entity types
+  `work_item`, `work_item_note`, `work_item_document`; obecne actions wystarczą.
+- Proposed migration `followup_calendar_tasks_20260820`, parent
+  `followup_change_history_entity_types_20260820`, nie ma backfillu. Dokładne
+  tabele, FK/CHECK/indexy, API, Flutter UX, rollback i test matrix opisuje
+  `FOLLOWUP_CHUNK13_CALENDAR_TASKS_DESIGN.md`.
+- W tym kroku nie utworzono pliku migracji ani source implementation, nie
+  zmieniono schematu/produkcji i nie rozpoczęto CHUNK 12/14.
+
+**CURRENT GATE: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.**
 
 ## FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY
 
