@@ -4,8 +4,14 @@ from uuid import uuid4
 
 from sqlalchemy import event, text
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
 DATABASE_NAME = "ai_lab_chunk13_20260820"
 os.environ["POSTGRES_DB"] = DATABASE_NAME
+require_test_database_environment(DATABASE_NAME)
 
 from app.database.session import SessionLocal
 from app.models.document import Document
@@ -24,10 +30,7 @@ def require(value: bool, message: str) -> None:
 
 def main() -> None:
     db = SessionLocal()
-    require(
-        db.execute(text("select current_database()" )).scalar_one() == DATABASE_NAME,
-        "service test target is not the isolated CHUNK 13 database",
-    )
+    assert_isolated_database(db, DATABASE_NAME)
     suffix = uuid4().hex[:10]
     role = db.query(Role).filter(Role.name == "User").one()
     admin_role = db.query(Role).filter(Role.name == "Administrator").one_or_none()

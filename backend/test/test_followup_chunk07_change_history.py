@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 import json
-import os
 from statistics import median
 from time import perf_counter
 import unittest
@@ -11,6 +10,15 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+ISOLATED_DB_NAME = "ai_lab_chunk07_isolated"
+require_test_database_environment(ISOLATED_DB_NAME)
 
 from app.api.admin_users import require_admin
 from app.api.auth import get_current_user
@@ -42,14 +50,11 @@ from app.services.client_candidate_review_service import ClientCandidateReviewSe
 from app.services.client_service import ClientService
 
 
-ISOLATED_DB_NAME = "ai_lab_chunk07_isolated"
-
-
-@unittest.skipUnless(
-    os.getenv("POSTGRES_DB") == ISOLATED_DB_NAME,
-    "requires the explicitly isolated CHUNK 07 database",
-)
 class ChangeHistoryIsolatedTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert_isolated_database(engine, ISOLATED_DB_NAME)
+
     def setUp(self) -> None:
         self.connection = engine.connect()
         self.transaction = self.connection.begin()

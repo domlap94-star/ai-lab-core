@@ -9,6 +9,14 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+TEST_DATABASE_NAME = require_test_database_environment()
+
 from app.core.security import create_access_token, hash_password
 from app.database.session import SessionLocal
 from app.main import app
@@ -81,6 +89,7 @@ def main() -> None:
     suffix = uuid4().hex[:10]
     db = SessionLocal()
     try:
+        assert_isolated_database(db, TEST_DATABASE_NAME)
         admin_role = db.query(Role).filter(Role.name == "Administrator").one()
         user_role = db.query(Role).filter(Role.name == "User").one()
         admin = User(

@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-import os
 import unittest
 from uuid import uuid4
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+ISOLATED_DB_NAME = "ai_lab_chunk08_isolated"
+require_test_database_environment(ISOLATED_DB_NAME)
 
 from app.database.engine import engine
 from app.models.candidate_merge_event import CandidateMergeEvent
@@ -27,14 +35,11 @@ from app.services.client_candidate_promotion_service import (
 from app.services.forward_source_ingestion_service import CONTACT_METADATA_KEY
 
 
-ISOLATED_DB_NAME = "ai_lab_chunk08_isolated"
-
-
-@unittest.skipUnless(
-    os.getenv("POSTGRES_DB") == ISOLATED_DB_NAME,
-    "requires the explicitly isolated CHUNK 08 database",
-)
 class CandidateMergeIsolatedTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert_isolated_database(engine, ISOLATED_DB_NAME)
+
     def setUp(self) -> None:
         self.connection = engine.connect()
         self.transaction = self.connection.begin()

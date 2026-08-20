@@ -47,6 +47,13 @@ and no Qdrant point was changed. The exact current gate is
 `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`. FOLLOW-UP CHUNK 15 remains NOT
 STARTED.
 
+Mutating isolated backend tests now fail closed through one shared guard: an
+approved `POSTGRES_DB` test name must be set before importing the application
+engine, and the live connection must return the same name from
+`SELECT current_database()`. Production `ai_lab`, unsafe names and
+environment/connection mismatches are rejected; production database
+configuration remains exclusively the existing `POSTGRES_*` contract.
+
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and
 `InternalImageViewer` now serve Documents, Client Documents, Document/Vision

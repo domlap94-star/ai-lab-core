@@ -6,11 +6,22 @@ import os
 from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from pydantic import ValidationError
 from sqlalchemy import inspect, text
+
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+ISOLATED_DB_NAME = "ai_lab_chunk03_isolated"
+if os.getenv("POSTGRES_DB") == ISOLATED_DB_NAME:
+    require_test_database_environment(ISOLATED_DB_NAME)
 
 from app.database.session import SessionLocal
 from app.models.client import Client
@@ -27,9 +38,6 @@ MIGRATION_PATH = (
     / "versions"
     / "followup_clientdate_20260819_add_client_added_date.py"
 )
-ISOLATED_DB_NAME = "ai_lab_chunk03_isolated"
-
-
 def _load_migration():
     spec = importlib.util.spec_from_file_location(
         "followup_clientdate_20260819",
@@ -86,7 +94,10 @@ class ClientAddedDateContractTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ClientUpdate(client_added_at=date(1899, 12, 31))
         with self.assertRaises(ValidationError):
-            ClientUpdate(client_added_at=date.today() + timedelta(days=1))
+            ClientUpdate(
+                client_added_at=datetime.now(ZoneInfo("Europe/Warsaw")).date()
+                + timedelta(days=1)
+            )
 
     def test_projection_and_ordering_cover_all_fallbacks(self) -> None:
         created = datetime(2026, 8, 10, tzinfo=timezone.utc)
@@ -124,6 +135,7 @@ class ClientAddedDateContractTests(unittest.TestCase):
 class ClientAddedDateIsolatedDatabaseTests(unittest.TestCase):
     def setUp(self) -> None:
         self.db = SessionLocal()
+        assert_isolated_database(self.db, ISOLATED_DB_NAME)
 
     def tearDown(self) -> None:
         self.db.rollback()

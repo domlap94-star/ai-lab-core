@@ -1276,6 +1276,12 @@ acceptance run saw zero eligible entries and performed zero purges. Vectorized
 Documents fail closed before file/content mutation; Qdrant deletion remains
 gated by `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.
 
+Test-safety follow-up: updated mutating/isolated suites validate `POSTGRES_DB`
+before application engine import and verify the connected PostgreSQL
+`SELECT current_database()` through one shared guard. Production `ai_lab`,
+unsafe test names and configuration/connection mismatches are rejected;
+`DATABASE_URL` cannot select an isolated database for these tests.
+
 **NEXT GATE: `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.**
 Do not delete Qdrant points, start CHUNK 15 or release.
 

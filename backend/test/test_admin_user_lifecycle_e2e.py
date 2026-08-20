@@ -7,6 +7,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event, text
 from sqlalchemy.orm import Session
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+TEST_DATABASE_NAME = require_test_database_environment()
+
 from app.core.security import hash_password
 from app.database.base import Base
 from app.database.engine import engine
@@ -38,6 +46,7 @@ def require(condition: bool, message: str) -> None:
 def isolated_database():
     schema = f"user_lifecycle_test_{uuid4().hex}"
     connection = engine.connect()
+    assert_isolated_database(connection, TEST_DATABASE_NAME)
     outer = connection.begin()
     try:
         connection.execute(text(f'CREATE SCHEMA "{schema}"'))

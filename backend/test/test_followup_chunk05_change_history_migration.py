@@ -7,6 +7,11 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
 
 DATABASE_NAME = "ai_lab_chunk05_20260820_a"
 PARENT = "followup_ignored_mail_sources_20260820"
@@ -26,12 +31,12 @@ def main() -> None:
         f"{os.environ.get('POSTGRES_PORT', '5432')}/{DATABASE_NAME}"
     )
     os.environ["POSTGRES_DB"] = DATABASE_NAME
+    require_test_database_environment(DATABASE_NAME)
     engine = create_engine(isolated_url)
     config = Config("/app/alembic.ini")
 
     with engine.connect() as connection:
-        database = connection.execute(text("select current_database()" )).scalar_one()
-        require(database == DATABASE_NAME, "migration target is not isolated")
+        assert_isolated_database(connection, DATABASE_NAME)
         before = {
             "history": connection.execute(text("select count(*) from change_history_events")).scalar_one(),
             "ignored": connection.execute(text("select count(*) from ignored_mail_sources")).scalar_one(),

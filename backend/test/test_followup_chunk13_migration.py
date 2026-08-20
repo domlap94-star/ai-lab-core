@@ -5,7 +5,13 @@ from time import perf_counter
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
+
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
 
 DATABASE_NAME = "ai_lab_chunk13_20260820"
 PARENT = "followup_change_history_entity_types_20260820"
@@ -19,14 +25,24 @@ def require(value: bool, message: str) -> None:
 
 def main() -> None:
     os.environ["POSTGRES_DB"] = DATABASE_NAME
+    require_test_database_environment(DATABASE_NAME)
     url = f"postgresql+psycopg://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}@{os.environ.get('POSTGRES_HOST','postgres')}:{os.environ.get('POSTGRES_PORT','5432')}/{DATABASE_NAME}"
     engine = create_engine(url)
     config = Config("/app/alembic.ini")
     with engine.connect() as connection:
-        require(connection.execute(text("select current_database()")).scalar_one() == DATABASE_NAME, "migration target is not isolated")
+        assert_isolated_database(connection, DATABASE_NAME)
         current = connection.execute(text("select version_num from alembic_version")).scalar_one()
-    if current == REVISION: command.downgrade(config, PARENT)
-    require(current in {PARENT, REVISION}, f"unexpected isolated head: {current}")
+    original_head = current
+    lineage = {
+        revision.revision
+        for revision in ScriptDirectory.from_config(config).iterate_revisions(
+            current, "base"
+        )
+    }
+    require(REVISION in lineage, f"isolated head does not contain CHUNK 13: {current}")
+    if current != REVISION:
+        command.downgrade(config, REVISION)
+    command.downgrade(config, PARENT)
     started = perf_counter(); command.upgrade(config, REVISION); elapsed = perf_counter() - started
     with engine.connect() as connection:
         inspector = inspect(connection)
@@ -60,6 +76,8 @@ def main() -> None:
         transaction.rollback()
     with engine.connect() as connection:
         require(connection.execute(text("select version_num from alembic_version")).scalar_one() == REVISION, "wrong final isolated head")
+    if original_head != REVISION:
+        command.upgrade(config, original_head)
     engine.dispose()
     print(f"CHUNK 13 migration round-trip: PASS ({elapsed:.3f}s)")
 

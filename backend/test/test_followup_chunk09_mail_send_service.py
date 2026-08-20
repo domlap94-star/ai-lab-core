@@ -10,6 +10,11 @@ from uuid import uuid4
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
 from app.models.document import Document
@@ -56,9 +61,9 @@ class Provider:
 class MailSendServiceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if os.environ.get("POSTGRES_DB") == "ai_lab":
-            raise RuntimeError("Refusing to run send tests on production")
+        database_name = require_test_database_environment()
         cls.engine = create_engine(database_url())
+        assert_isolated_database(cls.engine, database_name)
         cls.Session = sessionmaker(bind=cls.engine)
 
     def setUp(self):

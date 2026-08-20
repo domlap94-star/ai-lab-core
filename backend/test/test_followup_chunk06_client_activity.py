@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from datetime import date
 import json
-import os
 import unittest
 from uuid import uuid4
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+ISOLATED_DB_NAME = "ai_lab_chunk06_isolated"
+require_test_database_environment(ISOLATED_DB_NAME)
 
 from app.database.engine import engine
 from app.models.client import Client
@@ -22,11 +30,11 @@ from app.services.client_bulk_service import ClientBulkService
 from app.services.timeline_service import TimelineService
 
 
-ISOLATED_DB_NAME = "ai_lab_chunk06_isolated"
-
-
-@unittest.skipUnless(os.getenv("POSTGRES_DB") == ISOLATED_DB_NAME, "requires isolated CHUNK 06 database")
 class ClientActivityIsolatedTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        assert_isolated_database(engine, ISOLATED_DB_NAME)
+
     def setUp(self) -> None:
         self.connection = engine.connect()
         self.transaction = self.connection.begin()

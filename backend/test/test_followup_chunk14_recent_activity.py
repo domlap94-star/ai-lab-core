@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-import os
 from time import perf_counter
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.orm import Session
+
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+ISOLATED_DB_NAME = "ai_lab_chunk13_20260820"
+require_test_database_environment(ISOLATED_DB_NAME)
 
 from app.api.auth import get_current_user
 from app.database.engine import engine
@@ -24,20 +32,14 @@ from app.models.work_item import WorkItem
 from app.services.recent_activity_service import RecentActivityService
 
 
-ISOLATED_DB_NAME = "ai_lab_chunk13_20260820"
-
-
 def require(value: bool, message: str) -> None:
     if not value:
         raise AssertionError(message)
 
 
 def main() -> None:
-    require(
-        os.getenv("POSTGRES_DB") == ISOLATED_DB_NAME,
-        "CHUNK 14 tests require the explicitly isolated CHUNK 13 database",
-    )
     connection = engine.connect()
+    assert_isolated_database(connection, ISOLATED_DB_NAME)
     transaction = connection.begin()
     db = Session(bind=connection, expire_on_commit=False, join_transaction_mode="create_savepoint")
     suffix = uuid4().hex[:10]

@@ -6,6 +6,14 @@ from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+TEST_DATABASE_NAME = require_test_database_environment()
+
 import app.models  # noqa: F401 - registers complete metadata
 from app.database.base import Base
 from app.database.engine import engine
@@ -30,6 +38,7 @@ def require(condition: bool, message: str) -> None:
 def isolated_database():
     schema = f"mail_reconciliation_parity_{uuid4().hex}"
     connection = engine.connect()
+    assert_isolated_database(connection, TEST_DATABASE_NAME)
     outer = connection.begin()
     try:
         connection.execute(text(f'CREATE SCHEMA "{schema}"'))
