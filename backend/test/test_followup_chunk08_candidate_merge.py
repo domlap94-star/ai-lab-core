@@ -98,7 +98,10 @@ class CandidateMergeIsolatedTests(unittest.TestCase):
             external_id=f"chunk08-{self.token}",
             source_label="Synthetic message",
             raw_payload={
-                CONTACT_METADATA_KEY: {"emails": [email], "phones": []}
+                CONTACT_METADATA_KEY: {
+                    "verified_emails": [email],
+                    "verified_phones": [],
+                }
             },
         )
         self.db.add(source)

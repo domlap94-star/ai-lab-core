@@ -507,7 +507,12 @@ class CandidateMergeService:
             if not isinstance(metadata, dict):
                 continue
             for kind, key in (("email", "emails"), ("phone", "phones")):
-                values = metadata.get(key)
+                metadata_key = (
+                    f"verified_{key}"
+                    if source.source_type in {"gmail_message", "gmail_thread"}
+                    else key
+                )
+                values = metadata.get(metadata_key)
                 if isinstance(values, list):
                     incoming.extend(
                         (kind, value) for value in values if isinstance(value, str)

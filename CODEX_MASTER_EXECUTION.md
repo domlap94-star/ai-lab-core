@@ -7,7 +7,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 ## ACTIVE POST-PROJECT ROADMAP
 
 **`AI_LAB_FOLLOWUP_PLAN.md`** jest aktywnym źródłem kolejności dalszych prac po
-release 1.0.2+21.
+release 1.0.2+22.
 
 - `AI_LAB_MASTER_PLAN.txt` jest zakończonym, historycznym masterplanem głównej
   implementacji.
@@ -24,6 +24,18 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
+**RELEASE B COMPLETE — NEXT STABIL 1.0.2+22 PUBLISHED.** Web, Windows and
+Android artifacts use the production endpoints; public artifact hashes match
+the stable manifest, `minimum_version` remains `1.0.0`, and the previous
+`1.0.2+21` artifacts remain available for rollback. Release validation passed
+the backend regression matrix, Flutter analyze, the full discovered Flutter
+suite (`223/223`), focused updater/version tests (`16/16`) and the public Web
+login smoke. No business-data write, Gmail send, migration, n8n workflow
+change, Vision job or Qdrant write was performed by the release.
+
+**NEXT PLANNED WORK: PHASE C — FOLLOW-UP CHUNK 13. DO NOT START CHUNK 13
+WITHOUT A NEW OWNER PROMPT.**
+
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and
 `InternalImageViewer` now serve Documents, Client Documents, Document/Vision
@@ -51,9 +63,8 @@ safe audited User Edit are complete. Approved migrations
 rules and Change History remain empty. Flutter analyze, focused `51/51` and
 full `260/260` pass with the backend regression matrix.
 
-**NEXT GATE: RELEASE B — READY FOR SEPARATE OWNER-APPROVED RELEASE PROMPT.**
-Release remains NEXT Stabil 1.0.2+21. Do not bump, build, publish or release in
-this execution, and do not start CHUNK 13 automatically.
+**RELEASE B: PUBLISHED IN NEXT STABIL 1.0.2+22.** Do not start CHUNK 13
+automatically.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only
@@ -73,7 +84,7 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+21
+## CURRENT RELEASE — NEXT STABIL 1.0.2+22
 
 - CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
   read-only copilotem; deterministic analytics, Global Search retrieval,

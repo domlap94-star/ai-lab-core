@@ -8,18 +8,18 @@
 !define APP_ID "NEXTStabil"
 
 Name "${APP_NAME}"
-OutFile "C:\ai-lab-core\release-channel\stable\windows\NEXT-Stabil-Setup-1.0.2+21.exe"
+OutFile "C:\ai-lab-core\release-channel\stable\windows\NEXT-Stabil-Setup-1.0.2+22.exe"
 InstallDir "$LOCALAPPDATA\Programs\NEXT Stabil"
 RequestExecutionLevel user
 Unicode true
 SetCompressor /SOLID lzma
 
-VIProductVersion "1.0.2.21"
+VIProductVersion "1.0.2.22"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey "FileDescription" "NEXT Stabil Windows Installer"
-VIAddVersionKey "FileVersion" "1.0.2.21"
+VIAddVersionKey "FileVersion" "1.0.2.22"
 
 !define MUI_ABORTWARNING
 

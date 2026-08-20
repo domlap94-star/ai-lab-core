@@ -828,11 +828,31 @@ Final live-acceptance record (2026-08-20):
   Agent `13/13` and Auth regressions PASS; Flutter analyze PASS, focused Mail
   `33/33`, full `200/200`. No additional provider send or release was made.
 
-**CURRENT EXECUTION COMPLETE THROUGH CHUNK 05. RELEASE B FUNCTIONAL SCOPE IS
-COMPLETE.**
+## RELEASE B — PUBLISHED — NEXT STABIL 1.0.2+22
 
-**NEXT GATE: RELEASE B — READY FOR SEPARATE OWNER-APPROVED RELEASE PROMPT.** Do
-not release automatically and do not start CHUNK 13.
+- Published 2026-08-20 from source commit
+  `b375b2184ae5bb87742fb870153fa92953a343ae`; release commit subject:
+  `Release NEXT Stabil 1.0.2+22`.
+- Release B includes completed CHUNK 06 (Client Activity/Timeline V2), CHUNK 07
+  (Admin Change History), CHUNK 09 (Global Mail read/send), CHUNK 10 (image
+  preview and bounded manual reconciliation), and CHUNK 05 (communication
+  filters, ignored senders and User Management polish).
+- Web, Windows installer and Android APK were built with the production API
+  and supervisor URLs. Stable Windows/Android artifacts were published before
+  the stable manifest moved to build `22`; SHA-256 values were verified from
+  the public channel. `minimum_version` remains `1.0.0`, so `1.0.2+21` sees an
+  optional update rather than a forced update.
+- Release validation: backend Release B regression matrix PASS; Flutter
+  analyze PASS; full discovered Flutter suite `223/223` PASS; focused updater
+  and version smoke `16/16` PASS; public Web login smoke PASS without console
+  errors. No Gmail send, business-data write, migration, n8n change, Vision
+  job or Qdrant write occurred during release.
+- Previous `1.0.2+21` Windows and Android artifacts remain available for
+  rollback.
+
+**RELEASE B COMPLETE. NEXT PLANNED WORK: PHASE C — FOLLOW-UP CHUNK 13.**
+
+**DO NOT START CHUNK 13 WITHOUT A NEW OWNER PROMPT.**
 
 ## [✓] FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW — COMPLETE
 

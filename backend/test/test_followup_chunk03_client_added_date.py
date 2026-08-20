@@ -7,6 +7,8 @@ from pathlib import Path
 import unittest
 from unittest.mock import MagicMock, patch
 
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from pydantic import ValidationError
 from sqlalchemy import inspect, text
 
@@ -132,10 +134,15 @@ class ClientAddedDateIsolatedDatabaseTests(unittest.TestCase):
         self.db.close()
 
     def test_schema_history_and_service_set_clear_are_safe(self) -> None:
-        self.assertEqual(
-            self.db.execute(text("select version_num from alembic_version")).scalar(),
-            "followup_clientdate_20260819",
-        )
+        current_revision = self.db.execute(
+            text("select version_num from alembic_version")
+        ).scalar_one()
+        script = ScriptDirectory.from_config(Config("/app/alembic.ini"))
+        lineage = {
+            revision.revision
+            for revision in script.iterate_revisions(current_revision, "base")
+        }
+        self.assertIn("followup_clientdate_20260819", lineage)
         column = next(
             item
             for item in inspect(self.db.bind).get_columns("clients")

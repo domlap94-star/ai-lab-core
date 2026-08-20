@@ -31,7 +31,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '21'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '22'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in branding test'),
@@ -47,7 +47,7 @@ void main() {
     expect(find.text('Nazwa użytkownika'), findsOneWidget);
     expect(find.text('Hasło'), findsOneWidget);
     expect(find.text('Zaloguj się'), findsOneWidget);
-    expect(find.text('NEXT Stabil 1.0.2+21'), findsOneWidget);
+    expect(find.text('NEXT Stabil 1.0.2+22'), findsOneWidget);
     expect(
       tester.widget<MaterialApp>(find.byType(MaterialApp)).title,
       'NEXT Stabil',
@@ -180,7 +180,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '21'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '22'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in navigation test'),
@@ -215,7 +215,7 @@ void main() {
           ),
           appVersionProvider.overrideWith(
             (Ref ref) async =>
-                const AppVersionInfo(version: '1.0.2', buildNumber: '21'),
+                const AppVersionInfo(version: '1.0.2', buildNumber: '22'),
           ),
           updateCheckProvider.overrideWith(
             (Ref ref) async => throw StateError('offline in navigation test'),

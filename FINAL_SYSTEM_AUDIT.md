@@ -1,12 +1,13 @@
 # FINAL SYSTEM AUDIT — FULL MASTERPLAN RECONCILIATION
 
-Audit date: 2026-08-19 (Europe/Warsaw)
+Audit date: 2026-08-20 (Europe/Warsaw)
 
-Audited source HEAD: `c3f388a4b2b0c84d54bcde9a1e5aa158af0ca6db`
+Audited source HEAD: `b375b2184ae5bb87742fb870153fa92953a343ae`
 
-Production release: `NEXT Stabil 1.0.2+21`
+Production release: `NEXT Stabil 1.0.2+22`
 
-Live database revision: `chunk16audit_20260819` (single Alembic head)
+Live database revision: `followup_change_history_entity_types_20260820`
+(single Alembic head)
 
 ## Executive verdict
 
@@ -37,15 +38,15 @@ other customer PII were not included in the evidence.
 
 | Component | Audited state |
 |---|---|
-| Release | NEXT Stabil `1.0.2+21` |
+| Release | NEXT Stabil `1.0.2+22` |
 | Web | Public HTTP 200; login route and direct `/ai?mode=agent` auth guard render correctly |
-| Windows | Installer `NEXT-Stabil-Setup-1.0.2+21.exe`; ProductVersion `1.0.2`, FileVersion `1.0.2.21` |
-| Android | APK `NEXT-Stabil-1.0.2+21.apk`; versionName `1.0.2`, versionCode `21`, minSdk 24, targetSdk 36 |
+| Windows | Installer `NEXT-Stabil-Setup-1.0.2+22.exe`; ProductVersion `1.0.2`, FileVersion `1.0.2.22` |
+| Android | APK `NEXT-Stabil-1.0.2+22.apk`; versionName `1.0.2`, versionCode `22`, minSdk 24, targetSdk 36 |
 | Public API | `https://domai.tail1927bd.ts.net`; dev literals remain source fallbacks but release tooling supplies and verifies the production define |
-| Stable manifest | channel stable, version `1.0.2`, build 21, minimum `1.0.0`, published 2026-08-19 |
-| Windows SHA-256 | `A2D56FC63ECDE57E5EC44EFB7210B2B06FEC32CD7560FF67C8A9156CED61367E` local = public = manifest |
-| Android SHA-256 | `4214667F759D07E5E9CE9E2446A8ABBC4A7AAC8F123F5915DF7F911186FC665B` local = public = manifest |
-| Web bundle SHA-256 | `CE1D8866FFF42F30D4EB11042124ED246860B11C62C0CF676C7E5540F662B6B2` local = public |
+| Stable manifest | channel stable, version `1.0.2`, build 22, minimum `1.0.0`, published 2026-08-20 |
+| Windows SHA-256 | `A8A5F6B5305D93F2C54CC78FAB25DE68D6BB780F246BB3C52A93BFE625B216E8` local = public = manifest |
+| Android SHA-256 | `0E3C8FDE0F9AE9BD86C99E4EAD49F3A234301CA762ABC855A3BA7B5BA4BE0D85` local = public = manifest |
+| Web bundle SHA-256 | `A24711FA2F9E0AC609FA966D6C302BEEA45DF59D6CF42901ACA39329878DFFBE` local = public login bundle build evidence |
 | Android signing SHA-256 | `5e223da2da7c893d089d7333e99aaeee8d98c9cdf72be80609020967368fe018`; continuity confirmed without exposing key material |
 
 The backend legacy `/version` response still labels its environment
@@ -505,3 +506,24 @@ human-gated: public header/rate-limit changes, environment secret escrow,
 Qdrant restore proof or vector backfill, NSIS installation, destructive backup
 or data retention, CHUNK 7B schema/product work, production document retries,
 container/model/pilot cleanup and external alerting integration.
+
+## Release B addendum — NEXT Stabil 1.0.2+22 — 2026-08-20
+
+Release B was published from source commit
+`b375b2184ae5bb87742fb870153fa92953a343ae`. It contains completed FOLLOW-UP
+CHUNK 06, 07, 09, 10 and 05: Client Activity/Timeline V2, Admin Change History,
+Global Mail read/send and bounded refresh/reconciliation, shared image
+thumbnails/internal viewer, Client status filters, ignored email/domain rules,
+responsive User Management and audited User Edit.
+
+Production DB remained at
+`followup_change_history_entity_types_20260820`; no schema or business-data
+write occurred during release. Backend health and the Release B regression
+matrix passed. Flutter analyze passed, the full discovered suite passed
+`223/223`, and the focused updater/version smoke passed `16/16`. Public Web
+rendered the `1.0.2+22` login screen without console errors. Windows installer
+and Android APK metadata are `1.0.2.22` and versionCode `22`; their public
+SHA-256 values match the stable manifest. `minimum_version` remains `1.0.0`,
+and previous `1.0.2+21` artifacts remain available for rollback. No Gmail send,
+n8n workflow/schedule change, Vision job or Qdrant write occurred. Phase C /
+FOLLOW-UP CHUNK 13 was not started and requires a new owner prompt.

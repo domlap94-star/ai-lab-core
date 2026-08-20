@@ -22,7 +22,14 @@ rozwój systemu.
 Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
 zgodna z założeniami tego dokumentu.
 
-AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+21
+AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+22
+
+[✓] RELEASE B — PUBLISHED IN NEXT STABIL 1.0.2+22. FOLLOW-UP CHUNK 06, 07,
+    09, 10 and 05 are complete: Activity/Timeline V2, Change History, Global
+    Mail read/send/reconciliation, image previews, communication filters and
+    User Management polish. Web, Windows and Android were published with the
+    production endpoints; minimum_version remains 1.0.0. Phase C / FOLLOW-UP
+    CHUNK 13 was not started and requires a new owner prompt.
 
 [✓] CHUNK 13 — BUSINESS ASSISTANT — RELEASED. Globalny asystent pozostaje
     read-only: deterministyczna analityka, Global Search/Client AI retrieval,
