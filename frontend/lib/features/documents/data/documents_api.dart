@@ -173,6 +173,33 @@ class DocumentsApi {
     );
   }
 
+  Future<Uint8List> fetchThumbnail({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+    int maxSize = 200,
+  }) async {
+    final Response<List<int>> response = await _dio.get<List<int>>(
+      '$_path/$documentId/thumbnail',
+      queryParameters: <String, dynamic>{'max_size': maxSize},
+      options: Options(
+        headers: <String, Object>{
+          ..._headers(accessToken, tokenType),
+          'Accept': 'image/png',
+        },
+        responseType: ResponseType.bytes,
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    final List<int>? data = response.data;
+    if (data == null || data.isEmpty) {
+      throw const FormatException(
+        'Endpoint miniatury zwrócił pustą odpowiedź.',
+      );
+    }
+    return data is Uint8List ? data : Uint8List.fromList(data);
+  }
+
   Future<DocumentClientMatch> fetchClientMatch({
     required int documentId,
     required String accessToken,

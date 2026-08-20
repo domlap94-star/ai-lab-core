@@ -18,6 +18,7 @@ import '../domain/document_filters.dart';
 import '../domain/document_page.dart';
 import 'document_presentation.dart';
 import 'document_intake_dialog.dart';
+import 'document_media_preview.dart';
 
 class DocumentsPage extends ConsumerStatefulWidget {
   const DocumentsPage({super.key});
@@ -314,28 +315,22 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
   }
 
   Future<void> _openDocument(RepositoryDocument document) async {
-    final AuthSession session = requireDocumentSessionFromAuth(
-      ref.read(authControllerProvider),
-    );
     setState(() {
       _openingIds.add(document.id);
       _openProgress[document.id] = null;
     });
     try {
-      await ref
-          .read(documentOpenServiceProvider)
-          .open(
-            session: session,
-            document: document,
-            onProgress: (int received, int total) {
-              if (!mounted) return;
-              setState(() {
-                _openProgress[document.id] = total > 0
-                    ? received / total
-                    : null;
-              });
-            },
-          );
+      await openDocumentMedia(
+        context,
+        ref,
+        document,
+        onProgress: (int received, int total) {
+          if (!mounted) return;
+          setState(() {
+            _openProgress[document.id] = total > 0 ? received / total : null;
+          });
+        },
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -426,6 +421,8 @@ class _DocumentTable extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: DataTable(
+          dataRowMinHeight: 96,
+          dataRowMaxHeight: 112,
           showCheckboxColumn: false,
           columns: const <DataColumn>[
             DataColumn(label: Text('Nazwa')),
@@ -443,11 +440,38 @@ class _DocumentTable extends StatelessWidget {
                   cells: <DataCell>[
                     DataCell(
                       ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 270),
-                        child: Text(
-                          document.displayName,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        constraints: const BoxConstraints(maxWidth: 390),
+                        child: Row(
+                          children: <Widget>[
+                            if (isInternalPreviewImage(
+                              document.contentType,
+                              document.displayName,
+                            )) ...<Widget>[
+                              DocumentImageThumbnail(
+                                documentId: document.id,
+                                contentType: document.contentType,
+                                fileName: document.displayName,
+                                onOpen: () => onOpen(document),
+                              ),
+                              const SizedBox(width: 10),
+                            ],
+                            Expanded(
+                              child: InkWell(
+                                onTap:
+                                    isInternalPreviewImage(
+                                      document.contentType,
+                                      document.displayName,
+                                    )
+                                    ? () => onOpen(document)
+                                    : null,
+                                child: Text(
+                                  document.displayName,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -521,18 +545,42 @@ class _DocumentCards extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      const Icon(Icons.description_outlined),
+                      if (isInternalPreviewImage(
+                        document.contentType,
+                        document.displayName,
+                      ))
+                        DocumentImageThumbnail(
+                          documentId: document.id,
+                          contentType: document.contentType,
+                          fileName: document.displayName,
+                          onOpen: () => onOpen(document),
+                        )
+                      else
+                        const Icon(Icons.description_outlined),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          document.displayName,
-                          style: Theme.of(context).textTheme.titleMedium,
+                        child: InkWell(
+                          onTap:
+                              isInternalPreviewImage(
+                                document.contentType,
+                                document.displayName,
+                              )
+                              ? () => onOpen(document)
+                              : null,
+                          child: Text(
+                            document.displayName,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
                       ),
-                      _StatusChip(value: document.processingStatus),
                     ],
                   ),
                   const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _StatusChip(value: document.processingStatus),
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     '${documentContentTypeLabel(document.contentType)} • '
                     '${documentSourceLabel(document.sourceType)} • '
@@ -698,6 +746,18 @@ class _DocumentDetailsDialog extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
+                if (isInternalPreviewImage(
+                  document.contentType,
+                  document.displayName,
+                )) ...<Widget>[
+                  DocumentImageThumbnail(
+                    documentId: document.id,
+                    contentType: document.contentType,
+                    fileName: document.displayName,
+                    onOpen: () => onOpen(document),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 Text(
                   document.displayName,
                   style: Theme.of(context).textTheme.titleMedium,

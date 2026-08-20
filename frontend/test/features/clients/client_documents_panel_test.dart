@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
@@ -85,6 +86,20 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('client-documents-error')), findsNothing);
+  });
+
+  testWidgets('client documents reuse the shared image thumbnail', (
+    WidgetTester tester,
+  ) async {
+    await _pumpPanel(tester, _ImagePanelRepository());
+    await tester.tap(find.byKey(const Key('client-documents-toggle')));
+    await tester.pumpAndSettle();
+    final Finder thumbnail = find.byKey(
+      const ValueKey<String>('document-thumbnail-77'),
+    );
+    expect(thumbnail, findsOneWidget);
+    expect(tester.getSize(thumbnail).width, 100);
+    expect(find.text('client-photo.webp'), findsOneWidget);
   });
 
   testWidgets('documents error remains isolated from client content', (
@@ -302,6 +317,47 @@ class _PanelRepository extends DocumentsRepository {
       contentType: document.contentType,
     );
   }
+}
+
+class _ImagePanelRepository extends _PanelRepository {
+  @override
+  Future<DocumentPage> fetchDocuments({
+    required AuthSession session,
+    required DocumentFilters filters,
+    String search = '',
+    int skip = 0,
+    int limit = 50,
+  }) async => DocumentPage(
+    items: <RepositoryDocument>[
+      RepositoryDocument(
+        id: 77,
+        originalFilename: 'client-photo.webp',
+        contentType: 'image/webp',
+        fileSize: 2048,
+        sourceType: 'camera_photo',
+        clientId: 7,
+        clientName: 'Klient Test',
+        processingStatus: 'processed',
+        metadataStatus: 'complete',
+        matchStatus: 'matched',
+        archiveDepth: 0,
+        createdAt: DateTime.utc(2026, 8, 20),
+        updatedAt: DateTime.utc(2026, 8, 20),
+      ),
+    ],
+    total: 1,
+    skip: 0,
+    limit: limit,
+  );
+
+  @override
+  Future<Uint8List> fetchThumbnail({
+    required AuthSession session,
+    required int documentId,
+    int maxSize = 200,
+  }) async => base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  );
 }
 
 RepositoryDocument _document({required int id, required int clientId}) {

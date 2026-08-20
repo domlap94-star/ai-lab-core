@@ -7,6 +7,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/domain/document.dart';
+import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
 import '../application/client_emails_provider.dart';
 import '../domain/client_email.dart';
@@ -336,22 +337,48 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
 
   Widget _attachmentButton(ClientEmailAttachment attachment) {
     final bool opening = _openingDocumentIds.contains(attachment.documentId);
-    return OutlinedButton.icon(
-      key: ValueKey<String>('client-email-attachment-${attachment.documentId}'),
-      onPressed: opening ? null : () => _openAttachment(attachment),
-      icon: opening
-          ? const SizedBox.square(
-              dimension: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.attach_file, size: 18),
-      label: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 220),
-        child: Text(
-          '${attachment.displayName} (${formatDocumentBytes(attachment.fileSize)})',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+    final bool image = isInternalPreviewImage(
+      attachment.contentType,
+      attachment.displayName,
+    );
+    return SizedBox(
+      width: 240,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (image) ...<Widget>[
+            DocumentImageThumbnail(
+              documentId: attachment.documentId,
+              contentType: attachment.contentType,
+              fileName: attachment.displayName,
+              onOpen: () => _openAttachment(attachment),
+            ),
+            const SizedBox(height: 4),
+          ],
+          OutlinedButton.icon(
+            key: ValueKey<String>(
+              'client-email-attachment-${attachment.documentId}',
+            ),
+            onPressed: opening ? null : () => _openAttachment(attachment),
+            icon: opening
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    image ? Icons.image_outlined : Icons.attach_file,
+                    size: 18,
+                  ),
+            label: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 190),
+              child: Text(
+                '${attachment.displayName} (${formatDocumentBytes(attachment.fileSize)})',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -385,9 +412,8 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
       final RepositoryDocument document = await ref
           .read(documentsRepositoryProvider)
           .fetchDocument(session: session, documentId: attachment.documentId);
-      await ref
-          .read(documentOpenServiceProvider)
-          .open(session: session, document: document);
+      if (!mounted) return;
+      await openDocumentMedia(context, ref, document);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

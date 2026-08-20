@@ -24,23 +24,23 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**CURRENT EXECUTION PAUSED AFTER CHUNK 09.** FOLLOW-UP CHUNK 09 — GLOBAL MAIL
-WORKSPACE is complete: Stage 1 READ, corrected nullable read-state indexes,
-compose/reply/forward, durable fail-closed idempotency, native Header Auth and
-the bounded unscheduled n8n Gmail adapter passed. The verified sender was
-`podnoszenieposadzek@gmail.com`; exactly three controlled synthetic app sends
-went only to `root.test112@gmail.com`, with replay/no-resend and payload-conflict
-`409` proven. Customer/business recipients were `0`. Canonical sources
-`8038`–`8041`, the truthful send ledger and pending unlinked synthetic
-Candidates `5530`–`5533` remain as acceptance evidence under the existing
-intentional Gmail ingestion policy. Agent remains read-only. Final backend
-regressions, Flutter analyze, focused Mail `33/33` and full `200/200` pass.
+**FOLLOW-UP CHUNK 10 — IMAGE PREVIEW SUB-SCOPE COMPLETE; MAIL
+REFRESH/RECONCILIATION PENDING.** A shared `DocumentImageThumbnail` and
+`InternalImageViewer` now serve Documents, Client Documents, Document/Vision
+details, Client Mail and Global Mail attachments. JPEG/PNG/WebP render as lazy
+100-logical-pixel previews and open inside NEXT Stabil with fit/zoom/pan/Back;
+non-images retain their prior behavior and HEIC/HEIF are explicitly unsupported
+without a new conversion subsystem. The JWT-protected bounded 200 px thumbnail
+endpoint reuses canonical Document authorization/storage resolution, validates
+decoded MIME, handles EXIF orientation and creates no persistent cache or DB
+state. Backend thumbnail `11/11`, Document/Vision/Mail regressions, Flutter
+analyze, focused `34/34` and full `211/211` pass.
 
-**NEXT PLANNED CHUNK: FOLLOW-UP CHUNK 10 — OWNER SCOPE UPDATE REQUIRED BEFORE
-EXECUTION.** Do not start FOLLOW-UP CHUNK 10 until the owner supplies the
-additional requirement and a new execution prompt. Release remains NEXT Stabil
-1.0.2+21; Release B is pending CHUNK 10 and CHUNK 05 and must not be performed
-now.
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 10 — MAIL REFRESH/RECONCILIATION.** It was
+not started in the image-preview execution and still requires a new owner
+prompt plus the applicable n8n/schedule or production reconciliation approval.
+Release remains NEXT Stabil 1.0.2+21; Release B is pending the remainder of
+CHUNK 10 and CHUNK 05 and must not be performed now.
 CHUNK 07 jest kompletny w source i DB: addytywna tabela
 `change_history_events`, strict bounded sanitizer, atomowe audyty bieżących
 Client/Candidate writes, read-only projekcje audytów domenowych oraz admin-only

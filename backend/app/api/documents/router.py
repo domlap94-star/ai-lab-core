@@ -14,7 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.api.imports.dependencies import require_import_api_key
@@ -52,6 +52,11 @@ from app.services.document_client_matching_service import (
 from app.services.document_read_service import (
     DocumentNotFoundError,
     DocumentReadService,
+)
+from app.services.document_thumbnail_service import (
+    DocumentThumbnailService,
+    MalformedDocumentImageError,
+    UnsupportedDocumentImageError,
 )
 from app.services.vision_dispatcher import process_explicit_vision_document
 from app.services.vision_supervisor_client import (
@@ -389,6 +394,46 @@ def get_document_content(
         media_type=document.content_type,
         filename=filename,
         content_disposition_type="inline",
+    )
+
+
+@router.get("/{document_id}/thumbnail", response_class=Response)
+def get_document_thumbnail(
+    document_id: int,
+    max_size: int = Query(
+        default=DocumentThumbnailService.DEFAULT_MAX_SIZE,
+        ge=32,
+        le=DocumentThumbnailService.MAX_SIZE,
+    ),
+    _: object = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        document, path, _ = DocumentReadService(db).get_content(document_id)
+        thumbnail = DocumentThumbnailService().create(
+            path,
+            document.content_type,
+            max_size,
+        )
+    except DocumentNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Document not found") from error
+    except UnsupportedDocumentImageError as error:
+        raise HTTPException(status_code=415, detail="Document is not a supported image") from error
+    except MalformedDocumentImageError as error:
+        raise HTTPException(status_code=422, detail="Document image is malformed") from error
+    except (
+        DocumentContentUnavailableError,
+        UnsafeDocumentStoragePathError,
+    ) as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Document content is unavailable",
+        ) from error
+
+    return Response(
+        content=thumbnail,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=3600"},
     )
 
 

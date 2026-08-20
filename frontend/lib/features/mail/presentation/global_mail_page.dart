@@ -10,6 +10,10 @@ import '../../../core/network/friendly_api_error.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_session.dart';
+import '../../documents/application/documents_providers.dart';
+import '../../documents/domain/document.dart';
+import '../../documents/presentation/document_media_preview.dart';
+import '../../documents/presentation/document_presentation.dart';
 import '../data/global_mail_api.dart';
 import '../domain/global_mail.dart';
 
@@ -415,24 +419,84 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
         if (item.attachments.isNotEmpty) ...<Widget>[
           const Divider(height: 32),
           Text('Załączniki', style: Theme.of(context).textTheme.titleMedium),
-          ...item.attachments.map(
-            (GlobalMailAttachment attachment) => ListTile(
-              leading: const Icon(Icons.description_outlined),
-              title: Text(
-                attachment.filename ?? 'Dokument #${attachment.documentId}',
-              ),
-              subtitle: Text(
-                '${attachment.mimeType ?? 'typ nieznany'} · '
-                '${attachment.processingStatus}',
-              ),
-              onTap: () => context.push(
-                '/documents?document_id=${attachment.documentId}',
-              ),
-            ),
-          ),
+          ...item.attachments.map(_attachmentTile),
         ],
       ],
     );
+  }
+
+  Widget _attachmentTile(GlobalMailAttachment attachment) {
+    final String filename =
+        attachment.filename ?? 'Dokument #${attachment.documentId}';
+    final String contentType = attachment.mimeType ?? '';
+    final bool image = isInternalPreviewImage(contentType, filename);
+    return Card(
+      child: InkWell(
+        onTap: image
+            ? () => _openAttachment(attachment)
+            : () => context.push(
+                '/documents?document_id=${attachment.documentId}',
+              ),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: <Widget>[
+              if (image)
+                DocumentImageThumbnail(
+                  documentId: attachment.documentId,
+                  contentType: contentType,
+                  fileName: filename,
+                  onOpen: () => _openAttachment(attachment),
+                )
+              else
+                const SizedBox(
+                  width: documentThumbnailWidth,
+                  child: Icon(Icons.description_outlined),
+                ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      filename,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${attachment.mimeType ?? 'typ nieznany'} · '
+                      '${attachment.processingStatus}',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAttachment(GlobalMailAttachment attachment) async {
+    final AuthSession? session = _session;
+    if (session == null) return;
+    try {
+      final RepositoryDocument document = await ref
+          .read(documentsRepositoryProvider)
+          .fetchDocument(session: session, documentId: attachment.documentId);
+      if (!mounted) return;
+      await openDocumentMedia(context, ref, document);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Nie udało się otworzyć załącznika: ${friendlyDocumentError(error)}',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _showThread(String threadId) async {
@@ -513,22 +577,54 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
       context: context,
       builder: (BuildContext context) => StatefulBuilder(
         builder: (BuildContext context, StateSetter setModalState) => AlertDialog(
-          title: Text(action == 'compose' ? 'Nowa wiadomość' : action == 'reply' ? 'Odpowiedz' : 'Przekaż dalej'),
+          title: Text(
+            action == 'compose'
+                ? 'Nowa wiadomość'
+                : action == 'reply'
+                ? 'Odpowiedz'
+                : 'Przekaż dalej',
+          ),
           content: SizedBox(
             width: 620,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  if (action != 'reply') TextField(key: const Key('mail-to'), controller: to, decoration: const InputDecoration(labelText: 'Do')),
-                  if (action != 'reply') TextField(controller: cc, decoration: const InputDecoration(labelText: 'DW')),
-                  if (action != 'reply') TextField(controller: bcc, decoration: const InputDecoration(labelText: 'UDW')),
-                  if (action != 'reply') TextField(key: const Key('mail-subject'), controller: subject, decoration: const InputDecoration(labelText: 'Temat')),
-                  TextField(key: const Key('mail-body'), controller: body, minLines: 6, maxLines: 14, decoration: const InputDecoration(labelText: 'Treść')),
+                  if (action != 'reply')
+                    TextField(
+                      key: const Key('mail-to'),
+                      controller: to,
+                      decoration: const InputDecoration(labelText: 'Do'),
+                    ),
+                  if (action != 'reply')
+                    TextField(
+                      controller: cc,
+                      decoration: const InputDecoration(labelText: 'DW'),
+                    ),
+                  if (action != 'reply')
+                    TextField(
+                      controller: bcc,
+                      decoration: const InputDecoration(labelText: 'UDW'),
+                    ),
+                  if (action != 'reply')
+                    TextField(
+                      key: const Key('mail-subject'),
+                      controller: subject,
+                      decoration: const InputDecoration(labelText: 'Temat'),
+                    ),
+                  TextField(
+                    key: const Key('mail-body'),
+                    controller: body,
+                    minLines: 6,
+                    maxLines: 14,
+                    decoration: const InputDecoration(labelText: 'Treść'),
+                  ),
                   if (source?.attachments.isNotEmpty == true)
                     CheckboxListTile(
                       value: includeAttachments,
-                      onChanged: (bool? value) => setModalState(() => includeAttachments = value == true),
+                      onChanged: (bool? value) => setModalState(
+                        () => includeAttachments = value == true,
+                      ),
                       title: const Text('Dołącz widoczne załączniki'),
                     ),
                 ],
@@ -536,23 +632,41 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
             ),
           ),
           actions: <Widget>[
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Anuluj')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Anuluj'),
+            ),
             FilledButton(
               key: const Key('mail-review-send'),
               onPressed: () async {
-                if (to.text.trim().isEmpty || body.text.trim().isEmpty || (action != 'reply' && subject.text.trim().isEmpty)) return;
+                if (to.text.trim().isEmpty ||
+                    body.text.trim().isEmpty ||
+                    (action != 'reply' && subject.text.trim().isEmpty)) {
+                  return;
+                }
                 final bool? send = await showDialog<bool>(
                   context: context,
                   builder: (BuildContext context) => AlertDialog(
                     title: const Text('Wyślij wiadomość?'),
-                    content: Text('Do: ${to.text.trim()}\nTemat: ${subject.text.trim()}\nZałączniki: ${includeAttachments ? source?.attachments.length ?? 0 : 0}'),
+                    content: Text(
+                      'Do: ${to.text.trim()}\nTemat: ${subject.text.trim()}\nZałączniki: ${includeAttachments ? source?.attachments.length ?? 0 : 0}',
+                    ),
                     actions: <Widget>[
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Wróć')),
-                      FilledButton(key: const Key('mail-confirm-send'), onPressed: () => Navigator.pop(context, true), child: const Text('Wyślij')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Wróć'),
+                      ),
+                      FilledButton(
+                        key: const Key('mail-confirm-send'),
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Wyślij'),
+                      ),
                     ],
                   ),
                 );
-                if (send == true && context.mounted) Navigator.pop(context, true);
+                if (send == true && context.mounted) {
+                  Navigator.pop(context, true);
+                }
               },
               child: const Text('Dalej'),
             ),
@@ -568,25 +682,65 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
       final MailSendResult result = await _api.send(
         session,
         operationId: operationId,
-        to: to.text.split(',').map((String value) => value.trim()).where((String value) => value.isNotEmpty).toList(),
-        cc: cc.text.split(',').map((String value) => value.trim()).where((String value) => value.isNotEmpty).toList(),
-        bcc: bcc.text.split(',').map((String value) => value.trim()).where((String value) => value.isNotEmpty).toList(),
+        to: to.text
+            .split(',')
+            .map((String value) => value.trim())
+            .where((String value) => value.isNotEmpty)
+            .toList(),
+        cc: cc.text
+            .split(',')
+            .map((String value) => value.trim())
+            .where((String value) => value.isNotEmpty)
+            .toList(),
+        bcc: bcc.text
+            .split(',')
+            .map((String value) => value.trim())
+            .where((String value) => value.isNotEmpty)
+            .toList(),
         subject: subject.text.trim(),
         body: body.text.trim(),
-        attachmentDocumentIds: includeAttachments ? source?.attachments.map((GlobalMailAttachment item) => item.documentId).toList() ?? const <int>[] : const <int>[],
+        attachmentDocumentIds: includeAttachments
+            ? source?.attachments
+                      .map((GlobalMailAttachment item) => item.documentId)
+                      .toList() ??
+                  const <int>[]
+            : const <int>[],
         clientId: source?.clientId,
         sourceId: source?.sourceId,
         action: action,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.status == 'canonical_synced' ? 'Wiadomość wysłana.' : 'Stan wysyłki: ${result.status}')),
+        SnackBar(
+          content: Text(
+            result.status == 'canonical_synced'
+                ? 'Wiadomość wysłana.'
+                : 'Stan wysyłki: ${result.status}',
+          ),
+        ),
       );
-      if (result.status == 'canonical_synced') await _reload();
+      if (result.status == 'canonical_synced') {
+        await _reload();
+      }
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(error, fallback: 'Nie udało się wysłać wiadomości.'))));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyApiError(
+                error,
+                fallback: 'Nie udało się wysłać wiadomości.',
+              ),
+            ),
+          ),
+        );
+      }
     } finally {
-      to.dispose(); cc.dispose(); bcc.dispose(); subject.dispose(); body.dispose();
+      to.dispose();
+      cc.dispose();
+      bcc.dispose();
+      subject.dispose();
+      body.dispose();
     }
   }
 }

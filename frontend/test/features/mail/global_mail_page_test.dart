@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
@@ -5,6 +7,7 @@ import 'package:ai_lab/features/auth/domain/current_user.dart';
 import 'package:ai_lab/features/mail/data/global_mail_api.dart';
 import 'package:ai_lab/features/mail/domain/global_mail.dart';
 import 'package:ai_lab/features/mail/presentation/global_mail_page.dart';
+import 'package:ai_lab/features/documents/application/documents_providers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,7 +35,8 @@ class _AuthController extends AuthController {
 }
 
 class _FakeMailApi extends GlobalMailApi {
-  _FakeMailApi() : super(Dio());
+  _FakeMailApi({this.imageAttachment = false}) : super(Dio());
+  final bool imageAttachment;
   int listCalls = 0;
   String? readState;
   int sendCalls = 0;
@@ -53,11 +57,11 @@ class _FakeMailApi extends GlobalMailApi {
     hasAttachments: true,
     attachmentCount: 1,
     bodyText: 'Bezpieczna treść tekstowa',
-    attachments: const <GlobalMailAttachment>[
+    attachments: <GlobalMailAttachment>[
       GlobalMailAttachment(
         documentId: 55,
-        filename: 'zalacznik.pdf',
-        mimeType: 'application/pdf',
+        filename: imageAttachment ? 'zalacznik.png' : 'zalacznik.pdf',
+        mimeType: imageAttachment ? 'image/png' : 'application/pdf',
         processingStatus: 'processed',
       ),
     ],
@@ -105,7 +109,11 @@ class _FakeMailApi extends GlobalMailApi {
     String action = 'compose',
   }) async {
     sendCalls += 1;
-    return MailSendResult(operationId: operationId, status: 'canonical_synced', canonicalSourceId: 99);
+    return MailSendResult(
+      operationId: operationId,
+      status: 'canonical_synced',
+      canonicalSourceId: 99,
+    );
   }
 }
 
@@ -122,6 +130,12 @@ Future<void> _pump(
     overrides: [
       authControllerProvider.overrideWith(_AuthController.new),
       globalMailApiProvider.overrideWithValue(api),
+      if (api.imageAttachment)
+        documentThumbnailProvider(55).overrideWith(
+          (_) async => base64Decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+          ),
+        ),
     ],
   );
   addTearDown(container.dispose);
@@ -201,14 +215,36 @@ void main() {
     expect(find.text('Przekaż dalej'), findsOneWidget);
   });
 
-  testWidgets('compose requires final confirmation before one send', (WidgetTester tester) async {
+  testWidgets('Global Mail image attachment uses shared thumbnail', (
+    WidgetTester tester,
+  ) async {
+    await _pump(tester, _FakeMailApi(imageAttachment: true));
+    await tester.tap(find.text('Testowy temat'));
+    await tester.pumpAndSettle();
+    final Finder thumbnail = find.byKey(
+      const ValueKey<String>('document-thumbnail-55'),
+    );
+    expect(thumbnail, findsOneWidget);
+    expect(tester.getSize(thumbnail).width, 100);
+    expect(find.text('zalacznik.png'), findsOneWidget);
+  });
+
+  testWidgets('compose requires final confirmation before one send', (
+    WidgetTester tester,
+  ) async {
     final api = _FakeMailApi();
     await _pump(tester, api);
     await tester.tap(find.byKey(const Key('mail-compose')));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('mail-to')), 'owner@example.invalid');
+    await tester.enterText(
+      find.byKey(const Key('mail-to')),
+      'owner@example.invalid',
+    );
     await tester.enterText(find.byKey(const Key('mail-subject')), 'Synthetic');
-    await tester.enterText(find.byKey(const Key('mail-body')), 'Synthetic body');
+    await tester.enterText(
+      find.byKey(const Key('mail-body')),
+      'Synthetic body',
+    );
     await tester.tap(find.byKey(const Key('mail-review-send')));
     await tester.pumpAndSettle();
     expect(find.text('Wyślij wiadomość?'), findsOneWidget);

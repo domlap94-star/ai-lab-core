@@ -790,7 +790,7 @@ EXECUTION.** Do not start FOLLOW-UP CHUNK 10 until the owner supplies the
 additional requirement and a new execution prompt. Release B remains pending
 CHUNK 10 and CHUNK 05.
 
-## FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION
+## [~] FOLLOW-UP CHUNK 10 — IMAGE PREVIEW COMPLETE / MAIL REFRESH-RECONCILIATION PENDING
 
 **Priority: P1**
 
@@ -805,6 +805,43 @@ Acceptance: brak duplikatów.
 
 Human gate: zmiana n8n/schedule lub produkcyjny reconciliation wymaga osobnego
 approval.
+
+### IMAGE THUMBNAILS + INTERNAL VIEWER — COMPLETE (2026-08-20)
+
+- Jeden wspólny Flutter contract obsługuje media dokumentów:
+  `DocumentImageThumbnail`, `InternalImageViewer` i `openDocumentMedia`.
+  Obsługiwane JPEG, PNG i WebP są otwierane wewnątrz NEXT Stabil przez
+  `InteractiveViewer`; nie uruchamiają Gallery, Photos, browsera ani
+  systemowego file openera. PDF i pozostałe nieobrazy zachowują dotychczasowe
+  zachowanie. HEIC/HEIF pozostają bez thumbnail/internal preview, ponieważ
+  Flutter nie zapewnia bezpiecznego dekodowania na Windows, Android i Web bez
+  nowego subsystemu konwersji.
+- Repozytorium Documents, Client Documents, Client Mail attachments, Global
+  Mail attachments oraz Document/Vision details korzystają z tego samego
+  komponentu. Miniatura ma `100` logical px szerokości, zachowuje proporcje,
+  placeholder/loading/error, semantyczny tap target oraz jest pobierana leniwie
+  tylko dla wyrenderowanego elementu. Viewer ma fit-to-screen, zoom do 8×,
+  pan, retry i poprawny Back do poprzedniego kontekstu.
+- Addytywny, JWT-protected
+  `GET /api/v1/documents/{document_id}/thumbnail?max_size=200` używa dokładnie
+  tej samej ścieżki autoryzowanego Document content. Pillow dekoduje wyłącznie
+  JPEG/PNG/WebP, weryfikuje rzeczywisty format względem canonical MIME,
+  ogranicza source do 40 MP, stosuje EXIF orientation, nie upscale'uje i
+  zwraca bounded PNG z private HTTP cache. Nie ujawnia storage path i nie
+  tworzy trwałych thumbnail files ani drugiego store'u.
+- Large-image proof: syntetyczne `6000×4000` → `200×133` w `195.436 ms`, bez
+  preładowania oryginałów przez listę. Backend thumbnail `11/11`, Document
+  Read, Vision `10/10`, Client attachment scope i Global Mail `29/29` PASS.
+  Flutter analyze PASS, focused media/screens `34/34`, full `211/211`, w tym
+  360/390/600/1200, Back oraz assertion, że image preview nie wywołuje
+  external opener.
+- DB migration/cache artifacts/business writes: `NO/0/0`. Clients,
+  Candidates, Documents rows, Client links, Gmail/n8n, Vision i Qdrant nie
+  zostały zmienione. Release nie został wykonany.
+
+Pozostały zakres CHUNK 10 — Mail Refresh/Reconciliation — jest nadal
+**PENDING** i nie został rozpoczęty. Wymaga osobnego nowego promptu oraz
+właściwego approval dla zmian n8n/schedule lub produkcyjnego reconciliation.
 
 ## [✓] FOLLOW-UP CHUNK 11 — EMAIL ↔ EXISTING CLIENT MATCHING V2 — COMPLETE
 

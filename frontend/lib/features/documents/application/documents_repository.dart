@@ -43,6 +43,11 @@ abstract class DocumentsRepository {
     required RepositoryDocument document,
     void Function(int received, int total)? onProgress,
   });
+  Future<Uint8List> fetchThumbnail({
+    required AuthSession session,
+    required int documentId,
+    int maxSize = 200,
+  }) => throw UnsupportedError('Document thumbnails are not implemented.');
   Future<DocumentClientMatch> fetchClientMatch({
     required AuthSession session,
     required int documentId,
@@ -167,6 +172,18 @@ class ApiDocumentsRepository implements DocumentsRepository {
       onProgress: onProgress,
     );
   }
+
+  @override
+  Future<Uint8List> fetchThumbnail({
+    required AuthSession session,
+    required int documentId,
+    int maxSize = 200,
+  }) => _api.fetchThumbnail(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+    maxSize: maxSize,
+  );
 
   @override
   Future<DocumentClientMatch> fetchClientMatch({

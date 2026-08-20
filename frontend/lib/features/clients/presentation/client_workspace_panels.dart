@@ -3,13 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/application/auth_controller.dart';
-import '../../auth/domain/auth_session.dart';
 import '../../client_ai_knowledge/presentation/client_ai_knowledge_panel.dart';
 import '../../documents/application/client_documents_provider.dart';
 import '../../documents/application/documents_providers.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/domain/document_page.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
+import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
 import '../../projects/presentation/client_projects_panel.dart';
 import '../../inspections/presentation/client_inspections_panel.dart';
@@ -266,20 +266,40 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Icon(_fileIcon(document.contentType), size: 22),
-          ),
+          if (isInternalPreviewImage(
+            document.contentType,
+            document.displayName,
+          ))
+            DocumentImageThumbnail(
+              documentId: document.id,
+              contentType: document.contentType,
+              fileName: document.displayName,
+              onOpen: () => _openDocument(document),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Icon(_fileIcon(document.contentType), size: 22),
+            ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Text(
-                  document.displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                InkWell(
+                  onTap:
+                      isInternalPreviewImage(
+                        document.contentType,
+                        document.displayName,
+                      )
+                      ? () => _openDocument(document)
+                      : null,
+                  child: Text(
+                    document.displayName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
                 const SizedBox(height: 5),
                 Text(
@@ -337,28 +357,22 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
   }
 
   Future<void> _openDocument(RepositoryDocument document) async {
-    final AuthSession session = requireDocumentSessionFromAuth(
-      ref.read(authControllerProvider),
-    );
     setState(() {
       _openingIds.add(document.id);
       _openingProgress[document.id] = null;
     });
     try {
-      await ref
-          .read(documentOpenServiceProvider)
-          .open(
-            session: session,
-            document: document,
-            onProgress: (int received, int total) {
-              if (!mounted) return;
-              setState(() {
-                _openingProgress[document.id] = total > 0
-                    ? received / total
-                    : null;
-              });
-            },
-          );
+      await openDocumentMedia(
+        context,
+        ref,
+        document,
+        onProgress: (int received, int total) {
+          if (!mounted) return;
+          setState(() {
+            _openingProgress[document.id] = total > 0 ? received / total : null;
+          });
+        },
+      );
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

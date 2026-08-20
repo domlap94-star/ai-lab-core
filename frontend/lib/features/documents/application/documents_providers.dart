@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
@@ -21,6 +23,16 @@ final documentsRepositoryProvider = Provider<DocumentsRepository>((Ref ref) {
 final documentOpenServiceProvider = Provider<DocumentOpenService>((Ref ref) {
   return DocumentOpenService(ref.watch(documentsRepositoryProvider));
 });
+
+final documentThumbnailProvider = FutureProvider.autoDispose
+    .family<Uint8List, int>((Ref ref, int documentId) {
+      return ref
+          .watch(documentsRepositoryProvider)
+          .fetchThumbnail(
+            session: requireDocumentSession(ref),
+            documentId: documentId,
+          );
+    });
 
 final documentDetailsProvider = FutureProvider.family<RepositoryDocument, int>((
   Ref ref,

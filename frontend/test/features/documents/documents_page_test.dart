@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:ai_lab/features/documents/application/documents_controller.dart';
+import 'package:ai_lab/features/documents/application/documents_providers.dart';
 import 'package:ai_lab/features/documents/domain/document.dart';
 import 'package:ai_lab/features/documents/domain/document_page.dart';
 import 'package:ai_lab/features/documents/presentation/documents_page.dart';
@@ -52,6 +55,61 @@ void main() {
     await tester.pumpAndSettle();
     expect(_WidgetDocumentsController.searches, <String>['umowa']);
   });
+
+  testWidgets('documents repository renders a 100px image thumbnail', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          documentsControllerProvider.overrideWith(
+            _ImageDocumentsController.new,
+          ),
+          documentThumbnailProvider(43).overrideWith(
+            (_) async => base64Decode(
+              'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+            ),
+          ),
+        ],
+        child: const MaterialApp(home: DocumentsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final Finder thumbnail = find.byKey(
+      const ValueKey<String>('document-thumbnail-43'),
+    );
+    expect(thumbnail, findsOneWidget);
+    expect(tester.getSize(thumbnail).width, 100);
+    expect(find.text('zdjecie.jpg'), findsOneWidget);
+  });
+}
+
+class _ImageDocumentsController extends DocumentsController {
+  @override
+  Future<DocumentPage> build() async => DocumentPage(
+    items: <RepositoryDocument>[
+      RepositoryDocument(
+        id: 43,
+        originalFilename: 'zdjecie.jpg',
+        contentType: 'image/jpeg',
+        fileSize: 4096,
+        sourceType: 'camera_photo',
+        processingStatus: 'processed',
+        metadataStatus: 'complete',
+        matchStatus: 'unmatched',
+        archiveDepth: 0,
+        createdAt: DateTime.utc(2026, 8, 20),
+        updatedAt: DateTime.utc(2026, 8, 20),
+      ),
+    ],
+    total: 1,
+    skip: 0,
+    limit: 50,
+  );
 }
 
 class _WidgetDocumentsController extends DocumentsController {
