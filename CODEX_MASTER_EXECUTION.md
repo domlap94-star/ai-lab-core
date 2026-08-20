@@ -35,8 +35,14 @@ errors. Release-attributable business writes, Gmail sends, n8n workflow or
 schedule changes, Vision jobs and Qdrant writes are zero. Physical Android
 widget and CHUNK 13 smokes are `UNVERIFIED` because no ADB device was connected.
 
-**NEXT PLANNED WORK: FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI. DO NOT START CHUNK
-15 WITHOUT A NEW OWNER PROMPT.**
+**OWNER-INSERTED PRE-CHUNK15 HOTFIX: ADMIN TRASH / 7-DAY RETENTION — DESIGN
+COMPLETE.** The exact current gate is
+`FOLLOWUP_TRASH_RETENTION_SCHEMA_AND_SCHEDULER_APPROVAL_REQUIRED`. The design
+uses a canonical Trash ledger, seven-day server retention, same-ID restore,
+fail-closed tombstone/content purge and a separately approved bounded Windows
+Task Scheduler runner. No migration, writes, file/Qdrant deletion or scheduler
+change was performed. FOLLOW-UP CHUNK 15 remains NOT STARTED and follows only
+after this hotfix gate.
 
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and

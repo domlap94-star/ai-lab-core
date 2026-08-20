@@ -1242,6 +1242,40 @@ device was connected.
 **PHASE C AND RELEASE C COMPLETE. NEXT PLANNED GATE: FOLLOW-UP CHUNK 15 —
 ADMIN BACKUP UI. Do not start FOLLOW-UP CHUNK 15 without a new owner prompt.**
 
+## PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION
+
+**[~] DESIGN COMPLETE — SCHEMA AND SCHEDULER APPROVAL REQUIRED.**
+
+Owner inserted this bounded gate immediately before CHUNK 15. The audited
+design is recorded in `FOLLOWUP_ADMIN_TRASH_RETENTION_DESIGN.md`. Normal delete
+will become a server-timestamped seven-day Trash lifecycle for Documents,
+Clients and Users with Administrator-only Settings UI, same-ID restore,
+fail-closed permanent purge and surviving Change History evidence.
+
+The FK audit rules out blind SQL hard delete. Clients and Users require
+irreversible non-active anonymized tombstones to preserve historical identity;
+Documents require content/file purge plus a minimal row tombstone so WorkItem
+and link provenance survive. Vectorized Documents remain blocked unless exact
+Qdrant point deletion receives separate approval. Six legacy soft-deleted
+Clients and one inactive User are not backfilled and never become purge
+eligible automatically.
+
+Proposed migration `followup_admin_trash_retention_20260820` (parent
+`followup_calendar_tasks_20260820`) adds a canonical `trash_entries` lifecycle
+ledger, entity visibility/tombstone markers, User token versioning and the
+minimal Change History CHECK extensions. No migration file or production write
+was made in the design step.
+
+Proposed automated purge uses the existing Windows Task Scheduler operational
+pattern, never n8n, with a singleton guard, maximum 100 entries per run,
+row-lock revalidation, per-entity failure isolation and no early purge.
+Activation remains separately gated by
+`FOLLOWUP_TRASH_PURGE_SCHEDULER_APPROVAL_REQUIRED`; Qdrant deletion remains
+gated by `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.
+
+**NEXT GATE: `FOLLOWUP_TRASH_RETENTION_SCHEMA_AND_SCHEDULER_APPROVAL_REQUIRED`.**
+Do not create/apply the migration, activate purge, start CHUNK 15 or release.
+
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
 **Priority: P1**
@@ -1565,8 +1599,9 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI — NOT STARTED.**
+**PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION — DESIGN COMPLETE.**
 
-Release C is complete. The next planned work is CHUNK 15, but its scheduler and
-backup execution gates remain in force and implementation requires a new owner
-prompt.
+Current gate:
+`FOLLOWUP_TRASH_RETENTION_SCHEMA_AND_SCHEDULER_APPROVAL_REQUIRED`.
+CHUNK 15 remains the canonical next roadmap chunk after this owner-inserted
+hotfix, is NOT STARTED, and retains its own scheduler/backup execution gates.
