@@ -2,7 +2,7 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 
 DATABASE_NAME = "ai_lab_chunk13_20260820"
 os.environ["POSTGRES_DB"] = DATABASE_NAME
@@ -58,6 +58,16 @@ def main() -> None:
     old_start_only = service.create(WorkItemCreate(item_type="task", title="Old start-only", start_at=now-timedelta(days=45)), user)
     created.append(old_start_only)
     require(len(created) == 6 and all(item.version == 1 for item in created), "all item types were not created")
+    statements = []
+    def count_statement(*args):
+        statements.append(args[2])
+    event.listen(db.bind, "before_cursor_execute", count_statement)
+    try:
+        page = service.list(client_id=client.id, skip=0, limit=50)
+    finally:
+        event.remove(db.bind, "before_cursor_execute", count_statement)
+    require(page["total"] == 1, "Client list filter returned an unexpected result")
+    require(len(statements) == 2, f"WorkItem list regressed to N+1 queries: {len(statements)}")
     updated = service.update(created[0].id, WorkItemUpdate(expected_version=1, status="completed"), user)
     require(updated.version == 2 and updated.completed_at is not None, "completion invariant failed")
     try: service.update(created[0].id, WorkItemUpdate(expected_version=1, title="stale"), user)

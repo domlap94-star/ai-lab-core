@@ -67,9 +67,19 @@ class WorkItemService:
             "party_name", "completed_at", "deleted_at", "version",
         )}
 
-    def _read(self, item: WorkItem) -> WorkItemRead:
-        assignee = self.db.query(User.username).filter(User.id == item.assignee_user_id).scalar() if item.assignee_user_id else None
-        client = self.db.query(Client.name).filter(Client.id == item.client_id).scalar() if item.client_id else None
+    def _read(
+        self,
+        item: WorkItem,
+        *,
+        assignee_display: str | None = None,
+        client_name: str | None = None,
+        prefetched: bool = False,
+    ) -> WorkItemRead:
+        assignee = assignee_display
+        client = client_name
+        if not prefetched:
+            assignee = self.db.query(User.username).filter(User.id == item.assignee_user_id).scalar() if item.assignee_user_id else None
+            client = self.db.query(Client.name).filter(Client.id == item.client_id).scalar() if item.client_id else None
         return WorkItemRead.model_validate(item).model_copy(update={"assignee_display": assignee, "client_name": client})
 
     def create(self, data: WorkItemCreate, actor: User) -> WorkItemRead:
@@ -89,7 +99,9 @@ class WorkItemService:
         return self._read(self._active(item_id, include_archived=include_archived))
 
     def list(self, *, item_type=None, status=None, priority=None, assignee_user_id=None, client_id=None, date_from=None, date_to=None, search=None, archived=False, skip=0, limit=50):
-        query = self.db.query(WorkItem)
+        query = self.db.query(WorkItem, User.username, Client.name).outerjoin(
+            User, User.id == WorkItem.assignee_user_id
+        ).outerjoin(Client, Client.id == WorkItem.client_id)
         query = query.filter(WorkItem.deleted_at.isnot(None) if archived else WorkItem.deleted_at.is_(None))
         for column, value in ((WorkItem.item_type, item_type), (WorkItem.status, status), (WorkItem.priority, priority), (WorkItem.assignee_user_id, assignee_user_id), (WorkItem.client_id, client_id)):
             if value is not None:
@@ -103,7 +115,20 @@ class WorkItemService:
             query = query.filter(or_(WorkItem.title.ilike(needle), WorkItem.party_name.ilike(needle)))
         total = query.count()
         rows = query.order_by(func.coalesce(WorkItem.due_at, WorkItem.start_at).asc().nulls_last(), WorkItem.id.asc()).offset(skip).limit(limit).all()
-        return {"items": [self._read(row) for row in rows], "total": total, "skip": skip, "limit": limit}
+        return {
+            "items": [
+                self._read(
+                    item,
+                    assignee_display=assignee,
+                    client_name=client,
+                    prefetched=True,
+                )
+                for item, assignee, client in rows
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
 
     def update(self, item_id: int, data: WorkItemUpdate, actor: User) -> WorkItemRead:
         item = self._active(item_id, lock=True)
