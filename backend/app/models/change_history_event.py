@@ -24,7 +24,8 @@ class ChangeHistoryEvent(Base):
         CheckConstraint(
             "entity_type IN ('client','client_contact','client_address',"
             "'client_workflow_status','client_candidate','candidate_merge',"
-            "'ignored_mail_source','user')",
+            "'ignored_mail_source','user','work_item','work_item_note',"
+            "'work_item_document','absence_request')",
             name="ck_change_history_events_entity_type",
         ),
         CheckConstraint(

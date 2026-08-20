@@ -24,8 +24,8 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**FOLLOW-UP CHUNK 13 DESIGN COMPLETE — CALENDAR/TASKS MIGRATION APPROVAL
-REQUIRED.** Release B remains published as NEXT Stabil 1.0.2+22. Web, Windows and
+**FOLLOW-UP CHUNK 13 — CALENDAR / TASKS / REALIZATIONS / NOTES — COMPLETE.**
+Release B remains published as NEXT Stabil 1.0.2+22. Web, Windows and
 Android artifacts use the production endpoints; public artifact hashes match
 the stable manifest, `minimum_version` remains `1.0.0`, and the previous
 `1.0.2+21` artifacts remain available for rollback. Release validation passed
@@ -34,14 +34,13 @@ suite (`223/223`), focused updater/version tests (`16/16`) and the public Web
 login smoke. No business-data write, Gmail send, migration, n8n workflow
 change, Vision job or Qdrant write was performed by the release.
 
-**NEXT GATE: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`. The audited
-design in `FOLLOWUP_CHUNK13_CALENDAR_TASKS_DESIGN.md` now includes the central
-operational month calendar, separate absence-request approval domain, shared
-Dashboard/Tasks month UX, bounded calendar projection, and a sanitized native
-Android Home Screen Widget/deep-link contract. The proposed migration remains
-`followup_calendar_tasks_20260820` but is expanded to four tables and Change
-History `absence_request`. Do not create or apply the migration, start source
-implementation, start CHUNK 12/14, or release without a new owner prompt.**
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD. Do not start
+CHUNK 12, CHUNK 14, or a release without a new owner prompt.** The approved
+`followup_calendar_tasks_20260820` migration is applied at a single production
+head. The implementation provides canonical WorkItems/notes/Documents,
+absence approval, shared Dashboard/Tasks month projection and a sanitized
+native Android Home Screen Widget. Production feature tables remain empty;
+there was no backfill or existing business-row rewrite.
 
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and

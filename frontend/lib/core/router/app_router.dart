@@ -20,6 +20,8 @@ import '../../features/inspections/presentation/inspection_details_page.dart';
 import '../../features/system_control/presentation/system_control_page.dart';
 import '../../features/global_search/presentation/global_search_page.dart';
 import '../../features/mail/presentation/global_mail_page.dart';
+import '../../features/tasks/presentation/tasks_page.dart';
+import '../../features/tasks/presentation/task_detail_page.dart';
 import '../widgets/app_shell.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -122,6 +124,30 @@ final GoRouter appRouter = GoRouter(
                     inspectionId: id,
                     returnPath: returnPath,
                   );
+          },
+        ),
+        GoRoute(
+          path: '/tasks',
+          builder: (BuildContext context, GoRouterState state) => TasksPage(
+            initialDate: DateTime.tryParse(
+              state.uri.queryParameters['date'] ?? '',
+            ),
+            initialAbsenceId: int.tryParse(
+              state.uri.queryParameters['absence_id'] ?? '',
+            ),
+            openCreate: state.uri.queryParameters['create'] == '1',
+            openAbsence: state.uri.queryParameters['absence'] == '1',
+          ),
+        ),
+        GoRoute(
+          path: '/tasks/:workItemId',
+          builder: (BuildContext context, GoRouterState state) {
+            final int? id = int.tryParse(
+              state.pathParameters['workItemId'] ?? '',
+            );
+            return id == null
+                ? const TasksPage()
+                : TaskDetailPage(workItemId: id);
           },
         ),
         GoRoute(

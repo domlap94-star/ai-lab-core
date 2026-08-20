@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../system_status/application/system_status_provider.dart';
 import '../../system_status/domain/backend_status.dart';
+import '../../tasks/presentation/dashboard_calendar_card.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -75,6 +76,8 @@ class DashboardPage extends ConsumerWidget {
                   ref.invalidate(backendStatusProvider);
                 },
               ),
+              const SizedBox(height: 24),
+              const DashboardCalendarCard(),
               const SizedBox(height: 24),
               LayoutBuilder(
                 builder: (BuildContext context, BoxConstraints constraints) {

@@ -1,6 +1,6 @@
 # FOLLOW-UP CHUNK 13 — Calendar / Tasks / Realizations / Notes design
 
-Status: **DESIGN COMPLETE / MIGRATION APPROVAL REQUIRED**
+Status: **IMPLEMENTED / ACCEPTED**
 
 Date: 2026-08-20
 
@@ -8,9 +8,10 @@ Extended-design source baseline: `fe2f9fecc4bdd365380de5e32cfe13faa64a7b7f`
 
 Production DB head audited read-only: `followup_change_history_entity_types_20260820`
 
-Approval gate: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`
+Approval gate: supplied by owner; migration and bounded implementation completed
 
-This document is a production design, not an implementation. It includes the
+This document began as the production design and now also records the accepted
+implementation evidence. It includes the
 owner-approved extension for the operational month calendar, absence workflow,
 Dashboard quick actions and Android Home Screen Widget. No model, API, Flutter
 or Android source, migration file, production schema or business row was
@@ -784,4 +785,31 @@ a production migration apply, historical backfill, CHUNK 12/14, Android or
 Google Calendar sync, notification scheduling, release, Qdrant/Vision work or
 destructive cleanup unless the next prompt explicitly says so.
 
-**STOP: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.**
+## 17. Implementation evidence
+
+- Migration `followup_calendar_tasks_20260820` was tested on the explicitly
+  isolated `ai_lab_chunk13_20260820` database (upgrade/downgrade/re-upgrade)
+  and applied to production. Production has one Alembic head and zero rows in
+  `work_items`, `work_item_notes`, `work_item_documents` and
+  `absence_requests`; existing CRM counts did not change.
+- The backend follows this document's single WorkItem model, separate absence
+  workflow, canonical Document links, safe Change History descriptors and
+  derived Client Timeline. Month projection is joined/bounded (1000 work
+  items, 500 absences), and Timeline work-item events use one bounded union
+  query with an exact window-count rather than N+1 queries.
+- Flutter reuses one operational month widget on Dashboard and in Zadania at
+  360/390/600/1200 widths. It provides list/month, selected-day agenda,
+  create/edit/detail, Client and assignee selection, realization-from-Client,
+  notes/STT, canonical attachments, foreground GPS, internal image preview and
+  employee/Admin absence actions.
+- Android uses an `AppWidgetProvider` with `RemoteViews` and MODE_PRIVATE local
+  snapshot. Snapshot generation strips absence/employee labels, Client PII,
+  notes, descriptions and tokens, is capped, retains last safe state and uses
+  non-destructive deep links. Android debug compilation passed; no physical
+  ADB device was connected, so physical widget and field-intake smoke is
+  unverified.
+- CHUNK 12 and CHUNK 14 were not started. No release, Gmail/n8n operation,
+  Vision job, Qdrant write or historical backfill was performed.
+
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD. A new owner prompt
+is required.**

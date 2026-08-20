@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Iterable
 
-from sqlalchemy import String, cast, func, or_
+from sqlalchemy import String, cast, func, literal, or_, select, union_all
 from sqlalchemy.orm import Session
 
 from app.models.client import Client
@@ -14,6 +14,8 @@ from app.models.document_client_link_event import DocumentClientLinkEvent
 from app.models.inspection import Inspection
 from app.models.project import Project
 from app.models.user import User
+from app.models.work_item import WorkItem
+from app.models.work_item_note import WorkItemNote
 from app.schemas.client_activity import CallActivityMetadata, StatusActivityMetadata
 from app.repositories.client_email_repository import ClientEmailRepository
 from app.schemas.timeline import TimelineEvent, TimelineEventType, TimelinePage
@@ -69,6 +71,7 @@ class TimelineService:
         if project_id is None:
             self._activity_events(events, totals, client_id, event_type, date_from, date_to, window)
             self._candidate_merge_events(events, totals, client_id, event_type, date_from, date_to, window)
+            self._work_item_events(events, totals, client_id, event_type, date_from, date_to, window)
 
         project_query = self.db.query(Project).filter(
             Project.client_id == client_id,
@@ -202,6 +205,83 @@ class TimelineService:
                 source_id=row.id, actor_user_id=row.actor_user_id,
                 entity_type="client_candidate", entity_id=row.candidate_id,
                 deep_link=f"/client-candidates/{row.candidate_id}", metadata={},
+            ))
+
+    def _work_item_events(self, events, totals, client_id, requested, date_from, date_to, window) -> None:
+        branches = []
+
+        def bounded(statement, occurred_at):
+            if date_from is not None:
+                statement = statement.where(occurred_at >= date_from)
+            if date_to is not None:
+                statement = statement.where(occurred_at <= date_to)
+            return statement
+
+        def work_branch(kind, occurred_at, actor_id, predicate):
+            return bounded(
+                select(
+                    WorkItem.id.label("source_id"),
+                    WorkItem.id.label("work_item_id"),
+                    literal(kind).label("kind"),
+                    occurred_at.label("occurred_at"),
+                    WorkItem.title.label("summary"),
+                    actor_id.label("actor_user_id"),
+                    WorkItem.item_type.label("item_type"),
+                    WorkItem.status.label("status"),
+                    WorkItem.priority.label("priority"),
+                ).where(WorkItem.client_id == client_id, predicate),
+                occurred_at,
+            )
+
+        if self._enabled(requested, "task_created"):
+            branches.append(work_branch("task_created", WorkItem.created_at, WorkItem.created_by_user_id, WorkItem.item_type != "realization"))
+        if self._enabled(requested, "realization_created"):
+            branches.append(work_branch("realization_created", WorkItem.created_at, WorkItem.created_by_user_id, WorkItem.item_type == "realization"))
+        if self._enabled(requested, "task_completed"):
+            branches.append(work_branch("task_completed", WorkItem.completed_at, WorkItem.updated_by_user_id, WorkItem.completed_at.isnot(None)))
+        if self._enabled(requested, "note_added"):
+            branches.append(bounded(
+                select(
+                    WorkItemNote.id.label("source_id"),
+                    WorkItem.id.label("work_item_id"),
+                    literal("note_added").label("kind"),
+                    WorkItemNote.created_at.label("occurred_at"),
+                    WorkItem.title.label("summary"),
+                    WorkItemNote.created_by_user_id.label("actor_user_id"),
+                    WorkItem.item_type.label("item_type"),
+                    WorkItem.status.label("status"),
+                    WorkItem.priority.label("priority"),
+                ).join(WorkItem, WorkItem.id == WorkItemNote.work_item_id).where(
+                    WorkItem.client_id == client_id,
+                    WorkItemNote.deleted_at.is_(None),
+                ),
+                WorkItemNote.created_at,
+            ))
+        if not branches:
+            return
+        projection = union_all(*branches).subquery()
+        rows = self.db.execute(
+            select(projection, func.count().over().label("projection_total"))
+            .order_by(projection.c.occurred_at.desc(), projection.c.source_id.desc())
+            .limit(window)
+        ).mappings().all()
+        totals.append(rows[0]["projection_total"] if rows else 0)
+        labels = {
+            "task_created": "Utworzono zadanie",
+            "realization_created": "Utworzono realizację",
+            "task_completed": "Zakończono zadanie",
+            "note_added": "Dodano notatkę do zadania",
+        }
+        for row in rows:
+            note = row["kind"] == "note_added"
+            source_type = "work_item_note" if note else "work_item"
+            events.append(TimelineEvent(
+                stable_key=f"{source_type}:{row['source_id']}:{'created' if note else row['kind']}",
+                event_type=row["kind"], occurred_at=row["occurred_at"], title=labels[row["kind"]],
+                summary=row["summary"][:500], client_id=client_id, source_type=source_type,
+                source_id=row["source_id"], actor_user_id=row["actor_user_id"], entity_type=source_type,
+                entity_id=row["source_id"], deep_link=f"/tasks/{row['work_item_id']}",
+                metadata={"work_item_id": row["work_item_id"], "item_type": row["item_type"], "status": row["status"], "priority": row["priority"]},
             ))
 
     def get_project_timeline(

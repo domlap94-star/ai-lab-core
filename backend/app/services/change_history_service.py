@@ -48,6 +48,19 @@ class ChangeHistoryService:
         "candidate_merge": {"target_client_id"},
         "ignored_mail_source": {"rule_type", "email", "domain", "is_active"},
         "user": {"username", "email", "role"},
+        "work_item": {
+            "item_type", "title", "description", "start_at", "due_at",
+            "all_day", "timezone_name", "status", "priority",
+            "assignee_user_id", "client_id", "party_name", "deleted_at",
+            "completed_at", "version",
+        },
+        "work_item_note": {"work_item_id", "text", "deleted_at", "version"},
+        "work_item_document": {"work_item_id", "note_id", "document_id", "detached_at"},
+        "absence_request": {
+            "requester_user_id", "absence_type", "start_date", "end_date",
+            "status", "note", "reviewed_by_user_id", "reviewed_at",
+            "review_note", "cancelled_by_user_id", "cancelled_at", "version",
+        },
     }
     ACTIONS = {
         "created", "updated", "deleted", "restored", "status_changed",
@@ -249,7 +262,7 @@ class ChangeHistoryService:
             return cls._email_descriptor(normalized)
         if field == "primary_phone" or field == "phone":
             return cls._phone_descriptor(normalized)
-        if field == "notes":
+        if field in {"notes", "description", "text", "note", "review_note"}:
             return cls._text_descriptor(value)
         if entity_type == "client_contact" and field == "kind":
             if normalized not in {"email", "phone"}:

@@ -23,6 +23,10 @@ TimelineEventType = Literal[
     "call_initiated",
     "client_status_changed",
     "candidate_merged",
+    "task_created",
+    "task_completed",
+    "realization_created",
+    "note_added",
 ]
 
 

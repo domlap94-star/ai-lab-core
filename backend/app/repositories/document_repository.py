@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import or_
+from sqlalchemy import and_, exists, or_
 from sqlalchemy.orm import Query, Session
 
 from app.models.candidate_source import CandidateSource
@@ -11,6 +11,8 @@ from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.client import Client
+from app.models.work_item import WorkItem
+from app.models.work_item_document import WorkItemDocument
 
 
 class DocumentRepository:
@@ -170,7 +172,16 @@ class DocumentRepository:
             )
 
         if client_id is not None:
-            query = query.filter(Document.client_id == client_id)
+            linked_from_work_item = exists().where(
+                and_(
+                    WorkItemDocument.document_id == Document.id,
+                    WorkItemDocument.detached_at.is_(None),
+                    WorkItemDocument.work_item_id == WorkItem.id,
+                    WorkItem.client_id == client_id,
+                    WorkItem.deleted_at.is_(None),
+                )
+            )
+            query = query.filter(or_(Document.client_id == client_id, linked_from_work_item))
         if project_id is not None:
             query = query.filter(Document.project_id == project_id)
         if inspection_id is not None:

@@ -99,6 +99,7 @@ class DocumentService:
         location_source: str | None = None,
         inspection_session_id: str | None = None,
         intake_metadata: dict[str, object] | None = None,
+        commit: bool = True,
     ) -> StoredDocumentResult:
         self._validate_source_type(source_type)
 
@@ -311,7 +312,8 @@ class DocumentService:
                 document,
             )
 
-            self.repository.commit()
+            if commit:
+                self.repository.commit()
 
             return StoredDocumentResult(
                 document=created_document,
@@ -330,6 +332,16 @@ class DocumentService:
             raise DocumentStorageError(
                 "Could not store the document."
             ) from error
+
+    def discard_uncommitted_file(self, document: Document) -> None:
+        """Remove only a just-created, uncommitted file after outer rollback."""
+        if not document.storage_path:
+            return
+        root = Path(settings.data_dir).resolve()
+        target = (root / document.storage_path).resolve()
+        if root not in target.parents:
+            raise DocumentStorageError("Refusing to remove a path outside data_dir.")
+        target.unlink(missing_ok=True)
 
     def get_document(
         self,

@@ -18,6 +18,7 @@ import '../../timeline/domain/timeline.dart';
 import '../domain/client.dart';
 import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
+import '../../tasks/presentation/client_work_items_panel.dart';
 
 final phoneUriLauncherProvider = Provider<Future<bool> Function(Uri)>((
   Ref ref,
@@ -609,6 +610,8 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
                   label: const Text('Otwórz w Asystencie technicznym'),
                 ),
               ),
+              const SizedBox(height: 20),
+              ClientWorkItemsPanel(clientId: client.id),
               const SizedBox(height: 20),
               ClientWorkspacePanels(
                 clientId: client.id,

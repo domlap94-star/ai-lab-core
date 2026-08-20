@@ -1035,7 +1035,7 @@ placeholderów.
 
 Human gate: brak przed source implementation; release osobnym promptem.
 
-## [~] FOLLOW-UP CHUNK 13 — DESIGN COMPLETE / CALENDAR-TASKS MIGRATION APPROVAL REQUIRED
+## [✓] FOLLOW-UP CHUNK 13 — CALENDAR / TASKS / REALIZATIONS / NOTES — COMPLETE
 
 **Priority: P1 — MAJOR FEATURE**
 
@@ -1072,7 +1072,7 @@ wykonuje Gmail/system-calendar/background-location operations.
 
 Migration: TAK.
 
-Human gate: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.
+Migration approval was supplied and the additive implementation is complete.
 
 ### PRODUCTION DESIGN COMPLETE (2026-08-20)
 
@@ -1105,7 +1105,41 @@ Human gate: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.
 - W tym kroku nie utworzono pliku migracji ani source implementation, nie
   zmieniono schematu/produkcji i nie rozpoczęto CHUNK 12/14.
 
-**CURRENT GATE: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.**
+### IMPLEMENTATION COMPLETE (2026-08-20)
+
+- Applied the approved linear migration `followup_calendar_tasks_20260820`
+  (parent `followup_change_history_entity_types_20260820`). Production is at a
+  single head; all four new tables are empty and existing business counts are
+  unchanged. The isolated migration upgrade/downgrade/re-upgrade passed and
+  downgrade refuses to destroy feature or audit rows.
+- Added canonical, JWT-protected WorkItem, note, Document-link, absence and
+  bounded month-projection APIs. Work items use allowlisted types/statuses/
+  priorities, timezone-aware timestamps, actor provenance, optimistic version
+  checks and soft archive/restore. Absences use inclusive DATE ranges,
+  transaction-serialized overlap checks, employee self-service and
+  Administrator review without self-approval.
+- Reused canonical Documents, thumbnail/internal viewer, camera/gallery,
+  foreground GPS and Polish speech-to-text. Client-linked realizations,
+  Documents and derived Timeline entries reuse canonical relationships and do
+  not persist duplicate Activity rows.
+- Added the shared responsive operational month calendar to Dashboard and the
+  Zadania workspace, with bounded labels/`+N więcej`, agenda, `Dodaj zadanie`,
+  `Dodaj absencję`, list/detail/edit, Client/assignee pickers and absence review.
+  This is the minimal functional Dashboard insertion; CHUNK 12 was not started.
+- Added the native Android `AppWidgetProvider`/`RemoteViews` calendar widget.
+  Its MODE_PRIVATE bounded snapshot contains no JWT, Client names, employee
+  names, notes or document content; it retains last safe state and deep-links
+  only into authenticated Tasks/calendar/form routes. No Calendar Provider,
+  notification or background-location permission was added.
+- Backend migration/domain/service/Auth, Timeline, Change History, Matching V2,
+  Mail and Image Preview regressions pass. Flutter analyze passed, focused
+  CHUNK 13/shared-field tests passed `20/20`, and the complete discovered suite
+  passed `230/230`; Android debug APK compiles.
+  No ADB device was connected, so physical camera/gallery/STT/GPS/widget smoke
+  remains truthfully unverified.
+
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD. Do not start
+without a new owner prompt. No release was performed.**
 
 ## FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY
 

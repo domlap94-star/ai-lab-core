@@ -90,6 +90,12 @@ final inspectionLocationServiceProvider = Provider<InspectionLocationService>(
   (_) => DeviceInspectionLocationService(),
 );
 
+// Shared field-intake aliases. Legacy Inspection names remain source-compatible.
+typedef FieldLocationService = InspectionLocationService;
+final fieldLocationServiceProvider = Provider<FieldLocationService>(
+  (ref) => ref.watch(inspectionLocationServiceProvider),
+);
+
 enum SpeechStartStatus { listening, denied, deniedForever, unavailable, failed }
 
 abstract class InspectionSpeechService {
@@ -205,4 +211,8 @@ class AndroidInspectionSpeechService implements InspectionSpeechService {
 
 final inspectionSpeechServiceProvider = Provider<InspectionSpeechService>(
   (_) => AndroidInspectionSpeechService(),
+);
+typedef FieldSpeechService = InspectionSpeechService;
+final fieldSpeechServiceProvider = Provider<FieldSpeechService>(
+  (ref) => ref.watch(inspectionSpeechServiceProvider),
 );

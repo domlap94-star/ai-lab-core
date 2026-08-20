@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/application/auth_state.dart';
+import '../../features/tasks/application/calendar_widget_snapshot.dart';
 
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({
@@ -41,6 +42,12 @@ class AppShell extends ConsumerStatefulWidget {
       path: '/clients',
       icon: Icons.people_outline,
       selectedIcon: Icons.people,
+    ),
+    NavigationItem(
+      label: 'Zadania',
+      path: '/tasks',
+      icon: Icons.task_alt_outlined,
+      selectedIcon: Icons.task_alt,
     ),
     NavigationItem(
       label: 'Realizacje',
@@ -118,10 +125,27 @@ class AppShell extends ConsumerStatefulWidget {
   }
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
+class _AppShellState extends ConsumerState<AppShell>
+    with WidgetsBindingObserver {
   final DashboardExitGuard _dashboardExitGuard = DashboardExitGuard();
   Timer? _dashboardExitTimer;
   bool _mobileDrawerOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) CalendarWidgetSnapshot.refreshCurrent(ref);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      CalendarWidgetSnapshot.refreshCurrent(ref);
+    }
+  }
 
   int get _selectedIndex {
     final int index = AppShell.navigationItems.indexWhere(
@@ -211,6 +235,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dashboardExitTimer?.cancel();
     super.dispose();
   }
@@ -320,6 +345,7 @@ class AppNavigationPolicy {
   static const Map<String, String> _fallbacks = <String, String>{
     '/cases': dashboardPath,
     '/clients': dashboardPath,
+    '/tasks': dashboardPath,
     '/projects': dashboardPath,
     '/inspections': dashboardPath,
     '/documents': dashboardPath,
@@ -341,6 +367,7 @@ class AppNavigationPolicy {
     final String? exact = _fallbacks[path];
     if (exact != null) return exact;
     if (path.startsWith('/clients/')) return '/clients';
+    if (path.startsWith('/tasks/')) return '/tasks';
     if (path.startsWith('/projects/')) return '/projects';
     if (path.startsWith('/inspections/')) return '/inspections';
     if (path.startsWith('/client-candidates/')) {

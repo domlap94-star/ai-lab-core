@@ -25,6 +25,10 @@ from app.models.project import Project
 from app.models.role import Role
 from app.models.user import User
 from app.models.user_lifecycle_event import UserLifecycleEvent
+from app.models.work_item import WorkItem
+from app.models.work_item_note import WorkItemNote
+from app.models.work_item_document import WorkItemDocument
+from app.models.absence_request import AbsenceRequest
 
 __all__ = [
     "AgentExecution",
@@ -54,4 +58,8 @@ __all__ = [
     "Role",
     "User",
     "UserLifecycleEvent",
+    "WorkItem",
+    "WorkItemNote",
+    "WorkItemDocument",
+    "AbsenceRequest",
 ]
