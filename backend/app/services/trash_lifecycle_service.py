@@ -29,7 +29,11 @@ from app.services.document_service import (
     UnsafeDocumentStoragePathError,
     resolve_document_storage_path,
 )
-from app.services.qdrant_vector_store import QdrantVectorStore
+from app.services.qdrant_vector_store import (
+    DocumentVectorReference,
+    QdrantDocumentPurgeError,
+    QdrantVectorStore,
+)
 from app.services.user_lifecycle_service import USER_LIFECYCLE_ADVISORY_LOCK_KEY, UserLifecycleService
 
 
@@ -242,7 +246,7 @@ class TrashLifecycleService:
         entry.attempt_count += 1
         self.db.flush()
         if entry.entity_type == "document":
-            moves = self._purge_document(entry, now)
+            moves, vector_points_deleted = self._purge_document(entry, now)
             history_type = "document"
         elif entry.entity_type == "client":
             moves = []
@@ -257,24 +261,26 @@ class TrashLifecycleService:
         entry.last_error_code = None
         self.history.persist(
             actor_user_id=None, entity_type=history_type, entity_id=entry.entity_id,
-            action="purged", before={"purged_at": None}, after={"purged_at": now},
+            action="purged", before={"purged_at": None}, after={
+                "purged_at": now,
+                **(
+                    {
+                        "vector_points_deleted_count": vector_points_deleted,
+                        "vector_collection": self.vector_store.collection_name,
+                        "purge_result": "purged",
+                    }
+                    if entry.entity_type == "document"
+                    else {}
+                ),
+            },
             source_key=f"trash:{entry.id}:purged",
         )
         return "purged", moves
 
-    def _purge_document(self, entry: TrashEntry, now: datetime) -> list[_MovedFile]:
+    def _purge_document(self, entry: TrashEntry, now: datetime) -> tuple[list[_MovedFile], int]:
         document = self.db.query(Document).filter(Document.id == entry.entity_id).with_for_update().first()
         if document is None or document.trashed_at is None or document.purged_at is not None:
             raise TrashPurgeBlockedError("document_state_mismatch")
-        if self.db.query(DocumentChunk.id).filter(DocumentChunk.document_id == document.id, DocumentChunk.vector_id.is_not(None)).first():
-            raise TrashPurgeBlockedError("qdrant_purge_approval_required")
-        try:
-            if self.vector_store.has_document_points(document.id):
-                raise TrashPurgeBlockedError("qdrant_purge_approval_required")
-        except TrashPurgeBlockedError:
-            raise
-        except Exception as error:
-            raise TrashPurgeBlockedError("qdrant_preflight_unavailable") from error
         if self.db.query(Document.id).filter(Document.parent_document_id == document.id, Document.purged_at.is_(None)).first():
             raise TrashPurgeBlockedError("archive_family_not_safe")
         if document.processing_status in ("extracting",) or document.vision_status in ("pending", "queued", "processing"):
@@ -301,6 +307,42 @@ class TrashLifecycleService:
                 paths.append(resolve_document_storage_path(storage_path=value[0], data_root=self.data_root))
             except (DocumentContentUnavailableError, UnsafeDocumentStoragePathError) as error:
                 raise TrashPurgeBlockedError("unsafe_document_storage_path") from error
+        chunk_rows = (
+            self.db.query(
+                DocumentChunk.id,
+                DocumentChunk.vector_id,
+                DocumentChunk.embedding_version,
+            )
+            .filter(
+                DocumentChunk.document_id == document.id,
+                DocumentChunk.vector_id.is_not(None),
+            )
+            .order_by(DocumentChunk.id.asc())
+            .all()
+        )
+        references = [
+            DocumentVectorReference(
+                vector_id=str(vector_id),
+                chunk_id=chunk_id,
+                embedding_version=embedding_version,
+            )
+            for chunk_id, vector_id, embedding_version in chunk_rows
+        ]
+        try:
+            vector_plan = self.vector_store.prepare_document_purge(
+                document_id=document.id,
+                references=references,
+            )
+        except QdrantDocumentPurgeError as error:
+            raise TrashPurgeBlockedError(error.code) from error
+        except Exception as error:
+            raise TrashPurgeBlockedError("qdrant_preflight_unavailable") from error
+        try:
+            vector_points_deleted = self.vector_store.delete_document_points(vector_plan)
+        except QdrantDocumentPurgeError as error:
+            raise TrashPurgeBlockedError(error.code) from error
+        except Exception as error:
+            raise TrashPurgeBlockedError("qdrant_delete_failed") from error
         quarantine_root = (self.data_root / ".trash-quarantine" / str(entry.id)).resolve()
         if self.data_root not in quarantine_root.parents:
             raise TrashPurgeBlockedError("unsafe_quarantine_path")
@@ -332,7 +374,7 @@ class TrashLifecycleService:
             document.vision_source_checksum = None
             document.purged_at = now
             self.db.add(document)
-            return moves
+            return moves, vector_points_deleted
         except Exception:
             for item in reversed(moves):
                 if item.quarantine.exists() and not item.source.exists():

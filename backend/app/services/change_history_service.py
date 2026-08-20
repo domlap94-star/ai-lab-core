@@ -48,7 +48,10 @@ class ChangeHistoryService:
         "candidate_merge": {"target_client_id"},
         "ignored_mail_source": {"rule_type", "email", "domain", "is_active"},
         "user": {"username", "email", "role", "is_active", "trashed_at", "purged_at", "auth_version"},
-        "document": {"trashed_at", "purged_at"},
+        "document": {
+            "trashed_at", "purged_at", "vector_points_deleted_count",
+            "vector_collection", "purge_result",
+        },
         "work_item": {
             "item_type", "title", "description", "start_at", "due_at",
             "all_day", "timezone_name", "status", "priority",

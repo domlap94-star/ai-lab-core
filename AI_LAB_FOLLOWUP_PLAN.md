@@ -1239,12 +1239,15 @@ writes were zero. Previous `1.0.2+22` artifacts remain available for rollback.
 Physical Android widget and CHUNK 13 smokes remain `UNVERIFIED` because no ADB
 device was connected.
 
-**PHASE C AND RELEASE C COMPLETE. NEXT PLANNED GATE: FOLLOW-UP CHUNK 15 —
-ADMIN BACKUP UI. Do not start FOLLOW-UP CHUNK 15 without a new owner prompt.**
+**PHASE C AND RELEASE C COMPLETE. PRE-CHUNK15 TRASH HOTFIX COMPLETE. CANONICAL
+NEXT ROADMAP ITEM: FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI. OWNER-REQUESTED
+FLUTTER PATCH SCOPE IS PENDING BEFORE CHUNK 15. Do not start either scope
+without a new owner prompt.**
 
 ## PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION
 
-**[~] SCHEMA + TRASH/RESTORE + SCHEDULER COMPLETE — QDRANT PURGE APPROVAL PENDING.**
+**[✓] COMPLETE — SCHEMA + TRASH/RESTORE + 7-DAY SCHEDULER + EXACT-OWNERSHIP
+QDRANT PURGE.**
 
 Owner inserted this bounded gate immediately before CHUNK 15. The audited
 design is recorded in `FOLLOWUP_ADMIN_TRASH_RETENTION_DESIGN.md`. Normal delete
@@ -1272,9 +1275,17 @@ Automated purge uses the existing Windows Task Scheduler operational pattern,
 never n8n. `NEXT Stabil - Trash Purge` is enabled every four hours with a
 singleton guard, maximum 100 entries per run, row-lock revalidation,
 per-entity failure isolation and no early purge. Its controlled production
-acceptance run saw zero eligible entries and performed zero purges. Vectorized
-Documents fail closed before file/content mutation; Qdrant deletion remains
-gated by `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.
+acceptance runs saw zero eligible entries and performed zero purges.
+
+The separately approved vector purge now derives the exact bounded point set
+from canonical `document_chunks`, verifies both DB `vector_id` and Qdrant
+`document_id`/`chunk_id` ownership, blocks foreign or untracked points, deletes
+only explicit verified IDs, and confirms their absence before Document bytes,
+content or chunks can be purged. Missing exact points are treated as an
+idempotent prior-delete state; Qdrant outage or ownership drift leaves the
+Document safely blocked. Destructive Qdrant tests refuse the production
+collection and use a temporary `ai_lab_test_*` collection. Production remained
+at 57 points during empty-queue acceptance.
 
 Test-safety follow-up: updated mutating/isolated suites validate `POSTGRES_DB`
 before application engine import and verify the connected PostgreSQL
@@ -1282,8 +1293,9 @@ before application engine import and verify the connected PostgreSQL
 unsafe test names and configuration/connection mismatches are rejected;
 `DATABASE_URL` cannot select an isolated database for these tests.
 
-**NEXT GATE: `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.**
-Do not delete Qdrant points, start CHUNK 15 or release.
+**TRASH HOTFIX COMPLETE. CANONICAL NEXT ROADMAP ITEM: FOLLOW-UP CHUNK 15 —
+ADMIN BACKUP UI. OWNER-REQUESTED FLUTTER PATCH PENDING BEFORE CHUNK 15.**
+Its scope has not yet been supplied. Do not start CHUNK 15 or release.
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 

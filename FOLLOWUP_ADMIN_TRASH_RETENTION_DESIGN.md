@@ -437,3 +437,16 @@ This design proposes three distinct approvals:
 This design execution changed no schema or runtime state: Clients, Documents,
 Users, files, Trash rows, Gmail, n8n, Vision, Qdrant and scheduler changes are
 all zero. CHUNK 15 remains not started.
+
+## Implementation completion addendum — 2026-08-21
+
+All three approvals above were subsequently granted and implemented. The
+Qdrant completion uses canonical `document_chunks` references, verifies exact
+point payload ownership, rejects foreign and untracked points, deletes only
+explicit point IDs, verifies their absence, and only then continues the
+existing Document content/file tombstone flow. Missing exact points are an
+idempotent prior-delete state; Qdrant failures leave the Trash entry blocked.
+Destructive tests are guarded to temporary `ai_lab_test_*` collections and
+cannot target `ai_lab_document_chunks`. Empty production acceptance retained
+all 57 points and performed no real purge. CHUNK 15 remains not started; an
+owner-requested Flutter patch scope is pending first.

@@ -35,17 +35,22 @@ errors. Release-attributable business writes, Gmail sends, n8n workflow or
 schedule changes, Vision jobs and Qdrant writes are zero. Physical Android
 widget and CHUNK 13 smokes are `UNVERIFIED` because no ADB device was connected.
 
-**OWNER-INSERTED PRE-CHUNK15 HOTFIX: ADMIN TRASH / 7-DAY RETENTION — SCHEMA +
-TRASH/RESTORE + SCHEDULER COMPLETE; QDRANT PURGE APPROVAL PENDING.** Production
+**OWNER-INSERTED PRE-CHUNK15 HOTFIX: ADMIN TRASH / 7-DAY RETENTION — COMPLETE.** Production
 is at `followup_admin_trash_retention_20260820`. The canonical Trash ledger,
 seven-day database-clock retention, same-ID restore, auth-version invalidation,
 Client/User tombstones, non-vector Document content purge and Administrator
 Settings UI are active. `NEXT Stabil - Trash Purge` is enabled every four hours
 with singleton, row-lock and 100-entry bounds; its controlled empty-queue run
-purged nothing. Vectorized Documents fail closed before file/content mutation,
-and no Qdrant point was changed. The exact current gate is
-`FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`. FOLLOW-UP CHUNK 15 remains NOT
-STARTED.
+purged nothing. Vectorized Document purge now verifies the canonical DB chunk
+IDs against Qdrant payload ownership, rejects foreign/untracked points, deletes
+only exact IDs and verifies absence before content purge. Isolated destructive
+tests use a guarded temporary collection; production acceptance had zero
+eligible entries and left all 57 points unchanged.
+
+The canonical next roadmap item remains FOLLOW-UP CHUNK 15, but an
+owner-requested Flutter patch is pending before it and its scope has not yet
+been supplied. Current execution decision: **OWNER FLUTTER PATCH — SCOPE
+PENDING.** FOLLOW-UP CHUNK 15 remains NOT STARTED.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

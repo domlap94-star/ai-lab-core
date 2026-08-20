@@ -567,9 +567,14 @@ safe content/file purge.
 The Windows task `NEXT Stabil - Trash Purge` is enabled every four hours with a
 100-entry limit, singleton advisory lock, row-lock revalidation and per-entry
 failure isolation. The production acceptance run reported zero eligible and
-zero purged entries. Vectorized Documents are blocked before any file or DB
-content mutation with `qdrant_purge_approval_required`; Qdrant remains at 57
-points and awaits `FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`. Flutter
+zero purged entries. The approved Qdrant completion now verifies each canonical
+DB `document_chunks.vector_id` against the Qdrant point's `document_id` and
+`chunk_id`, rejects foreign or untracked points, deletes only the exact verified
+IDs and verifies absence before content/file purge. Missing exact points support
+idempotent retry; outages and ownership drift fail closed. Destructive tests
+refuse `ai_lab_document_chunks` and use a temporary `ai_lab_test_*` collection.
+Production empty-queue acceptance left Qdrant unchanged at 57 points. Flutter
 analyze and the full discovered `246/246` suite pass. No real Client, Document,
 User or the owner's WorkItem realization was modified for acceptance; CHUNK 15
-was not started and no release was performed.
+was not started, the owner-requested Flutter patch scope remains pending, and no
+release was performed.

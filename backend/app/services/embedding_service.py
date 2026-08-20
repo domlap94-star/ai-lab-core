@@ -260,6 +260,9 @@ class EmbeddingService:
                 "chunking_version": (
                     chunk.chunking_version
                 ),
+                "embedding_version": (
+                    self.embedding_version
+                ),
                 "client_id": (
                     document.client_id
                 ),

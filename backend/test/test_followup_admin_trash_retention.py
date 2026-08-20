@@ -30,7 +30,11 @@ from app.models.trash_entry import TrashEntry
 from app.models.user import User
 from app.repositories.client_repository import ClientRepository
 from app.repositories.document_repository import DocumentRepository
-from app.services.qdrant_vector_store import QdrantVectorStore
+from app.services.qdrant_vector_store import (
+    DocumentVectorPurgePlan,
+    QdrantDocumentPurgeError,
+    QdrantVectorStore,
+)
 from app.services.trash_lifecycle_service import (
     TrashConflictError,
     TrashLifecycleService,
@@ -46,6 +50,17 @@ PASSWORD = "Trash-Test-Password-2026"
 def require(value: bool, message: str) -> None:
     if not value:
         raise AssertionError(message)
+
+
+def synthetic_qdrant_plan(*, document_id, references):
+    if references:
+        raise QdrantDocumentPurgeError("qdrant_ownership_mismatch")
+    return DocumentVectorPurgePlan(
+        document_id=document_id,
+        expected_vector_ids=(),
+        present_vector_ids=(),
+        missing_vector_ids=(),
+    )
 
 
 def make_document(db, suffix: str, content: bytes) -> tuple[Document, Path]:
@@ -229,7 +244,7 @@ def main() -> None:
         db.commit()
         early_entry = service.trash(entity_type="document", entity_id=early.id, actor=admin)
         db.commit()
-        with patch.object(QdrantVectorStore, "has_document_points", return_value=False):
+        with patch.object(QdrantVectorStore, "prepare_document_purge", side_effect=synthetic_qdrant_plan), patch.object(QdrantVectorStore, "delete_document_points", return_value=0):
             early_summary = TrashPurgeRunner(data_root=TEST_ROOT).run()
         require(early_path.exists(), "Document purged before seven days")
         require(db.get(TrashEntry, early_entry.id).state == "trashed", "Early entry state changed")
@@ -247,11 +262,12 @@ def main() -> None:
         vector_entry = service.trash(entity_type="document", entity_id=vector.id, actor=admin)
         db.commit()
         age_entry(db, vector_entry)
-        summary = TrashPurgeRunner(data_root=TEST_ROOT).run()
+        with patch.object(QdrantVectorStore, "prepare_document_purge", side_effect=TimeoutError("synthetic outage")):
+            summary = TrashPurgeRunner(data_root=TEST_ROOT).run()
         db.expire_all()
         blocked = db.get(TrashEntry, vector_entry.id)
         require(blocked.state == "blocked", "Vectorized Document was not blocked")
-        require(blocked.last_error_code == "qdrant_purge_approval_required", "Wrong vector block code")
+        require(blocked.last_error_code == "qdrant_preflight_unavailable", "Wrong outage block code")
         require(vector_path.exists(), "Vectorized Document bytes changed")
         require(db.get(Document, vector.id).extracted_text == vector.extracted_text, "Vectorized Document content changed")
         require(int(summary["blocked"]) >= 1, "Vector block not reported")
@@ -262,7 +278,7 @@ def main() -> None:
         purge_entry = service.trash(entity_type="document", entity_id=purge_doc.id, actor=admin)
         db.commit()
         age_entry(db, purge_entry)
-        with patch.object(QdrantVectorStore, "has_document_points", return_value=False):
+        with patch.object(QdrantVectorStore, "prepare_document_purge", side_effect=synthetic_qdrant_plan), patch.object(QdrantVectorStore, "delete_document_points", return_value=0):
             purge_summary = TrashPurgeRunner(data_root=TEST_ROOT).run()
         db.expire_all()
         purged_doc = db.get(Document, purge_doc.id)
@@ -295,7 +311,7 @@ def main() -> None:
         purge_user_entry = service.trash(entity_type="user", entity_id=purge_user.id, actor=admin)
         db.commit()
         age_entry(db, purge_user_entry)
-        with patch.object(QdrantVectorStore, "has_document_points", return_value=False):
+        with patch.object(QdrantVectorStore, "prepare_document_purge", side_effect=synthetic_qdrant_plan), patch.object(QdrantVectorStore, "delete_document_points", return_value=0):
             tombstone_summary = TrashPurgeRunner(data_root=TEST_ROOT).run()
         db.expire_all()
         purge_client = db.get(Client, purge_client.id)
