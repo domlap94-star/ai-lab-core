@@ -527,3 +527,29 @@ SHA-256 values match the stable manifest. `minimum_version` remains `1.0.0`,
 and previous `1.0.2+21` artifacts remain available for rollback. No Gmail send,
 n8n workflow/schedule change, Vision job or Qdrant write occurred. Phase C /
 FOLLOW-UP CHUNK 13 was not started and requires a new owner prompt.
+
+## Release C addendum — NEXT Stabil 1.0.2+23 — 2026-08-20
+
+Release C was published from Phase C source commit
+`3e7f71a60f409185eabd0b8d89b39e4fffa51417`. It contains CHUNK 13 operational
+Calendar, WorkItems, notes/Documents, absences and Android Home Screen Widget;
+CHUNK 12 live Dashboard; and CHUNK 14 bounded Last Activity. Production DB
+remained at `followup_calendar_tasks_20260820` with no pending migration and no
+release-attributable business-data write.
+
+Flutter analyze passed, focused Phase C passed `23/23`, updater/hash tests
+passed `10/10`, and the full discovered suite passed `240/240`. The public Web
+bundle loaded the NEXT Stabil login bootstrap with zero console errors. The
+Windows installer is 13,100,722 bytes with SHA-256
+`51AA30535141B7856467DB3D58FE17EF56A1B5C2A5F0C3480129A8B30CCC61A3`; the
+signed Android APK is 63,907,499 bytes with SHA-256
+`E0393523A437470B09DD66844771FB1930EEB281379D0813E911729C82DD4E1C`; and
+`main.dart.js` is 4,092,259 bytes with SHA-256
+`88ACB133F7485F7D2BAF923BC11698BC835BE2EA66B059A9BFD73EFEF26344DC`. Public
+bytes matched these local hashes before the stable manifest advanced to build
+`23`. `minimum_version` remains `1.0.0`; +22 artifacts remain available.
+
+No Gmail send, n8n workflow/schedule change, Vision job or Qdrant write
+occurred. Qdrant remains at 57 points. Physical Android widget and CHUNK 13
+smokes are `UNVERIFIED` because no ADB device was connected. Next planned work
+is FOLLOW-UP CHUNK 15, which was not started.

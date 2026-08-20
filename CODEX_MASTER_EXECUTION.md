@@ -7,7 +7,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 ## ACTIVE POST-PROJECT ROADMAP
 
 **`AI_LAB_FOLLOWUP_PLAN.md`** jest aktywnym źródłem kolejności dalszych prac po
-release 1.0.2+22.
+release 1.0.2+23.
 
 - `AI_LAB_MASTER_PLAN.txt` jest zakończonym, historycznym masterplanem głównej
   implementacji.
@@ -24,34 +24,19 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY — COMPLETE.** Dashboard now
-uses one authenticated, bounded, read-only recent-activity projection over
-canonical Activity, Change History and safe domain fallbacks. Explicit source
-precedence and semantic deduplication prevent a Client workflow-status action
-from appearing twice. Role-aware projection hides admin configuration and
-another employee's absence activity from normal users; 200-character summaries
-exclude descriptions, note/absence content, raw audit payloads, email bodies,
-secrets and storage paths. Dashboard retains the required Calendar, Mail,
-Documents, Last Activity, System Status order and section-isolated refresh/error
-states. No migration, production business write, Gmail send, n8n change,
-Vision job, Qdrant write or release was performed.
-Release B remains published as NEXT Stabil 1.0.2+22. Web, Windows and
-Android artifacts use the production endpoints; public artifact hashes match
-the stable manifest, `minimum_version` remains `1.0.0`, and the previous
-`1.0.2+21` artifacts remain available for rollback. Release validation passed
-the backend regression matrix, Flutter analyze, the full discovered Flutter
-suite (`223/223`), focused updater/version tests (`16/16`) and the public Web
-login smoke. No business-data write, Gmail send, migration, n8n workflow
-change, Vision job or Qdrant write was performed by the release.
+**RELEASE C COMPLETE — NEXT STABIL 1.0.2+23.** Phase C CHUNK 13, 12 and 14 are
+published for Web, Windows and Android. The stable manifest is build `23`,
+`minimum_version` remains `1.0.0`, public artifact hashes match locally
+validated bytes, and `1.0.2+22` remains available for rollback. Production DB
+is at the single expected head `followup_calendar_tasks_20260820` with no
+pending migration. Flutter analyze, focused Phase C `23/23`, updater `10/10`
+and full `240/240` pass; the public Web login bootstrap has zero console
+errors. Release-attributable business writes, Gmail sends, n8n workflow or
+schedule changes, Vision jobs and Qdrant writes are zero. Physical Android
+widget and CHUNK 13 smokes are `UNVERIFIED` because no ADB device was connected.
 
-**PHASE C FUNCTIONAL SCOPE IS COMPLETE. NEXT GATE: RELEASE C — READY FOR A
-SEPARATE OWNER-APPROVED RELEASE PROMPT. Do not release or start FOLLOW-UP CHUNK
-15 without a new owner prompt.** The approved
-`followup_calendar_tasks_20260820` migration is applied at a single production
-head. The implementation provides canonical WorkItems/notes/Documents,
-absence approval, shared Dashboard/Tasks month projection and a sanitized
-native Android Home Screen Widget. Production feature tables remain empty;
-there was no backfill or existing business-row rewrite.
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI. DO NOT START CHUNK
+15 WITHOUT A NEW OWNER PROMPT.**
 
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and
@@ -101,7 +86,13 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+22
+## CURRENT RELEASE — NEXT STABIL 1.0.2+23
+
+- RELEASE C: PUBLISHED. CHUNK 13 Calendar/Tasks/Realizations/Notes/Absences and
+  Android widget, CHUNK 12 live Dashboard, and CHUNK 14 Last Activity are in
+  stable Web/Windows/Android artifacts. DB head remains
+  `followup_calendar_tasks_20260820`; minimum supported version remains
+  `1.0.0`, and the update from `1.0.2+22` is optional.
 
 - CHUNK 13 — BUSINESS ASSISTANT: RELEASED. Endpoint i UI są globalnym,
   read-only copilotem; deterministic analytics, Global Search retrieval,

@@ -1222,9 +1222,25 @@ Completion evidence (2026-08-20):
 - Migration: NO. Production business writes, Gmail sends, n8n changes, Vision
   jobs, Qdrant writes and release: `0` / NOT PERFORMED.
 
-**PHASE C FUNCTIONAL SCOPE COMPLETE. NEXT GATE: RELEASE C — READY FOR A
-SEPARATE OWNER-APPROVED RELEASE PROMPT. Do not start Release C or FOLLOW-UP
-CHUNK 15 automatically.**
+**[✓] RELEASE C — PUBLISHED — NEXT STABIL 1.0.2+23.**
+
+Release C publishes the complete Phase C functional scope: CHUNK 13 Calendar,
+WorkItems, notes/Documents, absences and Android Home Screen Widget; CHUNK 12
+live operational Dashboard; and CHUNK 14 bounded, role-aware Last Activity.
+Source before release was
+`3e7f71a60f409185eabd0b8d89b39e4fffa51417`. Windows installer, signed Android
+APK and Web build use the approved production endpoints, and public bytes
+matched local SHA-256 values before the stable manifest moved to build `23`.
+`minimum_version` remains `1.0.0`, so update from `1.0.2+22` is optional.
+Flutter analyze, focused Phase C `23/23`, updater `10/10` and full `240/240`
+pass. Production DB remains at `followup_calendar_tasks_20260820`; release-
+attributable business writes, Gmail sends, n8n changes, Vision jobs and Qdrant
+writes were zero. Previous `1.0.2+22` artifacts remain available for rollback.
+Physical Android widget and CHUNK 13 smokes remain `UNVERIFIED` because no ADB
+device was connected.
+
+**PHASE C AND RELEASE C COMPLETE. NEXT PLANNED GATE: FOLLOW-UP CHUNK 15 —
+ADMIN BACKUP UI. Do not start FOLLOW-UP CHUNK 15 without a new owner prompt.**
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
@@ -1549,9 +1565,8 @@ DATA SAFETY
 
 ## Active next work
 
-**FOLLOW-UP CHUNK 07 — ADMIN CHANGE HISTORY**
+**FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI — NOT STARTED.**
 
-Design oddzielnego admin-only audytu jest zakończony. Wymagana addytywna tabela
-`change_history_events`; nie wolno przeciążać user-facing
-`client_activity_events` ani tworzyć/aplikować migracji przed approval
-`FOLLOWUP_CHANGE_HISTORY_MIGRATION_APPROVAL_REQUIRED`.
+Release C is complete. The next planned work is CHUNK 15, but its scheduler and
+backup execution gates remain in force and implementation requires a new owner
+prompt.
