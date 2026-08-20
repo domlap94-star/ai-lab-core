@@ -35,9 +35,13 @@ login smoke. No business-data write, Gmail send, migration, n8n workflow
 change, Vision job or Qdrant write was performed by the release.
 
 **NEXT GATE: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`. The audited
-design is in `FOLLOWUP_CHUNK13_CALENDAR_TASKS_DESIGN.md`. Do not create or apply
-the migration, start source implementation, start CHUNK 12/14, or release
-without a new owner prompt.**
+design in `FOLLOWUP_CHUNK13_CALENDAR_TASKS_DESIGN.md` now includes the central
+operational month calendar, separate absence-request approval domain, shared
+Dashboard/Tasks month UX, bounded calendar projection, and a sanitized native
+Android Home Screen Widget/deep-link contract. The proposed migration remains
+`followup_calendar_tasks_20260820` but is expanded to four tables and Change
+History `absence_request`. Do not create or apply the migration, start source
+implementation, start CHUNK 12/14, or release without a new owner prompt.**
 
 **FOLLOW-UP CHUNK 10 — MAIL REFRESH / RECONCILIATION + IMAGE PREVIEW —
 COMPLETE.** A shared `DocumentImageThumbnail` and

@@ -4,15 +4,17 @@ Status: **DESIGN COMPLETE / MIGRATION APPROVAL REQUIRED**
 
 Date: 2026-08-20
 
-Source baseline: `c99df02e3aabe62830081ea4c0edd9dcde906dcf`
+Extended-design source baseline: `fe2f9fecc4bdd365380de5e32cfe13faa64a7b7f`
 
 Production DB head audited read-only: `followup_change_history_entity_types_20260820`
 
 Approval gate: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`
 
-This document is a production design, not an implementation. No model, API,
-Flutter source, migration file, production schema or business row was changed
-as part of this design step.
+This document is a production design, not an implementation. It includes the
+owner-approved extension for the operational month calendar, absence workflow,
+Dashboard quick actions and Android Home Screen Widget. No model, API, Flutter
+or Android source, migration file, production schema or business row was
+changed as part of either design step.
 
 ## 1. Existing architecture audit
 
@@ -91,6 +93,10 @@ Create one additive `work_items` table. Stable API/database type values are:
 
 This avoids five near-identical tables and keeps filtering, assignment,
 attachments, notes, auditing and calendar projection consistent.
+
+Employee absence is deliberately not a sixth WorkItem type. Its requester,
+date-range and approval workflow require the separate `absence_requests`
+contract in section 8.
 
 ### Status and priority
 
@@ -185,10 +191,11 @@ CHECK constraints:
 
 Indexes (partial on `deleted_at IS NULL` where shown):
 
-- `(status, due_at, id)`;
-- `(assignee_user_id, status, due_at, id)`;
-- `(client_id, created_at DESC, id DESC)`;
-- `(item_type, start_at, id)`.
+- `(start_at, id)` and `(due_at, id)` for the two bounded month-range query
+  branches;
+- `(status, due_at, id)` and `(assignee_user_id, status, due_at, id)` for task
+  and agenda filters;
+- `(client_id, item_type, created_at DESC, id DESC)` for Client projection.
 
 ### `work_item_notes`
 
@@ -236,6 +243,55 @@ This table links canonical Document bytes; it is not another store.
 - Detach closes the relation; it never deletes Document bytes. Archiving a work
   item or note preserves links and Documents.
 
+### `absence_requests`
+
+Absence is one inclusive date range, not one row per day.
+
+| Column | Definition |
+|---|---|
+| `id` | `BIGINT` primary key, autoincrement |
+| `requester_user_id` | `BIGINT NOT NULL`, FK `users.id ON DELETE RESTRICT` |
+| `absence_type` | `VARCHAR(24) NOT NULL` |
+| `start_date` | `DATE NOT NULL` |
+| `end_date` | `DATE NOT NULL` |
+| `status` | `VARCHAR(24) NOT NULL DEFAULT 'requested'` |
+| `note` | `TEXT NULL` |
+| `reviewed_by_user_id` | `BIGINT NULL`, FK `users.id ON DELETE RESTRICT` |
+| `reviewed_at` | `TIMESTAMPTZ NULL` |
+| `review_note` | `TEXT NULL` |
+| `cancelled_by_user_id` | `BIGINT NULL`, FK `users.id ON DELETE RESTRICT` |
+| `cancelled_at` | `TIMESTAMPTZ NULL` |
+| `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` |
+| `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` |
+| `version` | `INTEGER NOT NULL DEFAULT 1` |
+
+CHECK constraints:
+
+- absence type in `vacation|day_off|sick_leave|other`;
+- status in `requested|approved|rejected|cancelled`;
+- `end_date >= start_date`, version greater than zero;
+- note at most 5,000 and review note at most 2,000 characters;
+- approved/rejected requires reviewer and reviewed timestamp; requested has no
+  review or cancellation fields; cancelled requires canceller and cancellation
+  timestamp. A cancelled formerly approved request may retain its review
+  provenance.
+
+There is no archive/delete endpoint: cancellation is the historical-preserving
+domain transition. Regular users may cancel only their own `requested` row.
+Administrators may cancel a requested or approved row. Approved dates are not
+edited silently; correction means cancellation and a new request.
+
+Active `requested|approved` ranges cannot overlap for the same requester.
+Create/update performs a transaction-scoped PostgreSQL advisory lock keyed by
+requester ID and then an overlap query. This covers the empty-range race without
+adding `btree_gist` or a broad table lock. A conflict returns typed HTTP 409
+`absence_overlap`; rejected/cancelled rows do not block.
+
+Indexes:
+
+- `(requester_user_id, status, start_date, end_date, id)`;
+- `(status, start_date, end_date, id)`.
+
 ### Change History constraint extension
 
 In the same revision, replace `ck_change_history_events_entity_type` while
@@ -244,25 +300,27 @@ preserving every current value and add only:
 - `work_item`
 - `work_item_note`
 - `work_item_document`
+- `absence_request`
 
 The current action CHECK already supports all required actions and is not
 changed. Work item lifecycle uses `created`, `updated`, `status_changed`,
 `deleted` and `restored`; notes use created/updated/deleted/restored; attachment
-relations use created/deleted. Descriptions and note text are represented by
-bounded length/hash descriptors in audit, never copied verbatim. No file path,
-STT audio, token or secret enters Change History.
+relations use created/deleted; absence review/cancellation uses
+`status_changed`. Descriptions, work-item notes, absence notes and review notes
+are represented by bounded length/hash descriptors in audit, never copied
+verbatim. No file path, STT audio, token or secret enters Change History.
 
 ### Migration behavior and rollback
 
-- Upgrade creates the three empty tables, constraints and indexes, then extends
+- Upgrade creates the four empty tables, constraints and indexes, then extends
   the Change History entity CHECK. There is no backfill and no rewrite of
   Project, Inspection, Client, Document, Activity or historical note data.
 - Isolated acceptance must perform upgrade → downgrade → re-upgrade from the
   exact parent, verify one Alembic head, original counts unchanged, FK/CHECK/
   index behavior, and invalid enum/time/ownership combinations rejected.
 - Downgrade restores the exact prior Change History CHECK and drops only the
-  three new tables in dependency order. Because that destroys feature data,
-  production downgrade is allowed only while all three tables and matching
+  four new tables in dependency order. Because that destroys feature data,
+  production downgrade is allowed only while all four tables and matching
   Change History events are empty, or after a separately approved/exported
   rollback plan. The migration must fail closed when that precondition is not
   met.
@@ -318,6 +376,24 @@ can be projected into Client Documents through its active work-item relation
 without rewriting the Document row. Responses reuse authorized Document IDs,
 content and thumbnail endpoints and never expose storage paths.
 
+### Calendar and absence requests
+
+- `GET /api/v1/calendar/month?year=2026&month=8` — one bounded operational
+  calendar projection shared by Dashboard, Tasks and the Android snapshot.
+- `GET /api/v1/absence-requests` — own history for User; bounded all-user
+  history/filtering for Administrator.
+- `POST /api/v1/absence-requests` — submit own request.
+- `GET /api/v1/absence-requests/{id}` — requester or Administrator detail.
+- `PATCH /api/v1/absence-requests/{id}` — requester may edit only a still
+  requested row with `expected_version`.
+- `POST /api/v1/absence-requests/{id}/approve`
+- `POST /api/v1/absence-requests/{id}/reject`
+- `POST /api/v1/absence-requests/{id}/cancel`
+
+Approval/rejection is Administrator-only and self-review is forbidden. Notes
+and review notes are absent from calendar DTOs and visible only to the requester
+and Administrators in the dedicated detail/history API.
+
 ## 5. Client, Documents and Timeline integration
 
 - Client Details adds a reusable Work Items panel and an `Utwórz realizację`
@@ -347,9 +423,10 @@ content and thumbnail endpoints and never expose storage paths.
 - Add the primary navigation destination `Zadania` at `/tasks`, canonical detail
   `/tasks/:workItemId`, and preserve `return_to` for Client context and Android
   Back behavior.
-- Workspace supports paginated list/agenda, month navigation, today/upcoming,
-  indicators, create/detail/edit, explicit status changes, archive/restore and
-  filters matching the server contract.
+- Workspace has `Miesiąc` and `Lista/Agenda` views. Month is the primary visual
+  overview and synchronizes its selected day with a bounded agenda. Workspace
+  also supports create/detail/edit, explicit status changes, archive/restore
+  and filters matching the server contract.
 - Use Flutter SDK widgets (`DateUtils`, `GridView`, bounded agenda lists) unless
   implementation evidence demonstrates a missing capability. No calendar
   dependency is currently installed, so a heavy package is not justified.
@@ -362,9 +439,12 @@ content and thumbnail endpoints and never expose storage paths.
 ### Dashboard boundary with CHUNK 12
 
 CHUNK 13 supplies a reusable `DashboardWorkItemsPanel` and its real data source:
-compact calendar/agenda, today/upcoming tasks and a link to `/tasks`. It may
-replace the existing dead `Zadania: 0` placeholder additively. The broader
-Dashboard ordering/removal work remains CHUNK 12 and is not part of CHUNK 13.
+a live month calendar, selected/current-day agenda and links to `/tasks`.
+Directly below it are `Dodaj zadanie` and `Dodaj absencję`. The first opens the
+normal WorkItem form where the user chooses Zadanie, Zlecenie, Realizacja,
+Przypomnienie or Wydarzenie; absence has its own request form. This may replace
+the existing dead `Zadania: 0` placeholder additively. Removing/reordering the
+other cards, menu cleanup and the full Dashboard composition remain CHUNK 12.
 
 ### Notes and field intake
 
@@ -382,70 +462,326 @@ Dashboard ordering/removal work remains CHUNK 12 and is not part of CHUNK 13.
   scheduling and platform permission UX require a separate scope and are not
   silently included.
 
-## 7. Data safety and performance
+## 7. Operational Monthly Calendar
+
+The NEXT Stabil calendar is the central operational calendar. It is not Google
+Calendar, Android Calendar Provider or system-calendar synchronization.
+
+### Reusable month UX
+
+One shared Flutter `OperationalMonthCalendar` is used by Tasks and Dashboard.
+It provides:
+
+- current month/year header, previous/next month and return to today;
+- Monday-first six-week grid, today highlight and persistent selected-day state;
+- bounded, readable labels/chips in each day cell rather than dots alone;
+- a selected-day agenda below the grid on narrow screens and beside it where
+  width permits;
+- at most 2 labels at 360/390, 3 at 600 and 4 at 1200 logical px per cell, then
+  a truthful `+N więcej` affordance opening the day agenda;
+- range items projected on each covered day, without creating per-day rows;
+- keyboard/focus semantics, high-contrast selected/today states, tooltips and
+  screen-reader labels.
+
+The month grid stays bounded even when a day is busy: cell height does not grow
+with the number of entries and long labels use one-line ellipsis. Agenda rows
+carry the complete safe title and navigation action.
+
+### Shared presentation contract
+
+Domain semantics are defined once in a versioned
+`CalendarPresentationContract`, consumed by the shared Flutter component and
+serialized into the native widget snapshot. Dashboard does not define its own
+mapping and native Android does not reinterpret WorkItem types.
+
+| Kind | Label | Semantic token | Icon token |
+|---|---|---|---|
+| `task` | Zadanie | `action_primary` | `task` |
+| `order` | Zlecenie | `action_secondary` | `order` |
+| `realization` | Realizacja | `execution` | `realization` |
+| `reminder` | Przypomnienie | `attention` | `reminder` |
+| `event` | Wydarzenie | `event` | `event` |
+| `absence_requested` | Absencja — oczekuje | `absence_pending` | `absence` |
+| `absence_approved` | Absencja | `absence_approved` | `absence` |
+
+Tokens resolve through the current light/dark color scheme with WCAG-readable
+foregrounds. Related WorkItem colors are deliberately adjacent rather than six
+unrelated bright colors; icon+text always conveys type without relying on
+color.
+
+Cancelled WorkItems and rejected/cancelled absences are hidden by default.
+Completed WorkItems remain available with a subdued completed treatment.
+
+## 8. Absence Requests
+
+### Workflow and privacy
+
+- Types: `vacation` (Urlop), `day_off` (Dzień wolny), `sick_leave`
+  (Chorobowe), `other` (Inne). CHUNK 13 performs no payroll, leave-balance or HR
+  entitlement calculation.
+- Statuses: `requested`, `approved`, `rejected`, `cancelled`.
+- A User and Administrator submit only their own request. Administrator reviews
+  requests, but no user—including an Administrator—may review their own row.
+- User sees own full request history and the safe shared-calendar projection of
+  all approved absences. User additionally sees their own pending request in
+  calendar. Administrator sees all requested and approved rows in calendar and
+  a bounded pending queue.
+- Rejected/cancelled rows remain in history but are absent from the operational
+  month by default.
+- Calendar displays requester name and absence type inside the authenticated
+  app, never the note/review reason. Detail notes are limited to requester and
+  Administrators. Change History stores only dates/type/status/technical actor
+  IDs plus note length/hash descriptors.
+
+### Self-service and admin UX
+
+`Dodaj absencję` opens a dedicated form: Od, Do, Typ, optional Notatka. It is
+not routed through WorkItem creation. A regular employee may edit or cancel an
+own `requested` row. After approval, dates/type/note are immutable; correction
+requires cancellation and a new request. Administrator has a bounded pending
+view with requester, dates, safe type, Approve and Reject. No complex manager
+hierarchy or HR subsystem is introduced.
+
+One inclusive `DATE` range is projected onto every covered calendar day.
+Overlap protection and audit semantics are defined in the migration section.
+
+## 9. Calendar Projection API
+
+### Month query
+
+`GET /api/v1/calendar/month?year=2026&month=8&timezone=Europe%2FWarsaw`
+returns the requested calendar month plus leading/trailing grid dates, using a
+server allowlist/ZoneInfo validation for timezone. Year is restricted to
+`2000..2100`; month to `1..12`. The server does not accept an arbitrary date or
+query expression.
+
+WorkItem inclusion uses explicit branches, never `created_at`:
+
+- start+due: a non-zero half-open interval overlaps grid (`start < grid_end`
+  and `due > grid_start`); equal start/due is treated as one instant;
+- start-only: start instant is inside grid;
+- due-only: due instant is inside grid;
+- all-day: stored half-open local-midnight interval is projected in its IANA
+  timezone and does not leak onto the end date.
+
+Absence inclusion is `start_date <= grid_end_date AND end_date >=
+grid_start_date`. The service projects the single row across inclusive days.
+
+The response contains no descriptions or notes:
+
+```text
+year, month, timezone, grid_start, grid_end, generated_at
+items[]:
+  entity_type, id, calendar_kind, title, start, end, is_all_day
+  status, priority, assignee{id, display_name}?
+  client{id, name}?
+  requester{id, display_name}?, deep_link
+day_counts{}, total, truncated
+```
+
+The authenticated in-app DTO may contain bounded Client/requester display
+names. The Android snapshot sanitizer strips them. WorkItems are capped at
+1,000 and absence rows at 500 per grid response. `total`, per-day counts and
+`truncated=true` remain truthful; overflow directs to the paginated agenda
+rather than silently omitting workload.
+
+The service uses joined/batched User and Client projections—no row-by-row
+lookup. Month WorkItems are selected as a `UNION` of indexed start, due and
+interval branches, deduplicated by ID. Separate partial B-tree indexes on
+`start_at` and `due_at` support this mixed-date contract without prematurely
+adding PostgreSQL range/GiST types. Query plans and normal-month response time
+must be measured before migration acceptance.
+
+## 10. Dashboard Calendar Contract
+
+CHUNK 13 inserts the live shared month calendar and selected/current-day agenda
+into the existing Dashboard. Immediately below are:
+
+- `Dodaj zadanie` → authenticated `/tasks/new`, with choice of Zadanie,
+  Zlecenie, Realizacja, Przypomnienie or Wydarzenie;
+- `Dodaj absencję` → authenticated `/absences/new`.
+
+The component and provider are exactly the same as the Tasks month view; only
+the responsive container is different. CHUNK 13 does not remove/reorder other
+Dashboard cards, remove menu sections or perform the broader CHUNK 12 rebuild.
+
+## 11. Android Home Screen Widget
+
+### Audited native baseline and technology
+
+The Android app uses application ID `pl.ailab.app`, namespace/Kotlin package
+`com.example.frontend`, a minimal Kotlin `FlutterActivity`, AndroidX,
+Java/Kotlin 17, Flutter minSdk 24 and compile/target 36. There is no
+Compose/Glance setup, AppWidget, native MethodChannel, WorkManager,
+SharedPreferences plugin or external deep-link intent filter.
+
+Use the platform `AppWidgetProvider` plus `RemoteViews`, `GridView`/
+`RemoteViewsService` and a bounded agenda collection. This adds no Compose or
+Glance dependency and works across the existing API range. Required future
+source is limited to Kotlin provider/snapshot/deep-link bridge classes,
+receiver registration, widget-provider XML and RemoteViews layouts. At least
+4x3 and 4x4/resizable layouts show current month header, compact grid with
+markers/short labels, today highlight and a short upcoming agenda. Header/day/
+item taps are useful; no destructive action is available.
+
+### Snapshot and update model
+
+Authenticated Flutter calls the month endpoint, applies a dedicated
+`WidgetSnapshotSanitizer`, and sends versioned JSON over a narrow MethodChannel
+to Android private app-UID SharedPreferences. The snapshot contains only:
+
+- schema version, generated/last-success time and displayed month;
+- date, presentation/icon/color token, bounded short title, status/priority;
+- entity type, technical ID and allowlisted internal deep-link route.
+
+It never contains JWT/refresh token, Client name/ID, requester name/ID,
+absence/work-item notes, descriptions, contacts, email, Document content or
+storage paths. Adding the widget is an explicit user action and permits bounded
+work titles on the launcher/lock-visible surface; absence labels remain generic
+(`Absencja`/`Absencja — oczekuje`). Client and employee names are omitted in the
+baseline. The contract assumes launchers may render the widget while the device
+is locked; it does not falsely rely on an unlock check. A later title-hiding
+preference may tighten this further, but is not required for the safe baseline.
+
+Snapshot refresh occurs after successful work-item/absence mutations and month
+refresh, and when the authenticated app enters foreground. `AppWidgetProvider`
+system updates redraw the last snapshot and stale timestamp only; they do not
+call the backend. No raw token is copied out of secure storage and no periodic
+network WorkManager is introduced. Consequently Android background limits do
+not produce false real-time promises. Offline/error state displays the last
+safe snapshot with `Ostatnia aktualizacja …`; empty/no-snapshot states are
+explicit.
+
+### Deep links and cold start
+
+Widget taps use explicit immutable/update-current `PendingIntent`s addressed to
+`MainActivity`; no exported arbitrary URL handler is required:
+
+- header → `/tasks?view=month`;
+- day → `/tasks?view=month&date=YYYY-MM-DD`;
+- item → `/tasks/{id}`;
+- absence → `/absences/{id}`;
+- optional `+ Zadanie`/`+ Absencja` → `/tasks/new` or `/absences/new`.
+
+The future `MainActivity` bridge retains one validated pending route for cold
+start and emits later `onNewIntent` routes. Flutter validates an exact route/
+ID/date allowlist. If session restoration/login is required, an auth navigation
+coordinator retains the pending destination and consumes it once after active
+authentication; it never falls back to performing a write. Widget quick
+actions only open forms.
+
+## 12. Authorization Matrix
+
+| Action | User | Administrator |
+|---|---:|---:|
+| View shared work calendar/work items | Yes | Yes |
+| Create/edit shared WorkItem | Yes | Yes |
+| Assign another active user | Yes | Yes |
+| Submit own absence | Yes | Yes |
+| View own absence history/detail | Yes | Yes |
+| See all approved absences in safe calendar | Yes | Yes |
+| View all absence histories/notes | No | Yes |
+| View pending requests of other users | No | Yes |
+| Approve/reject absence | No | Yes, except own |
+| Cancel own requested absence | Yes | Yes |
+| Cancel another requested/approved absence | No | Yes |
+
+This matches the current shared CRM visibility model without inventing managers
+or ownership ACLs. Actor/requester/reviewer identity is server-derived.
+
+## 13. Revised Migration Summary
+
+The proposed revision remains `followup_calendar_tasks_20260820`, parent
+`followup_change_history_entity_types_20260820`. It now creates exactly:
+
+1. `work_items`;
+2. `work_item_notes`;
+3. `work_item_documents`;
+4. `absence_requests`;
+5. the expanded Change History entity CHECK, preserving all existing values and
+   adding `work_item`, `work_item_note`, `work_item_document`,
+   `absence_request`.
+
+No local-widget database table is needed. Widget snapshots are derived client
+cache, not business state. There is no backfill, legacy Project conversion,
+historical Activity conversion or per-absence-day row generation. Exact table,
+constraint and rollback details earlier in section 3 remain authoritative.
+
+## 14. Data Safety and Performance
 
 - No Client, Project, Inspection, Candidate, historical note or Activity
   backfill.
 - No Client creation/matching from `party_name`; no Qdrant write, Vision replay,
-  Gmail/n8n action or background location.
+  Gmail/n8n action, system-calendar sync or background location.
 - Document bytes remain canonical and are not duplicated. Detach/archive does
   not remove bytes.
-- List/detail and Client projections use bounded queries and eager/batched
-  assignee/Client/document data to prevent N+1 behavior.
+- Month/list/detail and Client projections use bounded queries and eager/batched
+  User/Client/Document data to prevent N+1 behavior.
+- Private widget storage contains sanitized projection only and no credential or
+  detailed PII.
 - Database and service checks jointly protect enum, time, version, note
-  ownership and cross-Client attachment invariants.
+  ownership, absence overlap and cross-Client attachment invariants.
 
-## 8. Implementation acceptance plan
+## 15. Implementation Acceptance Plan
 
 ### Backend and migration
 
-- Isolated migration upgrade/downgrade/re-upgrade, single head, tables empty,
-  exact CHECK/FK/index verification, Change History original/new values, and
-  invalid constraint cases.
-- Create each item type; optional Client/party/assignee; inactive assignee;
-  inactive/missing Client; actor derivation; time/all-day validation; status and
-  priority allowlists; completion timestamp transitions; optimistic conflict;
-  archive/restore.
-- Server-side pagination, stable sorting, search and every filter combination,
-  including Client realization projection.
-- Note create/edit/archive/restore, empty/oversized rejection, note ownership,
-  attachment to correct note and no cross-item relation.
-- Existing/new Document attachment, atomic upload failure, detachment preserving
-  Document, Client Documents provenance/dedupe, cross-Client rejection, content
-  authorization and no path disclosure.
-- Derived Client Timeline entries, stable deep links and proof that no duplicate
-  Activity event is persisted.
-- Change History entity/actions, safe field descriptors and rollback when audit
-  creation fails.
-- JWT 401, inactive-user rejection and shared authenticated visibility. Verify
-  no cross-Client filter leakage and no credential data in assignee responses.
+- Isolated migration upgrade/downgrade/re-upgrade, single head, four tables
+  empty, exact CHECK/FK/index verification, Change History original/new values,
+  and invalid constraint cases.
+- Create each WorkItem type; optional Client/party/assignee; inactive assignee;
+  actor derivation; all-day validation; completion transitions; optimistic
+  conflict; archive/restore; server-side filters and stable pagination.
+- Create own absence, date validation, requester advisory lock and concurrent
+  overlap conflict; approve/reject Administrator; non-admin and self-review
+  rejection; own/admin cancellation; approved-edit rejection; optimistic
+  conflict; history pagination and privacy.
+- Month projection for start-only, due-only, ranged/all-day WorkItems and
+  multi-day requested/approved absences; role visibility; rejected/cancelled
+  exclusion; result caps, truthful overflow and joined query-count/performance
+  assertions.
+- Note and canonical Document lifecycle, Client realization/Documents/Timeline
+  projections, deep links, Change History safe descriptors and audit-failure
+  rollback.
 - Regression: Projects, Inspections, Documents/Image Preview, Client Details,
   Timeline, Change History, Auth, Matching V2, Mail and Agent read-only.
 
-### Flutter
+### Flutter calendar and absence
 
-- Tasks list, agenda/month calendar, today/upcoming, create/edit/detail,
-  validation, filters/paging/sort, status transition, archive confirmation and
-  stale-write conflict.
-- Active assignee picker, searchable Client picker without Client creation,
-  party-only item, and `Utwórz realizację` from Client with projection into both
-  workspaces.
-- Notes, STT append, file/image/camera/gallery, GPS success and GPS denial/error
-  continuing upload, attachment thumbnail/internal viewer and retry states.
-- Deep links and exact Back/context preservation from Client, Dashboard and
-  Document.
-- Responsive 360/390/600/1200 tests without overflow, plus Dashboard component
-  integration without CHUNK 12 redesign.
-- Flutter analyze, focused suite and full suite. Physical Android camera,
-  gallery, STT and GPS smoke should be performed when an ADB device exists; if
-  absent report `PHYSICAL_ANDROID_CHUNK13_SMOKE = UNVERIFIED` truthfully.
+- Shared month component at 360/390/600/1200: navigation, today, selected day,
+  same-day density, bounded labels, `+N więcej`, agenda sync and all presentation
+  kinds/statuses.
+- Tasks list/month forms, filters, assignee/Client picker, stale conflicts,
+  Client realization and Back/context preservation.
+- Dashboard shared month/provider, `Dodaj zadanie`, `Dodaj absencję`, and proof
+  no unrelated CHUNK 12 composition change.
+- Own absence create/edit/cancel/history; Administrator pending/approve/reject;
+  no notes/reasons in calendar cells.
+- Notes, STT append, file/image/camera/gallery, GPS denial/error continuing
+  upload, thumbnail/internal viewer and retry states.
 
-## 9. Approval boundary
+### Android widget
 
-Approval of the next step would authorize drafting/testing the exact additive
-migration and implementing this bounded domain. It would not authorize a
-production migration apply, historical backfill, CHUNK 12/14, notification
-scheduling, release, Qdrant/Vision work or destructive cleanup unless the next
-prompt explicitly says so.
+- Kotlin snapshot sanitizer/codec rejects unknown schema, oversize fields,
+  forbidden PII/token keys and non-allowlisted routes.
+- Native month rendering, today, tasks, multi-day absence, `+N`, agenda, empty
+  and stale/offline states, 4x3/4x4 resizing and RemoteViews collection IDs.
+- Cold/warm deep links to calendar day, WorkItem and absence; unauthenticated
+  route preservation through login; quick actions open forms only.
+- Static/runtime proof that widget SharedPreferences contains no JWT, Client
+  PII, employee names, notes or descriptions.
+- Flutter analyze, focused and full suite; Kotlin unit/Robolectric tests and
+  Android instrumentation where available. Physical device smoke covers add/
+  resize/refresh/offline/cold-start taps. If absent, report
+  `PHYSICAL_ANDROID_WIDGET_SMOKE = UNVERIFIED` and
+  `PHYSICAL_ANDROID_CHUNK13_SMOKE = UNVERIFIED` truthfully.
+
+## 16. Approval Boundary
+
+Approval of the next step would authorize drafting/testing the exact expanded
+additive migration and implementing this bounded domain. It would not authorize
+a production migration apply, historical backfill, CHUNK 12/14, Android or
+Google Calendar sync, notification scheduling, release, Qdrant/Vision work or
+destructive cleanup unless the next prompt explicitly says so.
 
 **STOP: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.**

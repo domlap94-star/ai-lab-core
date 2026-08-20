@@ -1043,6 +1043,10 @@ Dodać Kalendarz na Dashboard i workspace `Zadania`.
 
 Typy: task, zlecenie, realizacja, reminder, event.
 
+Kalendarz jest centralnym operational calendar NEXT Stabil, bez integracji z
+Google/System Calendar. Primary UX to miesiąc z labelami w komórkach, bounded
+`+N więcej`, selected-day agenda i wspólnym presentation contract.
+
 Pola: title, description, start, end/deadline, status, priority, assignee,
 optional Client oraz optional free-text party/name. Client nie jest wymagany.
 
@@ -1054,6 +1058,17 @@ Notatki obsługują text, Android speech-to-text, file, image, camera, gallery i
 foreground geolocation. Audio nie musi być zapisywane. Odmowa GPS nie blokuje
 camera/gallery. Client-linked attachments trafiają do Client Documents z
 provenance.
+
+Absence ma osobny approval domain (`absence_requests`), a nie typ task:
+vacation/day off/sick leave/other, requested/approved/rejected/cancelled,
+employee self-service, Administrator review bez self-approval i range
+projection bez tworzenia wiersza per day. Dashboard pokazuje live month view i
+quick actions `Dodaj zadanie` oraz `Dodaj absencję`.
+
+Android Home Screen Widget pokazuje sanitized current-month snapshot i agenda,
+działa offline na last-success state i deep-linkuje do Tasks/day/item/absence.
+Nie przechowuje JWT, Client/employee PII, notes ani document content i nie
+wykonuje Gmail/system-calendar/background-location operations.
 
 Migration: TAK.
 
@@ -1081,6 +1096,12 @@ Human gate: `FOLLOWUP_CALENDAR_TASKS_MIGRATION_APPROVAL_REQUIRED`.
   `followup_change_history_entity_types_20260820`, nie ma backfillu. Dokładne
   tabele, FK/CHECK/indexy, API, Flutter UX, rollback i test matrix opisuje
   `FOLLOWUP_CHUNK13_CALENDAR_TASKS_DESIGN.md`.
+- Owner scope update rozszerzył design o primary operational month calendar,
+  wspólny Dashboard/Tasks month component, `absence_requests`, bounded
+  `/api/v1/calendar/month`, authorization/privacy matrix i natywny Android
+  `AppWidgetProvider`/`RemoteViews`. Proposed migration tworzy teraz cztery
+  tabele i dodaje także Change History entity `absence_request`; nadal nie
+  istnieje plik migracji ani source implementation.
 - W tym kroku nie utworzono pliku migracji ani source implementation, nie
   zmieniono schematu/produkcji i nie rozpoczęto CHUNK 12/14.
 
