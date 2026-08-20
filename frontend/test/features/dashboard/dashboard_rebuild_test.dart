@@ -1,6 +1,7 @@
 import 'package:ai_lab/core/widgets/app_shell.dart';
 import 'package:ai_lab/features/dashboard/application/dashboard_providers.dart';
 import 'package:ai_lab/features/dashboard/presentation/dashboard_page.dart';
+import 'package:ai_lab/features/dashboard/domain/recent_activity.dart';
 import 'package:ai_lab/features/documents/domain/document.dart';
 import 'package:ai_lab/features/mail/domain/global_mail.dart';
 import 'package:ai_lab/features/system_status/application/system_status_provider.dart';
@@ -34,7 +35,11 @@ void main() {
     testWidgets('live Dashboard is ordered and responsive at $size', (
       WidgetTester tester,
     ) async {
-      await _pumpDashboard(tester, size: size);
+      await _pumpDashboard(
+        tester,
+        size: size,
+        activity: <RecentActivityItem>[_responsiveActivity],
+      );
 
       final finders = <Finder>[
         find.byKey(const Key('dashboard-calendar-section')),
@@ -77,6 +82,48 @@ void main() {
   });
 
   testWidgets(
+    'Last Activity renders safe rows and follows a canonical deep link',
+    (WidgetTester tester) async {
+      await _pumpDashboard(
+        tester,
+        size: const Size(390, 1000),
+        activity: <RecentActivityItem>[_activity],
+      );
+      expect(find.text('Dodano zadanie „Pomiar”'), findsOneWidget);
+      expect(find.textContaining('operator ·'), findsOneWidget);
+      expect(
+        find.byKey(const Key('dashboard-activity-change:17')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('następnym etapie'), findsNothing);
+      await tester.ensureVisible(
+        find.byKey(const Key('dashboard-activity-change:17')),
+      );
+      await tester.tap(find.byKey(const Key('dashboard-activity-change:17')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('task-target')), findsOneWidget);
+    },
+  );
+
+  testWidgets('Last Activity empty and error states are isolated', (
+    WidgetTester tester,
+  ) async {
+    await _pumpDashboard(tester, size: const Size(390, 900));
+    expect(find.text('Brak ostatniej aktywności.'), findsOneWidget);
+    await _pumpDashboard(
+      tester,
+      size: const Size(390, 900),
+      activityFailure: true,
+    );
+    expect(
+      find.text('Nie udało się wczytać ostatniej aktywności.'),
+      findsOneWidget,
+    );
+    expect(find.text('Kalendarz i zadania'), findsOneWidget);
+    expect(find.text('Status systemu'), findsOneWidget);
+  });
+
+  testWidgets(
     'section errors remain isolated and backend is not falsely offline',
     (WidgetTester tester) async {
       await _pumpDashboard(
@@ -102,6 +149,7 @@ void main() {
     int calendarLoads = 0;
     int mailLoads = 0;
     int documentLoads = 0;
+    int activityLoads = 0;
     int healthLoads = 0;
     await _pumpDashboard(
       tester,
@@ -118,6 +166,10 @@ void main() {
         documentLoads++;
         return const <RepositoryDocument>[];
       },
+      activityLoader: () async {
+        activityLoads++;
+        return const <RecentActivityItem>[];
+      },
       healthLoader: () async {
         healthLoads++;
         return _status;
@@ -128,6 +180,7 @@ void main() {
     expect(calendarLoads, 2);
     expect(mailLoads, 2);
     expect(documentLoads, 2);
+    expect(activityLoads, 2);
     expect(healthLoads, 2);
   });
 }
@@ -139,11 +192,15 @@ Future<void> _pumpDashboard(
   List<RepositoryDocument> documents = const <RepositoryDocument>[],
   bool mailFailure = false,
   bool backendFailure = false,
+  List<RecentActivityItem> activity = const <RecentActivityItem>[],
+  bool activityFailure = false,
   Future<CalendarMonthData> Function(DateTime)? calendarLoader,
   Future<List<GlobalMailItem>> Function()? mailLoader,
   Future<List<RepositoryDocument>> Function()? documentLoader,
+  Future<List<RecentActivityItem>> Function()? activityLoader,
   Future<BackendStatus> Function()? healthLoader,
 }) async {
+  await tester.pumpWidget(const SizedBox.shrink());
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -156,6 +213,10 @@ Future<void> _pumpDashboard(
       GoRoute(path: '/mail', builder: (_, _) => const Scaffold()),
       GoRoute(path: '/documents', builder: (_, _) => const Scaffold()),
       GoRoute(path: '/tasks', builder: (_, _) => const Scaffold()),
+      GoRoute(
+        path: '/tasks/:workItemId',
+        builder: (_, _) => const Scaffold(key: Key('task-target')),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -172,6 +233,15 @@ Future<void> _pumpDashboard(
         }),
         dashboardRecentDocumentsProvider.overrideWith((Ref ref) {
           return documentLoader?.call() ?? Future.value(documents);
+        }),
+        dashboardRecentActivityProvider.overrideWith((Ref ref) {
+          if (activityLoader != null) return activityLoader();
+          if (activityFailure) {
+            return Future<List<RecentActivityItem>>.error(
+              StateError('activity unavailable'),
+            );
+          }
+          return Future.value(activity);
         }),
         backendStatusProvider.overrideWith((Ref ref) {
           if (healthLoader != null) return healthLoader();
@@ -231,4 +301,27 @@ final RepositoryDocument _document = RepositoryDocument(
   archiveDepth: 0,
   createdAt: DateTime.utc(2026, 8, 20, 9),
   updatedAt: DateTime.utc(2026, 8, 20, 9),
+);
+
+final RecentActivityItem _activity = RecentActivityItem(
+  stableKey: 'change:17',
+  timestamp: DateTime.utc(2026, 8, 20, 11),
+  actorUserId: 7,
+  actorDisplay: 'operator',
+  action: 'created',
+  entityType: 'work_item',
+  entityId: 91,
+  summary: 'Dodano zadanie „Pomiar”',
+  deepLink: '/tasks/91',
+);
+
+final RecentActivityItem _responsiveActivity = RecentActivityItem(
+  stableKey: 'activity:responsive',
+  timestamp: DateTime.utc(2026, 8, 20, 12),
+  actorDisplay: 'System',
+  action: 'updated',
+  entityType: 'absence_request',
+  entityId: 92,
+  summary:
+      'Zmieniono status wniosku o absencję — bez ujawniania prywatnej notatki lub powodu nieobecności.',
 );

@@ -6,6 +6,8 @@ import '../../documents/domain/document.dart';
 import '../../documents/domain/document_filters.dart';
 import '../../mail/data/global_mail_api.dart';
 import '../../mail/domain/global_mail.dart';
+import '../data/recent_activity_api.dart';
+import '../domain/recent_activity.dart';
 
 const int dashboardPreviewLimit = 6;
 
@@ -32,5 +34,15 @@ final dashboardRecentDocumentsProvider =
             skip: 0,
             limit: dashboardPreviewLimit,
           );
+      return page.items;
+    });
+
+final dashboardRecentActivityProvider =
+    FutureProvider<List<RecentActivityItem>>((Ref ref) async {
+      final session = ref.watch(authControllerProvider).value?.session;
+      if (session == null) throw StateError('Brak aktywnej sesji użytkownika.');
+      final page = await ref
+          .watch(recentActivityApiProvider)
+          .recent(session: session, limit: 8);
       return page.items;
     });

@@ -305,6 +305,7 @@ Future<void> _pump(
         ),
         dashboardRecentMailProvider.overrideWith((Ref ref) async => []),
         dashboardRecentDocumentsProvider.overrideWith((Ref ref) async => []),
+        dashboardRecentActivityProvider.overrideWith((Ref ref) async => []),
         calendarMonthProvider.overrideWith(
           (Ref ref, DateTime month) async => CalendarMonthData(
             year: month.year,

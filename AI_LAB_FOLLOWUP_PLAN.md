@@ -1172,7 +1172,7 @@ Migration approval was supplied and the additive implementation is complete.
 **NEXT PLANNED WORK: FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD. Do not start
 without a new owner prompt. No release was performed.**
 
-## FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY
+## [✓] FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY — COMPLETE
 
 **Priority: P1**
 
@@ -1183,6 +1183,48 @@ timestamp, action, entity, bounded summary i deep link.
 
 Human gate: brak przed source implementation po ukończeniu CHUNK 06; release
 osobnym promptem.
+
+Completion evidence (2026-08-20):
+
+- Dashboard transitional copy was replaced with authenticated
+  `GET /api/v1/activity/recent`, capped to `1..50` and used with `limit=8` on
+  Dashboard. Every source query is independently bounded, results use canonical
+  timestamps and a stable key tie-break, and actor/Client labels are batch
+  loaded without N+1 queries.
+- Projection precedence is explicit: `client_activity_events`, generic Change
+  History, canonical merge/document-link/user-lifecycle fallbacks, then safe
+  derived creation/send facts. Semantic deduplication collapses the Activity +
+  Change History representation of one Client workflow-status action.
+- WorkItem/note/document-link and absence activity comes only from sanitized
+  Change History, not duplicate WorkItem timestamps. Normal users do not see
+  User/ignored-sender admin activity or another employee's absence activity;
+  Administrators receive the additional safe rows.
+- DTO summaries are limited to 200 characters and never use descriptions,
+  note text, absence reasons, raw audit payloads, email bodies, credentials or
+  storage paths. App send activity uses only `canonical_synced` ledger facts;
+  inbound mailbox traffic is deliberately excluded to avoid feed noise.
+- Dashboard rows show entity icon, bounded summary, truthful actor (`System`
+  when no actor exists), canonical event time, optional safe Client context and
+  only verified routes. Loading/empty/error states are section-local and the
+  Dashboard refresh invalidates this read provider without write side effects.
+- Production read sample: 17 bounded rows considered, 8 returned, 0 duplicates
+  suppressed, 0 unsafe rows suppressed for the Administrator sample, 12 SQL
+  statements, 71.6 ms, with guarded business counts unchanged. EXPLAIN showed
+  indexed Change History reads and current small Document/Activity scans at
+  2.0/0.08 ms; no index migration is justified.
+- Backend isolated/rollback regressions cover auth, role filtering, newest-first
+  stable ordering, limit, dedupe, privacy, deep links and query bound. Timeline,
+  Change History, WorkItems/absence, Client Search, Global Mail, Auth and Image
+  Preview regressions pass. Flutter analyze PASS; focused Dashboard `10/10`
+  and full discovered suite `240/240` PASS. Android, Web and Windows debug
+  compilation PASS; physical Android smoke remains `UNVERIFIED` because no ADB
+  executable/device was available.
+- Migration: NO. Production business writes, Gmail sends, n8n changes, Vision
+  jobs, Qdrant writes and release: `0` / NOT PERFORMED.
+
+**PHASE C FUNCTIONAL SCOPE COMPLETE. NEXT GATE: RELEASE C — READY FOR A
+SEPARATE OWNER-APPROVED RELEASE PROMPT. Do not start Release C or FOLLOW-UP
+CHUNK 15 automatically.**
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 

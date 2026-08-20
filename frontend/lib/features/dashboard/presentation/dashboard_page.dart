@@ -13,6 +13,7 @@ import '../../system_status/domain/backend_status.dart';
 import '../../tasks/application/tasks_providers.dart';
 import '../../tasks/presentation/dashboard_calendar_card.dart';
 import '../application/dashboard_providers.dart';
+import '../domain/recent_activity.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -113,6 +114,7 @@ Future<void> _refreshDashboard(WidgetRef ref) async {
   ref.invalidate(calendarMonthProvider);
   ref.invalidate(dashboardRecentMailProvider);
   ref.invalidate(dashboardRecentDocumentsProvider);
+  ref.invalidate(dashboardRecentActivityProvider);
   ref.invalidate(backendStatusProvider);
 
   Future<void> settle(Future<Object?> future) async {
@@ -127,6 +129,7 @@ Future<void> _refreshDashboard(WidgetRef ref) async {
     settle(ref.read(calendarMonthProvider(month).future)),
     settle(ref.read(dashboardRecentMailProvider.future)),
     settle(ref.read(dashboardRecentDocumentsProvider.future)),
+    settle(ref.read(dashboardRecentActivityProvider.future)),
     settle(ref.read(backendStatusProvider.future)),
   ]);
 }
@@ -291,20 +294,102 @@ class _DashboardDocumentsSection extends ConsumerWidget {
   }
 }
 
-class _DashboardLastActivitySection extends StatelessWidget {
+class _DashboardLastActivitySection extends ConsumerWidget {
   const _DashboardLastActivitySection({super.key});
 
   @override
-  Widget build(BuildContext context) => const _DashboardSection(
-    title: 'Ostatnia aktywność',
-    icon: Icons.history,
-    child: Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Text(
-        'Pełny widok aktywności zostanie włączony w następnym etapie.',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final value = ref.watch(dashboardRecentActivityProvider);
+    return _DashboardSection(
+      title: 'Ostatnia aktywność',
+      icon: Icons.history,
+      child: value.when(
+        loading: () => const _SectionLoading(label: 'Ładowanie aktywności…'),
+        error: (_, _) => _SectionError(
+          message: 'Nie udało się wczytać ostatniej aktywności.',
+          onRetry: () => ref.invalidate(dashboardRecentActivityProvider),
+        ),
+        data: (List<RecentActivityItem> items) {
+          if (items.isEmpty) {
+            return const _SectionEmpty('Brak ostatniej aktywności.');
+          }
+          return Column(
+            children: items
+                .map(
+                  (RecentActivityItem item) => Semantics(
+                    button: item.deepLink != null,
+                    label:
+                        '${item.summary}. ${item.actorDisplay}. ${formatPolishDateTime(item.timestamp)}',
+                    child: ListTile(
+                      key: ValueKey<String>(
+                        'dashboard-activity-${item.stableKey}',
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        child: Icon(
+                          _activityIcon(item.entityType),
+                          semanticLabel: _entityLabel(item.entityType),
+                        ),
+                      ),
+                      title: Text(
+                        item.summary,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        '${item.actorDisplay} · ${formatPolishDateTime(item.timestamp)}${item.clientName == null ? '' : ' · ${item.clientName}'}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: item.deepLink == null
+                          ? null
+                          : const Icon(Icons.chevron_right),
+                      onTap: item.deepLink == null
+                          ? null
+                          : () => context.push(item.deepLink!),
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
+
+  IconData _activityIcon(String type) => switch (type) {
+    'client' ||
+    'client_contact' ||
+    'client_address' ||
+    'client_workflow_status' => Icons.business_outlined,
+    'client_candidate' || 'candidate_merge' => Icons.person_search_outlined,
+    'work_item' ||
+    'work_item_note' ||
+    'work_item_document' => Icons.task_alt_outlined,
+    'absence_request' => Icons.event_busy_outlined,
+    'document' => Icons.description_outlined,
+    'mail' => Icons.mail_outline,
+    'user' => Icons.manage_accounts_outlined,
+    'inspection' => Icons.fact_check_outlined,
+    'project' => Icons.work_outline,
+    _ => Icons.history,
+  };
+
+  String _entityLabel(String type) => switch (type) {
+    'client' ||
+    'client_contact' ||
+    'client_address' ||
+    'client_workflow_status' => 'Klient',
+    'client_candidate' || 'candidate_merge' => 'Kandydat',
+    'work_item' || 'work_item_note' || 'work_item_document' => 'Zadanie',
+    'absence_request' => 'Absencja',
+    'document' => 'Dokument',
+    'mail' => 'Wiadomość',
+    'user' => 'Użytkownik',
+    'inspection' => 'Inspekcja',
+    'project' => 'Projekt',
+    _ => 'Aktywność',
+  };
 }
 
 class _DashboardSection extends StatelessWidget {

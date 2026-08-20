@@ -19,6 +19,7 @@ from app.api.mail import router as mail_router
 from app.api.work_items import router as work_items_router
 from app.api.absences import router as absences_router
 from app.api.calendar import router as calendar_router
+from app.api.activity import router as activity_router
 from app.core.constants import API_PREFIX
 
 
@@ -43,3 +44,4 @@ api_router.include_router(ai_router)
 api_router.include_router(work_items_router)
 api_router.include_router(absences_router)
 api_router.include_router(calendar_router)
+api_router.include_router(activity_router)
