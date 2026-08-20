@@ -19,6 +19,7 @@ class GlobalMailApi {
   Future<GlobalMailPageData> list({
     required AuthSession session,
     required int skip,
+    int limit = 50,
     String? search,
     String? direction,
     String? readState,
@@ -32,7 +33,7 @@ class GlobalMailApi {
       '/api/v1/mail',
       queryParameters: <String, dynamic>{
         'skip': skip,
-        'limit': 50,
+        'limit': limit,
         'search': ?search,
         'direction': ?direction,
         'read_state': ?readState,

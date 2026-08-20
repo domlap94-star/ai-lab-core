@@ -7,8 +7,11 @@ import 'package:ai_lab/features/global_search/data/global_search_api.dart';
 import 'package:ai_lab/features/global_search/domain/global_search.dart';
 import 'package:ai_lab/features/global_search/presentation/global_search_page.dart';
 import 'package:ai_lab/features/dashboard/presentation/dashboard_page.dart';
+import 'package:ai_lab/features/dashboard/application/dashboard_providers.dart';
 import 'package:ai_lab/features/system_status/application/system_status_provider.dart';
 import 'package:ai_lab/features/system_status/domain/backend_status.dart';
+import 'package:ai_lab/features/tasks/application/tasks_providers.dart';
+import 'package:ai_lab/features/tasks/domain/work_item.dart';
 import 'package:ai_lab/core/widgets/app_shell.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -298,6 +301,18 @@ Future<void> _pump(
             debug: false,
             latencyMilliseconds: 1,
             baseUrl: 'http://test',
+          ),
+        ),
+        dashboardRecentMailProvider.overrideWith((Ref ref) async => []),
+        dashboardRecentDocumentsProvider.overrideWith((Ref ref) async => []),
+        calendarMonthProvider.overrideWith(
+          (Ref ref, DateTime month) async => CalendarMonthData(
+            year: month.year,
+            month: month.month,
+            items: const [],
+            total: 0,
+            dayCounts: const {},
+            truncated: false,
           ),
         ),
       ],

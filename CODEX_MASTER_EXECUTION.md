@@ -24,7 +24,15 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**FOLLOW-UP CHUNK 13 — CALENDAR / TASKS / REALIZATIONS / NOTES — COMPLETE.**
+**FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD — COMPLETE.** Dashboard now uses the
+canonical CHUNK 13 month/tasks projection, bounded real Mail and Documents,
+and section-isolated read states in the required operational order. Legacy
+Dashboard placeholders and the `Sprawy` menu item are removed while the legacy
+route remains compatible. `Ostatnia aktywność` is a truthful compact hand-off
+to CHUNK 14, and public backend health is the final section without treating an
+unreachable private Supervisor as system offline. No migration, production
+business write, Gmail send, n8n change, Vision job, Qdrant write or release was
+performed.
 Release B remains published as NEXT Stabil 1.0.2+22. Web, Windows and
 Android artifacts use the production endpoints; public artifact hashes match
 the stable manifest, `minimum_version` remains `1.0.0`, and the previous
@@ -34,8 +42,8 @@ suite (`223/223`), focused updater/version tests (`16/16`) and the public Web
 login smoke. No business-data write, Gmail send, migration, n8n workflow
 change, Vision job or Qdrant write was performed by the release.
 
-**NEXT PLANNED WORK: FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD. Do not start
-CHUNK 12, CHUNK 14, or a release without a new owner prompt.** The approved
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY. Do not start
+CHUNK 14 or a release without a new owner prompt.** The approved
 `followup_calendar_tasks_20260820` migration is applied at a single production
 head. The implementation provides canonical WorkItems/notes/Documents,
 absence approval, shared Dashboard/Tasks month projection and a sanitized

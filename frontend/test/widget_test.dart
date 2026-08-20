@@ -9,6 +9,9 @@ import 'package:ai_lab/features/app_version/application/app_version_provider.dar
 import 'package:ai_lab/features/app_version/domain/app_version_info.dart';
 import 'package:ai_lab/features/system_status/application/system_status_provider.dart';
 import 'package:ai_lab/features/system_status/domain/backend_status.dart';
+import 'package:ai_lab/features/dashboard/application/dashboard_providers.dart';
+import 'package:ai_lab/features/tasks/application/tasks_providers.dart';
+import 'package:ai_lab/features/tasks/domain/work_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,6 +81,18 @@ void main() {
               baseUrl: 'http://127.0.0.1:8000',
             );
           }),
+          dashboardRecentMailProvider.overrideWith((Ref ref) async => []),
+          dashboardRecentDocumentsProvider.overrideWith((Ref ref) async => []),
+          calendarMonthProvider.overrideWith(
+            (Ref ref, DateTime month) async => CalendarMonthData(
+              year: month.year,
+              month: month.month,
+              items: const [],
+              total: 0,
+              dayCounts: const {},
+              truncated: false,
+            ),
+          ),
         ],
         child: const App(),
       ),
@@ -89,8 +104,10 @@ void main() {
     expect(find.text('Backend: ONLINE'), findsOneWidget);
     expect(find.text('0.1.0'), findsOneWidget);
     expect(find.text('12 ms'), findsOneWidget);
-    expect(find.text('Aktywne sprawy'), findsOneWidget);
-    expect(find.text('Dokumenty'), findsOneWidget);
+    expect(find.text('Kalendarz i zadania'), findsOneWidget);
+    expect(find.text('Maile'), findsWidgets);
+    expect(find.text('Ostatnia aktywność'), findsOneWidget);
+    expect(find.text('Dokumenty'), findsWidgets);
     expect(find.text('Asystent AI'), findsOneWidget);
   });
 

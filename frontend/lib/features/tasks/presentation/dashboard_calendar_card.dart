@@ -20,7 +20,25 @@ class _State extends ConsumerState<DashboardCalendarCard> {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Kalendarz i zadania',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/tasks'),
+                  child: const Text('Zobacz wszystkie'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
             value.when(
               data: (d) => Column(
                 children: [

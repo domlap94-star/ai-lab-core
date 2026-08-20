@@ -1014,7 +1014,7 @@ Completion record (2026-08-19):
 - Implementation commit: `Improve email to existing client matching`.
 - Release: NOT PERFORMED; pozostaje `NEXT Stabil 1.0.2+21`.
 
-## FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD
+## [✓] FOLLOW-UP CHUNK 12 — DASHBOARD REBUILD — COMPLETE
 
 **Priority: P1**
 
@@ -1034,6 +1034,37 @@ danych; nowe dokumenty, maile, zadania i aktywność nie mogą trafiać do martw
 placeholderów.
 
 Human gate: brak przed source implementation; release osobnym promptem.
+
+### IMPLEMENTATION COMPLETE (2026-08-20)
+
+- Dashboard ma jedną operacyjną hierarchię opartą wyłącznie na realnych
+  providerach: `Kalendarz i zadania`, `Maile`, `Dokumenty`, mały prawdziwy
+  stan przejściowy `Ostatnia aktywność` oraz `Status systemu` jako ostatnia
+  sekcja. Usunięto martwe `Sprawy`, `Analizy` i `Zadania: 0`; `Sprawy`
+  usunięto z głównej nawigacji bez kasowania kompatybilnej trasy/backendu.
+- Dashboard współdzieli CHUNK 13 `OperationalMonthCalendar`, month projection
+  i formularze `Dodaj zadanie` / `Dodaj absencję`. Nie powstał drugi calendar
+  provider ani formularz.
+- Maile i Dokumenty używają istniejących uwierzytelnionych API z limitem 6.
+  Dokumenty zachowują wspólne 100 px thumbnails i internal image viewer;
+  Dashboard nie pobiera pełnej skrzynki ani repozytorium dokumentów.
+- Każda sekcja ma własny loading/error/empty state, a wspólne ręczne
+  odświeżenie unieważnia wyłącznie read providery. Niedostępny health jest
+  prezentowany jako `NIEDOSTĘPNY`, nie jako fałszywe `OFFLINE`; prywatny
+  Supervisor nie jest używany jako prawda o publicznym backendzie.
+- Pełna globalna aktywność pozostaje zakresem CHUNK 14. CHUNK 12 rezerwuje jej
+  właściwe miejsce bez dummy entries, fake counters ani nowego activity API.
+- Responsive/failure/order/navigation tests obejmują 360/390/600/1200.
+  Flutter analyze PASS, focused Dashboard/Mail/Search/navigation `41/41`, full
+  suite `238/238`; Android debug, Web release i Windows debug builds PASS.
+  Brak urządzenia/ADB, więc physical Android smoke pozostaje `UNVERIFIED`.
+  Backend read/isolated Calendar, WorkItems, Absence, Global Mail, Timeline,
+  Documents i Auth regressions PASS.
+- Migration: NO. Production business writes, Gmail sends, n8n changes, Vision
+  jobs, Qdrant writes i release: `0` / NOT PERFORMED.
+
+**NEXT PLANNED WORK: FOLLOW-UP CHUNK 14 — DASHBOARD LAST ACTIVITY. Do not
+start without a new owner prompt.**
 
 ## [✓] FOLLOW-UP CHUNK 13 — CALENDAR / TASKS / REALIZATIONS / NOTES — COMPLETE
 

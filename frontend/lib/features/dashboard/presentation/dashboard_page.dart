@@ -3,10 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/formatters/polish_date_time.dart';
 import '../../../core/widgets/app_shell.dart';
+import '../../documents/domain/document.dart';
+import '../../documents/presentation/document_media_preview.dart';
+import '../../mail/domain/global_mail.dart';
 import '../../system_status/application/system_status_provider.dart';
 import '../../system_status/domain/backend_status.dart';
+import '../../tasks/application/tasks_providers.dart';
 import '../../tasks/presentation/dashboard_calendar_card.dart';
+import '../application/dashboard_providers.dart';
 
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
@@ -24,10 +30,9 @@ class DashboardPage extends ConsumerWidget {
         title: const Text('Dashboard'),
         actions: <Widget>[
           IconButton(
-            tooltip: 'Odśwież status backendu',
-            onPressed: () {
-              ref.invalidate(backendStatusProvider);
-            },
+            key: const Key('dashboard-refresh'),
+            tooltip: 'Odśwież Dashboard',
+            onPressed: () => _refreshDashboard(ref),
             icon: const Icon(Icons.refresh),
           ),
           IconButton(
@@ -35,124 +40,367 @@ class DashboardPage extends ConsumerWidget {
             onPressed: () => context.push('/search'),
             icon: const Icon(Icons.search),
           ),
-          IconButton(
-            tooltip: 'Powiadomienia',
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_outlined),
-          ),
           const SizedBox(width: 8),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(backendStatusProvider);
-          await ref.read(backendStatusProvider.future);
-        },
+        onRefresh: () => _refreshDashboard(ref),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const _DashboardGlobalSearchBar(),
-              const SizedBox(height: 28),
-              Text(
-                'Dzień dobry',
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tutaj pojawią się najważniejsze informacje i zadania.',
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 28),
-              _BackendStatusCard(
-                status: backendStatus,
-                onRefresh: () {
-                  ref.invalidate(backendStatusProvider);
-                },
-              ),
-              const SizedBox(height: 24),
-              const DashboardCalendarCard(),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (BuildContext context, BoxConstraints constraints) {
-                  final int columns = constraints.maxWidth >= 1100
-                      ? 4
-                      : constraints.maxWidth >= 650
-                      ? 2
-                      : 1;
-
-                  return GridView.count(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 2.2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    children: <Widget>[
-                      const _SummaryCard(
-                        title: 'Aktywne sprawy',
-                        value: '0',
-                        icon: Icons.work_outline,
-                      ),
-                      const _SummaryCard(
-                        title: 'Nowe dokumenty',
-                        value: '0',
-                        icon: Icons.description_outlined,
-                      ),
-                      const _SummaryCard(
-                        title: 'Zadania',
-                        value: '0',
-                        icon: Icons.task_alt_outlined,
-                      ),
-                      _SummaryCard(
-                        title: 'Maile',
-                        value: 'Otwórz',
-                        icon: Icons.mail_outline,
-                        onTap: () => context.push('/mail'),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          'Ostatnia aktywność',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 40),
-                            child: Text('Brak aktywności do wyświetlenia'),
-                          ),
-                        ),
-                      ],
+          padding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.sizeOf(context).width < 600 ? 12 : 24,
+            vertical: 20,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1280),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const _DashboardGlobalSearchBar(),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Dzień dobry',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tutaj pojawią się najważniejsze informacje i zadania.',
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  const KeyedSubtree(
+                    key: Key('dashboard-calendar-section'),
+                    child: DashboardCalendarCard(),
+                  ),
+                  const SizedBox(height: 20),
+                  const _DashboardMailSection(
+                    key: Key('dashboard-mail-section'),
+                  ),
+                  const SizedBox(height: 20),
+                  const _DashboardDocumentsSection(
+                    key: Key('dashboard-documents-section'),
+                  ),
+                  const SizedBox(height: 20),
+                  const _DashboardLastActivitySection(
+                    key: Key('dashboard-last-activity-section'),
+                  ),
+                  const SizedBox(height: 20),
+                  KeyedSubtree(
+                    key: const Key('dashboard-system-status-section'),
+                    child: _BackendStatusCard(
+                      status: backendStatus,
+                      onRefresh: () => ref.invalidate(backendStatusProvider),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+Future<void> _refreshDashboard(WidgetRef ref) async {
+  final DateTime now = DateTime.now();
+  final DateTime month = DateTime(now.year, now.month);
+  ref.invalidate(calendarMonthProvider);
+  ref.invalidate(dashboardRecentMailProvider);
+  ref.invalidate(dashboardRecentDocumentsProvider);
+  ref.invalidate(backendStatusProvider);
+
+  Future<void> settle(Future<Object?> future) async {
+    try {
+      await future;
+    } catch (_) {
+      // A failed section keeps its own error state and does not hide the rest.
+    }
+  }
+
+  await Future.wait(<Future<void>>[
+    settle(ref.read(calendarMonthProvider(month).future)),
+    settle(ref.read(dashboardRecentMailProvider.future)),
+    settle(ref.read(dashboardRecentDocumentsProvider.future)),
+    settle(ref.read(backendStatusProvider.future)),
+  ]);
+}
+
+class _DashboardMailSection extends ConsumerWidget {
+  const _DashboardMailSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<GlobalMailItem>> value = ref.watch(
+      dashboardRecentMailProvider,
+    );
+    return _DashboardSection(
+      title: 'Maile',
+      icon: Icons.mail_outline,
+      action: TextButton(
+        onPressed: () => context.push('/mail'),
+        child: const Text('Zobacz wszystkie'),
+      ),
+      child: value.when(
+        loading: () => const _SectionLoading(label: 'Ładowanie wiadomości…'),
+        error: (_, _) => _SectionError(
+          message: 'Nie udało się wczytać ostatnich wiadomości.',
+          onRetry: () => ref.invalidate(dashboardRecentMailProvider),
+        ),
+        data: (List<GlobalMailItem> items) {
+          if (items.isEmpty) {
+            return const _SectionEmpty('Brak ostatnich wiadomości.');
+          }
+          return Column(
+            children: items
+                .map(
+                  (GlobalMailItem item) => ListTile(
+                    key: ValueKey<String>('dashboard-mail-${item.sourceId}'),
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      item.readState == 'unread'
+                          ? Icons.mark_email_unread_outlined
+                          : Icons.email_outlined,
+                    ),
+                    title: Text(
+                      item.subject?.trim().isNotEmpty == true
+                          ? item.subject!
+                          : '(bez tematu)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      '${item.sender ?? item.recipients.join(', ')} · '
+                      '${formatPolishDateTime(item.occurredAt)}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => context.push('/mail'),
+                  ),
+                )
+                .toList(growable: false),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DashboardDocumentsSection extends ConsumerWidget {
+  const _DashboardDocumentsSection({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final AsyncValue<List<RepositoryDocument>> value = ref.watch(
+      dashboardRecentDocumentsProvider,
+    );
+    return _DashboardSection(
+      title: 'Dokumenty',
+      icon: Icons.description_outlined,
+      action: TextButton(
+        onPressed: () => context.push('/documents'),
+        child: const Text('Zobacz wszystkie'),
+      ),
+      child: value.when(
+        loading: () => const _SectionLoading(label: 'Ładowanie dokumentów…'),
+        error: (_, _) => _SectionError(
+          message: 'Nie udało się wczytać ostatnich dokumentów.',
+          onRetry: () => ref.invalidate(dashboardRecentDocumentsProvider),
+        ),
+        data: (List<RepositoryDocument> items) {
+          if (items.isEmpty) {
+            return const _SectionEmpty('Brak dokumentów.');
+          }
+          return Column(
+            children: items
+                .map(
+                  (RepositoryDocument document) => Padding(
+                    key: ValueKey<String>('dashboard-document-${document.id}'),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      children: <Widget>[
+                        DocumentImageThumbnail(
+                          documentId: document.id,
+                          contentType: document.contentType,
+                          fileName: document.displayName,
+                          onOpen: () =>
+                              openDocumentMedia(context, ref, document),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () {
+                              if (isInternalPreviewImage(
+                                document.contentType,
+                                document.displayName,
+                              )) {
+                                openDocumentMedia(context, ref, document);
+                              } else {
+                                context.push(
+                                  '/documents?document_id=${document.id}',
+                                );
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    document.displayName,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${document.linkedEntityName} · '
+                                    '${formatPolishDateTime(document.createdAt)}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Szczegóły dokumentu',
+                          onPressed: () => context.push(
+                            '/documents?document_id=${document.id}',
+                          ),
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DashboardLastActivitySection extends StatelessWidget {
+  const _DashboardLastActivitySection({super.key});
+
+  @override
+  Widget build(BuildContext context) => const _DashboardSection(
+    title: 'Ostatnia aktywność',
+    icon: Icons.history,
+    child: Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        'Pełny widok aktywności zostanie włączony w następnym etapie.',
+      ),
+    ),
+  );
+}
+
+class _DashboardSection extends StatelessWidget {
+  const _DashboardSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.action,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(icon),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              ?action,
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    ),
+  );
+}
+
+class _SectionLoading extends StatelessWidget {
+  const _SectionLoading({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 18),
+    child: Row(
+      children: <Widget>[
+        const SizedBox.square(
+          dimension: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text(label)),
+      ],
+    ),
+  );
+}
+
+class _SectionError extends StatelessWidget {
+  const _SectionError({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      children: <Widget>[
+        Icon(
+          Icons.warning_amber_outlined,
+          color: Theme.of(context).colorScheme.error,
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(message)),
+        TextButton(onPressed: onRetry, child: const Text('Ponów')),
+      ],
+    ),
+  );
+}
+
+class _SectionEmpty extends StatelessWidget {
+  const _SectionEmpty(this.message);
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Text(message),
+  );
 }
 
 class _DashboardGlobalSearchBar extends StatefulWidget {
@@ -216,121 +464,114 @@ class _BackendStatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: status.when(
-          loading: () {
-            return const Row(
-              children: <Widget>[
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                ),
-                SizedBox(width: 16),
-                Expanded(child: Text('Sprawdzanie połączenia z backendem...')),
-              ],
-            );
-          },
-          error: (Object error, StackTrace stackTrace) {
-            final String message = _friendlyErrorMessage(error);
+    return _DashboardSection(
+      title: 'Status systemu',
+      icon: Icons.monitor_heart_outlined,
+      child: status.when(
+        loading: () {
+          return const Row(
+            children: <Widget>[
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+              SizedBox(width: 16),
+              Expanded(child: Text('Sprawdzanie połączenia z backendem...')),
+            ],
+          );
+        },
+        error: (Object error, StackTrace stackTrace) {
+          final String message = _friendlyErrorMessage(error);
 
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Icon(Icons.cloud_off, color: theme.colorScheme.error, size: 32),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text(
-                        'Backend: OFFLINE',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.error,
-                          fontWeight: FontWeight.w700,
-                        ),
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Icon(Icons.cloud_off, color: theme.colorScheme.error, size: 32),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Backend: NIEDOSTĘPNY',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(height: 6),
-                      Text(message),
-                    ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(message),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Spróbuj ponownie',
+                onPressed: onRefresh,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          );
+        },
+        data: (BackendStatus backend) {
+          final Color statusColor = backend.isOnline
+              ? const Color(0xFF18864B)
+              : theme.colorScheme.error;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                IconButton(
-                  tooltip: 'Spróbuj ponownie',
-                  onPressed: onRefresh,
-                  icon: const Icon(Icons.refresh),
-                ),
-              ],
-            );
-          },
-          data: (BackendStatus backend) {
-            final Color statusColor = backend.isOnline
-                ? const Color(0xFF18864B)
-                : theme.colorScheme.error;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      backend.isOnline
+                          ? 'Backend: ONLINE'
+                          : 'Backend: NIEPRAWIDŁOWY STATUS',
+                      style: theme.textTheme.titleMedium?.copyWith(
                         color: statusColor,
-                        shape: BoxShape.circle,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        backend.isOnline
-                            ? 'Backend: ONLINE'
-                            : 'Backend: NIEPRAWIDŁOWY STATUS',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Odśwież',
-                      onPressed: onRefresh,
-                      icon: const Icon(Icons.refresh),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Wrap(
-                  spacing: 28,
-                  runSpacing: 16,
-                  children: <Widget>[
-                    _StatusValue(
-                      label: 'Aplikacja',
-                      value: backend.application,
-                    ),
-                    _StatusValue(label: 'Wersja', value: backend.version),
-                    _StatusValue(
-                      label: 'Środowisko',
-                      value: backend.environment,
-                    ),
-                    _StatusValue(
-                      label: 'Tryb debug',
-                      value: backend.debug ? 'Tak' : 'Nie',
-                    ),
-                    _StatusValue(
-                      label: 'Czas odpowiedzi',
-                      value: '${backend.latencyMilliseconds} ms',
-                    ),
-                    _StatusValue(label: 'Adres API', value: backend.baseUrl),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
+                  ),
+                  IconButton(
+                    tooltip: 'Odśwież',
+                    onPressed: onRefresh,
+                    icon: const Icon(Icons.refresh),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 28,
+                runSpacing: 16,
+                children: <Widget>[
+                  _StatusValue(label: 'Aplikacja', value: backend.application),
+                  _StatusValue(label: 'Wersja', value: backend.version),
+                  _StatusValue(label: 'Środowisko', value: backend.environment),
+                  _StatusValue(
+                    label: 'Tryb debug',
+                    value: backend.debug ? 'Tak' : 'Nie',
+                  ),
+                  _StatusValue(
+                    label: 'Czas odpowiedzi',
+                    value: '${backend.latencyMilliseconds} ms',
+                  ),
+                  _StatusValue(label: 'Adres API', value: backend.baseUrl),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -360,7 +601,7 @@ class _BackendStatusCard extends StatelessWidget {
       }
     }
 
-    return error.toString();
+    return 'Nie można potwierdzić stanu backendu.';
   }
 }
 
@@ -395,71 +636,6 @@ class _StatusValue extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.title,
-    required this.value,
-    required this.icon,
-    this.onTap,
-  });
-
-  final String title;
-  final String value;
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: theme.colorScheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      value,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

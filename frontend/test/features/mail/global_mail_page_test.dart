@@ -76,6 +76,7 @@ class _FakeMailApi extends GlobalMailApi {
   Future<GlobalMailPageData> list({
     required AuthSession session,
     required int skip,
+    int limit = 50,
     String? search,
     String? direction,
     String? readState,

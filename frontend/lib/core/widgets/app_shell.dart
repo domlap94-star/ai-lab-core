@@ -32,12 +32,6 @@ class AppShell extends ConsumerStatefulWidget {
       selectedIcon: Icons.dashboard,
     ),
     NavigationItem(
-      label: 'Sprawy',
-      path: '/cases',
-      icon: Icons.work_outline,
-      selectedIcon: Icons.work,
-    ),
-    NavigationItem(
       label: 'Klienci',
       path: '/clients',
       icon: Icons.people_outline,
