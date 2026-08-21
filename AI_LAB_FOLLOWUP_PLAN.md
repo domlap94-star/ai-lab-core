@@ -66,6 +66,19 @@ Każdy FOLLOW-UP CHUNK:
    - `docker system prune`,
    - `docker volume prune`.
 
+### GLOBAL LOCAL-FIRST / TEMP-CHAT-ON-DIFFICULTY RULE
+
+Każda kwalifikująca się analiza zaczyna się lokalnie. ChatGPT Temporary Chat
+jest kontrolowaną eskalacją wyłącznie wtedy, gdy wspólny deterministyczny gate
+wykaże, że wynik lokalny jest zbyt trudny, niepełny albo niewystarczająco
+wiarygodny. Poza system może wyjść tylko minimalny, jawnie sklasyfikowany i
+zsanityzowany pakiet bez zbędnej tożsamości klienta; dane
+`restricted_never_external` nigdy nie są eksternalizowane. Wynik zewnętrzny ma
+ścisły kontrakt, przechodzi lokalną walidację i nigdy bezpośrednio nie zapisuje
+kanonicznego stanu biznesowego ani Qdrant. Evidence i provenance są
+obowiązkowe. Dozwolony jest wyłącznie prywatny, kontrolowany bridge do
+Temporary Chat; fallback do zwykłej historii ChatGPT jest zabroniony.
+
 Nie wolno po cichu przeskakiwać do późniejszego CHUNK-a. Każdy jawny gate
 zatrzymuje pracę do czasu podania właściwego approval tokenu.
 
@@ -1540,6 +1553,18 @@ Exact gate: `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
 CHUNK 17 is not started and the Phase D no-intermediate-release policy remains
 in force.
 
+**GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — DESIGN READY — 2026-08-21.**
+Owner-approved architecture is documented in
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`. The audit confirms that the
+current KB upload still performs extraction/OCR synchronously through
+`KnowledgeBaseService.create() -> process()`. The target pipeline persists and
+queues first, returns the HTTP response, then performs extraction/OCR, local
+analysis, a deterministic quality gate and—only when safe and necessary—a
+sanitized Temporary Chat escalation followed by local verification. Existing
+`/vision/*` compatibility remains; future generic `/analysis/*` work shares
+the serialized browser queue through factored internals. Runtime implementation,
+the pending production migration and production vectors were not started.
+
 Admin-only `Baza wiedzy`: building standards, norms, technical datasheets,
 manuals, producer materials, formulas i reference calculations.
 
@@ -1553,33 +1578,36 @@ namespace.
 Human gate: dla Qdrant wymagany
 `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
 
-## FOLLOW-UP CHUNK 17 — LOCAL ANDROID AI / CALCULATION ENGINE R&D
+## FOLLOW-UP CHUNK 17 — GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT ESCALATION
 
-**Priority: P2 / R&D**
+**Priority: P1 / ARCHITECTURE IMPLEMENTATION**
 
-Cel: zbadać lokalny Android AI jako pomocniczy silnik obliczeniowy.
+Cel: wdrożyć globalny, wielodomenowy przepływ
+`local-first -> deterministic quality gate -> sanitized Temporary Chat -> local
+post-validation`, zgodnie z `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`.
+CHUNK pozostaje **NOT STARTED**.
 
-Preferowany przepływ:
+Wspólny kontrakt ma obsługiwać Knowledge Base, analizę techniczną, dokumenty,
+Vision, tabele, porównanie standardów, spójność, formuły i obliczenia. Zachować
+wartościowe wymagania wcześniejszego R&D:
 
-1. NEXT Stabil pobiera wzór/wiedzę z Knowledge Base.
-2. Wyciąga dane z Document/Client/Inspection/Data Repository.
-3. Używa Vision tylko, jeśli jest wymagane.
-4. Usuwa PII, Client i location.
-5. Tworzy suchy problem: formula, variable definitions, values, units.
-6. Wysyła wyłącznie suchy problem do lokalnego Android AI.
-7. Wykonuje obliczenie dwa razy niezależnie.
-8. Porównuje wyniki.
-9. Disagreement uruchamia deterministic verification lub third route.
-10. Pokazuje formula, variables, result, units, assumptions i evidence.
+1. tworzyć suchy problem: formula, variables, values, units i constraints;
+2. usuwać PII, Client identity i location przed eskalacją;
+3. wykonywać niezależne/deterministyczne sprawdzenie wyniku;
+4. porównywać wyniki i kierować disagreement do review;
+5. pokazywać formula, variables, result, units, assumptions i evidence.
 
-Preferować deterministic calculation engine, a LLM jako parser/guide. Nie
-fine-tuning norm, jeśli retrieval wystarczy.
+Android AI nie jest już preferowaną architekturą. Ewentualny lokalny model
+Android może w przyszłości być tylko wymiennym local-first adapterem. Temporary
+Chat nie jest domyślnym procesorem i nie może bezpośrednio mutować CRM, DB ani
+Qdrant.
 
-Benchmark: minimum 30 kontrolowanych obliczeń, unit checking, two-pass
-agreement, brak PII, offline verification, latency i timeout/chunk strategy.
+Runtime gate: `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`.
+Wymagane są testy privacy/sanitization, source-ref integrity, retry/persistence,
+AUTH_REQUIRED/UI_CHANGED, Vision regression i co najmniej 30 kontrolowanych
+formuł/obliczeń z unit checking oraz deterministic comparison.
 
-Human gate: R&D benchmark najpierw; żadnego production enablement bez osobnej
-decyzji.
+Nie rozpoczynać implementacji bez osobnej decyzji właściciela.
 
 ## FOLLOW-UP CHUNK 18 — SEMANTIC SEARCH COVERAGE V2
 
@@ -1783,7 +1811,7 @@ promptami.
 
 ### PHASE E — AI / SEARCH
 
-18. CHUNK 17 — Android AI R&D
+18. CHUNK 17 — Global Advanced Analysis Bridge / Temporary Chat Escalation
 19. CHUNK 18 — Semantic Search V2
 20. CHUNK 19 — Qdrant restore
 

@@ -127,6 +127,21 @@ zero, `ai_lab_document_chunks` remains unchanged, and work stops at
 `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`. CHUNK 17 is not
 started.
 
+**GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — DESIGN READY.** The
+owner-approved cross-domain architecture is recorded in
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`. Current KB upload is confirmed
+synchronous (`KnowledgeBaseService.create() -> process()`); the target is a
+durable persist/enqueue/return pipeline with separate processing and analysis
+states. A generic `AdvancedAnalysisOrchestrator` will run local processors
+first, apply deterministic quality rules, sanitize only externally eligible
+minimum data, use the existing private Temporary Chat bridge through shared
+serialized internals, and locally validate strict structured results. Existing
+Vision `/vision/*` contracts remain compatible. Runtime implementation,
+production migration and vector writes have not started. Future CHUNK 17 is
+renamed **GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT ESCALATION** and is
+NOT STARTED; its runtime gate is
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`.
+
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application
 engine, and the live connection must return the same name from
