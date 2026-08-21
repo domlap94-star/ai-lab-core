@@ -5,7 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../../../core/widgets/app_shell.dart';
+import '../../clients/application/clients_providers.dart';
+import '../../clients/domain/client.dart';
+import '../../clients/presentation/client_details_page.dart'
+    show phoneUriLauncherProvider;
 import '../../auth/application/auth_controller.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/presentation/document_media_preview.dart';
@@ -30,43 +36,51 @@ class TaskDetailPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: AppShell.mobileNavigationLeading(context),
-        title: const Text('Szczegóły zadania'),
+        title: Text(
+          value.value?.title ?? '',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       body: value.when(
         data: (item) => ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Text(item.title, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              children: [
-                Chip(label: Text(item.type.label)),
-                Chip(label: Text(item.status.name)),
-                Chip(label: Text(item.priority.name)),
-              ],
+            Text(
+              formatPolishDateRange(
+                item.startAt,
+                item.dueAt,
+                includeTime: !item.allDay,
+              ),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            if (item.description?.isNotEmpty == true)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(item.description!),
-              ),
-            if (item.clientName != null)
-              ListTile(
-                leading: const Icon(Icons.business),
-                title: Text(item.clientName!),
-              ),
+            if (item.clientId != null) _ClientContactBlock(item: item),
             if (item.assigneeDisplay != null)
               ListTile(
                 leading: const Icon(Icons.person),
                 title: Text(item.assigneeDisplay!),
               ),
+            if (item.description?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(item.description!),
+              ),
+            if (item.projectId != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => context.push('/projects/${item.projectId}'),
+                  icon: const Icon(Icons.construction_outlined),
+                  label: const Text('Otwórz realizację'),
+                ),
+              ),
             const Divider(),
             const Text(
-              'Notatki i dokumenty',
+              'Notatki',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             _NotesPanel(itemId: item.id),
+            const SizedBox(height: 8),
             _DocumentsPanel(itemId: item.id),
             _AttachmentActions(itemId: item.id),
             const Text(
@@ -135,6 +149,108 @@ class TaskDetailPage extends ConsumerWidget {
         error: (e, _) =>
             Center(child: Text('Nie udało się pobrać zadania: $e')),
       ),
+    );
+  }
+}
+
+class _ClientContactBlock extends ConsumerWidget {
+  const _ClientContactBlock({required this.item});
+  final WorkItem item;
+
+  Future<void> _call(BuildContext context, WidgetRef ref, String number) async {
+    final compact = number.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (compact.isEmpty) return;
+    final opened = await ref.read(phoneUriLauncherProvider)(
+      Uri(scheme: 'tel', path: compact),
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nie udało się otworzyć aplikacji telefonu.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _maps(BuildContext context, String address) async {
+    final uri = Uri.https('www.google.com', '/maps/search/', {
+      'api': '1',
+      'query': address,
+    });
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nie udało się otworzyć Map Google.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = ref.watch(clientDetailsProvider(item.clientId!));
+    return details.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, _) => ListTile(
+        leading: const Icon(Icons.business),
+        title: Text(item.clientName ?? 'Klient'),
+        onTap: () => context.push('/clients/${item.clientId}'),
+      ),
+      data: (client) {
+        final phones = client.phones.isNotEmpty
+            ? client.phones
+            : <ClientContactPoint>[
+                if (client.primaryPhone?.trim().isNotEmpty == true)
+                  ClientContactPoint(
+                    id: 0,
+                    value: client.primaryPhone!,
+                    isPrimary: true,
+                  ),
+              ];
+        final addresses = client.addresses
+            .map((a) => a.formatted)
+            .where((a) => a.isNotEmpty)
+            .toList();
+        final fallbackAddress = client.availableAddress?.trim();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.business),
+              title: Text(client.name),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/clients/${client.id}'),
+            ),
+            for (final phone in phones)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.phone_outlined),
+                title: Text(phone.value),
+                trailing: TextButton.icon(
+                  onPressed: () => _call(context, ref, phone.value),
+                  icon: const Icon(Icons.call_outlined),
+                  label: const Text('Zadzwoń'),
+                ),
+              ),
+            for (final address
+                in addresses.isNotEmpty
+                    ? addresses
+                    : <String>[
+                        if (fallbackAddress?.isNotEmpty == true)
+                          fallbackAddress!,
+                      ])
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.location_on_outlined),
+                title: Text(address),
+                trailing: TextButton.icon(
+                  onPressed: () => _maps(context, address),
+                  icon: const Icon(Icons.directions_outlined),
+                  label: const Text('Otwórz w Mapach'),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -304,7 +420,8 @@ class _NotesPanelState extends ConsumerState<_NotesPanel> {
             child: const Text('Anuluj'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('Zapisz'),
           ),
         ],
@@ -314,12 +431,9 @@ class _NotesPanelState extends ConsumerState<_NotesPanel> {
     if (text == null || text.isEmpty || !mounted) return;
     final session = ref.read(authControllerProvider).value?.session;
     if (session == null) return;
-    await ref.read(workItemsApiProvider).updateNote(
-      session,
-      widget.itemId,
-      note,
-      text,
-    );
+    await ref
+        .read(workItemsApiProvider)
+        .updateNote(session, widget.itemId, note, text);
     ref.invalidate(workItemNotesProvider(widget.itemId));
   }
 
@@ -343,11 +457,9 @@ class _NotesPanelState extends ConsumerState<_NotesPanel> {
     if (confirmed != true || !mounted) return;
     final session = ref.read(authControllerProvider).value?.session;
     if (session == null) return;
-    await ref.read(workItemsApiProvider).archiveNote(
-      session,
-      widget.itemId,
-      note,
-    );
+    await ref
+        .read(workItemsApiProvider)
+        .archiveNote(session, widget.itemId, note);
     ref.invalidate(workItemNotesProvider(widget.itemId));
   }
 
@@ -413,10 +525,17 @@ class _NotesPanelState extends ConsumerState<_NotesPanel> {
   }
 }
 
-class _DocumentsPanel extends ConsumerWidget {
+class _DocumentsPanel extends ConsumerStatefulWidget {
   const _DocumentsPanel({required this.itemId});
 
   final int itemId;
+
+  @override
+  ConsumerState<_DocumentsPanel> createState() => _DocumentsPanelState();
+}
+
+class _DocumentsPanelState extends ConsumerState<_DocumentsPanel> {
+  bool expanded = false;
 
   RepositoryDocument _document(WorkItemDocument link) => RepositoryDocument(
     id: link.documentId,
@@ -460,23 +579,39 @@ class _DocumentsPanel extends ConsumerWidget {
     if (confirmed != true || !context.mounted) return;
     final session = ref.read(authControllerProvider).value?.session;
     if (session == null) return;
-    await ref.read(workItemsApiProvider).detachDocument(
-      session,
-      itemId,
-      link.documentId,
-    );
-    ref.invalidate(workItemDocumentsProvider(itemId));
+    await ref
+        .read(workItemsApiProvider)
+        .detachDocument(session, widget.itemId, link.documentId);
+    ref.invalidate(workItemDocumentsProvider(widget.itemId));
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final value = ref.watch(workItemDocumentsProvider(itemId));
+  Widget build(BuildContext context) {
+    if (!expanded) {
+      return ListTile(
+        key: const Key('work-item-documents-collapsed'),
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.folder_outlined),
+        title: const Text('Dokumenty'),
+        trailing: const Icon(Icons.expand_more),
+        onTap: () => setState(() => expanded = true),
+      );
+    }
+    final value = ref.watch(workItemDocumentsProvider(widget.itemId));
     return value.when(
       loading: () => const LinearProgressIndicator(),
       error: (error, _) => Text('Nie udało się pobrać dokumentów: $error'),
       data: (links) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          ListTile(
+            key: const Key('work-item-documents-expanded'),
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.folder_open_outlined),
+            title: Text('Dokumenty (${links.length})'),
+            trailing: const Icon(Icons.expand_less),
+            onTap: () => setState(() => expanded = false),
+          ),
           for (final link in links)
             Builder(
               builder: (context) {

@@ -21,7 +21,10 @@ void main() {
     expect(kotlin, contains('guard < 42'));
     expect(kotlin, contains('/tasks?date='));
     expect(kotlin, contains('dayIds.forEachIndexed'));
-    expect(kotlin, contains('typeMarker'));
+    expect(kotlin, isNot(contains('typeMarker')));
+    expect(kotlin, contains('dateRange(item)'));
+    expect(kotlin, contains('val indicator'));
+    expect(kotlin, isNot(contains('"R"')));
     expect(kotlin, contains('LocalDate.now()'));
     expect(kotlin, isNot(contains('Authorization')));
     expect(activity, contains('MODE_PRIVATE'));

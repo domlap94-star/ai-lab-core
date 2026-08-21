@@ -55,7 +55,7 @@ class ChangeHistoryService:
         "work_item": {
             "item_type", "title", "description", "start_at", "due_at",
             "all_day", "timezone_name", "status", "priority",
-            "assignee_user_id", "client_id", "party_name", "deleted_at",
+            "assignee_user_id", "client_id", "project_id", "party_name", "deleted_at",
             "completed_at", "version",
         },
         "work_item_note": {"work_item_id", "text", "deleted_at", "version"},

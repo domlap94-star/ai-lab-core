@@ -41,3 +41,8 @@ class Project(BusinessBase):
     client = relationship("Client", back_populates="projects")
     documents = relationship("Document", back_populates="project", passive_deletes=True)
     inspections = relationship("Inspection", back_populates="project", passive_deletes=True)
+    work_item = relationship("WorkItem", back_populates="project", uselist=False)
+
+    @property
+    def work_item_id(self) -> int | None:
+        return self.work_item.id if self.work_item is not None else None

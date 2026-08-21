@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/router/app_router.dart';
@@ -19,6 +20,12 @@ class App extends ConsumerStatefulWidget {
 }
 
 class _AppState extends ConsumerState<App> {
+  static const _locale = Locale('pl', 'PL');
+  static const _localizationsDelegates = <LocalizationsDelegate<dynamic>>[
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+  ];
   MaterialApp _materialApp({required Widget home}) {
     return MaterialApp(
       title: 'NEXT Stabil',
@@ -26,6 +33,9 @@ class _AppState extends ConsumerState<App> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
+      locale: _locale,
+      supportedLocales: const <Locale>[_locale],
+      localizationsDelegates: _localizationsDelegates,
       home: home,
     );
   }
@@ -82,6 +92,9 @@ class _AppState extends ConsumerState<App> {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: ThemeMode.system,
+          locale: _locale,
+          supportedLocales: const <Locale>[_locale],
+          localizationsDelegates: _localizationsDelegates,
           routerConfig: appRouter,
         );
       },

@@ -29,8 +29,10 @@ class Project {
     this.city,
     this.latitude,
     this.longitude,
+    this.workItemId,
   });
   final int id;
+  final int? workItemId;
   final int clientId;
   final String clientName;
   final String name;
@@ -76,6 +78,7 @@ class Project {
     countryCode: json['country_code']?.toString() ?? 'PL',
     latitude: (json['latitude'] as num?)?.toDouble(),
     longitude: (json['longitude'] as num?)?.toDouble(),
+    workItemId: json['work_item_id'] as int?,
     createdAt: DateTime.parse(json['created_at'].toString()),
     updatedAt: DateTime.parse(json['updated_at'].toString()),
   );

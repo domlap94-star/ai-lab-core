@@ -15,6 +15,10 @@ class ProjectClientNotFoundError(Exception):
     pass
 
 
+class ProjectLinkedWorkItemError(RuntimeError):
+    pass
+
+
 class ProjectService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -45,6 +49,8 @@ class ProjectService:
 
     def update(self, project_id: int, data: ProjectUpdate, actor: User) -> Project:
         project = self.get(project_id)
+        if project.work_item_id is not None:
+            raise ProjectLinkedWorkItemError("linked_project_managed_by_work_item")
         payload = data.model_dump(exclude_unset=True)
         if "client_id" in payload and self.clients.get(payload["client_id"]) is None:
             raise ProjectClientNotFoundError
@@ -61,5 +67,7 @@ class ProjectService:
 
     def delete(self, project_id: int, actor: User) -> None:
         project = self.get(project_id)
+        if project.work_item_id is not None:
+            raise ProjectLinkedWorkItemError("linked_project_managed_by_work_item")
         project.updated_by_user_id = actor.id
         self.repository.soft_delete(project)

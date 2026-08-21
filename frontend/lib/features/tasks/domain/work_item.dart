@@ -41,6 +41,7 @@ class WorkItem {
     this.assigneeDisplay,
     this.clientId,
     this.clientName,
+    this.projectId,
     this.partyName,
     this.deletedAt,
     this.timezoneName,
@@ -54,7 +55,7 @@ class WorkItem {
   final DateTime? startAt, dueAt, deletedAt;
   final WorkItemStatus status;
   final WorkItemPriority priority;
-  final int? assigneeUserId, clientId;
+  final int? assigneeUserId, clientId, projectId;
   final String? assigneeDisplay, clientName, partyName;
   factory WorkItem.fromJson(Map<String, dynamic> j) => WorkItem(
     id: j['id'] as int,
@@ -75,6 +76,7 @@ class WorkItem {
     assigneeDisplay: j['assignee_display']?.toString(),
     clientId: j['client_id'] as int?,
     clientName: j['client_name']?.toString(),
+    projectId: j['project_id'] as int?,
     partyName: j['party_name']?.toString(),
     deletedAt: DateTime.tryParse(j['deleted_at']?.toString() ?? ''),
     version: j['version'] as int,

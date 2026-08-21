@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
@@ -26,6 +26,7 @@ class WorkItem(Base):
         Index("ix_work_items_due_active", "due_at", "id", postgresql_where="deleted_at IS NULL"),
         Index("ix_work_items_status_due_active", "status", "due_at", "id", postgresql_where="deleted_at IS NULL"),
         Index("ix_work_items_assignee_status_due_active", "assignee_user_id", "status", "due_at", "id", postgresql_where="deleted_at IS NULL"),
+        Index("ix_work_items_project_id", "project_id", unique=True),
     )
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     item_type: Mapped[str] = mapped_column(String(24), nullable=False)
@@ -39,6 +40,7 @@ class WorkItem(Base):
     priority: Mapped[str] = mapped_column(String(16), nullable=False, default="normal", server_default="normal")
     assignee_user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="RESTRICT"))
     client_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("clients.id", ondelete="RESTRICT"))
+    project_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("projects.id", ondelete="RESTRICT"))
     party_name: Mapped[str | None] = mapped_column(String(255))
     created_by_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     updated_by_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
@@ -47,3 +49,4 @@ class WorkItem(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    project: Mapped["Project | None"] = relationship("Project", back_populates="work_item")

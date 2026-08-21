@@ -1239,10 +1239,33 @@ writes were zero. Previous `1.0.2+22` artifacts remain available for rollback.
 Physical Android widget and CHUNK 13 smokes remain `UNVERIFIED` because no ADB
 device was connected.
 
-**PHASE C AND RELEASE C COMPLETE. PRE-CHUNK15 TRASH HOTFIX COMPLETE. CANONICAL
-NEXT ROADMAP ITEM: FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI. OWNER-REQUESTED
-FLUTTER PATCH SCOPE IS PENDING BEFORE CHUNK 15. Do not start either scope
-without a new owner prompt.**
+**PHASE C AND RELEASE C COMPLETE. PRE-CHUNK15 TRASH HOTFIX COMPLETE. OWNER
+FLUTTER PATCH COMPLETE. CANONICAL NEXT ROADMAP ITEM: FOLLOW-UP CHUNK 15 —
+ADMIN BACKUP UI. Do not start CHUNK 15 without a new owner prompt.**
+
+## OWNER FLUTTER PATCH — CALENDAR / TASK DETAIL / REALIZATION INTEGRATION
+
+**[✓] COMPLETE — 2026-08-21.**
+
+- Task Detail uses the WorkItem title in the AppBar, Polish execution ranges,
+  canonical Client phone/Maps actions, visible Notes and lazy Documents.
+- Official `pl_PL` Material localizations make WorkItem date pickers
+  Monday-first without changing timestamp, timezone, all-day or inclusive
+  date-range semantics.
+- The shared month calendar renders deterministic continuous week-row event
+  bars, stable collision lanes and bounded `+N więcej`; agenda and native
+  Android widget rows show date ranges without type-letter prefixes.
+- Additive `followup_work_item_realization_link_20260821` atomically links each
+  newly created realization WorkItem to one Project. No backfill was performed;
+  the owner-created legacy realization remains unchanged and unlinked.
+- One canonical Document row/file is projected through Client, WorkItem and
+  linked Project; cross-Client and cross-Project re-parenting fails closed.
+- Client Details conditionally shows Realizacja last, with multiple bounded
+  projects, canonical Documents and WorkItem/Project deep links.
+- Isolated migration and realization tests PASS; Flutter analyze PASS, focused
+  tests PASS, full suite 250/250 PASS; Android/Web/Windows debug builds PASS.
+  Production acceptance created no business rows and made no Gmail, Vision,
+  Qdrant, n8n or release changes.
 
 ## PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION
 
@@ -1293,9 +1316,8 @@ before application engine import and verify the connected PostgreSQL
 unsafe test names and configuration/connection mismatches are rejected;
 `DATABASE_URL` cannot select an isolated database for these tests.
 
-**TRASH HOTFIX COMPLETE. CANONICAL NEXT ROADMAP ITEM: FOLLOW-UP CHUNK 15 —
-ADMIN BACKUP UI. OWNER-REQUESTED FLUTTER PATCH PENDING BEFORE CHUNK 15.**
-Its scope has not yet been supplied. Do not start CHUNK 15 or release.
+**TRASH HOTFIX AND OWNER FLUTTER PATCH COMPLETE. CANONICAL NEXT ROADMAP ITEM:
+FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI.** Do not start CHUNK 15 or release.
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
@@ -1620,10 +1642,7 @@ DATA SAFETY
 
 ## Active next work
 
-**PRE-CHUNK15 HOTFIX — ADMIN TRASH / 7-DAY RETENTION — SCHEMA +
-TRASH/RESTORE + SCHEDULER COMPLETE; QDRANT PURGE APPROVAL PENDING.**
+**PRE-CHUNK15 TRASH HOTFIX AND OWNER CALENDAR/REALIZATION PATCH COMPLETE.**
 
-Current gate:
-`FOLLOWUP_TRASH_QDRANT_PURGE_APPROVAL_REQUIRED`.
-CHUNK 15 remains the canonical next roadmap chunk after this owner-inserted
-hotfix, is NOT STARTED, and retains its own scheduler/backup execution gates.
+Current gate: `FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI`.
+CHUNK 15 is NOT STARTED and retains its own scheduler/backup execution gates.

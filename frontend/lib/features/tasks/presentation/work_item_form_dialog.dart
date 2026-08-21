@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../../clients/presentation/searchable_client_picker.dart';
 import '../application/tasks_providers.dart';
 import '../domain/work_item.dart';
@@ -49,6 +50,7 @@ class _State extends ConsumerState<WorkItemFormDialog> {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       initialDate: current ?? DateTime.now(),
+      locale: const Locale('pl', 'PL'),
     );
     if (d == null) return current;
     if (allDay) return DateTime(d.year, d.month, d.day);
@@ -156,8 +158,18 @@ class _State extends ConsumerState<WorkItemFormDialog> {
               SearchableClientPicker(
                 initialClientId: clientId,
                 initialClientName: widget.item?.clientName,
-                onChanged: (v) => clientId = v?.id,
+                onChanged: (v) => setState(() => clientId = v?.id),
               ),
+              if (type == WorkItemType.realization && clientId == null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Realizacja musi być przypisana do klienta.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
               TextFormField(
                 controller: party,
                 decoration: const InputDecoration(
@@ -175,7 +187,7 @@ class _State extends ConsumerState<WorkItemFormDialog> {
                     child: Text(
                       start == null
                           ? 'Początek'
-                          : 'Od ${start!.toIso8601String().split('T').first}',
+                          : 'Od ${formatPolishDate(start!)}',
                     ),
                   ),
                   TextButton(
@@ -184,9 +196,7 @@ class _State extends ConsumerState<WorkItemFormDialog> {
                       if (mounted) setState(() => due = value);
                     },
                     child: Text(
-                      due == null
-                          ? 'Termin'
-                          : 'Do ${due!.toIso8601String().split('T').first}',
+                      due == null ? 'Termin' : 'Do ${formatPolishDate(due!)}',
                     ),
                   ),
                 ],
@@ -209,6 +219,12 @@ class _State extends ConsumerState<WorkItemFormDialog> {
       FilledButton(
         onPressed: () {
           if (!form.currentState!.validate()) return;
+          if (type == WorkItemType.realization && clientId == null) {
+            setState(
+              () => timeError = 'Realizacja musi być przypisana do klienta.',
+            );
+            return;
+          }
           final invalid = due != null && start != null && due!.isBefore(start!);
           if (invalid ||
               (type == WorkItemType.event && start == null) ||

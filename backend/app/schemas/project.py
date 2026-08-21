@@ -69,6 +69,7 @@ class ProjectRead(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     client_name: str
+    work_item_id: int | None = None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None

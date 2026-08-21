@@ -25,6 +25,7 @@ class _State extends State<AbsenceFormDialog> {
         firstDate: DateTime(2020),
         lastDate: DateTime(2100),
         initialDate: v,
+        locale: const Locale('pl', 'PL'),
       )) ??
       v;
   @override

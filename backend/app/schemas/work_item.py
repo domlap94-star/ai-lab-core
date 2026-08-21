@@ -108,6 +108,7 @@ class WorkItemRead(BaseModel):
     assignee_display: str | None = None
     client_id: int | None
     client_name: str | None = None
+    project_id: int | None
     party_name: str | None
     created_by_user_id: int
     updated_by_user_id: int

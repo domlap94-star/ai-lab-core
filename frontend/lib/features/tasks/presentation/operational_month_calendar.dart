@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/formatters/polish_date_time.dart';
 import '../domain/work_item.dart';
 
 class CalendarPresentation {
@@ -57,11 +58,6 @@ class OperationalMonthCalendar extends StatelessWidget {
             : c.maxWidth >= 600
             ? 3
             : 2;
-        final dayCellAspectRatio = c.maxWidth >= 850
-            ? .95
-            : c.maxWidth >= 600
-            ? .72
-            : .58;
         final first = DateTime(month.year, month.month, 1);
         final gridStart = first.subtract(Duration(days: first.weekday - 1));
         final days = List.generate(42, (i) => gridStart.add(Duration(days: i)));
@@ -105,87 +101,16 @@ class OperationalMonthCalendar extends StatelessWidget {
                   Expanded(child: Text(d, textAlign: TextAlign.center)),
               ],
             ),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                childAspectRatio: dayCellAspectRatio,
+            for (var week = 0; week < 6; week++)
+              _CalendarWeekRow(
+                days: days.sublist(week * 7, week * 7 + 7),
+                month: month,
+                selectedDay: selectedDay,
+                items: items,
+                laneCapacity: density,
+                onSelectedDay: onSelectedDay,
+                onEntry: onEntry,
               ),
-              itemCount: 42,
-              itemBuilder: (context, i) {
-                final day = days[i];
-                final dayItems = items.where((e) => e.covers(day)).toList();
-                final today = DateUtils.isSameDay(day, DateTime.now());
-                final isSelected = DateUtils.isSameDay(day, selectedDay);
-                return InkWell(
-                  key: Key(
-                    'calendar-day-${day.toIso8601String().split('T').first}',
-                  ),
-                  onTap: () => onSelectedDay(day),
-                  child: Container(
-                    margin: const EdgeInsets.all(1),
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: isSelected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.grey.shade300,
-                        width: isSelected ? 2 : 1,
-                      ),
-                      color: today
-                          ? Theme.of(context).colorScheme.primaryContainer
-                          : null,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          '${day.day}',
-                          style: TextStyle(
-                            fontWeight: today ? FontWeight.bold : null,
-                            color: day.month == month.month
-                                ? null
-                                : Colors.grey,
-                          ),
-                        ),
-                        for (final e in dayItems.take(density))
-                          Container(
-                            margin: const EdgeInsets.only(top: 2),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 3,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: CalendarPresentation.color(
-                                e.type,
-                              ).withValues(alpha: .16),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              e.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 10),
-                            ),
-                          ),
-                        if (dayItems.length > density)
-                          Text(
-                            '+${dayItems.length - density} więcej',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
           ],
         );
         final agenda = _Agenda(
@@ -223,6 +148,216 @@ class OperationalMonthCalendar extends StatelessWidget {
   ];
 }
 
+class _WeekSegment {
+  const _WeekSegment(this.entry, this.startColumn, this.endColumn, this.lane);
+  final CalendarEntry entry;
+  final int startColumn, endColumn, lane;
+}
+
+class _CalendarWeekRow extends StatelessWidget {
+  const _CalendarWeekRow({
+    required this.days,
+    required this.month,
+    required this.selectedDay,
+    required this.items,
+    required this.laneCapacity,
+    required this.onSelectedDay,
+    this.onEntry,
+  });
+  final List<DateTime> days;
+  final DateTime month, selectedDay;
+  final List<CalendarEntry> items;
+  final int laneCapacity;
+  final ValueChanged<DateTime> onSelectedDay;
+  final ValueChanged<CalendarEntry>? onEntry;
+
+  List<_WeekSegment> _segments() {
+    final weekStart = DateUtils.dateOnly(days.first);
+    final weekEnd = DateUtils.dateOnly(days.last);
+    final candidates =
+        items.where((entry) {
+          final start = DateUtils.dateOnly(entry.start);
+          final end = DateUtils.dateOnly(entry.end);
+          return !end.isBefore(weekStart) && !start.isAfter(weekEnd);
+        }).toList()..sort((a, b) {
+          final aSpan = DateUtils.dateOnly(
+            a.end,
+          ).difference(DateUtils.dateOnly(a.start)).inDays;
+          final bSpan = DateUtils.dateOnly(
+            b.end,
+          ).difference(DateUtils.dateOnly(b.start)).inDays;
+          final bySpan = bSpan.compareTo(aSpan);
+          if (bySpan != 0) return bySpan;
+          final byStart = a.start.compareTo(b.start);
+          if (byStart != 0) return byStart;
+          final byEnd = a.end.compareTo(b.end);
+          return byEnd != 0 ? byEnd : a.id.compareTo(b.id);
+        });
+    final laneEnds = <int>[];
+    final result = <_WeekSegment>[];
+    for (final entry in candidates) {
+      final start = DateUtils.dateOnly(entry.start).isBefore(weekStart)
+          ? weekStart
+          : DateUtils.dateOnly(entry.start);
+      final end = DateUtils.dateOnly(entry.end).isAfter(weekEnd)
+          ? weekEnd
+          : DateUtils.dateOnly(entry.end);
+      final first = start.difference(weekStart).inDays;
+      final last = end.difference(weekStart).inDays;
+      var lane = 0;
+      while (lane < laneEnds.length && laneEnds[lane] >= first) {
+        lane++;
+      }
+      if (lane == laneEnds.length) {
+        laneEnds.add(last);
+      } else {
+        laneEnds[lane] = last;
+      }
+      result.add(_WeekSegment(entry, first, last, lane));
+    }
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = _segments();
+    final hiddenPerDay = List<int>.filled(7, 0);
+    for (final segment in segments.where(
+      (segment) => segment.lane >= laneCapacity,
+    )) {
+      for (
+        var column = segment.startColumn;
+        column <= segment.endColumn;
+        column++
+      ) {
+        hiddenPerDay[column]++;
+      }
+    }
+    final rowHeight = 34.0 + laneCapacity * 20.0 + 18.0;
+    return SizedBox(
+      height: rowHeight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cellWidth = constraints.maxWidth / 7;
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Row(
+                children: [
+                  for (var index = 0; index < days.length; index++)
+                    Expanded(
+                      child: InkWell(
+                        key: Key(
+                          'calendar-day-${days[index].toIso8601String().split('T').first}',
+                        ),
+                        onTap: () => onSelectedDay(days[index]),
+                        child: Container(
+                          margin: const EdgeInsets.all(1),
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color:
+                                  DateUtils.isSameDay(days[index], selectedDay)
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Colors.grey.shade300,
+                              width:
+                                  DateUtils.isSameDay(days[index], selectedDay)
+                                  ? 2
+                                  : 1,
+                            ),
+                            color:
+                                DateUtils.isSameDay(days[index], DateTime.now())
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : null,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: Text(
+                              '${days[index].day}',
+                              style: TextStyle(
+                                fontWeight:
+                                    DateUtils.isSameDay(
+                                      days[index],
+                                      DateTime.now(),
+                                    )
+                                    ? FontWeight.bold
+                                    : null,
+                                color: days[index].month == month.month
+                                    ? null
+                                    : Colors.grey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              for (final segment in segments.where(
+                (segment) => segment.lane < laneCapacity,
+              ))
+                Positioned(
+                  key: Key(
+                    'calendar-segment-${segment.entry.kind}-${segment.entry.id}-${days.first.toIso8601String().split('T').first}',
+                  ),
+                  left: segment.startColumn * cellWidth + 3,
+                  width:
+                      (segment.endColumn - segment.startColumn + 1) *
+                          cellWidth -
+                      6,
+                  top: 27 + segment.lane * 20,
+                  height: 18,
+                  child: Material(
+                    color: CalendarPresentation.color(
+                      segment.entry.type,
+                    ).withValues(alpha: .22),
+                    borderRadius: BorderRadius.circular(4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(4),
+                      onTap: () => onEntry?.call(segment.entry),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 1,
+                        ),
+                        child: Text(
+                          segment.entry.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              for (var index = 0; index < hiddenPerDay.length; index++)
+                if (hiddenPerDay[index] > 0)
+                  Positioned(
+                    left: index * cellWidth + 3,
+                    width: cellWidth - 6,
+                    bottom: 2,
+                    child: Text(
+                      '+${hiddenPerDay[index]} więcej',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _Agenda extends StatelessWidget {
   const _Agenda({required this.day, required this.items, this.onEntry});
   final DateTime day;
@@ -253,9 +388,7 @@ class _Agenda extends StatelessWidget {
                   color: CalendarPresentation.color(e.type),
                 ),
                 title: Text(e.title),
-                subtitle: Text(
-                  '${CalendarPresentation.label(e.type)} • ${e.status}',
-                ),
+                subtitle: Text(formatPolishDateRange(e.start, e.end)),
                 onTap: () => onEntry?.call(e),
               ),
         ],

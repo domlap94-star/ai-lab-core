@@ -3,6 +3,7 @@ from __future__ import annotations
 import calendar
 from collections import Counter
 from datetime import date, datetime, time, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, or_, text
 from sqlalchemy.orm import Session
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.absence_request import AbsenceRequest
 from app.models.client import Client
 from app.models.document import Document
+from app.models.project import Project
 from app.models.user import User
 from app.models.work_item import WorkItem
 from app.models.work_item_document import WorkItemDocument
@@ -34,6 +36,12 @@ def _is_admin(user: User) -> bool:
 
 
 class WorkItemService:
+    PROJECT_STATUS = {
+        "todo": "planned",
+        "in_progress": "active",
+        "completed": "completed",
+        "cancelled": "cancelled",
+    }
     def __init__(self, db: Session):
         self.db = db
         self.history = ChangeHistoryService(db)
@@ -63,7 +71,7 @@ class WorkItemService:
     def _snapshot(item: WorkItem) -> dict:
         return {name: getattr(item, name) for name in (
             "item_type", "title", "description", "start_at", "due_at", "all_day",
-            "timezone_name", "status", "priority", "assignee_user_id", "client_id",
+            "timezone_name", "status", "priority", "assignee_user_id", "client_id", "project_id",
             "party_name", "completed_at", "deleted_at", "version",
         )}
 
@@ -82,16 +90,56 @@ class WorkItemService:
             client = self.db.query(Client.name).filter(Client.id == item.client_id).scalar() if item.client_id else None
         return WorkItemRead.model_validate(item).model_copy(update={"assignee_display": assignee, "client_name": client})
 
+    @staticmethod
+    def _project_date(value: datetime | None, timezone_name: str | None) -> date | None:
+        if value is None:
+            return None
+        return value.astimezone(ZoneInfo(timezone_name or "Europe/Warsaw")).date()
+
+    def _new_project(self, data: WorkItemCreate, actor: User) -> Project:
+        if data.client_id is None:
+            raise WorkItemReferenceError("realization_client_required")
+        project = Project(
+            client_id=data.client_id,
+            name=data.title,
+            description=data.description,
+            status=self.PROJECT_STATUS[data.status],
+            start_date=self._project_date(data.start_at, data.timezone_name),
+            end_date=self._project_date(data.due_at, data.timezone_name),
+            created_by_user_id=actor.id,
+            updated_by_user_id=actor.id,
+        )
+        self.db.add(project)
+        self.db.flush()
+        return project
+
+    def _sync_project(self, item: WorkItem, actor: User) -> None:
+        project = item.project or self.db.query(Project).filter(Project.id == item.project_id).with_for_update().one()
+        if project.client_id != item.client_id:
+            raise WorkItemConflictError("realization_client_change_forbidden")
+        project.name = item.title
+        project.description = item.description
+        project.status = self.PROJECT_STATUS[item.status]
+        project.start_date = self._project_date(item.start_at, item.timezone_name)
+        project.end_date = self._project_date(item.due_at, item.timezone_name)
+        project.updated_by_user_id = actor.id
+
     def create(self, data: WorkItemCreate, actor: User) -> WorkItemRead:
         self._validate_references(assignee_user_id=data.assignee_user_id, client_id=data.client_id)
         values = data.model_dump()
         if values["status"] == "completed":
             values["completed_at"] = datetime.now(timezone.utc)
+        if data.item_type == "realization":
+            values["project_id"] = self._new_project(data, actor).id
         item = WorkItem(**values, created_by_user_id=actor.id, updated_by_user_id=actor.id)
-        self.db.add(item)
-        self.db.flush()
-        self.history.persist(actor_user_id=actor.id, entity_type="work_item", entity_id=item.id, action="created", before={}, after=self._snapshot(item), source_key=f"work-item:{item.id}:created")
-        self.db.commit()
+        try:
+            self.db.add(item)
+            self.db.flush()
+            self.history.persist(actor_user_id=actor.id, entity_type="work_item", entity_id=item.id, action="created", before={}, after=self._snapshot(item), source_key=f"work-item:{item.id}:created")
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
         self.db.refresh(item)
         return self._read(item)
 
@@ -140,6 +188,13 @@ class WorkItemService:
         updates = {key: value for key, value in validated.model_dump().items() if key in updates}
         assignee = updates.get("assignee_user_id", item.assignee_user_id)
         client = updates.get("client_id", item.client_id)
+        target_type = updates.get("item_type", item.item_type)
+        if item.project_id is not None and target_type != "realization":
+            raise WorkItemConflictError("linked_realization_type_change_forbidden")
+        if item.project_id is not None and client != item.client_id:
+            raise WorkItemConflictError("realization_client_change_forbidden")
+        if target_type == "realization" and client is None:
+            raise WorkItemReferenceError("realization_client_required")
         if "assignee_user_id" in updates or "client_id" in updates:
             self._validate_references(assignee_user_id=assignee, client_id=client)
         before = self._snapshot(item)
@@ -151,6 +206,13 @@ class WorkItemService:
             item.completed_at = None
         item.updated_by_user_id = actor.id
         item.version += 1
+        if item.item_type == "realization" and item.project_id is None and before["item_type"] != "realization":
+            item.project_id = self._new_project(
+                WorkItemCreate.model_validate({name: getattr(item, name) for name in WorkItemCreate.model_fields}),
+                actor,
+            ).id
+        if item.project_id is not None:
+            self._sync_project(item, actor)
         self.db.flush()
         self.history.persist(actor_user_id=actor.id, entity_type="work_item", entity_id=item.id, action="status_changed" if before["status"] != item.status else "updated", before=before, after=self._snapshot(item), source_key=f"work-item:{item.id}:v{item.version}")
         self.db.commit()
@@ -165,6 +227,10 @@ class WorkItemService:
             return self._read(item)
         before = self._snapshot(item)
         item.deleted_at = datetime.now(timezone.utc) if archived else None
+        if item.project_id is not None:
+            project = self.db.query(Project).filter(Project.id == item.project_id).with_for_update().one()
+            project.deleted_at = item.deleted_at
+            project.updated_by_user_id = actor.id
         item.updated_by_user_id = actor.id
         item.version += 1
         self.db.flush()
@@ -220,9 +286,25 @@ class WorkItemService:
         ).one_or_none()
         if document is None: raise WorkItemReferenceError("document_not_found")
         if item.client_id is not None and document.client_id not in (None, item.client_id): raise WorkItemReferenceError("cross_client_document")
+        if item.project_id is not None and document.project_id not in (None, item.project_id): raise WorkItemReferenceError("cross_project_document")
+        if item.project_id is not None:
+            project = self.db.query(Project).filter(Project.id == item.project_id).one_or_none()
+            if project is None or project.client_id != item.client_id:
+                raise WorkItemReferenceError("realization_project_client_conflict")
+        ownership_changed = False
+        if document.client_id is None and item.client_id is not None:
+            document.client_id = item.client_id
+            ownership_changed = True
+        if document.project_id is None and item.project_id is not None:
+            document.project_id = item.project_id
+            ownership_changed = True
         if note_id is not None and self.db.query(WorkItemNote).filter(WorkItemNote.id == note_id, WorkItemNote.work_item_id == item_id).one_or_none() is None: raise WorkItemReferenceError("note_not_found")
         existing = self.db.query(WorkItemDocument).filter(WorkItemDocument.work_item_id == item_id, WorkItemDocument.document_id == document_id, WorkItemDocument.detached_at.is_(None)).one_or_none()
-        if existing: return self._document_read(existing, document)
+        if existing:
+            if ownership_changed:
+                self.db.commit()
+                self.db.refresh(document)
+            return self._document_read(existing, document)
         link = WorkItemDocument(work_item_id=item_id, note_id=note_id, document_id=document_id, attached_by_user_id=actor.id)
         self.db.add(link); self.db.flush()
         self.history.persist(actor_user_id=actor.id, entity_type="work_item_document", entity_id=link.id, action="created", before={}, after={"work_item_id": item_id, "note_id": note_id, "document_id": document_id}, source_key=f"work-item-document:{link.id}:created")
@@ -359,6 +441,10 @@ class CalendarService:
         items: list[CalendarEntry] = []
         for row, assignee, client in work_rows:
             start = row.start_at or row.due_at; end = row.due_at or row.start_at
+            if row.all_day:
+                zone = ZoneInfo(row.timezone_name or "Europe/Warsaw")
+                start = start.astimezone(zone).date()
+                end = end.astimezone(zone).date()
             items.append(CalendarEntry(entity_id=row.id, entity_kind="work_item", item_type=row.item_type, title=row.title, start=start, end=end, status=row.status, priority=row.priority, assignee_display=assignee, client_id=row.client_id, client_name=client, all_day=row.all_day))
         for row, requester in absence_rows:
             items.append(CalendarEntry(entity_id=row.id, entity_kind="absence", item_type="absence", title=f"Absencja — {requester}" if _is_admin(actor) else "Moja absencja", start=row.start_date, end=row.end_date, status=row.status, assignee_display=requester if _is_admin(actor) else None, all_day=True))

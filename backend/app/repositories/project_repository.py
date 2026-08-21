@@ -13,10 +13,10 @@ class ProjectRepository(BaseRepository[Project]):
         super().__init__(db, Project)
 
     def get(self, object_id: int) -> Project | None:
-        return self.db.query(Project).options(joinedload(Project.client)).filter(Project.id == object_id, Project.deleted_at.is_(None)).first()
+        return self.db.query(Project).options(joinedload(Project.client), joinedload(Project.work_item)).filter(Project.id == object_id, Project.deleted_at.is_(None)).first()
 
     def get_page(self, *, search: str | None, client_id: int | None, status: str | None, skip: int, limit: int) -> tuple[list[Project], int]:
-        query = self.db.query(Project).join(Client).options(joinedload(Project.client)).filter(Project.deleted_at.is_(None), Client.deleted_at.is_(None))
+        query = self.db.query(Project).join(Client).options(joinedload(Project.client), joinedload(Project.work_item)).filter(Project.deleted_at.is_(None), Client.deleted_at.is_(None))
         if search and search.strip():
             pattern = f"%{search.strip()}%"
             query = query.filter(or_(Project.name.ilike(pattern), Project.description.ilike(pattern), Project.city.ilike(pattern), Client.name.ilike(pattern)))

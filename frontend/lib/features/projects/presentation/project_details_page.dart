@@ -95,16 +95,24 @@ class ProjectDetailsPage extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: <Widget>[
-                  FilledButton.icon(
-                    onPressed: () => _edit(context, ref, project),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edytuj'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _delete(context, ref, project),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Usuń realizację'),
-                  ),
+                  if (project.workItemId == null) ...[
+                    FilledButton.icon(
+                      onPressed: () => _edit(context, ref, project),
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edytuj'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _delete(context, ref, project),
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Usuń realizację'),
+                    ),
+                  ] else
+                    FilledButton.tonalIcon(
+                      onPressed: () =>
+                          context.push('/tasks/${project.workItemId}'),
+                      icon: const Icon(Icons.task_alt),
+                      label: const Text('Otwórz zadanie'),
+                    ),
                 ],
               ),
               Card(

@@ -19,6 +19,7 @@ import '../domain/client.dart';
 import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
 import '../../tasks/presentation/client_work_items_panel.dart';
+import 'client_realizations_panel.dart';
 
 final phoneUriLauncherProvider = Provider<Future<bool> Function(Uri)>((
   Ref ref,
@@ -641,6 +642,7 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
                   ),
                 ],
               ),
+              ClientRealizationsPanel(clientId: client.id),
             ],
           ),
         ),

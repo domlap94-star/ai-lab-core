@@ -28,7 +28,7 @@ Current execution state:
 published for Web, Windows and Android. The stable manifest is build `23`,
 `minimum_version` remains `1.0.0`, public artifact hashes match locally
 validated bytes, and `1.0.2+22` remains available for rollback. Production DB
-is at the single expected head `followup_calendar_tasks_20260820` with no
+is now at the single expected head `followup_work_item_realization_link_20260821` with no
 pending migration. Flutter analyze, focused Phase C `23/23`, updater `10/10`
 and full `240/240` pass; the public Web login bootstrap has zero console
 errors. Release-attributable business writes, Gmail sends, n8n workflow or
@@ -36,7 +36,7 @@ schedule changes, Vision jobs and Qdrant writes are zero. Physical Android
 widget and CHUNK 13 smokes are `UNVERIFIED` because no ADB device was connected.
 
 **OWNER-INSERTED PRE-CHUNK15 HOTFIX: ADMIN TRASH / 7-DAY RETENTION — COMPLETE.** Production
-is at `followup_admin_trash_retention_20260820`. The canonical Trash ledger,
+advanced through `followup_admin_trash_retention_20260820`. The canonical Trash ledger,
 seven-day database-clock retention, same-ID restore, auth-version invalidation,
 Client/User tombstones, non-vector Document content purge and Administrator
 Settings UI are active. `NEXT Stabil - Trash Purge` is enabled every four hours
@@ -47,10 +47,15 @@ only exact IDs and verifies absence before content purge. Isolated destructive
 tests use a guarded temporary collection; production acceptance had zero
 eligible entries and left all 57 points unchanged.
 
-The canonical next roadmap item remains FOLLOW-UP CHUNK 15, but an
-owner-requested Flutter patch is pending before it and its scope has not yet
-been supplied. Current execution decision: **OWNER FLUTTER PATCH — SCOPE
-PENDING.** FOLLOW-UP CHUNK 15 remains NOT STARTED.
+**OWNER FLUTTER PATCH — CALENDAR / TASK DETAIL / REALIZATION INTEGRATION —
+COMPLETE.** The additive WorkItem-to-Project revision is live without backfill;
+the legacy owner realization is unchanged. Task Detail, Polish date pickers,
+continuous month bars, Android widget ranges, canonical Document multi-linking
+and conditional Client Realizacja projection are verified. Flutter analyze and
+250/250 tests pass; Android/Web/Windows debug builds pass.
+
+Current execution decision: **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI — NEXT,
+NOT STARTED.** Do not start it without a new owner prompt. No release was made.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

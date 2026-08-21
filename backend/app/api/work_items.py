@@ -130,7 +130,7 @@ async def upload_document(item_id: int, file: UploadFile = File(...), note_id: i
         result = document_service.store_document(
             content=content, original_filename=file.filename or "document.bin",
             content_type=file.content_type or "application/octet-stream",
-            source_type=source_type, client_id=None,
+            source_type=source_type, client_id=item.client_id, project_id=item.project_id,
             captured_at=captured_at, latitude=latitude, longitude=longitude,
             location_accuracy_m=location_accuracy_m,
             location_source="device_gps" if latitude is not None else None,

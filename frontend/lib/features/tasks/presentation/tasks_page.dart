@@ -305,6 +305,7 @@ class _TaskFilters extends ConsumerWidget {
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       initialDate: initial ?? DateTime.now(),
+      locale: const Locale('pl', 'PL'),
     );
     return date;
   }

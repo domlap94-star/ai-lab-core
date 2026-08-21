@@ -8,7 +8,7 @@ from app.database.session import get_db
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectPage, ProjectRead, ProjectStatus, ProjectUpdate
 from app.schemas.timeline import TimelineEventType, TimelinePage
-from app.services.project_service import ProjectClientNotFoundError, ProjectNotFoundError, ProjectService
+from app.services.project_service import ProjectClientNotFoundError, ProjectLinkedWorkItemError, ProjectNotFoundError, ProjectService
 from app.services.timeline_service import TimelineService
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
@@ -17,6 +17,8 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 def _error(error: Exception) -> HTTPException:
     if isinstance(error, ProjectNotFoundError):
         return HTTPException(status_code=404, detail="Project not found")
+    if isinstance(error, ProjectLinkedWorkItemError):
+        return HTTPException(status_code=409, detail=str(error))
     return HTTPException(status_code=422, detail="Client does not exist or is inactive")
 
 
@@ -69,7 +71,7 @@ def create_project(data: ProjectCreate, current_user: User = Depends(get_current
 def update_project(project_id: int, data: ProjectUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectRead:
     try:
         return ProjectService(db).update(project_id, data, current_user)
-    except (ProjectNotFoundError, ProjectClientNotFoundError) as error:
+    except (ProjectNotFoundError, ProjectClientNotFoundError, ProjectLinkedWorkItemError) as error:
         raise _error(error) from error
 
 
@@ -78,5 +80,5 @@ def delete_project(project_id: int, current_user: User = Depends(get_current_use
     try:
         ProjectService(db).delete(project_id, current_user)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except ProjectNotFoundError as error:
+    except (ProjectNotFoundError, ProjectLinkedWorkItemError) as error:
         raise _error(error) from error

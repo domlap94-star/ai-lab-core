@@ -12,6 +12,7 @@ import org.json.JSONObject
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 class CalendarAppWidget : AppWidgetProvider() {
@@ -46,16 +47,15 @@ class CalendarAppWidget : AppWidgetProvider() {
                 if (snapshot?.optInt("schema_version") == 1) YearMonth.of(snapshot.optInt("year"), snapshot.optInt("month")) else YearMonth.now()
             }.getOrDefault(YearMonth.now())
             views.setTextViewText(R.id.monthTitle, "${yearMonth.month.getDisplayName(TextStyle.FULL, Locale("pl"))} ${yearMonth.year}")
-            val marked = mutableMapOf<LocalDate, String>()
+            val marked = mutableMapOf<LocalDate, Int>()
             val items = snapshot?.optJSONArray("items")
             if (items != null) for (i in 0 until items.length()) runCatching {
                 val item = items.getJSONObject(i)
-                val marker = typeMarker(item.optString("type"))
                 var day = LocalDate.parse(item.getString("date"))
                 val end = LocalDate.parse(item.optString("end_date", item.getString("date")))
                 var guard = 0
                 while (!day.isAfter(end) && guard < 42) {
-                    marked.putIfAbsent(day, marker)
+                    marked[day] = (marked[day] ?: 0) + 1
                     day = day.plusDays(1)
                     guard++
                 }
@@ -63,8 +63,10 @@ class CalendarAppWidget : AppWidgetProvider() {
             val first = yearMonth.atDay(1)
             var cursor = first.minusDays((first.dayOfWeek.value - 1).toLong())
             dayIds.forEachIndexed { index, viewId ->
-                val marker = marked[cursor] ?: ""
-                val label = if (cursor == LocalDate.now()) "[${cursor.dayOfMonth}]" else "$marker${cursor.dayOfMonth}"
+                val count = marked[cursor] ?: 0
+                val number = if (cursor == LocalDate.now()) "[${cursor.dayOfMonth}]" else "${cursor.dayOfMonth}"
+                val indicator = when { count > 2 -> "•••"; count > 0 -> "•"; else -> "" }
+                val label = if (indicator.isEmpty()) number else "$number\n$indicator"
                 views.setTextViewText(viewId, label)
                 views.setOnClickPendingIntent(viewId, pending(context, "/tasks?date=$cursor", 1000 + index))
                 cursor = cursor.plusDays(1)
@@ -73,7 +75,7 @@ class CalendarAppWidget : AppWidgetProvider() {
             if (items == null || items.length() == 0) views.setTextViewText(R.id.agenda1, "Brak zaplanowanych pozycji")
             else for (i in 0 until minOf(items.length(), agendaIds.size)) {
                 val item = items.getJSONObject(i)
-                views.setTextViewText(agendaIds[i], "${typeMarker(item.optString("type"))} ${item.optString("date")}  ${item.optString("title")}")
+                views.setTextViewText(agendaIds[i], "${dateRange(item)}  ${item.optString("title")}")
                 views.setOnClickPendingIntent(agendaIds[i], pending(context, if (item.optString("kind") == "absence") "/tasks?absence_id=${item.optInt("id")}" else "/tasks/${item.optInt("id")}", 100 + i))
             }
             views.setTextViewText(R.id.lastUpdated, if (snapshot == null) "Brak zapisanych danych" else "Ostatnia aktualizacja: ${snapshot.optString("updated_at").take(16).replace('T', ' ')}")
@@ -88,14 +90,17 @@ class CalendarAppWidget : AppWidgetProvider() {
             return PendingIntent.getActivity(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
 
-        private fun typeMarker(type: String): String = when (type) {
-            "task" -> "✓"
-            "order" -> "Z"
-            "realization" -> "R"
-            "reminder" -> "!"
-            "event" -> "E"
-            "absence" -> "A"
-            else -> "•"
+        private fun dateRange(item: JSONObject): String {
+            val start = LocalDate.parse(item.getString("date"))
+            val end = LocalDate.parse(item.optString("end_date", item.getString("date")))
+            val short = DateTimeFormatter.ofPattern("dd.MM", Locale("pl"))
+            if (start == end) return start.format(short)
+            if (start.year != end.year) {
+                val full = DateTimeFormatter.ofPattern("dd.MM.yyyy", Locale("pl"))
+                return "${start.format(full)}–${end.format(full)}"
+            }
+            if (start.month == end.month) return "${start.dayOfMonth.toString().padStart(2, '0')}–${end.format(short)}"
+            return "${start.format(short)}–${end.format(short)}"
         }
     }
 }
