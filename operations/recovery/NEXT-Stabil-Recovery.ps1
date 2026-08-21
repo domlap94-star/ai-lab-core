@@ -159,4 +159,3 @@ catch {
     Write-Output "RECOVERY_ERROR=$code"
     throw
 }
-
