@@ -79,6 +79,17 @@ const VISION_BRIDGE_KEY = crypto
   .update('next-stabil-vision-supervisor-v1')
   .digest('hex');
 
+const BACKUP_BRIDGE_KEY = crypto
+  .createHmac('sha256', SECRET_KEY)
+  .update('next-stabil-backup-supervisor-v1')
+  .digest('hex');
+const BACKUP_SCRIPT = path.join(PROJECT_DIR, 'operations', 'hardening', 'backup-production.ps1');
+const DEFAULT_BACKUP_ROOT = 'C:\\ai-lab-core-backups';
+const BACKUP_SCOPES = new Set(['full', 'database', 'documents', 'qdrant', 'n8n_config']);
+const BACKUP_STAGES = new Set(['validating', 'database', 'documents', 'qdrant', 'n8n', 'configuration', 'release', 'verifying']);
+const backupOperations = new Map();
+let activeBackupOperationId = null;
+
 const visionQueue = new VisionQueue({
   spoolRoot: VISION_SPOOL,
   workerScript: VISION_WORKER_SCRIPT,
@@ -91,6 +102,196 @@ function authorizeVision(req) {
   if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
     throw new Error('Unauthorized');
   }
+}
+
+function authorizeBackup(req) {
+  const supplied = Buffer.from(String(req.headers['x-next-stabil-backup-key'] || ''), 'utf8');
+  const expected = Buffer.from(BACKUP_BRIDGE_KEY, 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    throw new Error('Unauthorized');
+  }
+}
+
+function validateBackupDestination(value) {
+  const raw = String(value || '').trim().replace(/\//g, '\\');
+  if (!/^[A-Za-z]:\\/.test(raw) || raw.split('\\').includes('..')) {
+    throw new Error('backup_destination_invalid');
+  }
+  const resolved = path.win32.resolve(raw).replace(/[\\]+$/, '');
+  const lower = resolved.toLowerCase();
+  const repo = path.win32.resolve(PROJECT_DIR).replace(/[\\]+$/, '').toLowerCase();
+  const data = path.win32.join(repo, 'data').toLowerCase();
+  if (lower === repo || lower.startsWith(`${repo}\\`) || lower === data || lower.startsWith(`${data}\\`)) {
+    throw new Error('backup_destination_active_path');
+  }
+  return resolved;
+}
+
+function safeJoinCheckpoint(checkpoint, relative) {
+  if (typeof relative !== 'string' || !relative || path.win32.isAbsolute(relative)) {
+    throw new Error('backup_manifest_artifact_path_invalid');
+  }
+  const base = path.win32.resolve(checkpoint);
+  const target = path.win32.resolve(base, relative.replace(/\//g, '\\'));
+  if (!target.toLowerCase().startsWith(`${base.toLowerCase()}\\`)) {
+    throw new Error('backup_manifest_artifact_path_invalid');
+  }
+  return target;
+}
+
+function hashFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('error', reject);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
+function compareVersion(left, right) {
+  const parse = (value) => String(value || '').split('+')[0].split('.').map(Number);
+  const a = parse(left); const b = parse(right);
+  if (a.length !== 3 || b.length !== 3 || [...a, ...b].some((item) => !Number.isInteger(item))) return null;
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
+  }
+  return 0;
+}
+
+async function verifyCheckpoint(checkpoint) {
+  const manifestPath = path.win32.join(checkpoint, 'backup-manifest.json');
+  if (!fs.existsSync(manifestPath)) throw new Error('backup_manifest_missing');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
+  if (manifest.schema_version !== 'NEXT_STABIL_BACKUP_V1' || !Array.isArray(manifest.artifacts)) {
+    throw new Error('backup_manifest_invalid');
+  }
+  let totalBytes = 0;
+  const components = [];
+  for (const artifact of manifest.artifacts) {
+    const filePath = safeJoinCheckpoint(checkpoint, artifact.file);
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile() || Number(artifact.bytes) !== stats.size) throw new Error('backup_artifact_size_mismatch');
+    if ((await hashFile(filePath)).toLowerCase() !== String(artifact.sha256 || '').toLowerCase()) {
+      throw new Error('backup_artifact_hash_mismatch');
+    }
+    totalBytes += stats.size;
+    components.push(path.win32.basename(filePath));
+  }
+  const currentManifest = JSON.parse(fs.readFileSync(path.join(PROJECT_DIR, 'release-channel', 'stable', 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
+  const backupVersion = String(manifest.app_version || manifest.release || '');
+  const versionComparison = compareVersion(backupVersion, currentManifest.version);
+  const currentDbRevision = String(process.env.NEXT_STABIL_DB_REVISION || 'followup_admin_backup_restore_ui_20260821');
+  let compatibility = 'compatible';
+  if (versionComparison === null) compatibility = 'invalid';
+  else if (versionComparison > 0) compatibility = 'newer_unsupported_checkpoint';
+  else if (String(manifest.db_revision || '') !== currentDbRevision) compatibility = 'older_supported_checkpoint';
+  const names = new Set(components);
+  const databaseEligible = names.has('postgres.dump');
+  const fullRequired = ['postgres.dump', 'document-storage.tar.gz', 'release-stable.tar.gz', 'qdrant.snapshot', 'n8n-workflows.json', 'n8n-credentials.encrypted.json', 'configuration.tar.gz'];
+  const fullArtifactsPresent = fullRequired.every((name) => names.has(name));
+  const qdrantRestoreVerified = manifest.qdrant_restore_verified === true;
+  const fullEligible = fullArtifactsPresent && qdrantRestoreVerified;
+  const restoreErrorCode = fullArtifactsPresent && !qdrantRestoreVerified
+    ? String(manifest.qdrant_restore_error_code || 'qdrant_restore_verification_required')
+    : null;
+  return {
+    checkpoint_path: checkpoint,
+    created_at: manifest.created_at,
+    scope: manifest.scope || 'full',
+    app_version: backupVersion,
+    source_head: String(manifest.source_head || ''),
+    db_revision: String(manifest.db_revision || ''),
+    total_bytes: totalBytes,
+    verified: true,
+    artifact_count: manifest.artifacts.length,
+    components,
+    database_eligible: databaseEligible,
+    full_eligible: fullEligible,
+    compatibility,
+    error_code: restoreErrorCode,
+    manifest_path: manifestPath,
+  };
+}
+
+async function discoverCheckpoints(destinations) {
+  const items = [];
+  for (const raw of destinations.slice(0, 10)) {
+    const root = validateBackupDestination(raw);
+    if (!fs.existsSync(root)) continue;
+    const children = fs.readdirSync(root, { withFileTypes: true })
+      .filter((item) => item.isDirectory())
+      .sort((a, b) => b.name.localeCompare(a.name))
+      .slice(0, 100);
+    for (const child of children) {
+      const checkpoint = path.win32.join(root, child.name);
+      try {
+        items.push(await verifyCheckpoint(checkpoint));
+      } catch (_) {
+        // Invalid directories are not exposed as restore candidates.
+      }
+    }
+  }
+  return items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 100);
+}
+
+function startBackupOperation(payload) {
+  if (activeBackupOperationId) throw new Error('backup_already_running');
+  const scope = String(payload.scope || '');
+  if (!BACKUP_SCOPES.has(scope)) throw new Error('backup_scope_invalid');
+  const destination = validateBackupDestination(payload.destination);
+  const release = String(payload.release || '');
+  if (!/^\d+\.\d+\.\d+\+\d+$/.test(release)) throw new Error('backup_release_invalid');
+  const runId = Number(payload.run_id);
+  if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error('backup_run_id_invalid');
+  const operationId = crypto.randomUUID();
+  const operation = {
+    operation_id: operationId, status: 'running', stage: 'validating',
+    checkpoint_path: null, manifest_path: null, artifact_count: 0,
+    total_bytes: 0, verified: false, error_code: null,
+  };
+  backupOperations.set(operationId, operation);
+  activeBackupOperationId = operationId;
+  const args = [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', BACKUP_SCRIPT,
+    '-RepositoryRoot', PROJECT_DIR, '-BackupRoot', destination, '-Release', release,
+    '-QdrantCollection', 'ai_lab_document_chunks', '-Scope', scope,
+    '-RunId', String(runId), '-Trigger', 'manual',
+  ];
+  const child = spawn('powershell.exe', args, { cwd: PROJECT_DIR, windowsHide: true, shell: false });
+  let stdout = ''; let stderr = '';
+  child.stdout.on('data', (chunk) => {
+    stdout += chunk.toString();
+    const matches = stdout.match(/BACKUP_STAGE=([a-z_]+)/g) || [];
+    if (matches.length) {
+      const stage = matches[matches.length - 1].split('=')[1];
+      if (BACKUP_STAGES.has(stage)) operation.stage = stage;
+    }
+  });
+  child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  child.on('error', () => {
+    operation.status = 'failed'; operation.stage = 'failed'; operation.error_code = 'backup_runner_start_failed';
+    activeBackupOperationId = null;
+  });
+  child.on('close', async (code) => {
+    try {
+      if (code !== 0) throw new Error('backup_runner_failed');
+      const checkpointMatch = /BACKUP_COMPLETE=(.+)/.exec(stdout);
+      if (!checkpointMatch) throw new Error('backup_checkpoint_missing');
+      const verified = await verifyCheckpoint(checkpointMatch[1].trim());
+      Object.assign(operation, {
+        status: 'completed', stage: 'completed', checkpoint_path: verified.checkpoint_path,
+        manifest_path: verified.manifest_path, artifact_count: verified.artifact_count,
+        total_bytes: verified.total_bytes, verified: true, error_code: null,
+      });
+    } catch (error) {
+      operation.status = 'failed'; operation.stage = 'failed';
+      operation.error_code = String(error.message || 'backup_failed').slice(0, 100);
+    } finally {
+      activeBackupOperationId = null;
+    }
+  });
+  return operation;
 }
 
 function readJsonBody(req) {
@@ -345,6 +546,40 @@ async function handle(req, res) {
     } catch (error) {
       const badRequest = ['BODY_TOO_LARGE', 'INVALID_JSON'].includes(error.message) || /^(INVALID|SOURCE_)/.test(error.message);
       sendJson(res, badRequest ? 422 : 500, { detail: badRequest ? 'Invalid Vision job request' : 'Vision supervisor failure' });
+      return;
+    }
+  }
+
+  if (requestUrl.pathname.startsWith('/backup/')) {
+    try {
+      authorizeBackup(req);
+    } catch (_) {
+      sendJson(res, 401, { code: 'unauthorized' });
+      return;
+    }
+    try {
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/run') {
+        sendJson(res, 202, startBackupOperation(await readJsonBody(req)));
+        return;
+      }
+      const operationMatch = /^\/backup\/operations\/([a-f0-9-]{36})$/i.exec(requestUrl.pathname);
+      if (req.method === 'GET' && operationMatch) {
+        const operation = backupOperations.get(operationMatch[1]);
+        sendJson(res, operation ? 200 : 404, operation || { code: 'backup_operation_not_found' });
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/checkpoints') {
+        const payload = await readJsonBody(req);
+        if (!Array.isArray(payload.destinations)) throw new Error('backup_destinations_invalid');
+        sendJson(res, 200, { items: await discoverCheckpoints(payload.destinations) });
+        return;
+      }
+      sendJson(res, 404, { code: 'not_found' });
+      return;
+    } catch (error) {
+      const code = String(error.message || 'backup_supervisor_failure').slice(0, 100);
+      const invalid = code.includes('invalid') || code.includes('active_path') || code.includes('already_running');
+      sendJson(res, invalid ? 409 : 500, { code });
       return;
     }
   }

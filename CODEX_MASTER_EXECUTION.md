@@ -79,6 +79,20 @@ backend or schema change, production business write, release, CHUNK 15 work or
 CHUNK 16 work occurred. Flutter analyze, focused `26/26` and clean full
 `260/260` tests pass. The next execution decision remains CHUNK 15, not started.
 
+**FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE UI — PARTIAL / QDRANT
+FULL-RESTORE BLOCKED.** Production schema is at the additive revision
+`followup_admin_backup_restore_ui_20260821`; isolated migration/service and
+Database-only restore proofs pass. A fresh official Qdrant 1.18.3 snapshot is
+corrupt at source (`0/wal/first-index` is 15 NUL bytes while the live file is
+valid JSON). Official upload recovery fails on an isolated exact-version
+container, while a synthetic same-version named-volume control restores
+successfully. Database restore stays eligible; Full restore fails closed with
+`qdrant_restore_verification_required`. Task Scheduler and production restore
+gates remain ungranted. The owner inserted a future standalone Windows Disaster
+Recovery App after CHUNK 15 and before CHUNK 16; it is not started. No
+intermediate Phase D release is allowed before owner-declared Phase D
+completion.
+
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application
 engine, and the live connection must return the same name from

@@ -170,6 +170,16 @@ class SettingsPage extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/settings/trash'),
                 ),
+                ListTile(
+                  key: const Key('admin-backup-restore-settings-tile'),
+                  leading: const Icon(Icons.settings_backup_restore),
+                  title: const Text('Backup i przywracanie'),
+                  subtitle: const Text(
+                    'Backupy, harmonogramy i kontrolowane przywracanie.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/backup'),
+                ),
               ],
             ),
           ],

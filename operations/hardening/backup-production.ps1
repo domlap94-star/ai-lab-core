@@ -3,7 +3,13 @@ param(
     [string]$RepositoryRoot = "C:\ai-lab-core",
     [string]$BackupRoot = "C:\ai-lab-core-backups",
     [string]$Release = "1.0.2+21",
-    [string]$QdrantCollection = "ai_lab_document_chunks"
+    [string]$QdrantCollection = "ai_lab_document_chunks",
+    [ValidateSet("full", "database", "documents", "qdrant", "n8n_config")]
+    [string]$Scope = "full",
+    [Nullable[long]]$RunId = $null,
+    [Nullable[long]]$ScheduleId = $null,
+    [ValidateSet("manual", "scheduled", "pre_restore")]
+    [string]$Trigger = "manual"
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,10 +54,14 @@ if ($backupBase.StartsWith($dataRoot + '\', [System.StringComparison]::OrdinalIg
 
 $documentSources = @("documents", "document-pages", "document-assets", "archive-extracted")
 $estimatedBytes = [int64]0
-foreach ($name in $documentSources) {
-    $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $dataRoot $name)
+if ($Scope -in @("full", "documents")) {
+    foreach ($name in $documentSources) {
+        $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $dataRoot $name)
+    }
 }
-$estimatedBytes += Get-DirectoryBytes -Path (Join-Path $repo "release-channel\stable")
+if ($Scope -eq "full") {
+    $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $repo "release-channel\stable")
+}
 $requiredFreeBytes = [int64]([math]::Ceiling($estimatedBytes * 1.35) + 2GB)
 $driveName = [System.IO.Path]::GetPathRoot($backupBase).TrimEnd('\').TrimEnd(':')
 $drive = Get-PSDrive -Name $driveName -PSProvider FileSystem
@@ -77,105 +87,140 @@ if ($LASTEXITCODE -ne 0) { throw "Unable to read source HEAD." }
 $dbRevision = (& docker exec postgres psql -U ai_lab -d ai_lab -At -c "SELECT version_num FROM alembic_version;").Trim()
 if ($LASTEXITCODE -ne 0) { throw "Unable to read Alembic revision." }
 
-$dbDump = Join-Path $artifacts "postgres.dump"
-$containerDump = "/tmp/next-stabil-$stamp.dump"
-try {
-    Invoke-CheckedCommand "docker.exe" @(
-        "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
-        "--format=custom", "--compress=6", "--no-owner", "--file=$containerDump"
-    )
-    Invoke-CheckedCommand "docker.exe" @("cp", "postgres`:$containerDump", $dbDump)
-}
-finally { & docker exec postgres rm -f $containerDump 2>$null }
-
-$documentsArchive = Join-Path $artifacts "document-storage.tar.gz"
-Invoke-CheckedCommand "tar.exe" (@("-czf", $documentsArchive, "-C", $dataRoot) + $documentSources)
-$releaseArchive = Join-Path $artifacts "release-stable.tar.gz"
-Invoke-CheckedCommand "tar.exe" @("-czf", $releaseArchive, "-C", $repo, "release-channel/stable")
-
-$qdrantResponse = Invoke-RestMethod -Method Post `
-    -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots" -TimeoutSec 900
-if ($qdrantResponse.status -ne "ok" -or [string]::IsNullOrWhiteSpace($qdrantResponse.result.name)) {
-    throw "Qdrant did not return a valid snapshot name."
-}
-$qdrantSnapshot = Join-Path $artifacts "qdrant.snapshot"
-Invoke-CheckedCommand "curl.exe" @(
-    "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
-    "--output", $qdrantSnapshot,
-    "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$($qdrantResponse.result.name)"
-)
-
-$n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
-$n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
-$n8nWorkflowTemp = "/tmp/next-stabil-$stamp-workflows.json"
-$n8nCredentialsTemp = "/tmp/next-stabil-$stamp-credentials.json"
-try {
-    Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all", "--output=$n8nWorkflowTemp")
-    Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all", "--output=$n8nCredentialsTemp")
-    Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nWorkflowTemp", $n8nWorkflows)
-    Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nCredentialsTemp", $n8nCredentials)
-}
-finally { & docker exec n8n rm -f $n8nWorkflowTemp $n8nCredentialsTemp 2>$null }
-
-$configFiles = @(
-    "compose.yaml", "compose/backend/docker-compose.yml", "compose/postgres/docker-compose.yml",
-    "compose/qdrant/docker-compose.yml", "compose/ollama/docker-compose.yml",
-    "compose/n8n/docker-compose.yml", "compose/open-webui/docker-compose.yml",
-    "backend/Dockerfile", "backend/requirements.txt", "release-channel/stable/manifest.json"
-)
-foreach ($relative in $configFiles) {
-    $source = Join-Path $repo $relative
-    $destination = Join-Path $configDir $relative
-    New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
-    Copy-Item -LiteralPath $source -Destination $destination
-}
-
-$envNamesPath = Join-Path $configDir "required-env-names.txt"
-if (Test-Path -LiteralPath (Join-Path $repo ".env")) {
-    Get-Content -LiteralPath (Join-Path $repo ".env") |
-        Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } |
-        ForEach-Object { (($_ -split '=', 2)[0]).Trim() } |
-        Sort-Object -Unique | Set-Content -LiteralPath $envNamesPath -Encoding UTF8
-} else { @() | Set-Content -LiteralPath $envNamesPath -Encoding UTF8 }
-
-$imageInventory = @()
-foreach ($containerName in @("postgres", "qdrant", "ollama", "n8n", "open-webui", "ai-lab-backend")) {
-    $container = (& docker inspect $containerName | ConvertFrom-Json | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0) { throw "Unable to inspect $containerName." }
-    $image = (& docker image inspect $container.Image | ConvertFrom-Json | Select-Object -First 1)
-    if ($LASTEXITCODE -ne 0) { throw "Unable to inspect image for $containerName." }
-    $imageInventory += [ordered]@{
-        container = $containerName; configured_image = $container.Config.Image
-        image_id = $container.Image; repo_digests = @($image.RepoDigests)
+$artifactRecords = @()
+$qdrantSnapshotName = $null
+if ($Scope -in @("full", "database")) {
+    Write-Output "BACKUP_STAGE=database"
+    $dbDump = Join-Path $artifacts "postgres.dump"
+    $containerDump = "/tmp/next-stabil-$stamp.dump"
+    try {
+        Invoke-CheckedCommand "docker.exe" @(
+            "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
+            "--format=custom", "--compress=6", "--no-owner", "--file=$containerDump"
+        )
+        Invoke-CheckedCommand "docker.exe" @("exec", "postgres", "pg_restore", "--list", $containerDump)
+        Invoke-CheckedCommand "docker.exe" @("cp", "postgres`:$containerDump", $dbDump)
     }
+    finally { & docker exec postgres rm -f $containerDump 2>$null }
+    $artifactRecords += Get-ArtifactRecord $checkpoint $dbDump
 }
-$imageInventory | ConvertTo-Json -Depth 6 |
-    Set-Content -LiteralPath (Join-Path $configDir "runtime-images.json") -Encoding UTF8
 
-$configArchive = Join-Path $artifacts "configuration.tar.gz"
-Invoke-CheckedCommand "tar.exe" @("-czf", $configArchive, "-C", $checkpoint, "configuration")
-$artifactRecords = @(
-    Get-ArtifactRecord $checkpoint $dbDump
-    Get-ArtifactRecord $checkpoint $documentsArchive
-    Get-ArtifactRecord $checkpoint $releaseArchive
-    Get-ArtifactRecord $checkpoint $qdrantSnapshot
-    Get-ArtifactRecord $checkpoint $n8nWorkflows
-    Get-ArtifactRecord $checkpoint $n8nCredentials
-    Get-ArtifactRecord $checkpoint $configArchive
-)
+if ($Scope -in @("full", "documents")) {
+    Write-Output "BACKUP_STAGE=documents"
+    $documentsArchive = Join-Path $artifacts "document-storage.tar.gz"
+    Invoke-CheckedCommand "tar.exe" (@("-czf", $documentsArchive, "-C", $dataRoot) + $documentSources)
+    Invoke-CheckedCommand "tar.exe" @("-tzf", $documentsArchive)
+    $artifactRecords += Get-ArtifactRecord $checkpoint $documentsArchive
+}
+
+if ($Scope -eq "full") {
+    Write-Output "BACKUP_STAGE=release"
+    $releaseArchive = Join-Path $artifacts "release-stable.tar.gz"
+    Invoke-CheckedCommand "tar.exe" @("-czf", $releaseArchive, "-C", $repo, "release-channel/stable")
+    Invoke-CheckedCommand "tar.exe" @("-tzf", $releaseArchive)
+    $artifactRecords += Get-ArtifactRecord $checkpoint $releaseArchive
+}
+
+if ($Scope -in @("full", "qdrant")) {
+    Write-Output "BACKUP_STAGE=qdrant"
+    $qdrantResponse = Invoke-RestMethod -Method Post `
+        -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots" -TimeoutSec 900
+    if ($qdrantResponse.status -ne "ok" -or [string]::IsNullOrWhiteSpace($qdrantResponse.result.name)) {
+        throw "Qdrant did not return a valid snapshot name."
+    }
+    $qdrantSnapshotName = $qdrantResponse.result.name
+    $qdrantSnapshot = Join-Path $artifacts "qdrant.snapshot"
+    Invoke-CheckedCommand "curl.exe" @(
+        "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
+        "--output", $qdrantSnapshot,
+        "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$qdrantSnapshotName"
+    )
+    $artifactRecords += Get-ArtifactRecord $checkpoint $qdrantSnapshot
+}
+
+if ($Scope -in @("full", "n8n_config")) {
+    Write-Output "BACKUP_STAGE=n8n"
+    $n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
+    $n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
+    $n8nWorkflowTemp = "/tmp/next-stabil-$stamp-workflows.json"
+    $n8nCredentialsTemp = "/tmp/next-stabil-$stamp-credentials.json"
+    try {
+        Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all", "--output=$n8nWorkflowTemp")
+        Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all", "--output=$n8nCredentialsTemp")
+        Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nWorkflowTemp", $n8nWorkflows)
+        Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nCredentialsTemp", $n8nCredentials)
+    }
+    finally { & docker exec n8n rm -f $n8nWorkflowTemp $n8nCredentialsTemp 2>$null }
+    $artifactRecords += Get-ArtifactRecord $checkpoint $n8nWorkflows
+    $artifactRecords += Get-ArtifactRecord $checkpoint $n8nCredentials
+}
+
+if ($Scope -in @("full", "n8n_config")) {
+    Write-Output "BACKUP_STAGE=configuration"
+    $configFiles = @(
+        "compose.yaml", "compose/backend/docker-compose.yml", "compose/postgres/docker-compose.yml",
+        "compose/qdrant/docker-compose.yml", "compose/ollama/docker-compose.yml",
+        "compose/n8n/docker-compose.yml", "compose/open-webui/docker-compose.yml",
+        "backend/Dockerfile", "backend/requirements.txt", "release-channel/stable/manifest.json"
+    )
+    foreach ($relative in $configFiles) {
+        $source = Join-Path $repo $relative
+        $destination = Join-Path $configDir $relative
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination
+    }
+
+    $envNamesPath = Join-Path $configDir "required-env-names.txt"
+    if (Test-Path -LiteralPath (Join-Path $repo ".env")) {
+        Get-Content -LiteralPath (Join-Path $repo ".env") |
+            Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } |
+            ForEach-Object { (($_ -split '=', 2)[0]).Trim() } |
+            Sort-Object -Unique | Set-Content -LiteralPath $envNamesPath -Encoding UTF8
+    } else { @() | Set-Content -LiteralPath $envNamesPath -Encoding UTF8 }
+
+    $imageInventory = @()
+    foreach ($containerName in @("postgres", "qdrant", "ollama", "n8n", "open-webui", "ai-lab-backend")) {
+        $container = (& docker inspect $containerName | ConvertFrom-Json | Select-Object -First 1)
+        if ($LASTEXITCODE -ne 0) { throw "Unable to inspect $containerName." }
+        $image = (& docker image inspect $container.Image | ConvertFrom-Json | Select-Object -First 1)
+        if ($LASTEXITCODE -ne 0) { throw "Unable to inspect image for $containerName." }
+        $imageInventory += [ordered]@{
+            container = $containerName; configured_image = $container.Config.Image
+            image_id = $container.Image; repo_digests = @($image.RepoDigests)
+        }
+    }
+    $imageInventory | ConvertTo-Json -Depth 6 |
+        Set-Content -LiteralPath (Join-Path $configDir "runtime-images.json") -Encoding UTF8
+
+    $configArchive = Join-Path $artifacts "configuration.tar.gz"
+    Invoke-CheckedCommand "tar.exe" @("-czf", $configArchive, "-C", $checkpoint, "configuration")
+    Invoke-CheckedCommand "tar.exe" @("-tzf", $configArchive)
+    $artifactRecords += Get-ArtifactRecord $checkpoint $configArchive
+}
 
 $manifest = [ordered]@{
     schema_version = "NEXT_STABIL_BACKUP_V1"
+    scope = $Scope
+    run_id = $RunId
+    schedule_id = $ScheduleId
+    trigger = $Trigger
+    app_version = $Release
     created_at = (Get-Date).ToUniversalTime().ToString("o")
     source_head = $head; release = $Release; db_revision = $dbRevision
-    qdrant_collection = $QdrantCollection; qdrant_snapshot_name = $qdrantResponse.result.name
-    document_directories = $documentSources; estimated_source_bytes = $estimatedBytes
+    qdrant_collection = $QdrantCollection; qdrant_snapshot_name = $qdrantSnapshotName
+    # Artifact/hash verification is not equivalent to an isolated Qdrant
+    # recovery proof. Full restore stays fail-closed until that proof succeeds.
+    qdrant_restore_verified = if ($Scope -eq "full") { $false } else { $null }
+    qdrant_restore_error_code = if ($Scope -eq "full") { "qdrant_restore_verification_required" } else { $null }
+    document_directories = if ($Scope -in @("full", "documents")) { $documentSources } else { @() }
+    estimated_source_bytes = $estimatedBytes
     secrets_in_protected_backup = $false
     secrets_note = "Encrypted n8n credential export is included; the separately protected environment secret escrow is required for credential recovery."
     artifacts = $artifactRecords
 }
 $manifestPartial = Join-Path $checkpoint "backup-manifest.json.partial"
 $manifestPath = Join-Path $checkpoint "backup-manifest.json"
+Write-Output "BACKUP_STAGE=verifying"
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPartial -Encoding UTF8
 Move-Item -LiteralPath $manifestPartial -Destination $manifestPath
 

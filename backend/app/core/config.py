@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     data_dir: str = "/data"
     vision_supervisor_url: str = "http://host.docker.internal:8787"
     vision_automation_enabled: bool = False
+    backup_supervisor_url: str = "http://host.docker.internal:8787"
+    backup_root: str = "C:\\ai-lab-core-backups"
+    backup_release_version: str = "1.0.2+25"
+    production_restore_enabled: bool = False
 
     @computed_field
     @property

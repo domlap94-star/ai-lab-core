@@ -1432,6 +1432,25 @@ NOT STARTED**. CHUNK 16 is also not started.
 
 **Priority: P1**
 
+**[~] PARTIAL / QDRANT FULL-RESTORE BLOCKED — 2026-08-21.** The owner expanded
+this chunk to `ADMIN BACKUP + CONTROLLED RESTORE UI`. The additive production
+revision `followup_admin_backup_restore_ui_20260821` is present and the source
+implements bounded backup schedules/run history, manual backup delegation,
+checkpoint discovery, Database/Full restore preview, typed confirmation and a
+production-restore hard gate. Isolated migration round-trip, service tests and
+Database-only restore proof pass.
+
+Full restore remains unavailable. A fresh official Qdrant 1.18.3 collection
+snapshot, created with `POST /collections/{name}/snapshots`, contains a
+zero-filled `0/wal/first-index`, while the live source file contains valid JSON
+`{"ack_index":5}`. Official multipart recovery on an isolated exact-version
+container therefore fails before collection availability. A synthetic
+same-version named-volume snapshot/recovery control passes, proving the restore
+method and isolated runtime. Restore discovery and UI now fail closed: Database
+restore remains eligible, Full restore is disabled with
+`qdrant_restore_verification_required`. Evidence:
+`FOLLOWUP_CHUNK15_QDRANT_RESTORE_DIAGNOSIS.md`.
+
 Settings → admin-only `Backup`, maksymalnie 10 harmonogramów.
 
 Każdy: name, enabled, cadence, time, destination, source/scope, last run, next
@@ -1444,6 +1463,30 @@ dir, traversal oraz brak wolnego miejsca.
 
 Human gate: dla Task Scheduler wymagany
 `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`.
+
+Production restore remains gated by
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Current technical gate:
+`FOLLOWUP_CHUNK15_QDRANT_RESTORE_BLOCKED`. No production restore, Task
+Scheduler mutation or release was performed.
+
+## PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP
+
+**Owner-inserted roadmap item — NOT STARTED. Runs after CHUNK 15 and before
+CHUNK 16.**
+
+Standalone Windows `.exe`, independent of Flutter/backend availability. It
+will provide manual checkpoint-folder selection, `NEXT_STABIL_BACKUP_V1` and
+SHA-256 validation, Database and Full/System restore, pre-restore safety backup
+where possible, service stop/start orchestration, post-restore validation and
+a truthful `PASS` / `FAILED` / `ROLLBACK REQUIRED` report. It must reuse the
+same low-level restore engine as the Administrator Restore UI. Scope and
+implementation require a separate owner prompt.
+
+## PHASE D RELEASE POLICY
+
+**Owner decision: no intermediate release during Phase D.** The next release
+may occur only after the owner declares Phase D complete. No release number is
+reserved by this decision.
 
 ## FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE
 

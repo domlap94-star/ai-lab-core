@@ -14,6 +14,9 @@ credentials or change the release minimum version.
   backup freshness without exposing secrets or internal content.
 - `RESTORE_RUNBOOK.md`: recovery order, isolated drill evidence and abort
   rules.
+- `verify-restore-checkpoint.ps1`: validates the manifest and every artifact,
+  restores PostgreSQL to an isolated `ai_lab_restore_test_*` database, and
+  stages archives outside active data. It never performs a production cutover.
 - `VISION_WORKER_RUNBOOK.md` and `AGENT_OPERATOR_RUNBOOK.md`: bounded operator
   response procedures.
 
