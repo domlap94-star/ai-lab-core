@@ -101,15 +101,20 @@ Flutter `268/268`, and Android/Web/Windows debug builds pass. Production
 restore was not performed and remains fail-closed behind
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
 
-Current execution decision: **PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP —
-PARTIAL / TRUST POLICY APPROVAL REQUIRED.** The C# WinForms/.NET Framework 4.8
-implementation, offline checkpoint validation and isolated Database/Full proof
-paths pass, but Bitdefender quarantines the unsigned executable during file
-creation as `Gen:Variant.MSILHeracles.239070`. No eligible existing Code Signing
-certificate is available in the local certificate stores. The exact next gate
-is `RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`; executable/UI acceptance is
-not claimed. CHUNK 16 is not started. No intermediate Phase D release is
-allowed before owner-declared Phase D completion.
+Current execution decision: **PRE-CHUNK16 — POWERSHELL DISASTER RECOVERY TOOL —
+COMPLETE.** The canonical Windows PowerShell 5.1 operator entry point uses the
+existing offline restore engine, supports interactive and explicit checkpoint
+selection, Database/Full eligibility and isolated `-ProofOnly` execution, and
+does not depend on Flutter, backend auth or PostgreSQL backup history. Tests
+pass `15/15`; the canonical seven-artifact checkpoint and isolated Database and
+Full proofs pass. Production restore remains fail-closed behind
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
+
+The C# WinForms source is retained as **DEFERRED / ENTERPRISE TRUST BLOCKED**;
+no executable build, WDAC/Bitdefender change or trust-store mutation is part of
+the canonical recovery path. CHUNK 15 remains COMPLETE. Current release remains
+NEXT Stabil `1.0.2+25`; no intermediate Phase D release is allowed. The next
+canonical item is FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE, not started.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

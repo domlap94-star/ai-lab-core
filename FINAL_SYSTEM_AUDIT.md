@@ -720,3 +720,20 @@ Code Signing certificate with an accessible private key exists in
 firewall or trust policy was weakened. Recovery App status is `PARTIAL` behind
 `RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`; CHUNK 16 and release remain not
 started.
+
+## PRE-CHUNK16 PowerShell Disaster Recovery completion — 2026-08-21
+
+The owner replaced the blocked custom executable path with the canonical
+Windows PowerShell 5.1 operator tool
+`operations/recovery/NEXT-Stabil-Recovery.ps1`. It reuses the single offline
+restore engine, supports manual folder selection and explicit Database/Full
+`-ProofOnly` modes, and has no Flutter, backend/JWT, Supervisor or PostgreSQL
+backup-history dependency. The seven-artifact checkpoint `20260821T142509Z`
+passed manifest, size, SHA-256, DB format, compatibility and Qdrant structural
+validation; isolated Database and Full proofs passed without production
+cutover. Wrapper/fail-closed tests pass `15/15`.
+
+The WinForms source is retained as DEFERRED / ENTERPRISE TRUST BLOCKED. WDAC,
+Bitdefender, certificate stores and SmartScreen were unchanged. Production
+restore remains behind `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`, no
+business data changed, no release occurred, and CHUNK 16 remains not started.

@@ -7,6 +7,7 @@ param(
     [string]$Mode,
     [string]$DeploymentRoot = "C:\ai-lab-core",
     [string]$OperationId = ([Guid]::NewGuid().ToString("N")),
+    [switch]$ValidateOnly,
     [switch]$ProofOnly,
     [switch]$ContinueWithoutSafetyBackup,
     [string]$SafetyOverrideToken = ""
@@ -35,7 +36,7 @@ function Add-Stage {
     param([string]$Name, [string]$Status, [string]$Detail = "")
     $script:stages.Add([ordered]@{ stage = $Name; status = $Status; at = (Get-Date).ToUniversalTime().ToString("o"); detail = $Detail })
     Write-Output ("RECOVERY_STAGE={0}:{1}" -f $Name, $Status)
-    Save-State $Name
+    if (-not $ValidateOnly) { Save-State $Name }
 }
 
 function Save-State {
@@ -52,6 +53,14 @@ function Invoke-Checked {
     param([string]$FilePath, [string[]]$Arguments)
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) { throw "command_failed:${FilePath}:$LASTEXITCODE" }
+}
+
+function Get-Sha256 {
+    param([string]$Path)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    $stream = [IO.File]::OpenRead($Path)
+    try { return ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+    finally { $stream.Dispose(); $sha.Dispose() }
 }
 
 function Assert-SafeRelative {
@@ -86,11 +95,46 @@ function Get-ArtifactMap {
         if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw "backup_artifact_missing" }
         $item = Get-Item -LiteralPath $full
         if ([int64]$item.Length -ne [int64]$artifact.bytes) { throw "backup_artifact_size_mismatch" }
-        if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant() -ne ([string]$artifact.sha256).ToLowerInvariant()) { throw "backup_artifact_hash_mismatch" }
+        if ((Get-Sha256 $full) -ne ([string]$artifact.sha256).ToLowerInvariant()) { throw "backup_artifact_hash_mismatch" }
         if ($map.ContainsKey($item.Name)) { throw "backup_artifact_duplicate" }
         $map[$item.Name] = $full
     }
     return $map
+}
+
+function Test-PostgresArchive {
+    param([string]$Path)
+    $stream = [IO.File]::OpenRead($Path)
+    try {
+        $header = New-Object byte[] 5
+        if ($stream.Read($header, 0, 5) -ne 5) { return $false }
+        return [Text.Encoding]::ASCII.GetString($header) -eq "PGDMP"
+    } finally { $stream.Dispose() }
+}
+
+function Get-Compatibility {
+    param([object]$Manifest)
+    $currentVersion = [Version]"1.0.2"
+    $rawVersion = [string]$Manifest.app_version
+    if ([string]::IsNullOrWhiteSpace($rawVersion)) { $rawVersion = [string]$Manifest.release }
+    $baseVersion = ($rawVersion -split '\+', 2)[0]
+    $parsed = $null
+    if (-not [Version]::TryParse($baseVersion, [ref]$parsed)) { return "invalid" }
+    if ($parsed -gt $currentVersion) { return "newer_unsupported_checkpoint" }
+    if ([string]$Manifest.db_revision -eq "followup_admin_backup_restore_ui_20260821") { return "compatible" }
+    if ([string]::IsNullOrWhiteSpace([string]$Manifest.db_revision)) { return "invalid" }
+    if ($parsed -lt $currentVersion) { return "older_supported_checkpoint" }
+    return "requires_migration_after_restore"
+}
+
+function Test-QdrantStructure {
+    param([string]$Snapshot)
+    $validator = Join-Path $PSScriptRoot "..\supervisor\qdrant_snapshot_validator.js"
+    $validator = [IO.Path]::GetFullPath($validator)
+    if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw "qdrant_validator_missing" }
+    $json = & node.exe $validator $Snapshot
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($json -join ""))) { throw "qdrant_validator_failed" }
+    return (($json -join "") | ConvertFrom-Json)
 }
 
 function Test-DeploymentRoot {
@@ -181,7 +225,7 @@ function Write-RecoveryReport {
     if ($ErrorCode) { Write-Output "RECOVERY_ERROR=$ErrorCode" }
 }
 
-New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
+if (-not $ValidateOnly) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
 try {
     try { $mutexHeld = $mutex.WaitOne(0, $false) } catch [Threading.AbandonedMutexException] { $mutexHeld = $true }
     if (-not $mutexHeld) { throw "recovery_operation_already_running" }
@@ -189,14 +233,48 @@ try {
     if (-not (Test-Path -LiteralPath $checkpoint -PathType Container)) { throw "checkpoint_not_found" }
     $manifestPath = Join-Path $checkpoint "backup-manifest.json"
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "backup_manifest_missing" }
-    $manifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $manifestHash = Get-Sha256 $manifestPath
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if ($manifest.schema_version -ne $schema) { throw "backup_manifest_unsupported" }
     Add-Stage "preflight" "started"
     $artifacts = Get-ArtifactMap $manifest
     if (-not $artifacts.ContainsKey("postgres.dump")) { throw "backup_database_missing" }
-    if ($Mode -eq "Full") { foreach ($name in $fullRequired) { if (-not $artifacts.ContainsKey($name)) { throw "backup_full_component_missing" } }; if ($manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" } }
+    $databaseArchiveReadable = Test-PostgresArchive $artifacts["postgres.dump"]
+    if (-not $databaseArchiveReadable) { throw "backup_database_format_invalid" }
+    $compatibility = Get-Compatibility $manifest
+    $compatible = @("compatible", "older_supported_checkpoint", "requires_migration_after_restore") -contains $compatibility
+    $fullComponentsPresent = $true
+    foreach ($name in $fullRequired) { if (-not $artifacts.ContainsKey($name)) { $fullComponentsPresent = $false } }
+    $qdrantStructural = $false
+    $qdrantReason = "snapshot_missing"
+    if ($artifacts.ContainsKey("qdrant.snapshot")) {
+        $qdrantResult = Test-QdrantStructure $artifacts["qdrant.snapshot"]
+        $qdrantStructural = $qdrantResult.valid -eq $true
+        $qdrantReason = if ($qdrantStructural) { "valid" } else { [string]$qdrantResult.reason }
+    }
+    $databaseEligible = $compatible -and $databaseArchiveReadable
+    $fullEligible = $databaseEligible -and $fullComponentsPresent -and $qdrantStructural -and ($manifest.qdrant_restore_verified -eq $true)
+    if ($Mode -eq "Full" -and -not $fullComponentsPresent) { throw "backup_full_component_missing" }
+    if ($Mode -eq "Full" -and $manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" }
+    if ($Mode -eq "Full" -and -not $qdrantStructural) { throw "qdrant_snapshot_invalid" }
     Add-Stage "preflight" "completed"
+
+    if ($ValidateOnly) {
+        $totalBytes = [int64]0
+        foreach ($artifact in @($manifest.artifacts)) { $totalBytes += [int64]$artifact.bytes }
+        $summary = [ordered]@{
+            valid = $true; checkpoint = $checkpoint; manifest_sha256 = $manifestHash
+            created_at = [string]$manifest.created_at; scope = [string]$manifest.scope
+            app_version = $(if ([string]::IsNullOrWhiteSpace([string]$manifest.app_version)) { [string]$manifest.release } else { [string]$manifest.app_version })
+            source_head = [string]$manifest.source_head; db_revision = [string]$manifest.db_revision
+            artifact_count = @($manifest.artifacts).Count; total_bytes = $totalBytes
+            compatibility = $compatibility; database_eligible = $databaseEligible; full_eligible = $fullEligible
+            qdrant_structurally_valid = $qdrantStructural; qdrant_reason = $qdrantReason
+            qdrant_restore_verified = ($manifest.qdrant_restore_verified -eq $true)
+        }
+        Write-Output ("RECOVERY_VALIDATION_JSON=" + ($summary | ConvertTo-Json -Compress -Depth 5))
+        return
+    }
 
     # The development deliverable proves validation/staging only. The separate
     # destructive operational gate must provide the reviewed host-specific
@@ -219,6 +297,11 @@ try {
 }
 catch {
     $code = ([string]$_.Exception.Message -split ':', 2)[0]
+    if ($ValidateOnly) {
+        Write-Output "RECOVERY_VALIDATION_VALID=false"
+        Write-Output "RECOVERY_VALIDATION_ERROR=$code"
+        throw
+    }
     try { Add-Stage "failure" "failed" $code } catch { }
     $final = if ($cutoverStarted) { "ROLLBACK REQUIRED" } else { "FAILED" }
     Write-RecoveryReport $final $code

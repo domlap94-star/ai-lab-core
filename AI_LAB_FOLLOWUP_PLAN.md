@@ -1480,31 +1480,29 @@ operational gate `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Isolated
 Database and Full restore proofs satisfy implementation acceptance; no healthy
 production system was overwritten to complete this chunk. No release occurred.
 
-## PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP
+## [✓] PRE-CHUNK16 — WINDOWS DISASTER RECOVERY TOOL — POWERSHELL — COMPLETE
 
-**[~] PARTIAL — TRUST POLICY APPROVAL REQUIRED. Runs after CHUNK 15 and before
-CHUNK 16.**
+The canonical emergency interface is Windows PowerShell 5.1:
+`operations/recovery/NEXT-Stabil-Recovery.ps1`. It works without Flutter,
+backend/API, JWT, Supervisor or PostgreSQL backup-history tables. The operator
+may choose any accessible checkpoint folder interactively or pass an explicit
+`-CheckpointPath`; the canonical `NEXT_STABIL_BACKUP_V1` manifest remains the
+only source of truth.
 
-Standalone Windows `.exe`, independent of Flutter/backend availability. It
-will provide manual checkpoint-folder selection, `NEXT_STABIL_BACKUP_V1` and
-SHA-256 validation, Database and Full/System restore, pre-restore safety backup
-where possible, service stop/start orchestration, post-restore validation and
-a truthful `PASS` / `FAILED` / `ROLLBACK REQUIRED` report. It must reuse the
-same low-level restore engine as the Administrator Restore UI. Scope and
-implementation were owner-approved. The C# WinForms/.NET Framework 4.8 source,
-canonical offline restore engine, `11/11` unit tests, real checkpoint validation
-and isolated Database/Full restore proofs pass. Production restore was not
-performed and remains fail-closed behind
-`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
+The tool verifies its `NEXT_STABIL_RECOVERY_TOOL_V1` helper manifest, safe
+relative artifact paths, exact sizes, SHA-256, PostgreSQL custom format,
+compatibility and Qdrant structure before exposing Database or Full mode. It
+delegates validation and `-ProofOnly` execution to the single canonical
+`restore-checkpoint.ps1` engine. Controlled tests pass `15/15`; real checkpoint
+`20260821T142509Z` validates all seven artifacts and both Database and Full
+isolated proofs pass. Production restore was not performed and remains
+fail-closed behind `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
 
-Executable acceptance is not complete. With Bitdefender fully active, the
-unsigned `NEXT-Stabil-Recovery.exe` is quarantined at file-write time as
-`Gen:Variant.MSILHeracles.239070`, before SHA-256 and UI smoke can complete.
-Neither `CurrentUser\My` nor `LocalMachine\My` contains an eligible existing
-Code Signing certificate with an accessible private key, and no repository
-Windows-signing convention exists. No protection was disabled and no exclusion
-or new trust root was added. Exact next gate:
-`RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`.
+The prior C# WinForms/.NET Framework 4.8 source remains preserved under
+`tools/windows-disaster-recovery` as **DEFERRED / ENTERPRISE TRUST BLOCKED**.
+No WDAC, antivirus, certificate store or trust policy was changed. The Phase D
+no-intermediate-release decision remains in force. Canonical next item is
+FOLLOW-UP CHUNK 16, not started.
 
 ## PHASE D RELEASE POLICY
 
@@ -1818,7 +1816,8 @@ DATA SAFETY
 
 **FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE — COMPLETE.**
 
-Current next item: `PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP` — PARTIAL,
-blocked at `RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`.
+`PRE-CHUNK16 — WINDOWS DISASTER RECOVERY TOOL — POWERSHELL` is COMPLETE. The
+WinForms source is retained as DEFERRED / ENTERPRISE TRUST BLOCKED.
 Production restore remains fail-closed behind
-`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. CHUNK 16 is not started.
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Current next item is
+`FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE`, not started.

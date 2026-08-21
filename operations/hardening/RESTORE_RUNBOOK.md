@@ -111,21 +111,52 @@ root, secrets are unavailable, a required image digest cannot be obtained, or
 the target is not demonstrably isolated. Never use `docker compose down -v`,
 volume prune, or an in-place restore over running data.
 
-## Standalone Recovery tool (PRE-CHUNK16)
+## EMERGENCY RESTORE — OPERATOR COMMAND
 
-Source lives under `tools/windows-disaster-recovery`. The portable native
-WinForms tool reads a manually selected checkpoint folder and never queries
-the backend, JWT/auth, `backup_runs`, `restore_runs` or `backup_schedules`.
-It validates `NEXT_STABIL_BACKUP_V1`, relative artifact paths, exact sizes and
-SHA-256, PostgreSQL custom-archive identity, compatibility metadata and Qdrant
-WAL structure. Bundled helpers have a separate
-`NEXT_STABIL_RECOVERY_TOOL_V1` hash manifest.
+The canonical interface is Windows PowerShell 5.1:
 
-The shared `restore-checkpoint.ps1 -ProofOnly` engine is the only implemented
-execution path in the development build. It proves PostgreSQL in
-`ai_lab_restore_test_*`, stages archives outside active data and restores
-Qdrant into a temporary named volume/non-production port. Any non-proof call
-fails before service stop or live mutation with
-`production_restore_approval_required`. A reviewed host-specific cutover
-module requires the separate permanent operational gate; never interpret an
-isolated PASS as authorization to overwrite production.
+```powershell
+& "C:\ai-lab-core\operations\recovery\NEXT-Stabil-Recovery.ps1"
+```
+
+This opens the standard Windows checkpoint-folder picker. Validation does not
+require elevation. A production restore requires PowerShell started with **Run
+as administrator** and remains blocked without the separate
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED` operational approval.
+
+Explicit Database proof:
+
+```powershell
+& "C:\ai-lab-core\operations\recovery\NEXT-Stabil-Recovery.ps1" `
+  -CheckpointPath "C:\PATH\TO\BACKUP" -Mode Database -ProofOnly -NonInteractive
+```
+
+Explicit Full proof:
+
+```powershell
+& "C:\ai-lab-core\operations\recovery\NEXT-Stabil-Recovery.ps1" `
+  -CheckpointPath "C:\PATH\TO\BACKUP" -Mode Full -ProofOnly -NonInteractive
+```
+
+Read-only validation:
+
+```powershell
+& "C:\ai-lab-core\operations\recovery\NEXT-Stabil-Recovery.ps1" `
+  -CheckpointPath "C:\PATH\TO\BACKUP" -ValidateOnly -NonInteractive
+```
+
+Do not add `-ExecutionPolicy Bypass` to the normal operator command. The current
+host accepts the tracked script under its existing PowerShell policy. The
+wrapper verifies `operations/recovery/recovery-tool-manifest.json` before use,
+then delegates all validation and staging to the shared
+`restore-checkpoint.ps1` engine. It never queries backend auth, `backup_runs`,
+`restore_runs` or `backup_schedules`.
+
+Database proof restores only to `ai_lab_restore_test_*`. Full proof additionally
+extracts archives to temporary staging and restores Qdrant to a temporary named
+volume/non-production port. Any non-proof execution remains fail-closed before
+service stop or live mutation with `production_restore_approval_required`.
+
+The earlier source under `tools/windows-disaster-recovery` is retained as
+**DEFERRED / ENTERPRISE TRUST BLOCKED**. It is not the canonical emergency
+interface and should not be built during routine recovery validation.
