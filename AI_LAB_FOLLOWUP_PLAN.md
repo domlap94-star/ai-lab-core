@@ -1382,6 +1382,31 @@ Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
 NOT STARTED**. A separate owner prompt is required; a later `1.0.2+25`
 publication is also separately gated.
 
+## HOTFIX RELEASE — NEXT STABIL 1.0.2+25
+
+**[✓] PUBLISHED — 2026-08-21. POST-1.0.2+24 CONSISTENCY HOTFIX; THIS IS NOT
+RELEASE D.**
+
+- Stable Windows, signed Android and live Web publish the canonical Client
+  Documents Trash action, active-only User Management list and repaired
+  WorkItem-to-Project realization linkage.
+- Exact test User `phase2f_103833` remains inactive and recoverable in Trash;
+  the release did not restore or otherwise modify it. Exact WorkItem
+  `fundament 600kg` remains linked to canonical Project `1080`.
+- Flutter analyze, focused hotfix/updater tests and the full discovered
+  `252/252` suite pass. Production DB remains at
+  `followup_work_item_realization_link_20260821` with one Alembic head and no
+  release migration.
+- Public Windows, Android and Web bytes match their locally verified hashes.
+  `minimum_version` remains `1.0.0`, so update from `1.0.2+24` is optional;
+  `1.0.2+24` and `1.0.2+23` artifacts remain available for rollback.
+- Release-attributable business writes, Gmail sends, n8n changes, Vision jobs
+  and Qdrant writes are zero. Physical Android smoke is `UNVERIFIED` because
+  ADB is unavailable.
+
+Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
+NOT STARTED**. A new owner prompt is required.
+
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
 **Priority: P1**

@@ -641,3 +641,34 @@ Change History, Recent Activity and Client Search passed. Flutter analyze
 passed, focused tests passed `45/45`, and full tests passed `252/252`.
 Production Documents, Clients, Candidates, Absences, Qdrant points, Gmail,
 n8n and Vision were unchanged. CHUNK 15 and release `1.0.2+25` were not started.
+
+## Post-1.0.2+24 hotfix release addendum — NEXT Stabil 1.0.2+25 — 2026-08-21
+
+The post-`1.0.2+24` consistency hotfix was published from source commit
+`0fe990ffdaedc5d60da2146672c7720a3ba5b095`. This is a bounded interim hotfix,
+not Release D. Production DB remains at the single Alembic head
+`followup_work_item_realization_link_20260821`; no release migration ran.
+Exact test User `phase2f_103833` remains inactive with `auth_version = 1` and
+recoverable Trash entry `2`. WorkItem `fundament 600kg` remains linked to
+canonical Project `1080`; neither record was modified during release.
+
+Flutter analyze passed, focused hotfix/updater tests passed, and the full
+discovered suite passed `252/252`. Public Web loaded the NEXT Stabil login
+screen without console errors. The Windows installer is 13,385,453 bytes,
+FileVersion `1.0.2.25`, SHA-256
+`A132C6FC9FEF54800E18C769D759F45779839005107FF137B53AA5F3DB3B9A1F`.
+The signed Android APK is 66,693,111 bytes, versionName `1.0.2`, versionCode
+`25`, SHA-256
+`BC14297ADFAB348D30DCC5360816945321FE39EA3FB603AE3FF82795FA07CB6C`;
+its signing certificate matches `1.0.2+24`. Web `main.dart.js` is 4,806,823
+bytes with SHA-256
+`FCF527218ADC73EBD43C5E8EB8D982A027B57EA24940E30C3FC8CBC5AEF1FE34`.
+Public bytes matched local artifacts before stable moved to build `25`.
+
+`minimum_version` remains `1.0.0`, making the update from `1.0.2+24`
+optional. The +24 and +23 Windows/Android artifacts remain available. Backend
+health is HTTP 200, Trash Scheduler remains enabled/Ready every four hours,
+and Qdrant remains at 57 points. Release-attributable business writes, Gmail
+sends, n8n changes, Vision jobs and Qdrant writes are zero. Physical Android
+smoke is `UNVERIFIED` because ADB is unavailable. Canonical next work remains
+FOLLOW-UP CHUNK 15, which was not started.

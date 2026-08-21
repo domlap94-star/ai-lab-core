@@ -7,7 +7,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 ## ACTIVE POST-PROJECT ROADMAP
 
 **`AI_LAB_FOLLOWUP_PLAN.md`** jest aktywnym źródłem kolejności dalszych prac po
-release 1.0.2+24.
+release 1.0.2+25.
 
 - `AI_LAB_MASTER_PLAN.txt` jest zakończonym, historycznym masterplanem głównej
   implementacji.
@@ -24,18 +24,19 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**OWNER PATCH RELEASE COMPLETE — NEXT STABIL 1.0.2+24.** This interim release
-after Release C publishes the completed Admin Trash / seven-day retention and
-Calendar / Task Detail / Realization owner patch for Web, Windows and Android;
-it is not Release D. The stable manifest is build `24`, `minimum_version`
-remains `1.0.0`, and public artifact hashes match locally validated bytes.
+**POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
+bounded hotfix publishes the shared Client Documents Trash action, active-only
+User Management projection and canonical repair of the one approved legacy
+realization. It is not Release D. The stable manifest is build `25`,
+`minimum_version` remains `1.0.0`, and public artifact hashes match locally
+validated bytes.
 Production DB stays at the single expected head
 `followup_work_item_realization_link_20260821` with no pending migration.
-Flutter analyze, focused patch/Trash `17/17`, updater `10/10` and full `250/250`
-pass; the public Web login bootstrap has no console errors. Release-attributable
+Flutter analyze, focused hotfix/updater tests and full `252/252` pass; the
+public Web login bootstrap has no console errors. Release-attributable
 business writes, Gmail sends, n8n changes, Vision jobs and Qdrant writes are
 zero. Physical Android and widget smokes remain `UNVERIFIED` because ADB is not
-available; `1.0.2+23` and `1.0.2+22` artifacts remain rollback references.
+available; `1.0.2+24` and `1.0.2+23` artifacts remain rollback references.
 
 **POST-1.0.2+24 CONSISTENCY HOTFIX — COMPLETE.** Client Details now exposes
 the shared canonical Administrator-only Document Trash action. Default User
@@ -124,7 +125,12 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+24
+## CURRENT RELEASE — NEXT STABIL 1.0.2+25
+
+- POST-1.0.2+24 CONSISTENCY HOTFIX: RELEASED. Stable Web, Windows and Android
+  include Client Document Trash parity, the active-only User list and the
+  repaired canonical realization link. This hotfix release is not Release D;
+  CHUNK 15 remains not started.
 
 - OWNER PATCH RELEASE: PUBLISHED. The completed Trash retention/Qdrant-safe
   purge and Calendar/Realization patch are available in stable Web, Windows and
