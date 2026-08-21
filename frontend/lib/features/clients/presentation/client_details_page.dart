@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,11 +11,10 @@ import '../application/clients_providers.dart';
 import '../application/clients_controller.dart';
 import '../application/client_workflow_status.dart';
 import '../../auth/application/auth_controller.dart';
-import '../../timeline/application/timeline_providers.dart';
-import '../../timeline/domain/timeline.dart';
 import '../domain/client.dart';
 import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
+import 'client_contact_actions.dart';
 import '../../tasks/presentation/client_work_items_panel.dart';
 import 'client_realizations_panel.dart';
 
@@ -677,115 +674,23 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
     int? contactId,
   ) async {
     if (_callPending) return;
-    final String normalizedPhone = phoneNumber.trim().replaceAll(
-      RegExp(r'[^\d+]'),
-      '',
-    );
-
-    if (normalizedPhone.isEmpty) {
-      return;
-    }
-
     setState(() => _callPending = true);
-    final operationId = _uuidV4();
-    bool logFailed = false;
     try {
-      final authState = await ref.read(authControllerProvider.future);
-      final session = authState.session;
-      if (session == null || !session.isAuthenticated) {
-        logFailed = true;
-      } else {
-        await ref
-            .read(clientsRepositoryProvider)
-            .recordCallInitiated(
-              session: session,
-              clientId: client.id,
-              operationId: operationId,
-              contactId: contactId,
-            );
-        ref.invalidate(
-          timelinePageProvider(
-            TimelineRequest(scope: TimelineScope.client, id: client.id),
-          ),
-        );
-      }
-    } catch (_) {
-      logFailed = true;
-    }
-
-    if (logFailed && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Nie udało się zapisać rozpoczęcia połączenia. Telefon zostanie otwarty.',
-          ),
-        ),
+      await launchCanonicalClientCall(
+        context: context,
+        ref: ref,
+        clientId: client.id,
+        phoneNumber: phoneNumber,
+        contactId: contactId,
+        launcher: ref.read(phoneUriLauncherProvider),
       );
-    }
-
-    final Uri uri = Uri(scheme: 'tel', path: normalizedPhone);
-
-    bool opened = false;
-    try {
-      opened = await ref.read(phoneUriLauncherProvider)(uri);
-    } catch (_) {
-      opened = false;
     } finally {
       if (mounted) setState(() => _callPending = false);
     }
-
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Nie udało się otworzyć aplikacji telefonu.'),
-          ),
-        );
-    }
-  }
-
-  String _uuidV4() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes
-        .map((value) => value.toRadixString(16).padLeft(2, '0'))
-        .join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> _openGoogleMaps(BuildContext context, String address) async {
-    String destination = address.trim();
-
-    if (destination.isEmpty) {
-      return;
-    }
-
-    destination = destination.replaceAll(
-      RegExp(r',\s*PL$', caseSensitive: false),
-      ', Polska',
-    );
-
-    final Uri uri = Uri.https('www.google.com', '/maps/dir/', <String, String>{
-      'api': '1',
-      'destination': destination,
-      'travelmode': 'driving',
-    });
-
-    final bool opened = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Nie udało się otworzyć Google Maps.')),
-        );
-    }
+    await openCanonicalClientMaps(context, address);
   }
 
   String _originLabel(String origin) => switch (origin) {

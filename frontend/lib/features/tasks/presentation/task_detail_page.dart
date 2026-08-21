@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/formatters/polish_date_time.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../clients/application/clients_providers.dart';
 import '../../clients/domain/client.dart';
 import '../../clients/presentation/client_details_page.dart'
     show phoneUriLauncherProvider;
+import '../../clients/presentation/client_contact_actions.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/presentation/document_media_preview.dart';
@@ -157,32 +157,23 @@ class _ClientContactBlock extends ConsumerWidget {
   const _ClientContactBlock({required this.item});
   final WorkItem item;
 
-  Future<void> _call(BuildContext context, WidgetRef ref, String number) async {
-    final compact = number.replaceAll(RegExp(r'[^0-9+]'), '');
-    if (compact.isEmpty) return;
-    final opened = await ref.read(phoneUriLauncherProvider)(
-      Uri(scheme: 'tel', path: compact),
+  Future<void> _call(
+    BuildContext context,
+    WidgetRef ref,
+    ClientContactPoint phone,
+  ) async {
+    await launchCanonicalClientCall(
+      context: context,
+      ref: ref,
+      clientId: item.clientId!,
+      phoneNumber: phone.value,
+      contactId: phone.id == 0 ? null : phone.id,
+      launcher: ref.read(phoneUriLauncherProvider),
     );
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nie udało się otworzyć aplikacji telefonu.'),
-        ),
-      );
-    }
   }
 
   Future<void> _maps(BuildContext context, String address) async {
-    final uri = Uri.https('www.google.com', '/maps/search/', {
-      'api': '1',
-      'query': address,
-    });
-    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nie udało się otworzyć Map Google.')),
-      );
-    }
+    await openCanonicalClientMaps(context, address);
   }
 
   @override
@@ -226,7 +217,7 @@ class _ClientContactBlock extends ConsumerWidget {
                 leading: const Icon(Icons.phone_outlined),
                 title: Text(phone.value),
                 trailing: TextButton.icon(
-                  onPressed: () => _call(context, ref, phone.value),
+                  onPressed: () => _call(context, ref, phone),
                   icon: const Icon(Icons.call_outlined),
                   label: const Text('Zadzwoń'),
                 ),
