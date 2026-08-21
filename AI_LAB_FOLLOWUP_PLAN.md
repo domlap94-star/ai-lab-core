@@ -1432,7 +1432,7 @@ NOT STARTED**. CHUNK 16 is also not started.
 
 **Priority: P1**
 
-**[~] PARTIAL / QDRANT FULL-RESTORE BLOCKED — 2026-08-21.** The owner expanded
+**[~] PARTIAL / QDRANT STORAGE TOPOLOGY APPROVAL REQUIRED — 2026-08-21.** The owner expanded
 this chunk to `ADMIN BACKUP + CONTROLLED RESTORE UI`. The additive production
 revision `followup_admin_backup_restore_ui_20260821` is present and the source
 implements bounded backup schedules/run history, manual backup delegation,
@@ -1440,15 +1440,15 @@ checkpoint discovery, Database/Full restore preview, typed confirmation and a
 production-restore hard gate. Isolated migration round-trip, service tests and
 Database-only restore proof pass.
 
-Full restore remains unavailable. A fresh official Qdrant 1.18.3 collection
-snapshot, created with `POST /collections/{name}/snapshots`, contains a
-zero-filled `0/wal/first-index`, while the live source file contains valid JSON
-`{"ack_index":5}`. Official multipart recovery on an isolated exact-version
-container therefore fails before collection availability. A synthetic
-same-version named-volume snapshot/recovery control passes, proving the restore
-method and isolated runtime. Restore discovery and UI now fail closed: Database
-restore remains eligible, Full restore is disabled with
-`qdrant_restore_verification_required`. Evidence:
+Full restore remains unavailable. Controlled same-version/same-data testing
+confirms `WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`: named-volume snapshot
+and recovery pass; the equivalent Windows bind source fails inside official WAL
+snapshot archiving; and a cleanly stopped bind storage copied to a named volume
+preserves all points/config/payloads, then snapshots and restores successfully.
+The old bind source also passes rollback verification. Lightweight structural
+validation now rejects NUL/empty WAL metadata as `qdrant_snapshot_invalid`, so
+historical bad checkpoints retain Database-only eligibility and fail closed for
+Full restore. Evidence and the non-executed migration/rollback plan:
 `FOLLOWUP_CHUNK15_QDRANT_RESTORE_DIAGNOSIS.md`.
 
 Settings → admin-only `Backup`, maksymalnie 10 harmonogramów.
@@ -1466,7 +1466,7 @@ Human gate: dla Task Scheduler wymagany
 
 Production restore remains gated by
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Current technical gate:
-`FOLLOWUP_CHUNK15_QDRANT_RESTORE_BLOCKED`. No production restore, Task
+`FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`. No production restore, Task
 Scheduler mutation or release was performed.
 
 ## PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP

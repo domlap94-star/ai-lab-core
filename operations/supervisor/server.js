@@ -6,6 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { VisionQueue, MAX_BODY_BYTES } = require('./vision_queue');
+const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
+
+const qdrantSnapshotValidationCache = new Map();
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AI_LAB_SUPERVISOR_PORT || '8787');
@@ -190,11 +193,33 @@ async function verifyCheckpoint(checkpoint) {
   const databaseEligible = names.has('postgres.dump');
   const fullRequired = ['postgres.dump', 'document-storage.tar.gz', 'release-stable.tar.gz', 'qdrant.snapshot', 'n8n-workflows.json', 'n8n-credentials.encrypted.json', 'configuration.tar.gz'];
   const fullArtifactsPresent = fullRequired.every((name) => names.has(name));
+  let qdrantSnapshotStructurallyValid = false;
+  let qdrantSnapshotValidationReason = null;
+  if (names.has('qdrant.snapshot')) {
+    const qdrantArtifact = manifest.artifacts.find((artifact) => path.win32.basename(String(artifact.file || '')) === 'qdrant.snapshot');
+    if (qdrantArtifact) {
+      const qdrantPath = safeJoinCheckpoint(checkpoint, qdrantArtifact.file);
+      const stats = fs.statSync(qdrantPath);
+      const cacheKey = `${qdrantPath.toLowerCase()}|${stats.size}|${stats.mtimeMs}`;
+      let structural = qdrantSnapshotValidationCache.get(cacheKey);
+      if (!structural) {
+        structural = await validateQdrantSnapshot(qdrantPath);
+        if (qdrantSnapshotValidationCache.size >= 200) {
+          qdrantSnapshotValidationCache.delete(qdrantSnapshotValidationCache.keys().next().value);
+        }
+        qdrantSnapshotValidationCache.set(cacheKey, structural);
+      }
+      qdrantSnapshotStructurallyValid = structural.valid === true;
+      qdrantSnapshotValidationReason = structural.reason || null;
+    }
+  }
   const qdrantRestoreVerified = manifest.qdrant_restore_verified === true;
-  const fullEligible = fullArtifactsPresent && qdrantRestoreVerified;
-  const restoreErrorCode = fullArtifactsPresent && !qdrantRestoreVerified
-    ? String(manifest.qdrant_restore_error_code || 'qdrant_restore_verification_required')
-    : null;
+  const fullEligible = fullArtifactsPresent && qdrantSnapshotStructurallyValid && qdrantRestoreVerified;
+  let restoreErrorCode = null;
+  if (fullArtifactsPresent && !qdrantSnapshotStructurallyValid) restoreErrorCode = 'qdrant_snapshot_invalid';
+  else if (fullArtifactsPresent && !qdrantRestoreVerified) {
+    restoreErrorCode = String(manifest.qdrant_restore_error_code || 'qdrant_restore_verification_required');
+  }
   return {
     checkpoint_path: checkpoint,
     created_at: manifest.created_at,
@@ -208,6 +233,8 @@ async function verifyCheckpoint(checkpoint) {
     components,
     database_eligible: databaseEligible,
     full_eligible: fullEligible,
+    qdrant_snapshot_structurally_valid: qdrantSnapshotStructurallyValid,
+    qdrant_snapshot_validation_reason: qdrantSnapshotValidationReason,
     compatibility,
     error_code: restoreErrorCode,
     manifest_path: manifestPath,

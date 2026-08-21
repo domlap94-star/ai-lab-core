@@ -1,93 +1,161 @@
-# FOLLOW-UP CHUNK 15 — Qdrant Restore Diagnosis
+# FOLLOW-UP CHUNK 15 — Qdrant Snapshot Remediation Diagnosis
 
 Date: 2026-08-21
 
-Status: `FOLLOWUP_CHUNK15_QDRANT_RESTORE_BLOCKED`
+Status: `WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`
+
+Gate: `FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`
 
 ## Scope and safety
 
-The audit used one fresh official production collection snapshot, read-only
-collection checks, isolated Qdrant containers/volumes and synthetic control
-data. It did not delete or update production points, change the collection,
-upgrade Qdrant or perform a production restore.
+The investigation used Qdrant `1.18.3` at the exact pinned production image
+digest, isolated test-only ports, collections, containers, host directories and
+Docker volumes. Production was limited to read-only health/config/count/log
+checks. No production point, collection, storage mount, image, scheduler or
+restore target was changed.
 
-## Production source
+## Production baseline
 
-- Qdrant: `1.18.3`, build `db8fa43f`.
+- Image: `qdrant/qdrant@sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286`.
+- Version/build: `1.18.3` / `db8fa43f`.
 - Collection: `ai_lab_document_chunks`.
-- Points before/after snapshot: `57 / 57`.
 - Vector configuration: `1024`, `Cosine`.
+- Points before/after: `57 / 57`.
 - Storage: Windows bind mount `C:\ai-lab-core\data\qdrant` to
   `/qdrant/storage`.
+- Storage footprint at audit: `348330230` bytes in `89` files.
 
-The canonical backup script already uses the supported collection snapshot
-API:
+The canonical script uses the official collection snapshot API: create with
+`POST /collections/{collection}/snapshots`, then download with
+`GET /collections/{collection}/snapshots/{name}`. The previously captured
+fresh production artifact is byte/hash-valid but contains fifteen NUL bytes in
+`0/wal/first-index`; official recovery fails while reading that WAL metadata.
 
-1. `POST /collections/ai_lab_document_chunks/snapshots`,
-2. download through
-   `GET /collections/ai_lab_document_chunks/snapshots/{snapshot_name}`.
+## Controlled topology matrix
 
-Fresh snapshot:
+The two sources used identical Qdrant image/version, `1024`-dimensional Cosine
+vectors, 400 deterministic synthetic points/payloads, one-MiB WAL capacity and
+the same official snapshot API.
 
-- name:
-  `ai_lab_document_chunks-1085445014110947-2026-08-21-13-12-01.snapshot`,
-- size: `348376576` bytes,
-- SHA-256:
-  `80a9be68521b20f479d75d04bbfbf949c75cd79e3a24695f7decc6aa2958d999`.
+| Topology | Snapshot WAL result | Official restore | Result |
+| --- | --- | --- | --- |
+| Docker named volume | no `first-index` entry was required | HTTP 200; 400/400 points | PASS |
+| Windows bind mount | snapshot creation failed while archiving missing `closed-0` | no valid artifact to restore | FAIL |
+| stopped bind storage copied to named volume | valid 15-byte `{"ack_index":4}` | HTTP 200; 400/400 points | PASS |
 
-## Exact failure
+The bind source itself remained readable with 400/400 points before the stop.
+Qdrant returned HTTP 500 from the official snapshot creation path with:
 
-The live file
-`/qdrant/storage/collections/ai_lab_document_chunks/0/wal/first-index` is 15
-bytes of valid JSON:
+`Error while archiving WAL: No such file or directory ... 0/wal/closed-0`
 
-`{"ack_index":5}`
+This is a second deterministic bind-mount failure mode in addition to the
+production NUL-filled `first-index`. The named-volume control passed on the
+same version and data, so a version-wide Qdrant 1.18.3 restore defect is not
+proven. The differing variable is the Docker storage topology.
 
-The same `0/wal/first-index` entry in the fresh official snapshot is 15 NUL
-bytes. Official multipart recovery:
+## Stopped-storage migration and rollback proof
 
-`POST /collections/ai_lab_restore_test_document_chunks/snapshots/upload?priority=snapshot`
+An isolated bind-backed source was cleanly stopped. Its complete storage was
+copied read-only into a new Docker named volume. The same pinned Qdrant image
+started from that copy and preserved:
 
-on a separate exact-image Qdrant 1.18.3 container fails with:
+- 400/400 points,
+- vector size `1024` and distance `Cosine`,
+- representative IDs and payload markers.
 
-`Wal error: Can't init WAL: failed to read first-index file ... expected value at line 1 column 1`
+It then created an official snapshot with valid WAL metadata. A second clean
+named-volume container restored the snapshot and returned the same count,
+configuration, IDs and payload markers. Finally, the migrated container was
+stopped and the untouched bind-backed source was restarted; its 400 points and
+payload proof were still intact. This proves both the migration mechanism and
+the rollback direction in isolation.
 
-No production collection or volume was mounted into the recovery container.
+## Root cause
 
-## Control proof
+Classification: `WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`.
 
-A synthetic collection was created in a temporary exact-version Qdrant 1.18.3
-container backed by a Docker named volume. Its official snapshot was uploaded
-to a second clean exact-version container through the same multipart recovery
-endpoint.
+The production-specific WAL history affects the visible symptom (NUL
+`first-index` versus missing `closed-0`), but is not required to make snapshot
+creation fail. Concurrent application writes are not supported as the cause:
+the production logs around the fresh snapshot show reads and the snapshot
+request, not point mutations, while the controlled bind failure is reproducible
+with the test source otherwise idle.
 
-- snapshot size: `119808` bytes,
-- restored points: `1/1`,
-- restored vector configuration: `4`, `Cosine`,
-- payload identity: preserved,
-- temporary containers and volumes: removed.
+## Early validation
 
-This proves the selected recovery endpoint and isolated topology work. The
-production snapshot artifact is already corrupt before recovery.
+`qdrant_snapshot_validator.js` now performs a lightweight, bounded structural
+check before Full restore eligibility:
 
-## Classification and gate
+- archive must be readable and contain safe paths,
+- `config.json`, `version.info` and shard metadata must exist,
+- every present `wal/first-index` must be non-empty, non-NUL JSON with a
+  non-negative integer `ack_index`.
 
-Root-cause classification: `SNAPSHOT_CORRUPT_AT_SOURCE`.
+An absent `first-index` is valid because official healthy snapshots can omit it
+when no closed WAL metadata is required. This check is not presented as a
+restore proof. The manifest/discovery contract distinguishes:
 
-The evidence is consistent with Qdrant 1.18.3 snapshot creation over the
-current Windows bind-mounted storage, but it does not yet prove that a newer
-production version is the required remedy. No production version change is
-authorized.
+- `artifact_hash_verified`,
+- `qdrant_snapshot_structurally_valid`,
+- `qdrant_restore_verified`.
 
-Until a supported fix is approved and proven:
+Known historical corrupt artifacts are retained and dynamically classified as
+`qdrant_snapshot_invalid`; Database restore remains independently eligible,
+while Full/System restore remains unavailable.
 
-- Database restore candidates remain eligible independently,
-- Full/System restore candidates are fail-closed,
-- the UI reports that Qdrant restore verification is missing,
-- production restore remains separately gated,
-- no raw-storage fallback is silently substituted for Full restore.
+## Proposed production topology change
 
-Smallest next decision: approve a bounded infrastructure/remediation design
-for reliable Qdrant snapshot creation (for example, separately proven storage
-topology or an approved version test). Any production Qdrant upgrade requires
-`FOLLOWUP_QDRANT_RESTORE_UPGRADE_APPROVAL_REQUIRED`.
+Recommended target: Docker-managed Linux named volume `qdrant_storage`, using
+the same pinned Qdrant image.
+
+Conceptual Compose change:
+
+```yaml
+services:
+  qdrant:
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+volumes:
+  qdrant_storage:
+    name: qdrant_storage
+```
+
+No production change is part of this diagnosis. The expected controlled
+interruption is approximately 2–5 minutes for the current 332 MiB footprint;
+a 10-minute maintenance window should be reserved for stop, copy, startup and
+immediate integrity checks. The subsequent official snapshot and isolated
+restore drill can run after reads are restored, provided writes remain
+quiescent until the drill passes.
+
+## Approved-change procedure (not executed)
+
+1. Verify the exact image digest, collection config, 57-point count, storage
+   footprint, health and no running backup/purge operation.
+2. Enter maintenance/write-quiescent mode and stop all Qdrant writers.
+3. Stop Qdrant cleanly.
+4. Retain `C:\ai-lab-core\data\qdrant` unchanged and capture its file inventory.
+5. Create `qdrant_storage`; copy the stopped source into it through a testable,
+   read-only source mount.
+6. Change only the Qdrant mount and start the same pinned image.
+7. Verify collection, `1024`/`Cosine`, exactly 57 points and representative
+   canonical ownership payloads; verify backend reads.
+8. Create/download/hash a fresh official snapshot, run structural validation,
+   and restore it into a clean isolated Qdrant target.
+9. Re-enable writers only after all validation passes.
+
+Rollback on any failure: stop the named-volume Qdrant, restore the Compose
+mount to the untouched Windows source, start the pinned image, and reverify
+collection configuration and 57 points. Neither the old bind storage nor the
+new volume is deleted during acceptance.
+
+## Remaining gates
+
+- Production storage migration:
+  `FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`.
+- Backup scheduler changes:
+  `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`.
+- Any production restore:
+  `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
+
+No Qdrant upgrade or vector rebuild is recommended by the current evidence.

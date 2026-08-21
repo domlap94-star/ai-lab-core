@@ -80,15 +80,21 @@ CHUNK 16 work occurred. Flutter analyze, focused `26/26` and clean full
 `260/260` tests pass. The next execution decision remains CHUNK 15, not started.
 
 **FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE UI — PARTIAL / QDRANT
-FULL-RESTORE BLOCKED.** Production schema is at the additive revision
+STORAGE TOPOLOGY APPROVAL REQUIRED.** Production schema is at the additive revision
 `followup_admin_backup_restore_ui_20260821`; isolated migration/service and
 Database-only restore proofs pass. A fresh official Qdrant 1.18.3 snapshot is
 corrupt at source (`0/wal/first-index` is 15 NUL bytes while the live file is
 valid JSON). Official upload recovery fails on an isolated exact-version
 container, while a synthetic same-version named-volume control restores
-successfully. Database restore stays eligible; Full restore fails closed with
-`qdrant_restore_verification_required`. Task Scheduler and production restore
-gates remain ungranted. The owner inserted a future standalone Windows Disaster
+successfully. A controlled same-data Windows bind test fails during official
+WAL snapshot archiving, while stopped-storage copy to a named volume preserves
+all test points/config/payloads and produces a restorable official snapshot;
+rollback to the untouched bind source also passes. Root cause is
+`WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`. Structural validation now marks
+known NUL-WAL artifacts `qdrant_snapshot_invalid`. Database restore stays
+eligible; Full restore remains fail-closed pending
+`FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`. Task Scheduler
+and production restore gates remain ungranted. The owner inserted a future standalone Windows Disaster
 Recovery App after CHUNK 15 and before CHUNK 16; it is not started. No
 intermediate Phase D release is allowed before owner-declared Phase D
 completion.

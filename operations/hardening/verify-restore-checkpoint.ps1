@@ -72,6 +72,12 @@ if ($Mode -eq "full") {
     foreach ($name in $fullRequired) {
         if (-not $artifactByName.ContainsKey($name)) { throw "backup_full_component_missing" }
     }
+    $validator = Join-Path $PSScriptRoot "..\supervisor\qdrant_snapshot_validator.js"
+    $validationJson = (& node.exe $validator $artifactByName["qdrant.snapshot"] 2>$null)
+    $validatorExit = $LASTEXITCODE
+    if ([string]::IsNullOrWhiteSpace(($validationJson -join ""))) { throw "qdrant_snapshot_invalid" }
+    $validation = ($validationJson -join "") | ConvertFrom-Json
+    if ($validatorExit -ne 0 -or $validation.valid -ne $true) { throw "qdrant_snapshot_invalid" }
     if ($manifest.qdrant_restore_verified -ne $true) {
         $qdrantError = [string]$manifest.qdrant_restore_error_code
         if ([string]::IsNullOrWhiteSpace($qdrantError)) {

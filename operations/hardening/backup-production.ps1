@@ -89,6 +89,8 @@ if ($LASTEXITCODE -ne 0) { throw "Unable to read Alembic revision." }
 
 $artifactRecords = @()
 $qdrantSnapshotName = $null
+$qdrantSnapshotStructurallyValid = $null
+$qdrantSnapshotValidationReason = $null
 if ($Scope -in @("full", "database")) {
     Write-Output "BACKUP_STAGE=database"
     $dbDump = Join-Path $artifacts "postgres.dump"
@@ -135,6 +137,15 @@ if ($Scope -in @("full", "qdrant")) {
         "--output", $qdrantSnapshot,
         "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$qdrantSnapshotName"
     )
+    $validator = Join-Path $repo "operations\supervisor\qdrant_snapshot_validator.js"
+    $validationJson = (& node.exe $validator $qdrantSnapshot 2>$null)
+    $validatorExit = $LASTEXITCODE
+    if ([string]::IsNullOrWhiteSpace(($validationJson -join ""))) {
+        throw "qdrant_snapshot_validation_failed"
+    }
+    $validation = ($validationJson -join "") | ConvertFrom-Json
+    $qdrantSnapshotStructurallyValid = $validatorExit -eq 0 -and $validation.valid -eq $true
+    $qdrantSnapshotValidationReason = [string]$validation.reason
     $artifactRecords += Get-ArtifactRecord $checkpoint $qdrantSnapshot
 }
 
@@ -208,10 +219,16 @@ $manifest = [ordered]@{
     created_at = (Get-Date).ToUniversalTime().ToString("o")
     source_head = $head; release = $Release; db_revision = $dbRevision
     qdrant_collection = $QdrantCollection; qdrant_snapshot_name = $qdrantSnapshotName
+    artifact_hash_verified = $true
+    qdrant_snapshot_structurally_valid = $qdrantSnapshotStructurallyValid
+    qdrant_snapshot_validation_reason = $qdrantSnapshotValidationReason
     # Artifact/hash verification is not equivalent to an isolated Qdrant
     # recovery proof. Full restore stays fail-closed until that proof succeeds.
     qdrant_restore_verified = if ($Scope -eq "full") { $false } else { $null }
-    qdrant_restore_error_code = if ($Scope -eq "full") { "qdrant_restore_verification_required" } else { $null }
+    qdrant_restore_error_code = if ($Scope -eq "full") {
+        if ($qdrantSnapshotStructurallyValid -eq $false) { "qdrant_snapshot_invalid" }
+        else { "qdrant_restore_verification_required" }
+    } else { $null }
     document_directories = if ($Scope -in @("full", "documents")) { $documentSources } else { @() }
     estimated_source_bytes = $estimatedBytes
     secrets_in_protected_backup = $false
