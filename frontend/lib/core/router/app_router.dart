@@ -24,6 +24,7 @@ import '../../features/tasks/presentation/tasks_page.dart';
 import '../../features/tasks/presentation/task_detail_page.dart';
 import '../../features/trash/presentation/admin_trash_page.dart';
 import '../../features/backup/presentation/admin_backup_restore_page.dart';
+import '../../features/knowledge_base/presentation/admin_knowledge_base_page.dart';
 import '../widgets/app_shell.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -248,6 +249,12 @@ final GoRouter appRouter = GoRouter(
           path: '/settings/backup',
           builder: (BuildContext context, GoRouterState state) {
             return const AdminBackupRestorePage();
+          },
+        ),
+        GoRoute(
+          path: '/settings/knowledge-base',
+          builder: (BuildContext context, GoRouterState state) {
+            return const AdminKnowledgeBasePage();
           },
         ),
       ],

@@ -113,8 +113,19 @@ Full proofs pass. Production restore remains fail-closed behind
 The C# WinForms source is retained as **DEFERRED / ENTERPRISE TRUST BLOCKED**;
 no executable build, WDAC/Bitdefender change or trust-store mutation is part of
 the canonical recovery path. CHUNK 15 remains COMPLETE. Current release remains
-NEXT Stabil `1.0.2+25`; no intermediate Phase D release is allowed. The next
-canonical item is FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE, not started.
+NEXT Stabil `1.0.2+25`; no intermediate Phase D release is allowed.
+
+**FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — IMPLEMENTATION COMPLETE TO
+VECTOR GATE.** A distinct Administrator-only Knowledge Base domain now has
+bounded upload, extraction/OCR, metadata/versioning, audit, page citations,
+archive/retry and lexical search plus a responsive Flutter workspace. The
+additive `followup_admin_knowledge_base_20260821` migration passes an isolated
+round-trip but is not applied to production. Vector retrieval is designed as
+the separate `ai_lab_knowledge_base_chunks` collection and passed an isolated
+Qdrant 1.18.3 ownership/idempotency proof. Production KB items/vectors remain
+zero, `ai_lab_document_chunks` remains unchanged, and work stops at
+`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`. CHUNK 17 is not
+started.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

@@ -65,11 +65,16 @@ class ChangeHistoryService:
             "status", "note", "reviewed_by_user_id", "reviewed_at",
             "review_note", "cancelled_by_user_id", "cancelled_at", "version",
         },
+        "knowledge_base_item": {
+            "title", "source", "publisher", "version", "effective_date",
+            "category", "tags", "status", "supersedes_id",
+            "processing_status", "processing_method", "archived_at",
+        },
     }
     ACTIONS = {
         "created", "updated", "deleted", "restored", "status_changed",
         "accepted", "rejected", "merged", "activated", "deactivated",
-        "trashed", "purged",
+        "trashed", "purged", "processing_retried",
     }
     SECRET_FIELD_PATTERN = re.compile(
         r"password|passwd|secret|token|cookie|authorization|api[_-]?key|"

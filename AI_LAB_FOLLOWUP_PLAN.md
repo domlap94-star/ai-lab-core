@@ -1514,6 +1514,32 @@ reserved by this decision.
 
 **Priority: P1**
 
+**[~] IMPLEMENTATION COMPLETE TO VECTOR GATE — 2026-08-21.** The additive,
+separate Knowledge Base domain, Administrator-only API and Polish Flutter
+workspace are implemented. Metadata, bounded upload, native extraction, OCR,
+page-level provenance/citations, duplicate-checksum warning, current/
+superseded versioning, single-item processing retry, archive and lexical/
+metadata/formula search are covered. Customer Documents remain a separate
+domain and storage projection.
+
+The migration `followup_admin_knowledge_base_20260821` (parent
+`followup_admin_backup_restore_ui_20260821`) passes isolated upgrade,
+downgrade and re-upgrade with zero backfill. It was not applied to production;
+the live head remains `followup_admin_backup_restore_ui_20260821` and
+production Knowledge Base items remain zero.
+
+Vector design is ready in `FOLLOWUP_CHUNK16_KNOWLEDGE_BASE_VECTOR_DESIGN.md`:
+separate `ai_lab_knowledge_base_chunks`, canonical
+`qwen3-embedding:0.6b`, 1024/Cosine, explicit `source_type=knowledge_base` and
+deterministic item ownership. An isolated Qdrant 1.18.3 proof passed insert,
+search, current/superseded filtering, idempotent re-index and exact ownership
+delete. Production KB vector writes were zero and the existing customer
+collection remained 57 points.
+
+Exact gate: `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
+CHUNK 17 is not started and the Phase D no-intermediate-release policy remains
+in force.
+
 Admin-only `Baza wiedzy`: building standards, norms, technical datasheets,
 manuals, producer materials, formulas i reference calculations.
 

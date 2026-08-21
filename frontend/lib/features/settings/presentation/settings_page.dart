@@ -180,6 +180,16 @@ class SettingsPage extends ConsumerWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/settings/backup'),
                 ),
+                ListTile(
+                  key: const Key('admin-knowledge-base-settings-tile'),
+                  leading: const Icon(Icons.menu_book_outlined),
+                  title: const Text('Baza wiedzy'),
+                  subtitle: const Text(
+                    'Normy, instrukcje, karty techniczne i materiały referencyjne.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/knowledge-base'),
+                ),
               ],
             ),
           ],
