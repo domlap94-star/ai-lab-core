@@ -7,7 +7,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 ## ACTIVE POST-PROJECT ROADMAP
 
 **`AI_LAB_FOLLOWUP_PLAN.md`** jest aktywnym źródłem kolejności dalszych prac po
-release 1.0.2+23.
+release 1.0.2+24.
 
 - `AI_LAB_MASTER_PLAN.txt` jest zakończonym, historycznym masterplanem głównej
   implementacji.
@@ -24,16 +24,18 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**RELEASE C COMPLETE — NEXT STABIL 1.0.2+23.** Phase C CHUNK 13, 12 and 14 are
-published for Web, Windows and Android. The stable manifest is build `23`,
-`minimum_version` remains `1.0.0`, public artifact hashes match locally
-validated bytes, and `1.0.2+22` remains available for rollback. Production DB
-is now at the single expected head `followup_work_item_realization_link_20260821` with no
-pending migration. Flutter analyze, focused Phase C `23/23`, updater `10/10`
-and full `240/240` pass; the public Web login bootstrap has zero console
-errors. Release-attributable business writes, Gmail sends, n8n workflow or
-schedule changes, Vision jobs and Qdrant writes are zero. Physical Android
-widget and CHUNK 13 smokes are `UNVERIFIED` because no ADB device was connected.
+**OWNER PATCH RELEASE COMPLETE — NEXT STABIL 1.0.2+24.** This interim release
+after Release C publishes the completed Admin Trash / seven-day retention and
+Calendar / Task Detail / Realization owner patch for Web, Windows and Android;
+it is not Release D. The stable manifest is build `24`, `minimum_version`
+remains `1.0.0`, and public artifact hashes match locally validated bytes.
+Production DB stays at the single expected head
+`followup_work_item_realization_link_20260821` with no pending migration.
+Flutter analyze, focused patch/Trash `17/17`, updater `10/10` and full `250/250`
+pass; the public Web login bootstrap has no console errors. Release-attributable
+business writes, Gmail sends, n8n changes, Vision jobs and Qdrant writes are
+zero. Physical Android and widget smokes remain `UNVERIFIED` because ADB is not
+available; `1.0.2+23` and `1.0.2+22` artifacts remain rollback references.
 
 **OWNER-INSERTED PRE-CHUNK15 HOTFIX: ADMIN TRASH / 7-DAY RETENTION — COMPLETE.** Production
 advanced through `followup_admin_trash_retention_20260820`. The canonical Trash ledger,
@@ -55,7 +57,7 @@ and conditional Client Realizacja projection are verified. Flutter analyze and
 250/250 tests pass; Android/Web/Windows debug builds pass.
 
 Current execution decision: **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI — NEXT,
-NOT STARTED.** Do not start it without a new owner prompt. No release was made.
+NOT STARTED.** Do not start it without a new owner prompt.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application
@@ -112,7 +114,12 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+23
+## CURRENT RELEASE — NEXT STABIL 1.0.2+24
+
+- OWNER PATCH RELEASE: PUBLISHED. The completed Trash retention/Qdrant-safe
+  purge and Calendar/Realization patch are available in stable Web, Windows and
+  Android artifacts. This interim release is not Release D; CHUNK 15 remains
+  not started.
 
 - RELEASE C: PUBLISHED. CHUNK 13 Calendar/Tasks/Realizations/Notes/Absences and
   Android widget, CHUNK 12 live Dashboard, and CHUNK 14 Last Activity are in

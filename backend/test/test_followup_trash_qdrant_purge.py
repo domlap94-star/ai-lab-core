@@ -104,11 +104,12 @@ def main() -> None:
             collection_name=collection, ids=b_ids, with_payload=True, with_vectors=True
         )
         plan = store.prepare_document_purge(document_id=1001, references=a_refs)
-        require(plan.present_vector_ids == tuple(a_ids), "Exact plan is not deterministic")
+        expected_a_ids = tuple(sorted(a_ids, key=lambda value: (len(value), value)))
+        require(plan.present_vector_ids == expected_a_ids, "Exact plan is not deterministic")
         require(store.delete_document_points(plan) == 2, "Exact deletion count mismatch")
         require(not store.client.retrieve(collection_name=collection, ids=a_ids), "A points remain")
         retry_plan = store.prepare_document_purge(document_id=1001, references=a_refs)
-        require(retry_plan.missing_vector_ids == tuple(a_ids), "Retry did not accept prior exact deletion")
+        require(retry_plan.missing_vector_ids == expected_a_ids, "Retry did not accept prior exact deletion")
         require(store.delete_document_points(retry_plan) == 0, "Retry repeated external deletion")
         after_b = store.client.retrieve(
             collection_name=collection, ids=b_ids, with_payload=True, with_vectors=True

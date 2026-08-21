@@ -1317,7 +1317,34 @@ unsafe test names and configuration/connection mismatches are rejected;
 `DATABASE_URL` cannot select an isolated database for these tests.
 
 **TRASH HOTFIX AND OWNER FLUTTER PATCH COMPLETE. CANONICAL NEXT ROADMAP ITEM:
-FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI.** Do not start CHUNK 15 or release.
+FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI.** Do not start CHUNK 15 without a new
+owner prompt.
+
+## OWNER PATCH RELEASE — NEXT STABIL 1.0.2+24
+
+**[✓] PUBLISHED — 2026-08-21. INTERIM RELEASE BETWEEN RELEASE C AND PHASE D;
+THIS IS NOT RELEASE D.**
+
+The stable Windows, signed Android and live Web channels now publish the
+completed Admin Trash / seven-day retention hotfix and Calendar / Task Detail /
+Realization owner patch. User-visible scope includes Administrator `Kosz`,
+recoverable deletion, compact Task Detail with Client call/Maps actions, Polish
+Monday-first date selection, continuous multi-day calendar bars, improved
+Android calendar widget presentation, canonical realization WorkItem-to-Project
+linkage and one-Document Client/WorkItem/Project projections.
+
+Release source was `d06707cef5da0e94cbc92e9c9843d67cdbcac7c6` and production
+DB remains at `followup_work_item_realization_link_20260821`. Flutter analyze,
+focused owner-patch/Trash `17/17`, updater `10/10` and full `250/250` pass.
+Public Windows, Android and Web bytes matched their locally validated SHA-256
+values before the stable manifest moved to build `24`; `minimum_version`
+remains `1.0.0`, so update from `1.0.2+23` is optional. Release-attributable
+business writes, Gmail sends, n8n changes, Vision jobs and Qdrant writes were
+zero. The owner-created legacy realization remains unchanged and unlinked;
+physical Android/widget smoke remains `UNVERIFIED` because ADB is unavailable.
+
+Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
+NOT STARTED**.
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 

@@ -578,3 +578,39 @@ analyze and the full discovered `246/246` suite pass. No real Client, Document,
 User or the owner's WorkItem realization was modified for acceptance; CHUNK 15
 was not started, the owner-requested Flutter patch scope remains pending, and no
 release was performed.
+
+## Interim owner patch release addendum — NEXT Stabil 1.0.2+24 — 2026-08-21
+
+The completed Admin Trash / seven-day retention hotfix and Calendar / Task
+Detail / Realization owner patch were published from source commit
+`d06707cef5da0e94cbc92e9c9843d67cdbcac7c6`. This is an interim stable release
+between Release C and Phase D, not Release D. Production DB remains at the
+single head `followup_work_item_realization_link_20260821`; no release migration
+or production business-data write occurred. The legacy owner realization stayed
+unchanged with `project_id = NULL`.
+
+Flutter analyze passed, focused Trash/Calendar/Realization tests passed `17/17`,
+updater/hash tests passed `10/10`, and the full discovered suite passed
+`250/250`. The backend release matrix passed on guarded isolated databases and
+test-only Qdrant collections. A flaky test expectation was corrected to compare
+the already canonical sorted Qdrant purge plan rather than random UUID creation
+order; production purge behavior was unchanged.
+
+The Windows installer is 13,383,505 bytes with SHA-256
+`4C2B4F6C9A44F8C76B5BA16A66A523B5F7D288545D30059B55630721448331F7`
+and FileVersion `1.0.2.24`. The signed Android APK is 66,611,147 bytes with
+SHA-256
+`9B84EF8F350B6A2199C4304F35BE78012088C3800F2FEBF6CD2C820A5912C3DF`,
+versionName `1.0.2`, versionCode `24`, and the same signing certificate as
+`1.0.2+23`. Web `main.dart.js` is 4,803,350 bytes with SHA-256
+`53939AC05FFEB53F4B9521070D20BDCC5612EA5B867F09B29F715B181316BAEC`.
+Public bytes matched local hashes before the stable manifest advanced to build
+`24`. The public Web login bootstrap loaded with no console warnings/errors.
+
+`minimum_version` remains `1.0.0`, so update from `1.0.2+23` is optional;
+`1.0.2+23` and `1.0.2+22` Windows/Android artifacts remain available for
+rollback. Trash Scheduler remains enabled/Ready every four hours with batch
+100. Production Qdrant remains at 57 points. Gmail sends, n8n changes, Vision
+jobs and Qdrant writes/deletes attributable to release are zero. Physical
+Android and widget smokes remain `UNVERIFIED` because ADB is unavailable.
+Canonical next work is FOLLOW-UP CHUNK 15, which was not started.
