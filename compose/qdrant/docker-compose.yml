@@ -17,11 +17,16 @@ services:
       - "127.0.0.1:6334:6334"
 
     volumes:
-      - ../../data/qdrant:/qdrant/storage
+      - qdrant_storage:/qdrant/storage
 
     networks:
       - ai-lab-network
 
 networks:
   ai-lab-network:
+    external: true
+
+volumes:
+  qdrant_storage:
+    name: qdrant_storage
     external: true

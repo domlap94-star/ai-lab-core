@@ -91,6 +91,8 @@ $artifactRecords = @()
 $qdrantSnapshotName = $null
 $qdrantSnapshotStructurallyValid = $null
 $qdrantSnapshotValidationReason = $null
+$qdrantRestoreVerified = $null
+$qdrantRestoreResult = $null
 if ($Scope -in @("full", "database")) {
     Write-Output "BACKUP_STAGE=database"
     $dbDump = Join-Path $artifacts "postgres.dump"
@@ -146,6 +148,21 @@ if ($Scope -in @("full", "qdrant")) {
     $validation = ($validationJson -join "") | ConvertFrom-Json
     $qdrantSnapshotStructurallyValid = $validatorExit -eq 0 -and $validation.valid -eq $true
     $qdrantSnapshotValidationReason = [string]$validation.reason
+    if ($qdrantSnapshotStructurallyValid) {
+        Write-Output "BACKUP_STAGE=qdrant_restore_drill"
+        $qdrantImage = (& docker.exe inspect qdrant --format '{{.Config.Image}}').Trim()
+        if ($LASTEXITCODE -ne 0) { throw "qdrant_image_inspection_failed" }
+        $restoreVerifier = Join-Path $repo "operations\hardening\verify-qdrant-snapshot-restore.ps1"
+        try {
+            $restoreJson = (& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+                -File $restoreVerifier -SnapshotPath $qdrantSnapshot `
+                -SourceCollection $QdrantCollection -QdrantImage $qdrantImage 2>$null)
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(($restoreJson -join ""))) {
+                $qdrantRestoreResult = ($restoreJson -join "") | ConvertFrom-Json
+                $qdrantRestoreVerified = $qdrantRestoreResult.verified -eq $true
+            } else { $qdrantRestoreVerified = $false }
+        } catch { $qdrantRestoreVerified = $false }
+    } else { $qdrantRestoreVerified = $false }
     $artifactRecords += Get-ArtifactRecord $checkpoint $qdrantSnapshot
 }
 
@@ -224,10 +241,12 @@ $manifest = [ordered]@{
     qdrant_snapshot_validation_reason = $qdrantSnapshotValidationReason
     # Artifact/hash verification is not equivalent to an isolated Qdrant
     # recovery proof. Full restore stays fail-closed until that proof succeeds.
-    qdrant_restore_verified = if ($Scope -eq "full") { $false } else { $null }
-    qdrant_restore_error_code = if ($Scope -eq "full") {
+    qdrant_restore_verified = $qdrantRestoreVerified
+    qdrant_restore_result = $qdrantRestoreResult
+    qdrant_restore_error_code = if ($Scope -in @("full", "qdrant")) {
         if ($qdrantSnapshotStructurallyValid -eq $false) { "qdrant_snapshot_invalid" }
-        else { "qdrant_restore_verification_required" }
+        elseif ($qdrantRestoreVerified -eq $true) { $null }
+        else { "qdrant_restore_drill_failed" }
     } else { $null }
     document_directories = if ($Scope -in @("full", "documents")) { $documentSources } else { @() }
     estimated_source_bytes = $estimatedBytes

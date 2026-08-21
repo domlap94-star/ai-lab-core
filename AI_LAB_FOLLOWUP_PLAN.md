@@ -1432,7 +1432,7 @@ NOT STARTED**. CHUNK 16 is also not started.
 
 **Priority: P1**
 
-**[~] PARTIAL / QDRANT STORAGE TOPOLOGY APPROVAL REQUIRED — 2026-08-21.** The owner expanded
+**[~] BACKUP + RESTORE IMPLEMENTATION COMPLETE; SCHEDULER AND PRODUCTION-RESTORE APPROVALS REMAIN — 2026-08-21.** The owner expanded
 this chunk to `ADMIN BACKUP + CONTROLLED RESTORE UI`. The additive production
 revision `followup_admin_backup_restore_ui_20260821` is present and the source
 implements bounded backup schedules/run history, manual backup delegation,
@@ -1440,15 +1440,17 @@ checkpoint discovery, Database/Full restore preview, typed confirmation and a
 production-restore hard gate. Isolated migration round-trip, service tests and
 Database-only restore proof pass.
 
-Full restore remains unavailable. Controlled same-version/same-data testing
-confirms `WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`: named-volume snapshot
-and recovery pass; the equivalent Windows bind source fails inside official WAL
-snapshot archiving; and a cleanly stopped bind storage copied to a named volume
-preserves all points/config/payloads, then snapshots and restores successfully.
-The old bind source also passes rollback verification. Lightweight structural
-validation now rejects NUL/empty WAL metadata as `qdrant_snapshot_invalid`, so
-historical bad checkpoints retain Database-only eligibility and fail closed for
-Full restore. Evidence and the non-executed migration/rollback plan:
+The approved Qdrant storage remediation is complete. Production storage was
+migrated from the Windows bind mount to Docker-managed `qdrant_storage`; the
+pinned Qdrant `1.18.3` image/digest and the 57-point collection were unchanged.
+The source bind remains retained as an untouched rollback asset. A fresh
+official snapshot has valid WAL metadata, passes bounded structural validation,
+and restores into a clean isolated same-version Qdrant with all 57 points,
+`1024`/`Cosine` configuration and representative ownership payloads preserved.
+The real Full checkpoint `20260821T142509Z` records verified hashes, structural
+Qdrant validity and restore-drill verification; the isolated Full/System proof
+passes without production cutover. Historical bad snapshots remain retained,
+Database-only eligible, and fail closed for Full restore. Evidence:
 `FOLLOWUP_CHUNK15_QDRANT_RESTORE_DIAGNOSIS.md`.
 
 Settings → admin-only `Backup`, maksymalnie 10 harmonogramów.
@@ -1465,9 +1467,9 @@ Human gate: dla Task Scheduler wymagany
 `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`.
 
 Production restore remains gated by
-`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Current technical gate:
-`FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`. No production restore, Task
-Scheduler mutation or release was performed.
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Task Scheduler changes remain
+gated by `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`. No production
+restore, Task Scheduler mutation or release was performed.
 
 ## PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP
 
@@ -1551,13 +1553,11 @@ Human gate: `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`.
 
 **Priority: P2**
 
-Domknąć `QDRANT_RESTORE_DRILL_BLOCKED_BY_ISOLATION` na Qdrant 1.18.3,
-oddzielnym volume i nieprodukcyjnym porcie/network. Restore snapshot, verify 57
-points, dimensions 1,024 i payload integrity; usunąć isolated target dopiero po
-jednoznacznym potwierdzeniu jego ścieżek. Bez upgrade.
-
-Human gate: osobne approval dla izolowanego runtime/cleanup; produkcyjny Qdrant
-pozostaje read-only.
+**[✓] COMPLETED EARLY UNDER CHUNK 15 — 2026-08-21.** The owner-approved
+named-volume remediation retained Qdrant 1.18.3 and all 57 production points.
+A fresh official snapshot restored into an isolated volume/non-production port
+with `1024`/`Cosine` configuration and representative payload integrity; the
+temporary target was removed. No upgrade, rebuild or vector mutation occurred.
 
 ## FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2
 

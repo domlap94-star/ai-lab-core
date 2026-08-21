@@ -45,6 +45,15 @@ class FakeSupervisor:
             "database_eligible": True, "full_eligible": False,
             "compatibility": "compatible",
             "error_code": "qdrant_restore_verification_required",
+        }, {
+            "checkpoint_path": r"C:\ai-lab-core-backups\verified-fixture",
+            "created_at": "2026-08-21T14:30:00Z", "scope": "full",
+            "app_version": "1.0.2+25", "source_head": "b" * 40,
+            "db_revision": "followup_admin_backup_restore_ui_20260821",
+            "total_bytes": 5678, "verified": True, "artifact_count": 7,
+            "components": ["postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "qdrant.snapshot", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz"],
+            "database_eligible": True, "full_eligible": True,
+            "compatibility": "compatible", "error_code": None,
         }]}
 
 
@@ -107,6 +116,15 @@ def main() -> None:
             not full_preview["eligible"]
             and full_preview["error_code"] == "qdrant_restore_verification_required",
             "Full restore did not fail closed on Qdrant proof",
+        )
+        verified_full = service.preview(
+            r"C:\ai-lab-core-backups\verified-fixture",
+            "full",
+            "followup_admin_backup_restore_ui_20260821",
+        )
+        require(
+            verified_full["eligible"] and verified_full["error_code"] is None,
+            "Verified Full restore candidate remained blocked",
         )
         preview = service.preview(
             r"C:\ai-lab-core-backups\fixture",

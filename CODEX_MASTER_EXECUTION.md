@@ -79,22 +79,18 @@ backend or schema change, production business write, release, CHUNK 15 work or
 CHUNK 16 work occurred. Flutter analyze, focused `26/26` and clean full
 `260/260` tests pass. The next execution decision remains CHUNK 15, not started.
 
-**FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE UI — PARTIAL / QDRANT
-STORAGE TOPOLOGY APPROVAL REQUIRED.** Production schema is at the additive revision
+**FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE UI — IMPLEMENTATION
+COMPLETE; SCHEDULER AND PRODUCTION-RESTORE APPROVALS REMAIN.** Production schema is at the additive revision
 `followup_admin_backup_restore_ui_20260821`; isolated migration/service and
-Database-only restore proofs pass. A fresh official Qdrant 1.18.3 snapshot is
-corrupt at source (`0/wal/first-index` is 15 NUL bytes while the live file is
-valid JSON). Official upload recovery fails on an isolated exact-version
-container, while a synthetic same-version named-volume control restores
-successfully. A controlled same-data Windows bind test fails during official
-WAL snapshot archiving, while stopped-storage copy to a named volume preserves
-all test points/config/payloads and produces a restorable official snapshot;
-rollback to the untouched bind source also passes. Root cause is
-`WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`. Structural validation now marks
-known NUL-WAL artifacts `qdrant_snapshot_invalid`. Database restore stays
-eligible; Full restore remains fail-closed pending
-`FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`. Task Scheduler
-and production restore gates remain ungranted. The owner inserted a future standalone Windows Disaster
+Database-only restore proofs pass. The approved remediation migrated production
+Qdrant from the Windows bind mount to Docker-managed `qdrant_storage` using the
+unchanged pinned `1.18.3` image/digest. Collection configuration, all 57 points
+and representative ownership payloads match; the old bind storage is retained
+untouched for rollback. A fresh official snapshot is structurally valid and
+restores in an isolated exact-version target with 57/57 points. Full checkpoint
+`20260821T142509Z` and its isolated Full/System proof pass. Structural validation
+continues to reject historical NUL-WAL artifacts as `qdrant_snapshot_invalid`.
+Task Scheduler and production restore gates remain ungranted. The owner inserted a future standalone Windows Disaster
 Recovery App after CHUNK 15 and before CHUNK 16; it is not started. No
 intermediate Phase D release is allowed before owner-declared Phase D
 completion.

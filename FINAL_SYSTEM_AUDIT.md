@@ -318,12 +318,14 @@ external requirement and was not assumed complete.
 
 Isolated PostgreSQL restore, relational counts/FKs/aggregate hashes, document
 storage restore, n8n parse/import and Alembic downgrade/re-upgrade drills pass.
-Qdrant snapshot creation and checksum pass, but isolated snapshot restore on
-the same 1.18.3 runtime remains
-`QDRANT_RESTORE_DRILL_BLOCKED_BY_ISOLATION`. Production Qdrant was untouched.
-Loss of Qdrant would degrade semantic search but not destroy canonical data:
-Documents/PostgreSQL remain authoritative, structured/lexical search fails
-open, and the 57-point collection can be rebuilt later under approval.
+The 2026-08-21 owner-approved Qdrant remediation migrated production storage
+from the Windows bind mount to Docker-managed `qdrant_storage` while retaining
+the exact pinned 1.18.3 image/digest and all 57 points. Representative ownership
+payloads and `1024`/`Cosine` configuration match. A fresh official snapshot has
+valid WAL metadata and restores into a clean isolated exact-version target with
+57/57 points. Full checkpoint `C:\ai-lab-core-backups\20260821T142509Z` passes
+manifest/hash, isolated Database, Document staging, Qdrant restore and aggregate
+Full/System validation. The old bind source remains retained for rollback.
 
 The 2026-08-19 controlled host reboot recovered gateways/supervisor in about
 19 seconds, containers in 46 seconds, Qdrant in 48 seconds, PostgreSQL in 55
@@ -403,7 +405,7 @@ classification.
 | CHUNK 14 historical “no image analysis” | state at CHUNK 14 | FALSE_POSITIVE / historical-correct | CHUNK 15 later added Vision; keep temporal context |
 | Vision local-model plans | qwen/gemma CPU/Vulkan path | OBSOLETE for production | Browser Temporary Chat is released executor; models retained pending cleanup decision |
 | Public headers | missing hardening | DEFERRED | Separate compatibility/security approval required |
-| Qdrant isolated restore | restore proof | BLOCKED | Isolation/upload behavior on 1.18.3; no production workaround attempted |
+| Qdrant isolated restore | restore proof | DONE | Named-volume remediation and exact-version 57-point restore drill pass |
 | Environment secret escrow | protected off-host copy | REQUIRES_DECISION / MANUAL_REQUIRED | Checklist exists; actual escrow not verified |
 | Android physical smoke / Windows live smoke | device/runtime validation | UNVERIFIED → DEFERRED | Static artifact evidence passes; device/install needed |
 | Old real-source ingestion blocker | no post-patch real records | OBSOLETE | 12 Gmail + 4 Sheets records now postdate patch |
@@ -411,8 +413,8 @@ classification.
 | `domain-model.md`, `database-design.md` | Case-centric future schema presented as current | DOCUMENTATION_STALE → labelled historical | Migrations/models are as-built authority |
 | Old tracked/untracked hygiene TODOs | backups, `before_*`, reports | DEFERRED | No cleanup approval; keep out of product runtime and Git staging |
 
-Canonical grouped classifications: 18 DONE/superseded topics, 12 DEFERRED
-topics, 3 BLOCKED topics, 7 OBSOLETE topics, 5 REQUIRES_DECISION topics, 8
+Canonical grouped classifications: 19 DONE/superseded topics, 12 DEFERRED
+topics, 2 BLOCKED topics, 7 OBSOLETE topics, 5 REQUIRES_DECISION topics, 8
 DOCUMENTATION_STALE topics and historical FALSE_POSITIVE occurrences. Counts
 refer to canonical topics, while the 700 count is the raw repeated-marker scan.
 
@@ -421,7 +423,7 @@ refer to canonical topics, while the 700 count is the raw repeated-marker scan.
 | ID | Item | Classification | Priority | Risk | Blocks current production? | Recommended action | Human approval |
 |---|---|---|---|---|---|---|---|
 | R01 | Public HSTS/XCTO/Referrer/framing/CSP | DEFERRED | P1 | MEDIUM | No | Compatibility-test proposed headers, especially Flutter Web CSP, then deploy separately | `CHUNK17_PUBLIC_SECURITY_CHANGE_APPROVAL_REQUIRED` |
-| R02 | Qdrant isolated restore | BLOCKED | P2 | LOW-MEDIUM | No | Prove restore in a disposable same-version topology or document rebuild-only DR | Separate infra proof approval |
+| R02 | Qdrant isolated restore | DONE | P2 | LOW | No | Retain verified named-volume topology and require per-checkpoint restore-drill evidence | Scheduler/production restore remain separately gated |
 | R03 | Protected environment secret escrow | REQUIRES_DECISION | P1 | MEDIUM-HIGH | No today; raises full-host DR risk | Create encrypted, ACL-controlled off-host escrow using documented variable-name checklist | Manual operational authorization |
 | R04 | Physical Android final smoke | DEFERRED / UNVERIFIED | P2 | MEDIUM | No | Run login/Vision/Agent/Back smoke on signed APK when device is available | Device/operator |
 | R05 | NSIS/makensis missing | BLOCKED | P1 | MEDIUM | No for current artifact; yes for Windows rebuild | Restore approved NSIS build dependency and reproduce in isolated release gate | Software installation approval |
@@ -446,7 +448,7 @@ refer to canonical topics, while the 700 count is the raw repeated-marker scan.
 | Area | Level | Rationale |
 |---|---|---|
 | Data durability | LOW-MEDIUM | Canonical DB/storage are consistent and backed up; secret escrow is still manual |
-| Backup/recovery | MEDIUM | PostgreSQL/storage/n8n drills pass, but Qdrant isolated restore is blocked and purge is manual |
+| Backup/recovery | LOW-MEDIUM | PostgreSQL/storage/n8n/Qdrant isolated proofs pass; scheduler changes and production restore remain explicitly gated |
 | Auth/security | MEDIUM | Strong hashing/JWT/scope controls pass; Internet-facing login lacks confirmed rate limiting |
 | Public Web security | MEDIUM | Loopback gateway boundary is sound, but defense-in-depth headers remain deferred |
 | AI grounding/hallucination | LOW-MEDIUM | Deterministic citations, facts/hypotheses and bounded tools reduce but cannot eliminate model error |

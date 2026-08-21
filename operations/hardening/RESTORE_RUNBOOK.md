@@ -50,8 +50,9 @@ print it. Verify every artifact against the manifest before restore.
    partially running tree.
 6. Verify Alembic head, counts, PK/FK integrity, storage paths and checksums.
 7. Start the backend and verify `/health` before enabling ingestion.
-8. Restore Qdrant only after the isolated snapshot path is proven for the
-   exact runtime. Do not improvise a live storage copy.
+8. Restore Qdrant only through a manifest-verified official snapshot whose
+   structural check and isolated exact-version restore drill have passed. Do
+   not improvise a live storage copy.
 9. Restore n8n workflow/credential exports using the original protected
    encryption key. Keep workflows inactive until credential resolution and
    source idempotency are verified.
@@ -80,15 +81,14 @@ without the historical-cleanup approval flow.
 The n8n workflow imported into an ephemeral SQLite instance without ports or
 external source connections. It was deliberately deactivated by import.
 
-The Qdrant snapshot was created and hashed, but isolated restore is currently
-`QDRANT_RESTORE_DRILL_BLOCKED_BY_ISOLATION`: local-file recovery was rejected
-by path isolation and the official upload recovery returned HTTP 500 on the
-same 1.18.3 image. The 57-point production collection was never modified.
-Closing this gap requires a separate isolated Qdrant 1.18.3 target with no
-production port or volume, a supported snapshot upload/mount path, enough
-temporary storage for the snapshot and collection, and verification of 57
-points at 1024 dimensions before disposal. It must not be attempted by changing
-the production image, collection or storage topology.
+The 2026-08-21 owner-approved storage remediation moved Qdrant from a Windows
+bind mount to Docker-managed `qdrant_storage` without changing the pinned
+1.18.3 image or the 57-point collection. A fresh official snapshot passed WAL
+structural validation and official upload recovery into a clean isolated
+same-version container. Recovery preserved 57 points, `1024` dimensions,
+`Cosine` distance and representative ownership payloads. Full checkpoint
+`20260821T142509Z` carries both structural and restore-drill verification. The
+old bind source remains retained as a rollback asset.
 
 ## Migration and application rollback
 

@@ -2,9 +2,10 @@
 
 Date: 2026-08-21
 
-Status: `WINDOWS_BIND_MOUNT_SNAPSHOT_DEFECT_CONFIRMED`
+Status: `PRODUCTION_STORAGE_REMEDIATION_COMPLETE`
 
-Gate: `FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`
+Remaining gates: `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`,
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`
 
 ## Scope and safety
 
@@ -101,12 +102,14 @@ restore proof. The manifest/discovery contract distinguishes:
 
 Known historical corrupt artifacts are retained and dynamically classified as
 `qdrant_snapshot_invalid`; Database restore remains independently eligible,
-while Full/System restore remains unavailable.
+while Full/System restore remains unavailable for those specific checkpoints.
+New checkpoints become Full-eligible only after their own structural and
+isolated restore-drill verification passes.
 
-## Proposed production topology change
+## Executed production topology change
 
-Recommended target: Docker-managed Linux named volume `qdrant_storage`, using
-the same pinned Qdrant image.
+The owner-approved target is now active: Docker-managed Linux named volume
+`qdrant_storage`, using the same pinned Qdrant image.
 
 Conceptual Compose change:
 
@@ -121,14 +124,13 @@ volumes:
     name: qdrant_storage
 ```
 
-No production change is part of this diagnosis. The expected controlled
-interruption is approximately 2–5 minutes for the current 332 MiB footprint;
-a 10-minute maintenance window should be reserved for stop, copy, startup and
-immediate integrity checks. The subsequent official snapshot and isolated
-restore drill can run after reads are restored, provided writes remain
-quiescent until the drill passes.
+The stopped source was copied in full and verified by file count, aggregate
+bytes and per-file SHA-256 before startup. Production then passed 57-point,
+`1024`/`Cosine`, representative-payload and backend read checks. The original
+`C:\ai-lab-core\data\qdrant` source remains retained and untouched as the
+rollback asset.
 
-## Approved-change procedure (not executed)
+## Approved-change procedure (executed and accepted)
 
 1. Verify the exact image digest, collection config, 57-point count, storage
    footprint, health and no running backup/purge operation.
@@ -149,10 +151,23 @@ mount to the untouched Windows source, start the pinned image, and reverify
 collection configuration and 57 points. Neither the old bind storage nor the
 new volume is deleted during acceptance.
 
+## Production acceptance evidence
+
+- Image digest remained
+  `sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286`.
+- Production collection remained 57 points at `1024` dimensions / `Cosine`.
+- Fresh official snapshot:
+  `ai_lab_document_chunks-1085445014110947-2026-08-21-14-20-44.snapshot`,
+  `348404224` bytes, SHA-256
+  `7794a462b6bc2907f1694ec94d1c8377e901724e984b955225b4bedefdb01947`.
+- Snapshot `0/wal/first-index` is valid `{"ack_index":5}` metadata.
+- Clean isolated Qdrant `1.18.3` recovery returned HTTP 200 and preserved all
+  57 points, configuration and representative ownership payloads.
+- Full checkpoint `C:\ai-lab-core-backups\20260821T142509Z` records structural
+  validation and restore-drill verification; isolated Full/System proof passed.
+
 ## Remaining gates
 
-- Production storage migration:
-  `FOLLOWUP_QDRANT_STORAGE_TOPOLOGY_CHANGE_APPROVAL_REQUIRED`.
 - Backup scheduler changes:
   `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`.
 - Any production restore:
