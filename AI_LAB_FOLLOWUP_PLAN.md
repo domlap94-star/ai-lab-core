@@ -1482,7 +1482,7 @@ production system was overwritten to complete this chunk. No release occurred.
 
 ## PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP
 
-**Owner-inserted roadmap item — NOT STARTED. Runs after CHUNK 15 and before
+**[~] PARTIAL — TRUST POLICY APPROVAL REQUIRED. Runs after CHUNK 15 and before
 CHUNK 16.**
 
 Standalone Windows `.exe`, independent of Flutter/backend availability. It
@@ -1491,7 +1491,20 @@ SHA-256 validation, Database and Full/System restore, pre-restore safety backup
 where possible, service stop/start orchestration, post-restore validation and
 a truthful `PASS` / `FAILED` / `ROLLBACK REQUIRED` report. It must reuse the
 same low-level restore engine as the Administrator Restore UI. Scope and
-implementation require a separate owner prompt.
+implementation were owner-approved. The C# WinForms/.NET Framework 4.8 source,
+canonical offline restore engine, `11/11` unit tests, real checkpoint validation
+and isolated Database/Full restore proofs pass. Production restore was not
+performed and remains fail-closed behind
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
+
+Executable acceptance is not complete. With Bitdefender fully active, the
+unsigned `NEXT-Stabil-Recovery.exe` is quarantined at file-write time as
+`Gen:Variant.MSILHeracles.239070`, before SHA-256 and UI smoke can complete.
+Neither `CurrentUser\My` nor `LocalMachine\My` contains an eligible existing
+Code Signing certificate with an accessible private key, and no repository
+Windows-signing convention exists. No protection was disabled and no exclusion
+or new trust root was added. Exact next gate:
+`RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`.
 
 ## PHASE D RELEASE POLICY
 
@@ -1805,6 +1818,7 @@ DATA SAFETY
 
 **FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE — COMPLETE.**
 
-Current next item: `PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP` — NOT STARTED.
+Current next item: `PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP` — PARTIAL,
+blocked at `RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`.
 Production restore remains fail-closed behind
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. CHUNK 16 is not started.

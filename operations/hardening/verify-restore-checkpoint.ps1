@@ -7,6 +7,19 @@ param(
     [string]$Mode = "full"
 )
 
+# Compatibility wrapper. The canonical implementation lives in
+# restore-checkpoint.ps1 and is shared with the standalone Recovery App.
+$root = [IO.Path]::GetFullPath($ApprovedBackupRoot).TrimEnd('\')
+$checkpoint = [IO.Path]::GetFullPath($CheckpointPath).TrimEnd('\')
+if (-not $checkpoint.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "checkpoint_outside_approved_root"
+}
+$engine = Join-Path $PSScriptRoot "restore-checkpoint.ps1"
+& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $engine `
+    -CheckpointPath $checkpoint -Mode $(if ($Mode -eq "full") { "Full" } else { "Database" }) -ProofOnly
+if ($LASTEXITCODE -ne 0) { throw "restore_checkpoint_proof_failed:$LASTEXITCODE" }
+return
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
 

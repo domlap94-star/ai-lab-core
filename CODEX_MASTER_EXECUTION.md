@@ -102,8 +102,14 @@ restore was not performed and remains fail-closed behind
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
 
 Current execution decision: **PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP —
-NEXT, NOT STARTED.** CHUNK 16 is not started. No intermediate Phase D release
-is allowed before owner-declared Phase D completion.
+PARTIAL / TRUST POLICY APPROVAL REQUIRED.** The C# WinForms/.NET Framework 4.8
+implementation, offline checkpoint validation and isolated Database/Full proof
+paths pass, but Bitdefender quarantines the unsigned executable during file
+creation as `Gen:Variant.MSILHeracles.239070`. No eligible existing Code Signing
+certificate is available in the local certificate stores. The exact next gate
+is `RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`; executable/UI acceptance is
+not claimed. CHUNK 16 is not started. No intermediate Phase D release is
+allowed before owner-declared Phase D completion.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

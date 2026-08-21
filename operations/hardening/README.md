@@ -16,7 +16,15 @@ credentials or change the release minimum version.
   rules.
 - `verify-restore-checkpoint.ps1`: validates the manifest and every artifact,
   restores PostgreSQL to an isolated `ai_lab_restore_test_*` database, and
-  stages archives outside active data. It never performs a production cutover.
+  delegates to the canonical `restore-checkpoint.ps1` proof engine. It never
+  performs a production cutover.
+- `restore-checkpoint.ps1`: backend-independent checkpoint validator and
+  isolated Database/Full coordinator shared with `NEXT Stabil — Recovery`.
+  Production cutover is physically fail-closed pending the permanent
+  `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED` operational gate.
+- `verify-qdrant-snapshot-offline.ps1`: restores a manifest-verified snapshot
+  only into a temporary same-version container and named volume, validates
+  point count/configuration, then removes the temporary assets.
 - `VISION_WORKER_RUNBOOK.md` and `AGENT_OPERATOR_RUNBOOK.md`: bounded operator
   response procedures.
 

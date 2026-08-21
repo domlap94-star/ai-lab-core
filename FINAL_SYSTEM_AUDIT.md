@@ -703,3 +703,20 @@ Production restore remains a permanent destructive operational gate:
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. The next roadmap item is the
 owner-inserted PRE-CHUNK16 Windows Disaster Recovery App, not started; CHUNK 16
 is not started and no release was performed.
+
+## PRE-CHUNK16 Recovery App trust checkpoint — 2026-08-21
+
+The standalone C# WinForms/.NET Framework 4.8 Recovery Tool `1.0.0` source is
+implemented and remains independent of Flutter, backend authentication and
+PostgreSQL backup-history tables. Unit tests pass `11/11`; the canonical real
+checkpoint validates for Database and Full modes and earlier isolated Database
+and Full restore proofs pass without production cutover.
+
+Executable acceptance remains blocked. Bitdefender Virus Shield quarantines the
+unsigned 53,248-byte build at file-write time as
+`Gen:Variant.MSILHeracles.239070`, before SHA-256 retention or UI smoke. No valid
+Code Signing certificate with an accessible private key exists in
+`CurrentUser\My` or `LocalMachine\My`. No antivirus protection, SmartScreen,
+firewall or trust policy was weakened. Recovery App status is `PARTIAL` behind
+`RECOVERY_APP_TRUST_POLICY_APPROVAL_REQUIRED`; CHUNK 16 and release remain not
+started.
