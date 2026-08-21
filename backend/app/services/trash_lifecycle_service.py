@@ -128,14 +128,14 @@ class TrashLifecycleService:
         elif entity_type == "user":
             self.db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": USER_LIFECYCLE_ADVISORY_LOCK_KEY})
             entity = self.db.query(User).filter(User.id == entity_id).with_for_update().first()
-            if entity is None or not entity.is_active or entity.trashed_at is not None or entity.purged_at is not None:
+            if entity is None or entity.trashed_at is not None or entity.purged_at is not None:
                 raise TrashNotFoundError("user_not_found")
             if entity.id == actor.id:
                 raise TrashConflictError("self_trash_forbidden")
-            if entity.role.name == "Administrator":
+            if entity.role.name == "Administrator" and entity.is_active:
                 admins = self.db.query(User).join(Role).filter(User.is_active.is_(True), User.trashed_at.is_(None), Role.name == "Administrator").with_for_update().all()
                 UserLifecycleService.ensure_admin_survives(target_user_id=entity.id, active_administrator_ids={item.id for item in admins})
-            before = {"is_active": True, "trashed_at": None, "auth_version": entity.auth_version}
+            before = {"is_active": entity.is_active, "trashed_at": None, "auth_version": entity.auth_version}
             entity.is_active = False
             entity.trashed_at = now
             entity.auth_version += 1

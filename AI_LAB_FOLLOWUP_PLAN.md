@@ -1346,6 +1346,42 @@ physical Android/widget smoke remains `UNVERIFIED` because ADB is unavailable.
 Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
 NOT STARTED**.
 
+## POST-1.0.2+24 CONSISTENCY HOTFIX
+
+**[✓] CLIENT DOCUMENT TRASH + ACTIVE USER CLEANUP + LEGACY REALIZATION
+REPAIR — COMPLETE — 2026-08-21.**
+
+- Client Details Documents now reuse the canonical Administrator-only Document
+  Trash confirmation/API path. Successful Trash invalidates Client, global,
+  Dashboard, WorkItem and Project projections; responsive overflow actions and
+  pagination clamping prevent stale rows or invalid page ranges. No production
+  Document was trashed for acceptance.
+- The default Administrator User Management endpoint is active-only. Inactive,
+  trashed and purged Users stay out of the manageable-user list while
+  recoverable entries remain in Settings → Kosz.
+- Exact test User `phase2f_103833` (User ID `2`) was inactive and not previously
+  in Trash. The owner-approved canonical lifecycle created Trash entry `2`, set
+  `trashed_at`, incremented `auth_version` to `1`, and retained same-ID restore
+  through the exact seven-day deadline. No other User was modified.
+- The one exact legacy realization WorkItem `fundament 600kg` (WorkItem ID `1`,
+  Client `Szymon Pastuszak`, 2026-08-25–2026-08-28) had no matching Project.
+  One transaction created canonical Project `1080`, linked `project_id`, and
+  wrote safe WorkItem Change History. No broad backfill or unrelated
+  WorkItem/Project mutation occurred.
+- The repair service is Administrator-only, row-locked, exact-match aware and
+  idempotent: an already linked WorkItem returns its existing Project and an
+  ambiguous matching Project set fails closed. New realization atomic
+  create/edit/status/archive/restore behavior remains verified.
+- Backend isolated Trash/realization/Auth/History/Activity/Search regressions
+  PASS. Flutter analyze PASS, focused consistency tests `45/45` PASS and the
+  full discovered suite `252/252` PASS. DB head remains
+  `followup_work_item_realization_link_20260821`; release remains
+  `NEXT Stabil 1.0.2+24` and no release was performed.
+
+Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
+NOT STARTED**. A separate owner prompt is required; a later `1.0.2+25`
+publication is also separately gated.
+
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
 **Priority: P1**

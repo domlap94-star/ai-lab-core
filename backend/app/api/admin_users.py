@@ -155,7 +155,11 @@ def list_users(
 ):
     users = (
         db.query(User)
-        .filter(User.trashed_at.is_(None), User.purged_at.is_(None))
+        .filter(
+            User.is_active.is_(True),
+            User.trashed_at.is_(None),
+            User.purged_at.is_(None),
+        )
         .order_by(User.id)
         .all()
     )

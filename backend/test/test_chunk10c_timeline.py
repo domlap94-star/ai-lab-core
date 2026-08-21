@@ -9,6 +9,14 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+TEST_DATABASE_NAME = require_test_database_environment()
+
 from app.api.auth import get_current_user
 from app.database.engine import engine
 from app.database.session import get_db
@@ -28,6 +36,7 @@ from app.services.timeline_service import TimelineService
 
 class TimelineReadModelTests(unittest.TestCase):
     def setUp(self) -> None:
+        assert_isolated_database(engine, TEST_DATABASE_NAME)
         self.connection = engine.connect()
         self.transaction = self.connection.begin()
         self.db = Session(

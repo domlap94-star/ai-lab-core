@@ -614,3 +614,30 @@ rollback. Trash Scheduler remains enabled/Ready every four hours with batch
 jobs and Qdrant writes/deletes attributable to release are zero. Physical
 Android and widget smokes remain `UNVERIFIED` because ADB is unavailable.
 Canonical next work is FOLLOW-UP CHUNK 15, which was not started.
+
+## Post-1.0.2+24 consistency hotfix addendum — 2026-08-21
+
+No schema or release change was required; production remains NEXT Stabil
+`1.0.2+24` at DB head `followup_work_item_realization_link_20260821`. Client
+Details Documents now use the same Administrator-only canonical Trash action
+as the global repository, including seven-day confirmation, broad active-cache
+invalidation and valid pagination after removal. Acceptance did not Trash a
+production Document.
+
+The default admin User list is now server-side active-only. Exact inactive test
+User `phase2f_103833` (ID `2`) was moved through the approved User Trash service:
+the row remains, `auth_version` advanced from `0` to `1`, Trash entry `2` is
+recoverable until `2026-08-28T09:16:45.648286Z`, and no other User changed.
+
+The exact active orphan realization `fundament 600kg` (WorkItem `1`, Client
+`Szymon Pastuszak`, 2026-08-25 through 2026-08-28) had zero matching Projects.
+The guarded owner-approved transaction created Project `1080`, linked the same
+WorkItem, preserved its `todo` → `planned` mapping and wrote safe Change
+History. WorkItems stayed at `1`, Projects changed `0 → 1`, and no broad
+realization backfill ran.
+
+Guarded isolated backend suites for Trash, realization integration, Auth,
+Change History, Recent Activity and Client Search passed. Flutter analyze
+passed, focused tests passed `45/45`, and full tests passed `252/252`.
+Production Documents, Clients, Candidates, Absences, Qdrant points, Gmail,
+n8n and Vision were unchanged. CHUNK 15 and release `1.0.2+25` were not started.

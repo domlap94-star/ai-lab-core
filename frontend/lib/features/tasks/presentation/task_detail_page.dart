@@ -16,6 +16,7 @@ import '../../auth/application/auth_controller.dart';
 import '../../documents/domain/document.dart';
 import '../../documents/presentation/document_media_preview.dart';
 import '../../inspections/application/inspection_field_services.dart';
+import '../../projects/application/projects_providers.dart';
 import '../application/tasks_providers.dart';
 import '../application/calendar_widget_snapshot.dart';
 import '../domain/work_item.dart';
@@ -102,6 +103,8 @@ class TaskDetailPage extends ConsumerWidget {
                 ref.invalidate(workItemsProvider);
                 ref.invalidate(filteredWorkItemsProvider);
                 ref.invalidate(calendarMonthProvider);
+                ref.invalidate(projectsPageProvider);
+                ref.invalidate(projectDetailsProvider);
               },
               icon: const Icon(Icons.edit),
               label: const Text('Edytuj'),
@@ -137,6 +140,8 @@ class TaskDetailPage extends ConsumerWidget {
                 ref.invalidate(workItemsProvider);
                 ref.invalidate(filteredWorkItemsProvider);
                 ref.invalidate(calendarMonthProvider);
+                ref.invalidate(projectsPageProvider);
+                ref.invalidate(projectDetailsProvider);
                 await CalendarWidgetSnapshot.refreshCurrent(ref);
                 if (context.mounted) context.go('/tasks');
               },

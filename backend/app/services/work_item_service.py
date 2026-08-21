@@ -143,6 +143,92 @@ class WorkItemService:
         self.db.refresh(item)
         return self._read(item)
 
+    def repair_legacy_realization(
+        self,
+        item_id: int,
+        actor: User,
+        *,
+        commit: bool = True,
+    ) -> WorkItemRead:
+        """Link one legacy realization to its canonical Project, idempotently.
+
+        This is deliberately not a broad backfill. The caller must select the
+        exact legacy WorkItem; this method then locks it, detects an exact
+        existing Project, and creates at most one Project in the same database
+        transaction.
+        """
+        if not _is_admin(actor):
+            raise WorkItemConflictError("administrator_required")
+        item = self._active(item_id, lock=True)
+        if item.item_type != "realization":
+            raise WorkItemConflictError("legacy_realization_required")
+        if item.client_id is None:
+            raise WorkItemReferenceError("realization_client_required")
+        if item.project_id is not None:
+            return self._read(item)
+
+        start_date = self._project_date(item.start_at, item.timezone_name)
+        end_date = self._project_date(item.due_at, item.timezone_name)
+        projects = (
+            self.db.query(Project)
+            .filter(
+                Project.client_id == item.client_id,
+                Project.name == item.title,
+                Project.start_date == start_date,
+                Project.end_date == end_date,
+                Project.deleted_at.is_(None),
+            )
+            .order_by(Project.id)
+            .with_for_update()
+            .all()
+        )
+        if len(projects) > 1:
+            raise WorkItemConflictError("legacy_realization_project_ambiguous")
+        before = self._snapshot(item)
+        try:
+            if projects:
+                project = projects[0]
+                linked_item_id = self.db.query(WorkItem.id).filter(
+                    WorkItem.project_id == project.id,
+                    WorkItem.id != item.id,
+                ).scalar()
+                if linked_item_id is not None:
+                    raise WorkItemConflictError("legacy_realization_project_already_linked")
+            else:
+                project = Project(
+                    client_id=item.client_id,
+                    name=item.title,
+                    description=item.description,
+                    status=self.PROJECT_STATUS[item.status],
+                    start_date=start_date,
+                    end_date=end_date,
+                    created_by_user_id=actor.id,
+                    updated_by_user_id=actor.id,
+                )
+                self.db.add(project)
+                self.db.flush()
+            item.project_id = project.id
+            item.updated_by_user_id = actor.id
+            item.version += 1
+            self.db.flush()
+            self.history.persist(
+                actor_user_id=actor.id,
+                entity_type="work_item",
+                entity_id=item.id,
+                action="updated",
+                before=before,
+                after=self._snapshot(item),
+                source_key=f"work-item:{item.id}:v{item.version}",
+            )
+            if commit:
+                self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        if commit:
+            self.db.refresh(item)
+        return self._read(item)
+
     def get(self, item_id: int, *, include_archived: bool = False) -> WorkItemRead:
         return self._read(self._active(item_id, include_archived=include_archived))
 

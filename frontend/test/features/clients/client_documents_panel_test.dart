@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
+import 'package:ai_lab/features/auth/domain/current_user.dart';
 import 'package:ai_lab/features/clients/presentation/client_workspace_panels.dart';
 import 'package:ai_lab/features/documents/application/document_open_service.dart';
 import 'package:ai_lab/features/documents/application/documents_providers.dart';
@@ -147,6 +148,70 @@ void main() {
     expect(openerCalls, 1);
   });
 
+  testWidgets('administrator uses canonical Trash action and row disappears', (
+    WidgetTester tester,
+  ) async {
+    final _PanelRepository repository = _PanelRepository();
+    await _pumpPanel(tester, repository, administrator: true);
+    await tester.tap(find.byKey(const Key('client-documents-toggle')));
+    await tester.pumpAndSettle();
+
+    final Finder actions = find.byKey(
+      const ValueKey<String>('client-document-actions-1'),
+    );
+    await tester.ensureVisible(actions);
+    await tester.pumpAndSettle();
+    await tester.tap(actions);
+    await tester.pumpAndSettle();
+    expect(find.text('Przenieś do kosza'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey<String>('client-document-trash-1')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Przenieść plik do kosza?'), findsOneWidget);
+    await tester.tap(find.text('Anuluj'));
+    await tester.pumpAndSettle();
+    expect(repository.trashCalls, isEmpty);
+
+    await tester.ensureVisible(actions);
+    await tester.pumpAndSettle();
+    await tester.tap(actions);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey<String>('client-document-trash-1')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Przenieś do kosza').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.trashCalls, <int>[1]);
+    expect(
+      find.byKey(const ValueKey<String>('client-document-1')),
+      findsNothing,
+    );
+    expect(find.text('1–10 z 11'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('normal User has no Client Document Trash action at 360', (
+    WidgetTester tester,
+  ) async {
+    final _PanelRepository repository = _PanelRepository();
+    await _pumpPanel(tester, repository, width: 360);
+    await tester.tap(find.byKey(const Key('client-documents-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('client-document-actions-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey<String>('client-document-open-1')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('full repository link preserves client id and visible name', (
     WidgetTester tester,
   ) async {
@@ -204,8 +269,10 @@ Future<void> _pumpPanel(
   _PanelRepository repository, {
   DocumentOpenService? openService,
   String? clientMarker,
+  bool administrator = false,
+  double width = 390,
 }) async {
-  tester.view.physicalSize = const Size(390, 900);
+  tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -213,7 +280,9 @@ Future<void> _pumpPanel(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        authControllerProvider.overrideWith(_TestAuthController.new),
+        authControllerProvider.overrideWith(
+          administrator ? _AdminAuthController.new : _TestAuthController.new,
+        ),
         documentsRepositoryProvider.overrideWithValue(repository),
         if (openService != null)
           documentOpenServiceProvider.overrideWithValue(openService),
@@ -243,10 +312,36 @@ const AuthSession _session = AuthSession(
   tokenType: 'Bearer',
 );
 
+const CurrentUser _normalUser = CurrentUser(
+  id: 10,
+  username: 'user',
+  email: 'user@example.invalid',
+  role: 'User',
+  isActive: true,
+  mustChangePassword: false,
+  passwordResetRequested: false,
+);
+
+const CurrentUser _adminUser = CurrentUser(
+  id: 1,
+  username: 'admin',
+  email: 'admin@example.invalid',
+  role: 'Administrator',
+  isActive: true,
+  mustChangePassword: false,
+  passwordResetRequested: false,
+);
+
 class _TestAuthController extends AuthController {
   @override
   Future<AuthState> build() async =>
-      const AuthState(session: _session, user: null);
+      const AuthState(session: _session, user: _normalUser);
+}
+
+class _AdminAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async =>
+      const AuthState(session: _session, user: _adminUser);
 }
 
 class _RepositoryCall {
@@ -268,6 +363,7 @@ class _PanelRepository extends DocumentsRepository {
   final bool failList;
   final List<_RepositoryCall> calls = <_RepositoryCall>[];
   int contentCalls = 0;
+  final List<int> trashCalls = <int>[];
 
   @override
   Future<DocumentPage> fetchDocuments({
@@ -289,12 +385,20 @@ class _PanelRepository extends DocumentsRepository {
     }
 
     final int clientId = filters.clientId ?? -1;
-    final int end = (skip + limit).clamp(0, 12);
-    final List<RepositoryDocument> items = <RepositoryDocument>[
-      for (int index = skip; index < end; index++)
-        _document(id: index + 1, clientId: clientId),
+    final List<RepositoryDocument> all = <RepositoryDocument>[
+      for (int id = 1; id <= 12; id++)
+        if (!trashCalls.contains(id)) _document(id: id, clientId: clientId),
     ];
-    return DocumentPage(items: items, total: 12, skip: skip, limit: limit);
+    final int end = (skip + limit).clamp(0, all.length);
+    final List<RepositoryDocument> items = skip >= all.length
+        ? <RepositoryDocument>[]
+        : all.sublist(skip, end);
+    return DocumentPage(
+      items: items,
+      total: all.length,
+      skip: skip,
+      limit: limit,
+    );
   }
 
   @override
@@ -316,6 +420,14 @@ class _PanelRepository extends DocumentsRepository {
       fileName: document.displayName,
       contentType: document.contentType,
     );
+  }
+
+  @override
+  Future<void> trashDocument({
+    required AuthSession session,
+    required int documentId,
+  }) async {
+    trashCalls.add(documentId);
   }
 }
 

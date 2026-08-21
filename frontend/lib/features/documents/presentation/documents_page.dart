@@ -19,6 +19,7 @@ import '../domain/document_page.dart';
 import 'document_presentation.dart';
 import 'document_intake_dialog.dart';
 import 'document_media_preview.dart';
+import 'document_trash_action.dart';
 
 class DocumentsPage extends ConsumerStatefulWidget {
   const DocumentsPage({super.key});
@@ -734,42 +735,9 @@ class _DocumentDetailsDialog extends ConsumerWidget {
     WidgetRef ref,
     RepositoryDocument document,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Przenieść dokument do kosza?'),
-        content: const Text(
-          'Element będzie można przywrócić przez 7 dni. '
-          'Po tym czasie zostanie automatycznie usunięty na stałe.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Przenieś do kosza'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    await ref
-        .read(documentsRepositoryProvider)
-        .trashDocument(
-          session: requireDocumentSessionFromAuth(
-            ref.read(authControllerProvider),
-          ),
-          documentId: document.id,
-        );
-    ref.invalidate(documentDetailsProvider(document.id));
-    ref.invalidate(documentsControllerProvider);
-    if (context.mounted) {
+    if (await confirmAndTrashDocument(context, ref, document) &&
+        context.mounted) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dokument przeniesiono do Kosza.')),
-      );
     }
   }
 

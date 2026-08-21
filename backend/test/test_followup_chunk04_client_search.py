@@ -8,6 +8,14 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+TEST_DATABASE_NAME = require_test_database_environment()
+
 from app.database.engine import engine
 from app.models.client import Client
 from app.models.client_address import ClientAddress
@@ -23,6 +31,7 @@ class _SemanticDisabled:
 
 class ClientSearchEquivalenceTests(unittest.TestCase):
     def setUp(self) -> None:
+        assert_isolated_database(engine, TEST_DATABASE_NAME)
         self.connection = engine.connect()
         self.transaction = self.connection.begin()
         self.db = Session(

@@ -14,6 +14,7 @@ from app.database.session import SessionLocal, engine
 from app.models.client import Client
 from app.models.document import Document
 from app.models.project import Project
+from app.models.role import Role
 from app.models.user import User
 from app.models.work_item import WorkItem
 from app.models.work_item_document import WorkItemDocument
@@ -27,7 +28,10 @@ def main() -> None:
     db = SessionLocal()
     created_ids: dict[str, int] = {}
     try:
-        actor = db.query(User).filter(User.is_active.is_(True)).order_by(User.id).first()
+        actor = db.query(User).join(Role).filter(
+            User.is_active.is_(True),
+            Role.name == "Administrator",
+        ).order_by(User.id).first()
         clients = db.query(Client).filter(Client.deleted_at.is_(None)).order_by(Client.id).limit(2).all()
         assert actor is not None and len(clients) == 2
         service = WorkItemService(db)
@@ -116,7 +120,36 @@ def main() -> None:
         created_ids["all_day"] = all_day.id
         entry = next(row for row in CalendarService(db).month(2026, 8, actor).items if row.entity_id == all_day.id)
         assert str(entry.start) == "2026-08-25" and str(entry.end) == "2026-08-28"
-        print("OWNER_CALENDAR_REALIZATION_PATCH 9/9 PASS")
+
+        legacy = WorkItem(
+            item_type="realization",
+            title="Synthetic legacy realization repair",
+            description="Synthetic targeted repair",
+            start_at=datetime.fromisoformat("2026-09-01T08:00:00+02:00"),
+            due_at=datetime.fromisoformat("2026-09-03T16:00:00+02:00"),
+            timezone_name="Europe/Warsaw",
+            status="todo",
+            priority="normal",
+            client_id=clients[0].id,
+            created_by_user_id=actor.id,
+            updated_by_user_id=actor.id,
+        )
+        db.add(legacy)
+        db.commit()
+        created_ids["legacy"] = legacy.id
+        repaired = service.repair_legacy_realization(legacy.id, actor)
+        assert repaired.project_id is not None
+        created_ids["legacy_project"] = repaired.project_id
+        legacy_project_count = db.query(Project).filter(
+            Project.id == repaired.project_id,
+            Project.client_id == clients[0].id,
+            Project.name == legacy.title,
+        ).count()
+        assert legacy_project_count == 1
+        retried = service.repair_legacy_realization(legacy.id, actor)
+        assert retried.project_id == repaired.project_id
+        assert db.query(Project).filter(Project.name == legacy.title).count() == 1
+        print("OWNER_CALENDAR_REALIZATION_PATCH 11/11 PASS")
     finally:
         db.rollback()
         if "work_item" in created_ids:
@@ -128,8 +161,12 @@ def main() -> None:
             db.query(WorkItem).filter(WorkItem.id == created_ids["work_item"]).delete(synchronize_session=False)
         if "all_day" in created_ids:
             db.query(WorkItem).filter(WorkItem.id == created_ids["all_day"]).delete(synchronize_session=False)
+        if "legacy" in created_ids:
+            db.query(WorkItem).filter(WorkItem.id == created_ids["legacy"]).delete(synchronize_session=False)
         if "project" in created_ids:
             db.query(Project).filter(Project.id == created_ids["project"]).delete(synchronize_session=False)
+        if "legacy_project" in created_ids:
+            db.query(Project).filter(Project.id == created_ids["legacy_project"]).delete(synchronize_session=False)
         db.commit()
         db.close()
 

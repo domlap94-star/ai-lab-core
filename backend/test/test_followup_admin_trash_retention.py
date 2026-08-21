@@ -128,7 +128,14 @@ def main() -> None:
             role=user_role,
             is_active=True,
         )
-        db.add_all([admin, second_admin, normal])
+        legacy_inactive = User(
+            username=f"trash_inactive_{suffix}",
+            email=f"trash_inactive_{suffix}@example.invalid",
+            password_hash=hash_password(PASSWORD),
+            role=user_role,
+            is_active=False,
+        )
+        db.add_all([admin, second_admin, normal, legacy_inactive])
         db.commit()
 
         legacy_token = create_access_token({"sub": normal.username})
@@ -157,8 +164,31 @@ def main() -> None:
                 ).status_code == 200,
                 "Administrator could not list Trash",
             )
+            users = http.get(
+                "/api/v1/admin/users",
+                headers={"Authorization": f"Bearer {admin_token}"},
+            )
+            require(users.status_code == 200, "Administrator could not list users")
+            listed_ids = {row["id"] for row in users.json()}
+            require(normal.id in listed_ids, "Active User missing from management list")
+            require(
+                legacy_inactive.id not in listed_ids,
+                "Inactive legacy User leaked into active management list",
+            )
 
         service = TrashLifecycleService(db, data_root=TEST_ROOT)
+        inactive_entry = service.trash(
+            entity_type="user",
+            entity_id=legacy_inactive.id,
+            actor=admin,
+        )
+        db.commit()
+        require(not legacy_inactive.is_active, "Inactive User was reactivated during Trash")
+        require(
+            legacy_inactive.trashed_at is not None and legacy_inactive.auth_version == 1,
+            "Inactive-to-Trash lifecycle markers missing",
+        )
+        require(inactive_entry.state == "trashed", "Inactive User Trash entry missing")
         try:
             service.trash(entity_type="user", entity_id=admin.id, actor=admin)
         except TrashConflictError as error:

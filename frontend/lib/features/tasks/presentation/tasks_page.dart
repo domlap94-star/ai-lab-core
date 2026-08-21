@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../clients/presentation/searchable_client_picker.dart';
+import '../../projects/application/projects_providers.dart';
 import '../application/calendar_widget_snapshot.dart';
 import '../application/tasks_providers.dart';
 import '../domain/work_item.dart';
@@ -72,6 +73,8 @@ class _TasksPageState extends ConsumerState<TasksPage> {
     ref.invalidate(calendarMonthProvider(month));
     ref.invalidate(workItemsProvider(null));
     ref.invalidate(filteredWorkItemsProvider);
+    ref.invalidate(projectsPageProvider);
+    ref.invalidate(projectDetailsProvider);
   }
 
   Future<void> _absence() async {

@@ -37,6 +37,15 @@ business writes, Gmail sends, n8n changes, Vision jobs and Qdrant writes are
 zero. Physical Android and widget smokes remain `UNVERIFIED` because ADB is not
 available; `1.0.2+23` and `1.0.2+22` artifacts remain rollback references.
 
+**POST-1.0.2+24 CONSISTENCY HOTFIX — COMPLETE.** Client Details now exposes
+the shared canonical Administrator-only Document Trash action. Default User
+Management is server-filtered to active Users; exact inactive test User
+`phase2f_103833` was enrolled in the recoverable seven-day Trash lifecycle.
+The exact legacy realization `fundament 600kg` was uniquely verified and linked
+to newly created canonical Project `1080` in one transaction, without broad
+backfill. Flutter analyze and full `252/252` pass. No Document acceptance Trash,
+release, schema change, Gmail send, n8n/Vision change or Qdrant write occurred.
+
 **OWNER-INSERTED PRE-CHUNK15 HOTFIX: ADMIN TRASH / 7-DAY RETENTION — COMPLETE.** Production
 advanced through `followup_admin_trash_retention_20260820`. The canonical Trash ledger,
 seven-day database-clock retention, same-ID restore, auth-version invalidation,
@@ -50,8 +59,9 @@ tests use a guarded temporary collection; production acceptance had zero
 eligible entries and left all 57 points unchanged.
 
 **OWNER FLUTTER PATCH — CALENDAR / TASK DETAIL / REALIZATION INTEGRATION —
-COMPLETE.** The additive WorkItem-to-Project revision is live without backfill;
-the legacy owner realization is unchanged. Task Detail, Polish date pickers,
+COMPLETE.** The additive WorkItem-to-Project revision is live without broad
+backfill; the later owner-approved consistency hotfix linked the one exact
+legacy realization. Task Detail, Polish date pickers,
 continuous month bars, Android widget ranges, canonical Document multi-linking
 and conditional Client Realizacja projection are verified. Flutter analyze and
 250/250 tests pass; Android/Web/Windows debug builds pass.

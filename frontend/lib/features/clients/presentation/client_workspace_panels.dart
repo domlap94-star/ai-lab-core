@@ -11,6 +11,7 @@ import '../../documents/domain/document_page.dart';
 import '../../documents/presentation/document_intake_dialog.dart';
 import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
+import '../../documents/presentation/document_trash_action.dart';
 import '../../projects/presentation/client_projects_panel.dart';
 import '../../inspections/presentation/client_inspections_panel.dart';
 import '../../timeline/domain/timeline.dart';
@@ -75,6 +76,7 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
   bool _hasLoaded = false;
   int _skip = 0;
   final Set<int> _openingIds = <int>{};
+  final Set<int> _locallyTrashedIds = <int>{};
   final Map<int, double?> _openingProgress = <int, double?>{};
 
   ClientDocumentsPageRequest get _request => ClientDocumentsPageRequest(
@@ -187,7 +189,21 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
   }
 
   Widget _buildLoaded(DocumentPage page) {
-    if (page.items.isEmpty && page.total == 0) {
+    final List<RepositoryDocument> visibleItems = page.items
+        .where(
+          (RepositoryDocument item) => !_locallyTrashedIds.contains(item.id),
+        )
+        .toList(growable: false);
+    final int removedFromPage = page.items
+        .where(
+          (RepositoryDocument item) => _locallyTrashedIds.contains(item.id),
+        )
+        .length;
+    final int visibleTotal = (page.total - removedFromPage).clamp(
+      0,
+      page.total,
+    );
+    if (visibleItems.isEmpty && visibleTotal == 0) {
       return Column(
         children: <Widget>[
           const Padding(
@@ -204,7 +220,7 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
     }
 
     final int rangeStart = page.skip + 1;
-    final int rangeEnd = page.skip + page.items.length;
+    final int rangeEnd = page.skip + visibleItems.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -218,7 +234,10 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
             icon: const Icon(Icons.refresh),
           ),
         ),
-        ...page.items.map(_buildDocumentRow),
+        ...visibleItems.map(
+          (RepositoryDocument document) =>
+              _buildDocumentRow(document, visibleTotal),
+        ),
         const SizedBox(height: 8),
         Wrap(
           alignment: WrapAlignment.spaceBetween,
@@ -226,7 +245,7 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
           spacing: 12,
           runSpacing: 8,
           children: <Widget>[
-            Text('$rangeStart–$rangeEnd z ${page.total}'),
+            Text('$rangeStart–$rangeEnd z $visibleTotal'),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
@@ -239,7 +258,9 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
                 IconButton(
                   key: const Key('client-documents-next'),
                   tooltip: 'Następna strona',
-                  onPressed: page.hasNextPage ? _nextPage : null,
+                  onPressed: page.skip + visibleItems.length < visibleTotal
+                      ? _nextPage
+                      : null,
                   icon: const Icon(Icons.chevron_right),
                 ),
               ],
@@ -255,7 +276,7 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
     );
   }
 
-  Widget _buildDocumentRow(RepositoryDocument document) {
+  Widget _buildDocumentRow(RepositoryDocument document, int total) {
     final bool opening = _openingIds.contains(document.id);
     return Container(
       key: ValueKey<String>('client-document-${document.id}'),
@@ -332,6 +353,36 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
                 strokeWidth: 3,
               ),
             )
+          else if (canTrashDocuments(ref))
+            PopupMenuButton<String>(
+              key: ValueKey<String>('client-document-actions-${document.id}'),
+              tooltip: 'Akcje dokumentu',
+              onSelected: (String action) {
+                if (action == 'open') {
+                  _openDocument(document);
+                } else if (action == 'trash') {
+                  _trashDocument(document, total);
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                PopupMenuItem<String>(
+                  key: ValueKey<String>('client-document-open-${document.id}'),
+                  value: 'open',
+                  child: const ListTile(
+                    leading: Icon(Icons.open_in_new),
+                    title: Text('Otwórz'),
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  key: ValueKey<String>('client-document-trash-${document.id}'),
+                  value: 'trash',
+                  child: const ListTile(
+                    leading: Icon(Icons.delete_outline),
+                    title: Text('Przenieś do kosza'),
+                  ),
+                ),
+              ],
+            )
           else
             TextButton.icon(
               key: ValueKey<String>('client-document-open-${document.id}'),
@@ -354,6 +405,23 @@ class _ClientDocumentsPanelState extends ConsumerState<ClientDocumentsPanel> {
 
   void _previousPage() {
     setState(() => _skip = (_skip - _pageSize).clamp(0, 1 << 31));
+  }
+
+  Future<void> _trashDocument(
+    RepositoryDocument document,
+    int currentTotal,
+  ) async {
+    final bool trashed = await confirmAndTrashDocument(context, ref, document);
+    if (!trashed || !mounted) return;
+    final int nextTotal = (currentTotal - 1).clamp(0, currentTotal);
+    final int maxSkip = nextTotal == 0
+        ? 0
+        : ((nextTotal - 1) ~/ _pageSize) * _pageSize;
+    setState(() {
+      _locallyTrashedIds.add(document.id);
+      if (_skip > maxSkip) _skip = maxSkip;
+    });
+    ref.invalidate(clientDocumentsPageProvider);
   }
 
   Future<void> _openDocument(RepositoryDocument document) async {
