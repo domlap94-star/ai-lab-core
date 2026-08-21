@@ -2,10 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../../core/formatters/polish_date_time.dart';
 import '../domain/client.dart';
+import '../domain/industry.dart';
+
+enum ClientEditSection { name, basic, registration, contact, address, system }
 
 class ClientEditDialog extends StatefulWidget {
-  const ClientEditDialog({required this.client, super.key});
+  const ClientEditDialog({
+    required this.client,
+    this.section,
+    this.industries = const <Industry>[],
+    super.key,
+  });
   final Client client;
+  final ClientEditSection? section;
+  final List<Industry> industries;
 
   @override
   State<ClientEditDialog> createState() => _ClientEditDialogState();
@@ -14,6 +24,7 @@ class ClientEditDialog extends StatefulWidget {
 class _ClientEditDialogState extends State<ClientEditDialog> {
   final _formKey = GlobalKey<FormState>();
   late ClientType _type;
+  late int? _industryId;
   late DateTime? _clientAddedAt;
   bool _explicitDateCleared = false;
   late final Map<String, TextEditingController> _fields;
@@ -28,11 +39,13 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
     super.initState();
     final c = widget.client;
     _type = c.clientType;
+    _industryId = c.industryId;
     _clientAddedAt = c.clientAddedAt;
     _fields = <String, TextEditingController>{
       'name': TextEditingController(text: c.name),
       'legal_name': TextEditingController(text: c.legalName),
       'tax_id': TextEditingController(text: c.taxId),
+      'registration_number': TextEditingController(text: c.registrationNumber),
       'website': TextEditingController(text: c.website),
     };
     final Iterable<String?> emailValues = c.emails.isNotEmpty
@@ -67,6 +80,15 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
     return index < 0 ? 0 : index;
   }
 
+  List<Industry> get _availableIndustries {
+    final result = <Industry>[...widget.industries];
+    final current = widget.client.industry;
+    if (current != null && !result.any((item) => item.id == current.id)) {
+      result.add(current);
+    }
+    return result;
+  }
+
   @override
   void dispose() {
     for (final c in <TextEditingController>[
@@ -84,7 +106,7 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Edytuj klienta'),
+    title: Text(_dialogTitle),
     content: SizedBox(
       width: 720,
       child: Form(
@@ -93,127 +115,164 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              DropdownButtonFormField<ClientType>(
-                isExpanded: true,
-                initialValue: _type,
-                decoration: const InputDecoration(labelText: 'Typ klienta'),
-                items: ClientType.values
-                    .map(
-                      (v) => DropdownMenuItem(
-                        value: v,
-                        child: Text(v.displayName),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _type = v ?? _type),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: InputDecorator(
-                  key: const Key('client-added-date-field'),
-                  decoration: const InputDecoration(
-                    labelText: 'Data dodania',
-                    border: OutlineInputBorder(),
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          _clientAddedAt == null
-                              ? _explicitDateCleared
-                                    ? 'Po zapisie: data źródłowa lub techniczna'
-                                    : 'Automatyczna: ${formatPolishDate(widget.client.effectiveAddedDate)}'
-                              : formatPolishDate(_clientAddedAt!),
+              if (_shows(ClientEditSection.basic))
+                DropdownButtonFormField<ClientType>(
+                  isExpanded: true,
+                  initialValue: _type,
+                  decoration: const InputDecoration(labelText: 'Typ klienta'),
+                  items: ClientType.values
+                      .map(
+                        (v) => DropdownMenuItem(
+                          value: v,
+                          child: Text(v.displayName),
                         ),
-                      ),
-                      IconButton(
-                        key: const Key('client-added-date-picker'),
-                        tooltip: 'Wybierz datę dodania',
-                        onPressed: _selectAddedDate,
-                        icon: const Icon(Icons.calendar_today_outlined),
-                      ),
-                      if (_clientAddedAt != null)
-                        IconButton(
-                          key: const Key('client-added-date-clear'),
-                          tooltip:
-                              'Wyczyść i wróć do daty źródłowej lub technicznej',
-                          onPressed: () => setState(() {
-                            _clientAddedAt = null;
-                            _explicitDateCleared = true;
-                          }),
-                          icon: const Icon(Icons.clear),
-                        ),
-                    ],
-                  ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => _type = v ?? _type),
                 ),
-              ),
-              ..._fields.entries.map(
-                (e) => Padding(
+              if (_shows(ClientEditSection.basic))
+                Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: TextFormField(
-                    controller: e.value,
-                    decoration: InputDecoration(labelText: _label(e.key)),
-                    validator: e.key == 'name'
-                        ? (v) => v?.trim().isEmpty == true
-                              ? 'Nazwa jest wymagana.'
-                              : null
-                        : null,
+                  child: DropdownButtonFormField<int?>(
+                    key: const Key('client-industry-field'),
+                    isExpanded: true,
+                    initialValue: _industryId,
+                    decoration: const InputDecoration(labelText: 'Branża'),
+                    items: <DropdownMenuItem<int?>>[
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('Brak branży'),
+                      ),
+                      ..._availableIndustries
+                          .where(
+                            (item) => item.isActive || item.id == _industryId,
+                          )
+                          .map(
+                            (item) => DropdownMenuItem<int?>(
+                              value: item.id,
+                              child: Text(
+                                item.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                    ],
+                    onChanged: (value) => setState(() => _industryId = value),
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              _ContactEditor(
-                title: 'E-maile',
-                controllers: _emails,
-                primary: _primaryEmail,
-                keyboardType: TextInputType.emailAddress,
-                onAdd: () => setState(() {
-                  _emails.add(TextEditingController());
-                  _primaryEmail ??= 0;
-                }),
-                onPrimary: (i) => setState(() => _primaryEmail = i),
-                onRemove: (i) => setState(() {
-                  _emails.removeAt(i).dispose();
-                  _primaryEmail = _emails.isEmpty ? null : 0;
-                }),
-              ),
-              _AddressEditor(
-                addresses: _addresses,
-                onAdd: () => setState(() {
-                  final hasPrimary = _addresses.any((item) => item.isPrimary);
-                  _addresses.add(_AddressControllers(isPrimary: !hasPrimary));
-                }),
-                onRemove: (index) => setState(() {
-                  final removedPrimary = _addresses[index].isPrimary;
-                  _addresses.removeAt(index).dispose();
-                  if (removedPrimary && _addresses.isNotEmpty) {
-                    for (final item in _addresses) {
-                      item.isPrimary = false;
+              if (_shows(ClientEditSection.system))
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: InputDecorator(
+                    key: const Key('client-added-date-field'),
+                    decoration: const InputDecoration(
+                      labelText: 'Data dodania',
+                      border: OutlineInputBorder(),
+                    ),
+                    child: Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: Text(
+                            _clientAddedAt == null
+                                ? _explicitDateCleared
+                                      ? 'Po zapisie: data źródłowa lub techniczna'
+                                      : 'Automatyczna: ${formatPolishDate(widget.client.effectiveAddedDate)}'
+                                : formatPolishDate(_clientAddedAt!),
+                          ),
+                        ),
+                        IconButton(
+                          key: const Key('client-added-date-picker'),
+                          tooltip: 'Wybierz datę dodania',
+                          onPressed: _selectAddedDate,
+                          icon: const Icon(Icons.calendar_today_outlined),
+                        ),
+                        if (_clientAddedAt != null)
+                          IconButton(
+                            key: const Key('client-added-date-clear'),
+                            tooltip:
+                                'Wyczyść i wróć do daty źródłowej lub technicznej',
+                            onPressed: () => setState(() {
+                              _clientAddedAt = null;
+                              _explicitDateCleared = true;
+                            }),
+                            icon: const Icon(Icons.clear),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ..._visibleFieldKeys
+                  .map((key) => MapEntry(key, _fields[key]!))
+                  .map(
+                    (e) => Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: TextFormField(
+                        controller: e.value,
+                        decoration: InputDecoration(labelText: _label(e.key)),
+                        validator: e.key == 'name'
+                            ? (v) => v?.trim().isEmpty == true
+                                  ? 'Nazwa jest wymagana.'
+                                  : null
+                            : null,
+                      ),
+                    ),
+                  ),
+              if (_shows(ClientEditSection.contact)) ...<Widget>[
+                const SizedBox(height: 20),
+                _ContactEditor(
+                  title: 'E-maile',
+                  controllers: _emails,
+                  primary: _primaryEmail,
+                  keyboardType: TextInputType.emailAddress,
+                  onAdd: () => setState(() {
+                    _emails.add(TextEditingController());
+                    _primaryEmail ??= 0;
+                  }),
+                  onPrimary: (i) => setState(() => _primaryEmail = i),
+                  onRemove: (i) => setState(() {
+                    _emails.removeAt(i).dispose();
+                    _primaryEmail = _emails.isEmpty ? null : 0;
+                  }),
+                ),
+                _ContactEditor(
+                  title: 'Telefony',
+                  controllers: _phones,
+                  primary: _primaryPhone,
+                  keyboardType: TextInputType.phone,
+                  onAdd: () => setState(() {
+                    _phones.add(TextEditingController());
+                    _primaryPhone ??= 0;
+                  }),
+                  onPrimary: (i) => setState(() => _primaryPhone = i),
+                  onRemove: (i) => setState(() {
+                    _phones.removeAt(i).dispose();
+                    _primaryPhone = _phones.isEmpty ? null : 0;
+                  }),
+                ),
+              ],
+              if (_shows(ClientEditSection.address))
+                _AddressEditor(
+                  addresses: _addresses,
+                  onAdd: () => setState(() {
+                    final hasPrimary = _addresses.any((item) => item.isPrimary);
+                    _addresses.add(_AddressControllers(isPrimary: !hasPrimary));
+                  }),
+                  onRemove: (index) => setState(() {
+                    final removedPrimary = _addresses[index].isPrimary;
+                    _addresses.removeAt(index).dispose();
+                    if (removedPrimary && _addresses.isNotEmpty) {
+                      for (final item in _addresses) {
+                        item.isPrimary = false;
+                      }
+                      _addresses.first.isPrimary = true;
                     }
-                    _addresses.first.isPrimary = true;
-                  }
-                }),
-                onPrimary: (index) => setState(() {
-                  for (var i = 0; i < _addresses.length; i++) {
-                    _addresses[i].isPrimary = i == index;
-                  }
-                }),
-              ),
-              _ContactEditor(
-                title: 'Telefony',
-                controllers: _phones,
-                primary: _primaryPhone,
-                keyboardType: TextInputType.phone,
-                onAdd: () => setState(() {
-                  _phones.add(TextEditingController());
-                  _primaryPhone ??= 0;
-                }),
-                onPrimary: (i) => setState(() => _primaryPhone = i),
-                onRemove: (i) => setState(() {
-                  _phones.removeAt(i).dispose();
-                  _primaryPhone = _phones.isEmpty ? null : 0;
-                }),
-              ),
+                  }),
+                  onPrimary: (index) => setState(() {
+                    for (var i = 0; i < _addresses.length; i++) {
+                      _addresses[i].isPrimary = i == index;
+                    }
+                  }),
+                ),
             ],
           ),
         ),
@@ -240,20 +299,62 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
         'is_primary': i == primary,
       },
     );
-    final data = <String, dynamic>{'client_type': _type.value};
-    data['client_added_at'] = _clientAddedAt == null
-        ? null
-        : _dateToIso(_clientAddedAt!);
-    for (final entry in _fields.entries) {
+    final data = <String, dynamic>{};
+    if (_shows(ClientEditSection.basic)) {
+      data['client_type'] = _type.value;
+      data['industry_id'] = _industryId;
+    }
+    if (_shows(ClientEditSection.system)) {
+      data['client_added_at'] = _clientAddedAt == null
+          ? null
+          : _dateToIso(_clientAddedAt!);
+    }
+    for (final key in _visibleFieldKeys) {
+      final entry = MapEntry(key, _fields[key]!);
       data[entry.key] = entry.value.text.trim().isEmpty
           ? null
           : entry.value.text.trim();
     }
-    data['emails'] = contacts(_emails, _primaryEmail);
-    data['phones'] = contacts(_phones, _primaryPhone);
-    data['addresses'] = _addresses.map((item) => item.toJson()).toList();
+    if (_shows(ClientEditSection.contact)) {
+      data['emails'] = contacts(_emails, _primaryEmail);
+      data['phones'] = contacts(_phones, _primaryPhone);
+    }
+    if (_shows(ClientEditSection.address)) {
+      data['addresses'] = _addresses.map((item) => item.toJson()).toList();
+    }
     Navigator.pop(context, data);
   }
+
+  bool _shows(ClientEditSection section) =>
+      widget.section == null || widget.section == section;
+
+  List<String> get _visibleFieldKeys => switch (widget.section) {
+    ClientEditSection.name => const <String>['name'],
+    ClientEditSection.registration => const <String>[
+      'legal_name',
+      'tax_id',
+      'registration_number',
+    ],
+    ClientEditSection.contact => const <String>['website'],
+    null => const <String>[
+      'name',
+      'legal_name',
+      'tax_id',
+      'registration_number',
+      'website',
+    ],
+    _ => const <String>[],
+  };
+
+  String get _dialogTitle => switch (widget.section) {
+    ClientEditSection.name => 'Edytuj nazwę klienta',
+    ClientEditSection.basic => 'Edytuj dane podstawowe',
+    ClientEditSection.registration => 'Edytuj dane rejestrowe',
+    ClientEditSection.contact => 'Edytuj kontakt',
+    ClientEditSection.address => 'Edytuj adres',
+    ClientEditSection.system => 'Edytuj datę dodania',
+    null => 'Edytuj klienta',
+  };
 
   Future<void> _selectAddedDate() async {
     final DateTime today = DateUtils.dateOnly(DateTime.now());
@@ -284,6 +385,7 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
     'name': 'Nazwa / imię i nazwisko',
     'legal_name': 'Nazwa prawna',
     'tax_id': 'NIP / tax ID',
+    'registration_number': 'Numer rejestracyjny',
     'website': 'Strona WWW',
   }[key]!;
 }
@@ -466,6 +568,10 @@ class _AddressEditor extends StatelessWidget {
                 TextFormField(
                   controller: item.countryCode,
                   decoration: const InputDecoration(labelText: 'Kod kraju'),
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (value) => value?.trim().length == 2
+                      ? null
+                      : 'Kod kraju musi mieć dokładnie 2 znaki.',
                 ),
               ],
             ),

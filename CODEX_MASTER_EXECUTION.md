@@ -70,6 +70,15 @@ and conditional Client Realizacja projection are verified. Flutter analyze and
 Current execution decision: **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI — NEXT,
 NOT STARTED.** Do not start it without a new owner prompt.
 
+**OWNER MICRO-FIX — CLIENT DETAILS SECTION EDITING — COMPLETE.** Client
+Details retains the full `Edytuj klienta` action and now provides bounded local
+edit flows for name, basic data, registration data, contacts, structured
+addresses and the added date. The flows reuse the existing partial Client
+update/audit contract and refresh canonical Client providers after save. No
+backend or schema change, production business write, release, CHUNK 15 work or
+CHUNK 16 work occurred. Flutter analyze, focused `26/26` and clean full
+`260/260` tests pass. The next execution decision remains CHUNK 15, not started.
+
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application
 engine, and the live connection must return the same name from

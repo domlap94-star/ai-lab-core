@@ -4,6 +4,193 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('section editors expose only their canonical fields', (
+    WidgetTester tester,
+  ) async {
+    final client = _client(
+      primaryEmail: 'jan@example.com',
+      primaryPhone: '+48 500 000 001',
+      addresses: const <ClientAddress>[
+        ClientAddress(
+          id: 1,
+          label: 'Siedziba',
+          street: 'Polna',
+          buildingNumber: '1',
+          postalCode: '00-001',
+          city: 'Warszawa',
+          countryCode: 'PL',
+          isPrimary: true,
+        ),
+      ],
+    );
+
+    await _pumpDialog(tester, client, section: ClientEditSection.name);
+    expect(find.text('Edytuj nazwę klienta'), findsOneWidget);
+    expect(find.text('Nazwa / imię i nazwisko'), findsOneWidget);
+    expect(find.text('Typ klienta'), findsNothing);
+    expect(find.text('NIP / tax ID'), findsNothing);
+
+    await _pumpDialog(tester, client, section: ClientEditSection.basic);
+    expect(find.text('Typ klienta'), findsOneWidget);
+    expect(find.text('Branża'), findsOneWidget);
+    expect(find.text('Nazwa / imię i nazwisko'), findsNothing);
+    expect(find.text('Nazwa prawna'), findsNothing);
+
+    await _pumpDialog(tester, client, section: ClientEditSection.registration);
+    expect(find.text('Pełna nazwa prawna'), findsNothing);
+    expect(find.text('Nazwa prawna'), findsOneWidget);
+    expect(find.text('NIP / tax ID'), findsOneWidget);
+    expect(find.text('Numer rejestracyjny'), findsOneWidget);
+    expect(find.text('Dodaj telefon'), findsNothing);
+
+    await _pumpDialog(tester, client, section: ClientEditSection.contact);
+    expect(find.text('Dodaj e-mail'), findsOneWidget);
+    expect(find.text('Dodaj telefon'), findsOneWidget);
+    expect(find.text('Strona WWW'), findsOneWidget);
+    expect(find.byKey(const Key('client-address-editor-0')), findsNothing);
+
+    await _pumpDialog(tester, client, section: ClientEditSection.address);
+    expect(find.byKey(const Key('client-address-editor-0')), findsOneWidget);
+    expect(find.text('Dodaj e-mail'), findsNothing);
+    expect(find.text('Data dodania'), findsNothing);
+
+    await _pumpDialog(tester, client, section: ClientEditSection.system);
+    expect(find.byKey(const Key('client-added-date-field')), findsOneWidget);
+    expect(find.text('Nazwa / imię i nazwisko'), findsNothing);
+    expect(find.text('Dodaj adres'), findsNothing);
+  });
+
+  testWidgets(
+    'contact section preserves primary lists and address edits fields',
+    (WidgetTester tester) async {
+      final client = _client(
+        primaryEmail: 'jan@example.com',
+        primaryPhone: '+48 500 000 001',
+        addresses: const <ClientAddress>[
+          ClientAddress(
+            id: 1,
+            label: 'Siedziba',
+            street: 'Stara',
+            buildingNumber: '1',
+            unitNumber: '2',
+            postalCode: '00-001',
+            city: 'Warszawa',
+            countryCode: 'PL',
+            isPrimary: true,
+          ),
+        ],
+      );
+      Map<String, dynamic>? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () async {
+                result = await showDialog<Map<String, dynamic>>(
+                  context: context,
+                  builder: (_) => ClientEditDialog(
+                    client: client,
+                    section: ClientEditSection.contact,
+                  ),
+                );
+              },
+              child: const Text('Kontakt'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Kontakt'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, '+48 500 000 001'),
+        '+48 600 000 002',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+      await tester.pumpAndSettle();
+      expect(
+        result?.keys,
+        unorderedEquals(<String>['website', 'emails', 'phones']),
+      );
+      expect(
+        (result?['phones'] as List<dynamic>).single['value'],
+        '+48 600 000 002',
+      );
+      expect((result?['phones'] as List<dynamic>).single['is_primary'], isTrue);
+
+      result = null;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => FilledButton(
+              onPressed: () async {
+                result = await showDialog<Map<String, dynamic>>(
+                  context: context,
+                  builder: (_) => ClientEditDialog(
+                    client: client,
+                    section: ClientEditSection.address,
+                  ),
+                );
+              },
+              child: const Text('Adres'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Adres'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Stara'),
+        'Nowa',
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+      await tester.pumpAndSettle();
+      expect(result?.keys, unorderedEquals(<String>['addresses']));
+      expect((result?['addresses'] as List<dynamic>).single['street'], 'Nowa');
+    },
+  );
+
+  testWidgets('section save returns only visible fields', (
+    WidgetTester tester,
+  ) async {
+    final client = _client(
+      clientAddedAt: DateTime(2020, 5, 6),
+      effectiveAddedDate: DateTime(2020, 5, 6),
+      addresses: const <ClientAddress>[
+        ClientAddress(
+          id: 1,
+          label: 'Siedziba',
+          street: 'Polna',
+          buildingNumber: '1',
+          postalCode: '00-001',
+          city: 'Warszawa',
+          countryCode: 'PL',
+          isPrimary: true,
+        ),
+      ],
+    );
+    final name = await _openAndSaveDialog(
+      tester,
+      client,
+      section: ClientEditSection.name,
+    );
+    expect(name?.keys, unorderedEquals(<String>['name']));
+
+    final address = await _openAndSaveDialog(
+      tester,
+      client,
+      section: ClientEditSection.address,
+    );
+    expect(address?.keys, unorderedEquals(<String>['addresses']));
+    expect((address?['addresses'] as List<dynamic>).single['street'], 'Polna');
+
+    final system = await _openAndSaveDialog(
+      tester,
+      client,
+      section: ClientEditSection.system,
+    );
+    expect(system, <String, dynamic>{'client_added_at': '2020-05-06'});
+  });
+
   testWidgets('initializes separate email and phone contact controllers', (
     WidgetTester tester,
   ) async {
@@ -189,10 +376,16 @@ void main() {
   }
 }
 
-Future<void> _pumpDialog(WidgetTester tester, Client client) async {
+Future<void> _pumpDialog(
+  WidgetTester tester,
+  Client client, {
+  ClientEditSection? section,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: Scaffold(body: ClientEditDialog(client: client)),
+      home: Scaffold(
+        body: ClientEditDialog(client: client, section: section),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -202,6 +395,7 @@ Future<Map<String, dynamic>?> _openAndSaveDialog(
   WidgetTester tester,
   Client client, {
   bool clear = false,
+  ClientEditSection? section,
 }) async {
   Map<String, dynamic>? result;
   await tester.pumpWidget(
@@ -212,7 +406,8 @@ Future<Map<String, dynamic>?> _openAndSaveDialog(
           onPressed: () async {
             result = await showDialog<Map<String, dynamic>>(
               context: context,
-              builder: (_) => ClientEditDialog(client: client),
+              builder: (_) =>
+                  ClientEditDialog(client: client, section: section),
             );
           },
           child: const Text('Open'),

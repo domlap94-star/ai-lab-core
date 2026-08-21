@@ -1407,6 +1407,27 @@ RELEASE D.**
 Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
 NOT STARTED**. A new owner prompt is required.
 
+## OWNER MICRO-FIX — CLIENT DETAILS SECTION EDITING
+
+**[✓] COMPLETE — 2026-08-21. NO RELEASE.**
+
+- Client Details retains the complete `Edytuj klienta` flow and adds local
+  `Edytuj` actions for the client name, basic data, registration data,
+  contacts, addresses and system information.
+- Each local action exposes only its bounded field set. Contact editing keeps
+  multiple phone/e-mail entries and primary selection, address editing uses
+  the canonical structured address fields, and system editing exposes only
+  the business added date.
+- Section saves reuse the existing partial Client update contract, validation
+  and audit path, then refresh Client Details and the Clients projection. No
+  backend change or database migration was required.
+- Flutter analyze passes, focused Client editing tests pass `26/26`, and the
+  clean discovered Flutter suite passes `260/260`, including 360/390/600/1200
+  responsive coverage. No production business write or release occurred.
+
+Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
+NOT STARTED**. CHUNK 16 is also not started.
+
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
 **Priority: P1**

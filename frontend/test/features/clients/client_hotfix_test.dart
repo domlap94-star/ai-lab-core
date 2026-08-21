@@ -128,6 +128,17 @@ class _StatusRepository extends ClientsRepository {
   int callWrites = 0;
   int? callContactId;
   bool failCallWrite = false;
+  Map<String, dynamic>? updatedData;
+
+  @override
+  Future<Client> updateClient({
+    required AuthSession session,
+    required int clientId,
+    required Map<String, dynamic> data,
+  }) async {
+    updatedData = Map<String, dynamic>.of(data);
+    return _client;
+  }
 
   @override
   Future<Map<String, dynamic>> bulkWorkflowStatus({
@@ -512,9 +523,19 @@ void main() {
     final Finder headerCard = find.byKey(const Key('client-header-card'));
     final Finder headerRow = find.byKey(const Key('client-header-row'));
     expect(
-      find.descendant(of: actions, matching: find.text('Edytuj')),
+      find.descendant(of: actions, matching: find.text('Edytuj klienta')),
       findsOneWidget,
     );
+    for (final Key key in const <Key>[
+      Key('client-section-edit-name'),
+      Key('client-section-edit-basic'),
+      Key('client-section-edit-registration'),
+      Key('client-section-edit-contact'),
+      Key('client-section-edit-address'),
+      Key('client-section-edit-system'),
+    ]) {
+      expect(find.byKey(key), findsOneWidget);
+    }
     expect(
       find.descendant(of: actions, matching: find.text('Przenieś do kosza')),
       findsNothing,
@@ -602,6 +623,102 @@ void main() {
     );
     expect(launcherCalls, 1);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  for (final width in <double>[360, 390, 600, 1200]) {
+    testWidgets('Client Details section actions fit at ${width.toInt()} px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = Size(width, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final container = ProviderContainer(
+        overrides: [
+          authControllerProvider.overrideWith(_StatusAuthController.new),
+          clientDetailsProvider.overrideWith(
+            (Ref ref, int id) async => _client,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(authControllerProvider.future);
+      final router = _router(initialLocation: '/clients/123');
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('client-full-edit')), findsOneWidget);
+      expect(find.byKey(const Key('client-section-edit-name')), findsOneWidget);
+      expect(
+        find.byKey(const Key('client-section-edit-basic')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('client-section-edit-registration')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('client-section-edit-contact')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('client-section-edit-address')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('client-section-edit-system')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('section save uses partial update and refreshes Client Details', (
+    tester,
+  ) async {
+    final repository = _StatusRepository();
+    var detailLoads = 0;
+    final container = ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(_StatusAuthController.new),
+        clientsRepositoryProvider.overrideWithValue(repository),
+        clientDetailsProvider.overrideWith((Ref ref, int id) async {
+          detailLoads += 1;
+          return _client;
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(authControllerProvider.future);
+    final router = _router(initialLocation: '/clients/123');
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('client-section-edit-system')),
+    );
+    await tester.tap(find.byKey(const Key('client-section-edit-system')));
+    await tester.pumpAndSettle();
+    expect(find.text('Edytuj datę dodania'), findsOneWidget);
+    expect(find.text('Nazwa / imię i nazwisko'), findsNothing);
+    await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+    await tester.pumpAndSettle();
+    expect(
+      repository.updatedData?.keys,
+      unorderedEquals(<String>['client_added_at']),
+    );
+    expect(detailLoads, greaterThan(1));
+    expect(find.text('Sekcja klienta zapisana.'), findsOneWidget);
   });
 }
 

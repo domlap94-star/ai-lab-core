@@ -12,6 +12,7 @@ import '../application/clients_controller.dart';
 import '../application/client_workflow_status.dart';
 import '../../auth/application/auth_controller.dart';
 import '../domain/client.dart';
+import '../domain/industry.dart';
 import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
 import 'client_contact_actions.dart';
@@ -84,6 +85,8 @@ class ClientDetailsPage extends ConsumerWidget {
               client: client,
               emailSourceId: emailSourceId,
               onEdit: () => _editClient(context, ref, client),
+              onEditSection: (section) =>
+                  _editClientSection(context, ref, client, section),
               onEditNotes: () => _editNotes(context, ref, client),
               onDelete: () => _deleteClient(context, ref, client),
             );
@@ -98,12 +101,51 @@ class ClientDetailsPage extends ConsumerWidget {
     WidgetRef ref,
     Client client,
   ) async {
+    await _openClientEditor(context, ref, client, null);
+  }
+
+  Future<void> _editClientSection(
+    BuildContext context,
+    WidgetRef ref,
+    Client client,
+    ClientEditSection section,
+  ) async {
+    await _openClientEditor(context, ref, client, section);
+  }
+
+  Future<void> _openClientEditor(
+    BuildContext context,
+    WidgetRef ref,
+    Client client,
+    ClientEditSection? section,
+  ) async {
+    List<Industry> industries = const <Industry>[];
+    if (section == ClientEditSection.basic || section == null) {
+      try {
+        industries = await ref.read(industriesProvider.future);
+      } catch (_) {
+        industries = client.industry == null
+            ? const <Industry>[]
+            : <Industry>[client.industry!];
+      }
+    }
+    if (!context.mounted) return;
     final data = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (_) => ClientEditDialog(client: client),
+      builder: (_) => ClientEditDialog(
+        client: client,
+        section: section,
+        industries: industries,
+      ),
     );
     if (data == null || !context.mounted) return;
-    await _update(context, ref, client.id, data, 'Dane klienta zapisane.');
+    await _update(
+      context,
+      ref,
+      client.id,
+      data,
+      section == null ? 'Dane klienta zapisane.' : 'Sekcja klienta zapisana.',
+    );
   }
 
   Future<void> _editNotes(
@@ -273,6 +315,7 @@ class _ClientDetails extends ConsumerStatefulWidget {
   const _ClientDetails({
     required this.client,
     required this.onEdit,
+    required this.onEditSection,
     required this.onEditNotes,
     required this.onDelete,
     this.emailSourceId,
@@ -280,6 +323,7 @@ class _ClientDetails extends ConsumerStatefulWidget {
 
   final Client client;
   final VoidCallback onEdit;
+  final ValueChanged<ClientEditSection> onEditSection;
   final VoidCallback onEditNotes;
   final VoidCallback onDelete;
   final int? emailSourceId;
@@ -292,6 +336,7 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
   bool _callPending = false;
   Client get client => widget.client;
   VoidCallback get onEdit => widget.onEdit;
+  ValueChanged<ClientEditSection> get onEditSection => widget.onEditSection;
   VoidCallback get onEditNotes => widget.onEditNotes;
   VoidCallback get onDelete => widget.onDelete;
   int? get emailSourceId => widget.emailSourceId;
@@ -319,9 +364,10 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
                 runSpacing: 8,
                 children: <Widget>[
                   OutlinedButton.icon(
+                    key: const Key('client-full-edit'),
                     onPressed: onEdit,
                     icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Edytuj'),
+                    label: const Text('Edytuj klienta'),
                   ),
                   if (isAdmin)
                     TextButton.icon(
@@ -378,6 +424,12 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
                           ],
                         ),
                       ),
+                      TextButton.icon(
+                        key: const Key('client-section-edit-name'),
+                        onPressed: () => onEditSection(ClientEditSection.name),
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text('Edytuj'),
+                      ),
                     ],
                   ),
                 ),
@@ -388,6 +440,8 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
               _DetailsSection(
                 title: 'Dane podstawowe',
                 icon: Icons.badge_outlined,
+                editKey: const Key('client-section-edit-basic'),
+                onEdit: () => onEditSection(ClientEditSection.basic),
                 children: <Widget>[
                   _DetailRow(
                     label: 'Typ klienta',
@@ -402,6 +456,8 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
               _DetailsSection(
                 title: 'Dane rejestrowe',
                 icon: Icons.assignment_outlined,
+                editKey: const Key('client-section-edit-registration'),
+                onEdit: () => onEditSection(ClientEditSection.registration),
                 children: <Widget>[
                   _DetailRow(
                     label: 'NIP / identyfikator podatkowy',
@@ -417,6 +473,8 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
               _DetailsSection(
                 title: 'Kontakt',
                 icon: Icons.contact_phone_outlined,
+                editKey: const Key('client-section-edit-contact'),
+                onEdit: () => onEditSection(ClientEditSection.contact),
                 children: <Widget>[
                   ...(client.emails.isNotEmpty
                           ? client.emails
@@ -488,6 +546,8 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
               _DetailsSection(
                 title: 'Adres',
                 icon: Icons.location_on_outlined,
+                editKey: const Key('client-section-edit-address'),
+                onEdit: () => onEditSection(ClientEditSection.address),
                 children: <Widget>[
                   if (client.addresses.isNotEmpty)
                     ...client.addresses.map(
@@ -627,6 +687,8 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
               _DetailsSection(
                 title: 'Informacje systemowe',
                 icon: Icons.info_outline,
+                editKey: const Key('client-section-edit-system'),
+                onEdit: () => onEditSection(ClientEditSection.system),
                 children: <Widget>[
                   _DetailRow(label: 'ID klienta', value: client.id.toString()),
                   _DetailRow(
@@ -776,11 +838,15 @@ class _DetailsSection extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.children,
+    this.onEdit,
+    this.editKey,
   });
 
   final String title;
   final IconData icon;
   final List<Widget> children;
+  final VoidCallback? onEdit;
+  final Key? editKey;
 
   @override
   Widget build(BuildContext context) {
@@ -804,6 +870,13 @@ class _DetailsSection extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (onEdit != null)
+                  TextButton.icon(
+                    key: editKey,
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Edytuj'),
+                  ),
               ],
             ),
             const SizedBox(height: 20),
