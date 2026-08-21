@@ -1527,8 +1527,8 @@ reserved by this decision.
 
 **Priority: P1**
 
-**[~] RUNTIME IMPLEMENTATION COMPLETE; AWAITING PRODUCTION MIGRATION + KB
-VECTOR APPROVAL — 2026-08-22.** The additive,
+**[~] PRODUCTION MIGRATION COMPLETE; AWAITING KB VECTOR WRITE APPROVAL —
+2026-08-22.** The additive,
 separate Knowledge Base domain, Administrator-only API and Polish Flutter
 workspace are implemented. Metadata, bounded upload, native extraction, OCR,
 page-level provenance/citations, duplicate-checksum warning, current/
@@ -1538,9 +1538,12 @@ domain and storage projection.
 
 The migration `followup_admin_knowledge_base_20260821` (parent
 `followup_admin_backup_restore_ui_20260821`) passes isolated upgrade,
-downgrade and re-upgrade with zero backfill. It was not applied to production;
-the live head remains `followup_admin_backup_restore_ui_20260821` and
-production Knowledge Base items remain zero.
+downgrade and re-upgrade with zero backfill and is now applied to production.
+The live head is `followup_admin_knowledge_base_20260821`. All Knowledge Base
+and generic analysis tables were empty at migration acceptance: zero items,
+pages, processing jobs, analysis artifacts, analysis jobs and analysis
+sources. The backend, empty-state projection and zero-work dispatcher smoke
+pass on the new schema.
 
 Vector design is ready in `FOLLOWUP_CHUNK16_KNOWLEDGE_BASE_VECTOR_DESIGN.md`:
 separate `ai_lab_knowledge_base_chunks`, canonical
@@ -1563,12 +1566,12 @@ serializes both job types through one Temporary Chat browser arbiter.
 The vector source service is implemented fail-closed behind configuration. Its
 isolated Qdrant 1.18.3 proof passed source-only payload isolation, hybrid
 retrieval, current/superseded filtering, idempotent re-index and exact ownership
-delete. Production still has no KB tables/rows/collection/vectors and
-`ai_lab_document_chunks` remains 57 points.
+delete. Production now has the empty KB/analysis schema, but still has no KB
+rows, collection or vectors; `ai_lab_document_chunks` remains 57 points.
 
-Exact next gate: `FOLLOWUP_ADMIN_KNOWLEDGE_BASE_MIGRATION_APPROVAL_REQUIRED`.
-After migration, vector execution still requires
-`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
+The production migration approval was consumed. Exact next gate:
+`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`. Vector execution
+remains fail-closed and `ai_lab_knowledge_base_chunks` remains absent.
 CHUNK 17 is not started and the Phase D no-intermediate-release policy remains
 in force.
 
