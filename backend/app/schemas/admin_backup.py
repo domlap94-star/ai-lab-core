@@ -17,7 +17,7 @@ class BackupScheduleWrite(BaseModel):
     cadence: BackupCadence
     local_time: time
     weekday: int | None = Field(None, ge=1, le=7)
-    month_day: int | None = Field(None, ge=1, le=31)
+    month_day: int | None = Field(None, ge=1, le=28)
 
     @field_validator("name", "destination")
     @classmethod
@@ -35,6 +35,8 @@ class BackupScheduleWrite(BaseModel):
         )
         if not valid:
             raise ValueError("Invalid cadence fields")
+        if time(2, 0) <= self.local_time < time(3, 0):
+            raise ValueError("backup_schedule_dst_unsafe_time")
         return self
 
 
@@ -44,6 +46,14 @@ class BackupScheduleRead(BackupScheduleWrite):
     next_run_at: datetime
     created_at: datetime
     updated_at: datetime
+    sync_status: Literal["synced", "pending_sync", "sync_failed"] = "pending_sync"
+    host_task_name: str | None = None
+    host_enabled: bool = False
+    host_next_run_at: datetime | None = None
+    host_last_run_at: datetime | None = None
+    host_last_result: int | None = None
+    last_backup_at: datetime | None = None
+    last_backup_result: str | None = None
     model_config = {"from_attributes": True}
 
 

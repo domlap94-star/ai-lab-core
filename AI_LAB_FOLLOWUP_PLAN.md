@@ -1425,14 +1425,13 @@ NOT STARTED**. A new owner prompt is required.
   clean discovered Flutter suite passes `260/260`, including 360/390/600/1200
   responsive coverage. No production business write or release occurred.
 
-Canonical next roadmap item remains **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI —
-NOT STARTED**. CHUNK 16 is also not started.
+The section-editing micro-fix is complete. CHUNK 16 remains not started.
 
 ## FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI
 
 **Priority: P1**
 
-**[~] BACKUP + RESTORE IMPLEMENTATION COMPLETE; SCHEDULER AND PRODUCTION-RESTORE APPROVALS REMAIN — 2026-08-21.** The owner expanded
+**[✓] FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE — COMPLETE — 2026-08-21.** The owner expanded
 this chunk to `ADMIN BACKUP + CONTROLLED RESTORE UI`. The additive production
 revision `followup_admin_backup_restore_ui_20260821` is present and the source
 implements bounded backup schedules/run history, manual backup delegation,
@@ -1463,13 +1462,23 @@ Qdrant i n8n/config. Zakaz arbitrary filesystem backup.
 manifest/hash verification i audit. Path validation blokuje repo, active data
 dir, traversal oraz brak wolnego miejsca.
 
-Human gate: dla Task Scheduler wymagany
-`FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`.
+Windows backup scheduler synchronization is active. The database is canonical;
+each enabled schedule maps to one bounded managed task named
+`NEXT Stabil - Backup - <schedule_id>` and invokes only the trusted runner with
+the numeric ID. The historical 03:00 Daily Backup was imported as schedule `1`
+and disabled only during a rollback-safe handover; the legacy task remains
+disabled, so no duplicate schedule exists. A database-only scheduled-path run
+created retained checkpoint `20260821T154344Z`, recorded `trigger=scheduled`,
+verified its manifest and SHA-256, and finished with Windows result `0`. The
+acceptance-only schedule is disabled and its host task removed. CRUD, maximum
+10, DST-safe Warsaw mapping (monthly day bounded to 1–28 for exact native
+Windows parity), reconciliation/drift repair, operation locking,
+unmanaged-task protection, truthful Flutter status and run history pass.
 
-Production restore remains gated by
-`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Task Scheduler changes remain
-gated by `FOLLOWUP_BACKUP_SCHEDULER_CHANGE_APPROVAL_REQUIRED`. No production
-restore, Task Scheduler mutation or release was performed.
+Production restore remains fail-closed behind the permanent destructive
+operational gate `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Isolated
+Database and Full restore proofs satisfy implementation acceptance; no healthy
+production system was overwritten to complete this chunk. No release occurred.
 
 ## PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP
 
@@ -1794,7 +1803,8 @@ DATA SAFETY
 
 ## Active next work
 
-**PRE-CHUNK15 TRASH HOTFIX AND OWNER CALENDAR/REALIZATION PATCH COMPLETE.**
+**FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE — COMPLETE.**
 
-Current gate: `FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI`.
-CHUNK 15 is NOT STARTED and retains its own scheduler/backup execution gates.
+Current next item: `PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP` — NOT STARTED.
+Production restore remains fail-closed behind
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. CHUNK 16 is not started.

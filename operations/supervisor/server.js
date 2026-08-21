@@ -7,6 +7,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { VisionQueue, MAX_BODY_BYTES } = require('./vision_queue');
 const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
+const { previewSchedules, reconcileSchedules } = require('./backup_scheduler');
 
 const qdrantSnapshotValidationCache = new Map();
 
@@ -271,6 +272,13 @@ function startBackupOperation(payload) {
   if (!/^\d+\.\d+\.\d+\+\d+$/.test(release)) throw new Error('backup_release_invalid');
   const runId = Number(payload.run_id);
   if (!Number.isSafeInteger(runId) || runId <= 0) throw new Error('backup_run_id_invalid');
+  const trigger = String(payload.trigger || 'manual');
+  if (!['manual', 'scheduled', 'pre_restore'].includes(trigger)) throw new Error('backup_trigger_invalid');
+  const scheduleId = payload.schedule_id == null ? null : Number(payload.schedule_id);
+  if (trigger === 'scheduled' && (!Number.isSafeInteger(scheduleId) || scheduleId <= 0)) {
+    throw new Error('backup_schedule_id_invalid');
+  }
+  if (trigger !== 'scheduled' && scheduleId != null) throw new Error('backup_schedule_id_invalid');
   const operationId = crypto.randomUUID();
   const operation = {
     operation_id: operationId, status: 'running', stage: 'validating',
@@ -283,8 +291,9 @@ function startBackupOperation(payload) {
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', BACKUP_SCRIPT,
     '-RepositoryRoot', PROJECT_DIR, '-BackupRoot', destination, '-Release', release,
     '-QdrantCollection', 'ai_lab_document_chunks', '-Scope', scope,
-    '-RunId', String(runId), '-Trigger', 'manual',
+    '-RunId', String(runId), '-Trigger', trigger,
   ];
+  if (scheduleId != null) args.push('-ScheduleId', String(scheduleId));
   const child = spawn('powershell.exe', args, { cwd: PROJECT_DIR, windowsHide: true, shell: false });
   let stdout = ''; let stderr = '';
   child.stdout.on('data', (chunk) => {
@@ -599,6 +608,16 @@ async function handle(req, res) {
         const payload = await readJsonBody(req);
         if (!Array.isArray(payload.destinations)) throw new Error('backup_destinations_invalid');
         sendJson(res, 200, { items: await discoverCheckpoints(payload.destinations) });
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/schedules/preview') {
+        const payload = await readJsonBody(req);
+        sendJson(res, 200, await previewSchedules(PROJECT_DIR, payload.schedules));
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/schedules/reconcile') {
+        const payload = await readJsonBody(req);
+        sendJson(res, 200, await reconcileSchedules(PROJECT_DIR, payload.schedules));
         return;
       }
       sendJson(res, 404, { code: 'not_found' });

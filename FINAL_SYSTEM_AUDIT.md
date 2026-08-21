@@ -674,3 +674,32 @@ and Qdrant remains at 57 points. Release-attributable business writes, Gmail
 sends, n8n changes, Vision jobs and Qdrant writes are zero. Physical Android
 smoke is `UNVERIFIED` because ADB is unavailable. Canonical next work remains
 FOLLOW-UP CHUNK 15, which was not started.
+
+## CHUNK 15 scheduler completion addendum — 2026-08-21
+
+FOLLOW-UP CHUNK 15 Administrator Backup + Controlled Restore is complete at
+production DB head `followup_admin_backup_restore_ui_20260821`. The canonical
+03:00 Europe/Warsaw Full schedule is stored in `backup_schedules` as ID `1`
+and synchronized to the single enabled managed Windows task
+`NEXT Stabil - Backup - 1`. The historical `NEXT Stabil - Daily Backup` task
+is retained disabled, eliminating duplicate execution; Trash Purge remains
+enabled/Ready with its original four-hour, batch-100 definition.
+
+Scheduled-path acceptance used temporary database-only schedule `2` and
+created retained checkpoint `20260821T154344Z`. Backup run `1` records
+`trigger=scheduled`, completed/verified, 464,454,695 bytes, manifest schema
+`NEXT_STABIL_BACKUP_V1`, and a matching PostgreSQL artifact SHA-256
+`ad20ed8b52982bb9e8db3dcbabfcfa0d9f19076437daffdb62f34c8bd207228e`.
+The acceptance schedule is disabled and its managed task removed; history and
+checkpoint remain. No retention deletion was introduced.
+
+Isolated guarded backend Backup/Restore tests, Node scheduler tests and
+PowerShell parsing pass. Actual Windows proofs cover missing-task creation,
+trigger update, disabled-task removal and fail-closed unmanaged-name collision.
+Flutter analyze and focused `8/8` pass; the full discovered suite passes
+`268/268`. Android, Web and Windows debug builds pass. Qdrant points, CRM data,
+Gmail, n8n and Vision were unchanged, and no production restore occurred.
+Production restore remains a permanent destructive operational gate:
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. The next roadmap item is the
+owner-inserted PRE-CHUNK16 Windows Disaster Recovery App, not started; CHUNK 16
+is not started and no release was performed.

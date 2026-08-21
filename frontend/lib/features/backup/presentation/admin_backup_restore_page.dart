@@ -228,20 +228,26 @@ class _SchedulesSection extends ConsumerWidget {
         loading: () => const LinearProgressIndicator(),
         error: (_, _) => const Text('Nie udało się pobrać harmonogramów.'),
         data: (items) => items.isEmpty
-            ? const Text(
-                'Brak skonfigurowanych harmonogramów. Aktywacja Windows Task Scheduler wymaga osobnej zgody.',
-              )
+            ? const Text('Brak skonfigurowanych harmonogramów.')
             : Column(
                 children: items
                     .map(
                       (item) => ListTile(
                         title: Text(item.name),
                         subtitle: Text(
-                          '${item.scope.label} • ${item.cadence} ${item.localTime}\nNastępne wyliczone uruchomienie: ${_date(item.nextRunAt)}',
+                          [
+                            '${item.scope.label} • ${_cadenceLabel(item.cadence)} ${item.localTime.substring(0, 5)}',
+                            'Status: ${_syncLabel(item)}',
+                            'Następne uruchomienie: ${_date(item.hostNextRunAt ?? item.nextRunAt)}',
+                            if (item.lastBackupAt != null)
+                              'Ostatni backup: ${_date(item.lastBackupAt!)} • ${_backupResultLabel(item.lastBackupResult)}',
+                          ].join('\n'),
                         ),
                         leading: Icon(
-                          item.enabled
+                          item.hostEnabled && item.syncStatus == 'synced'
                               ? Icons.schedule
+                              : item.syncStatus == 'sync_failed'
+                              ? Icons.error_outline
                               : Icons.schedule_outlined,
                         ),
                         trailing: Wrap(
@@ -293,8 +299,13 @@ class _SchedulesSection extends ConsumerWidget {
     BackupScope scope = item?.scope ?? BackupScope.full;
     String cadence = item?.cadence ?? 'daily';
     bool enabled = item?.enabled ?? false;
-    int weekday = 1;
-    int monthDay = 1;
+    int weekday = item?.weekday ?? 1;
+    int monthDay = item?.monthDay ?? 1;
+    final parts = (item?.localTime ?? '03:00:00').split(':');
+    TimeOfDay localTime = TimeOfDay(
+      hour: int.tryParse(parts.first) ?? 3,
+      minute: int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0,
+    );
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -350,6 +361,21 @@ class _SchedulesSection extends ConsumerWidget {
                   onChanged: (value) =>
                       setDialogState(() => cadence = value ?? cadence),
                 ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Godzina lokalna'),
+                  subtitle: Text(localTime.format(context)),
+                  trailing: const Icon(Icons.schedule),
+                  onTap: () async {
+                    final selected = await showTimePicker(
+                      context: context,
+                      initialTime: localTime,
+                    );
+                    if (selected != null) {
+                      setDialogState(() => localTime = selected);
+                    }
+                  },
+                ),
                 if (cadence == 'weekly')
                   DropdownButtonFormField<int>(
                     initialValue: weekday,
@@ -366,21 +392,24 @@ class _SchedulesSection extends ConsumerWidget {
                     onChanged: (value) => weekday = value ?? weekday,
                   ),
                 if (cadence == 'monthly')
-                  TextFormField(
-                    initialValue: '$monthDay',
-                    keyboardType: TextInputType.number,
+                  DropdownButtonFormField<int>(
+                    initialValue: monthDay.clamp(1, 28),
                     decoration: const InputDecoration(
-                      labelText: 'Dzień miesiąca',
+                      labelText: 'Dzień miesiąca (1–28)',
                     ),
-                    onChanged: (value) =>
-                        monthDay = int.tryParse(value) ?? monthDay,
+                    items: List.generate(
+                      28,
+                      (index) => DropdownMenuItem(
+                        value: index + 1,
+                        child: Text('${index + 1}'),
+                      ),
+                    ),
+                    onChanged: (value) => monthDay = value ?? monthDay,
                   ),
                 SwitchListTile(
                   value: enabled,
                   onChanged: (value) => setDialogState(() => enabled = value),
-                  title: const Text(
-                    'Włączony (konfiguracja; aktywacja schedulera osobno)',
-                  ),
+                  title: const Text('Włącz harmonogram systemowy'),
                 ),
               ],
             ),
@@ -399,25 +428,38 @@ class _SchedulesSection extends ConsumerWidget {
       ),
     );
     if (saved != true) return;
-    await ref
-        .read(backupApiProvider)
-        .saveSchedule(
-          session: requireBackupSessionFromAuth(
-            ref.read(authControllerProvider),
+    try {
+      await ref
+          .read(backupApiProvider)
+          .saveSchedule(
+            session: requireBackupSessionFromAuth(
+              ref.read(authControllerProvider),
+            ),
+            id: item?.id,
+            payload: <String, dynamic>{
+              'name': name.text.trim(),
+              'enabled': enabled,
+              'scope': scope.wireName,
+              'destination': destination.text.trim(),
+              'cadence': cadence,
+              'local_time':
+                  '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}:00',
+              'weekday': cadence == 'weekly' ? weekday : null,
+              'month_day': cadence == 'monthly' ? monthDay : null,
+            },
+          );
+      ref.invalidate(backupSchedulesProvider);
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _apiError(error, 'Nie udało się zsynchronizować harmonogramu.'),
+            ),
           ),
-          id: item?.id,
-          payload: <String, dynamic>{
-            'name': name.text.trim(),
-            'enabled': enabled,
-            'scope': scope.wireName,
-            'destination': destination.text.trim(),
-            'cadence': cadence,
-            'local_time': '03:00:00',
-            'weekday': cadence == 'weekly' ? weekday : null,
-            'month_day': cadence == 'monthly' ? monthDay : null,
-          },
         );
-    ref.invalidate(backupSchedulesProvider);
+      }
+    }
   }
 }
 
@@ -749,6 +791,28 @@ String _stageLabel(String value) => switch (value) {
   'failed' => 'Błąd',
   _ => value,
 };
+String _cadenceLabel(String value) => switch (value) {
+  'daily' => 'codziennie',
+  'weekly' => 'co tydzień',
+  'monthly' => 'co miesiąc',
+  _ => value,
+};
+String _syncLabel(BackupSchedule item) {
+  if (!item.enabled && item.syncStatus == 'synced') return 'Wyłączony';
+  return switch (item.syncStatus) {
+    'synced' => item.hostEnabled ? 'Aktywny' : 'Wyłączony',
+    'sync_failed' => 'Błąd synchronizacji',
+    _ => 'Oczekuje na synchronizację',
+  };
+}
+
+String _backupResultLabel(String? value) => switch (value) {
+  'completed' => 'Sukces',
+  'failed' => 'Błąd',
+  'running' => 'W toku',
+  'queued' => 'W kolejce',
+  _ => value ?? 'brak',
+};
 String _apiError(DioException error, String fallback) {
   final data = error.response?.data;
   final detail = data is Map<String, dynamic> ? data['detail'] : null;
@@ -763,6 +827,10 @@ String _apiError(DioException error, String fallback) {
     'operation_conflict' => 'Trwa inna operacja backupu lub przywracania.',
     'backup_destination_active_path' =>
       'Cel backupu nie może znajdować się w repozytorium ani aktywnych danych.',
+    'backup_schedule_dst_unsafe_time' =>
+      'Godziny 02:00–02:59 są niedostępne z powodu zmiany czasu CET/CEST.',
+    'backup_supervisor_unavailable' || 'backup_scheduler_host_failure' =>
+      'Nie udało się zsynchronizować Windows Task Scheduler.',
     _ => fallback,
   };
 }

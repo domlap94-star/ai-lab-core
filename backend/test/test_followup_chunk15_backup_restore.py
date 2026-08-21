@@ -21,6 +21,7 @@ def database_url(name: str) -> str:
 class FakeSupervisor:
     def __init__(self) -> None:
         self.started = []
+        self.reconciled = []
 
     def start_backup(self, payload):
         self.started.append(payload)
@@ -56,6 +57,20 @@ class FakeSupervisor:
             "compatibility": "compatible", "error_code": None,
         }]}
 
+    def preview_schedules(self, schedules):
+        return {"items": [{
+            "task_name": f"NEXT Stabil - Backup - {item['id']}",
+            "sync_status": "synced",
+            "actual": {
+                "enabled": item["enabled"], "next_run_at": "2026-08-22T03:00:00+02:00",
+                "last_run_at": None, "last_result": 0,
+            } if item["enabled"] else None,
+        } for item in schedules]}
+
+    def reconcile_schedules(self, schedules):
+        self.reconciled.append(schedules)
+        return {"items": [{"sync_status": "synced"} for _ in schedules], "prune": {"removed": [], "unmanaged": []}}
+
 
 def require(value: bool, message: str) -> None:
     if not value:
@@ -74,13 +89,19 @@ def expect_code(call, code: str) -> None:
 def main() -> None:
     name = require_test_database_environment()
     engine = create_engine(database_url(name))
-    from app.models.backup_operation import BackupRun, BackupSchedule
+    from app.models.backup_operation import BackupRun, BackupSchedule, RestoreRun
     from app.models.user import User
     from app.schemas.admin_backup import BackupScheduleWrite
     from app.services.backup_restore_service import BackupRestoreService
 
     with Session(engine) as db:
         assert_isolated_database(db, name)
+        # A production-copy fixture may contain legitimate operational history.
+        # Normalize only the disposable isolated database before bounded tests.
+        db.query(RestoreRun).delete(synchronize_session=False)
+        db.query(BackupRun).delete(synchronize_session=False)
+        db.query(BackupSchedule).delete(synchronize_session=False)
+        db.commit()
         actor = db.query(User).filter(User.is_active.is_(True)).order_by(User.id).first()
         require(actor is not None, "isolated fixture has no active user")
         fake = FakeSupervisor()
@@ -95,16 +116,74 @@ def main() -> None:
         before_dst = datetime(2026, 3, 28, 22, tzinfo=timezone.utc)
         next_run = service.next_run(daily, before_dst)
         require(next_run.astimezone().tzinfo is not None, "next run lost timezone")
+        winter = service.next_run(daily, datetime(2026, 1, 10, 0, tzinfo=timezone.utc))
+        summer = service.next_run(daily, datetime(2026, 7, 10, 0, tzinfo=timezone.utc))
+        require(winter.hour == 2 and summer.hour == 1, "Warsaw DST UTC mapping drifted")
+        monthly = daily.model_copy(
+            update={"name": "monthly", "cadence": "monthly", "month_day": 28}
+        )
+        monthly_next = service.next_run(
+            monthly, datetime(2026, 1, 29, 0, tzinfo=timezone.utc)
+        )
+        require(
+            monthly_next.month == 2
+            and monthly_next.day == 28
+            and monthly_next.hour == 2,
+            "Monthly Windows-safe occurrence drifted",
+        )
+        try:
+            BackupScheduleWrite(
+                name="monthly-unsafe",
+                enabled=True,
+                scope="database",
+                destination=r"C:\ai-lab-core-backups",
+                cadence="monthly",
+                local_time=time(3),
+                month_day=29,
+            )
+        except Exception:
+            pass
+        else:
+            raise AssertionError("Windows-inexact monthly day accepted")
+        try:
+            BackupScheduleWrite(name="dst", enabled=True, scope="database", destination=r"C:\ai-lab-core-backups", cadence="daily", local_time=time(2, 30))
+        except Exception as error:
+            require("backup_schedule_dst_unsafe_time" in str(error), "DST-unsafe time returned wrong validation")
+        else:
+            raise AssertionError("DST-unsafe schedule time accepted")
         for index in range(10):
             payload = daily.model_copy(update={"name": f"schedule-{index}"})
             service.create_schedule(payload, actor)
         expect_code(lambda: service.create_schedule(daily.model_copy(update={"name": "eleventh"}), actor), "backup_schedule_limit_reached")
         db.rollback()
 
+        synced = service.create_schedule(daily.model_copy(update={"name": "synced", "enabled": True}), actor)
+        service.reconcile_schedules()
+        require(fake.reconciled[-1][0]["id"] == synced.id, "schedule reconciliation lost canonical ID")
+        view = service.schedule_views()[0]
+        require(view["sync_status"] == "synced" and view["host_enabled"], "host schedule status not projected")
+        db.rollback()
+
         run = service.start_backup(scope="database", destination=r"C:\ai-lab-core-backups", actor=actor)
         require(run.status == "running" and len(fake.started) == 1, "manual backup not delegated")
+        expect_code(
+            lambda: service.start_backup(
+                scope="database",
+                destination=r"C:\ai-lab-core-backups",
+                actor=actor,
+            ),
+            "backup_already_running",
+        )
+        require(len(fake.started) == 1, "operation lock delegated a duplicate backup")
         service.refresh_run(run)
         require(run.status == "completed" and run.verified and run.artifact_count == 7, "backup completion not recorded")
+        db.rollback()
+
+        scheduled_item = service.create_schedule(
+            daily.model_copy(update={"name": "scheduled-run", "scope": "database", "enabled": True}), actor
+        )
+        scheduled = service.start_backup(scope="database", destination=r"C:\ai-lab-core-backups", actor=actor, trigger="scheduled", schedule_id=scheduled_item.id)
+        require(fake.started[-1]["trigger"] == "scheduled" and fake.started[-1]["schedule_id"] == scheduled_item.id, "scheduled identity not delegated")
         db.rollback()
 
         full_preview = service.preview(

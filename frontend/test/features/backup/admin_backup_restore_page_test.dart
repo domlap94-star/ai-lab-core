@@ -125,6 +125,7 @@ Future<_FakeBackupApi> _pump(
   WidgetTester tester, {
   required double width,
   bool admin = true,
+  List<BackupSchedule> schedules = const <BackupSchedule>[],
 }) async {
   tester.view.physicalSize = Size(width, 1800);
   tester.view.devicePixelRatio = 1;
@@ -138,7 +139,7 @@ Future<_FakeBackupApi> _pump(
       ),
       backupApiProvider.overrideWithValue(api),
       backupSchedulesProvider.overrideWith(
-        (ref) async => const <BackupSchedule>[],
+        (ref) async => schedules,
       ),
       backupRunsProvider.overrideWith((ref) async => const <BackupRun>[]),
       restoreCandidatesProvider.overrideWith(
@@ -273,5 +274,36 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('scheduler shows truthful active state and next run', (
+    tester,
+  ) async {
+    final next = DateTime(2026, 8, 22, 3);
+    await _pump(
+      tester,
+      width: 390,
+      schedules: <BackupSchedule>[
+        BackupSchedule(
+          id: 1,
+          name: 'Daily Backup',
+          enabled: true,
+          scope: BackupScope.full,
+          destination: r'C:\ai-lab-core-backups',
+          cadence: 'daily',
+          localTime: '03:00:00',
+          nextRunAt: next,
+          syncStatus: 'synced',
+          hostTaskName: 'NEXT Stabil - Backup - 1',
+          hostEnabled: true,
+          hostNextRunAt: next,
+          lastBackupAt: DateTime(2026, 8, 21, 3),
+          lastBackupResult: 'completed',
+        ),
+      ],
+    );
+    expect(find.textContaining('Status: Aktywny'), findsOneWidget);
+    expect(find.textContaining('Ostatni backup:'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

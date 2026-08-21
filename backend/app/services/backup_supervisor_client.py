@@ -37,6 +37,12 @@ class BackupSupervisorClient:
     def discover(self, destinations: list[str]) -> dict:
         return self._request("POST", "/backup/checkpoints", {"destinations": destinations})
 
+    def preview_schedules(self, schedules: list[dict]) -> dict:
+        return self._request("POST", "/backup/schedules/preview", {"schedules": schedules})
+
+    def reconcile_schedules(self, schedules: list[dict]) -> dict:
+        return self._request("POST", "/backup/schedules/reconcile", {"schedules": schedules})
+
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict:
         body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
         request = Request(

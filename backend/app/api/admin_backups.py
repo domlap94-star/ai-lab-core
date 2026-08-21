@@ -48,7 +48,7 @@ def map_error(error: Exception) -> HTTPException:
 def list_schedules(
     _: User = Depends(require_admin), db: Session = Depends(get_db)
 ) -> list[BackupScheduleRead]:
-    return [BackupScheduleRead.model_validate(item) for item in BackupRestoreService(db).list_schedules()]
+    return [BackupScheduleRead.model_validate(item) for item in BackupRestoreService(db).schedule_views()]
 
 
 @router.post("/schedules", response_model=BackupScheduleRead, status_code=status.HTTP_201_CREATED)
@@ -58,10 +58,14 @@ def create_schedule(
     db: Session = Depends(get_db),
 ) -> BackupScheduleRead:
     try:
-        item = BackupRestoreService(db).create_schedule(payload, actor)
+        service = BackupRestoreService(db)
+        item = service.create_schedule(payload, actor)
+        service.reconcile_schedules()
         db.commit(); db.refresh(item)
-        return BackupScheduleRead.model_validate(item)
-    except (BackupRestoreConflict, BackupRestoreValidation) as error:
+        return BackupScheduleRead.model_validate(
+            next(view for view in service.schedule_views() if view["id"] == item.id)
+        )
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
     except IntegrityError as error:
         db.rollback(); raise HTTPException(status_code=409, detail={"code": "backup_schedule_name_conflict"}) from error
@@ -78,10 +82,12 @@ def update_schedule(
     if item is None:
         raise HTTPException(status_code=404, detail={"code": "backup_schedule_not_found"})
     try:
-        item = BackupRestoreService(db).update_schedule(item, payload, actor)
+        service = BackupRestoreService(db)
+        item = service.update_schedule(item, payload, actor)
+        service.reconcile_schedules()
         db.commit(); db.refresh(item)
-        return BackupScheduleRead.model_validate(item)
-    except (BackupRestoreConflict, BackupRestoreValidation) as error:
+        return BackupScheduleRead.model_validate(next(view for view in service.schedule_views() if view["id"] == item.id))
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
     except IntegrityError as error:
         db.rollback(); raise HTTPException(status_code=409, detail={"code": "backup_schedule_name_conflict"}) from error
@@ -96,7 +102,13 @@ def delete_schedule(
     item = db.get(BackupSchedule, schedule_id)
     if item is None:
         raise HTTPException(status_code=404, detail={"code": "backup_schedule_not_found"})
-    BackupRestoreService(db).delete_schedule(item); db.commit()
+    service = BackupRestoreService(db)
+    try:
+        service.delete_schedule(item)
+        service.reconcile_schedules()
+        db.commit()
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.rollback(); raise map_error(error) from error
 
 
 @router.post("/run", response_model=BackupRunRead, status_code=status.HTTP_202_ACCEPTED)

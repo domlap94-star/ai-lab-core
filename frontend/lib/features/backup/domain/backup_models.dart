@@ -24,6 +24,16 @@ class BackupSchedule {
     required this.cadence,
     required this.localTime,
     required this.nextRunAt,
+    this.weekday,
+    this.monthDay,
+    this.syncStatus = 'pending_sync',
+    this.hostTaskName,
+    this.hostEnabled = false,
+    this.hostNextRunAt,
+    this.hostLastRunAt,
+    this.hostLastResult,
+    this.lastBackupAt,
+    this.lastBackupResult,
   });
   final int id;
   final String name;
@@ -33,6 +43,16 @@ class BackupSchedule {
   final String cadence;
   final String localTime;
   final DateTime nextRunAt;
+  final int? weekday;
+  final int? monthDay;
+  final String syncStatus;
+  final String? hostTaskName;
+  final bool hostEnabled;
+  final DateTime? hostNextRunAt;
+  final DateTime? hostLastRunAt;
+  final int? hostLastResult;
+  final DateTime? lastBackupAt;
+  final String? lastBackupResult;
   factory BackupSchedule.fromJson(Map<String, dynamic> json) => BackupSchedule(
     id: json['id'] as int,
     name: json['name'] as String,
@@ -42,6 +62,22 @@ class BackupSchedule {
     cadence: json['cadence'] as String,
     localTime: json['local_time'] as String,
     nextRunAt: DateTime.parse(json['next_run_at'] as String).toLocal(),
+    weekday: json['weekday'] as int?,
+    monthDay: json['month_day'] as int?,
+    syncStatus: json['sync_status'] as String? ?? 'pending_sync',
+    hostTaskName: json['host_task_name'] as String?,
+    hostEnabled: json['host_enabled'] as bool? ?? false,
+    hostNextRunAt: DateTime.tryParse(
+      json['host_next_run_at']?.toString() ?? '',
+    )?.toLocal(),
+    hostLastRunAt: DateTime.tryParse(
+      json['host_last_run_at']?.toString() ?? '',
+    )?.toLocal(),
+    hostLastResult: json['host_last_result'] as int?,
+    lastBackupAt: DateTime.tryParse(
+      json['last_backup_at']?.toString() ?? '',
+    )?.toLocal(),
+    lastBackupResult: json['last_backup_result'] as String?,
   );
 }
 

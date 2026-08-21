@@ -67,8 +67,8 @@ continuous month bars, Android widget ranges, canonical Document multi-linking
 and conditional Client Realizacja projection are verified. Flutter analyze and
 250/250 tests pass; Android/Web/Windows debug builds pass.
 
-Current execution decision: **FOLLOW-UP CHUNK 15 — ADMIN BACKUP UI — NEXT,
-NOT STARTED.** Do not start it without a new owner prompt.
+The historical pre-CHUNK15 decision is superseded by the completed CHUNK 15
+record below.
 
 **OWNER MICRO-FIX — CLIENT DETAILS SECTION EDITING — COMPLETE.** Client
 Details retains the full `Edytuj klienta` action and now provides bounded local
@@ -79,8 +79,7 @@ backend or schema change, production business write, release, CHUNK 15 work or
 CHUNK 16 work occurred. Flutter analyze, focused `26/26` and clean full
 `260/260` tests pass. The next execution decision remains CHUNK 15, not started.
 
-**FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE UI — IMPLEMENTATION
-COMPLETE; SCHEDULER AND PRODUCTION-RESTORE APPROVALS REMAIN.** Production schema is at the additive revision
+**FOLLOW-UP CHUNK 15 — ADMIN BACKUP + CONTROLLED RESTORE — COMPLETE.** Production schema is at the additive revision
 `followup_admin_backup_restore_ui_20260821`; isolated migration/service and
 Database-only restore proofs pass. The approved remediation migrated production
 Qdrant from the Windows bind mount to Docker-managed `qdrant_storage` using the
@@ -90,10 +89,21 @@ untouched for rollback. A fresh official snapshot is structurally valid and
 restores in an isolated exact-version target with 57/57 points. Full checkpoint
 `20260821T142509Z` and its isolated Full/System proof pass. Structural validation
 continues to reject historical NUL-WAL artifacts as `qdrant_snapshot_invalid`.
-Task Scheduler and production restore gates remain ungranted. The owner inserted a future standalone Windows Disaster
-Recovery App after CHUNK 15 and before CHUNK 16; it is not started. No
-intermediate Phase D release is allowed before owner-declared Phase D
-completion.
+The owner-approved scheduler activation now maps the canonical DB schedule to
+one managed Windows task, with no UI-controlled commands or secrets. Legacy
+Daily Backup is disabled after rollback-safe import as canonical schedule `1`;
+there is no active duplicate. The scheduled runner produced verified retained
+database checkpoint `20260821T154344Z` with `trigger=scheduled`, task result
+`0`, canonical manifest and matching SHA-256. Reconciliation, drift repair,
+Warsaw DST behavior with exact monthly day 1–28 mapping, lock conflict,
+unmanaged-task refusal, Administrator UI,
+Flutter `268/268`, and Android/Web/Windows debug builds pass. Production
+restore was not performed and remains fail-closed behind
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
+
+Current execution decision: **PRE-CHUNK16 — WINDOWS DISASTER RECOVERY APP —
+NEXT, NOT STARTED.** CHUNK 16 is not started. No intermediate Phase D release
+is allowed before owner-declared Phase D completion.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

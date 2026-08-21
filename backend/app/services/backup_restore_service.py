@@ -96,6 +96,64 @@ class BackupRestoreService:
     def list_schedules(self) -> list[BackupSchedule]:
         return self.db.query(BackupSchedule).order_by(BackupSchedule.id).all()
 
+    @staticmethod
+    def schedule_host_payload(item: BackupSchedule) -> dict:
+        return {
+            "id": item.id,
+            "enabled": item.enabled,
+            "cadence": item.cadence,
+            "local_time": item.local_time.strftime("%H:%M:%S"),
+            "weekday": item.weekday,
+            "month_day": item.month_day,
+            "timezone_name": item.timezone_name,
+        }
+
+    def reconcile_schedules(self) -> dict:
+        items = self.list_schedules()
+        return self.supervisor.reconcile_schedules(
+            [self.schedule_host_payload(item) for item in items]
+        )
+
+    def schedule_views(self) -> list[dict]:
+        items = self.list_schedules()
+        try:
+            response = self.supervisor.preview_schedules(
+                [self.schedule_host_payload(item) for item in items]
+            )
+            host = {
+                str(item.get("task_name")): item
+                for item in response.get("items", [])
+            }
+        except Exception:
+            host = {}
+        views = []
+        for item in items:
+            task_name = f"NEXT Stabil - Backup - {item.id}"
+            status = host.get(task_name)
+            actual = status.get("actual") if status else None
+            last_run = (
+                self.db.query(BackupRun)
+                .filter(BackupRun.schedule_id == item.id)
+                .order_by(BackupRun.started_at.desc(), BackupRun.id.desc())
+                .first()
+            )
+            values = {
+                column.name: getattr(item, column.name)
+                for column in BackupSchedule.__table__.columns
+            }
+            values.update({
+                "sync_status": str(status.get("sync_status")) if status else "sync_failed",
+                "host_task_name": task_name,
+                "host_enabled": bool(actual and actual.get("enabled")),
+                "host_next_run_at": actual.get("next_run_at") if actual else None,
+                "host_last_run_at": actual.get("last_run_at") if actual else None,
+                "host_last_result": actual.get("last_result") if actual else None,
+                "last_backup_at": last_run.started_at if last_run else None,
+                "last_backup_result": last_run.status if last_run else None,
+            })
+            views.append(values)
+        return views
+
     def create_schedule(self, payload: BackupScheduleWrite, actor: User) -> BackupSchedule:
         self._lock()
         if self.db.query(func.count(BackupSchedule.id)).scalar() >= 10:
@@ -147,6 +205,8 @@ class BackupRestoreService:
             "scope": scope,
             "destination": run.destination,
             "release": settings.backup_release_version,
+            "trigger": trigger,
+            "schedule_id": schedule_id,
         })
         run.operation_id = str(response["operation_id"])
         run.status = "running"
