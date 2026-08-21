@@ -13,7 +13,7 @@ Knowledge Base vector writes, or CHUNK 17 implementation.
 
 ### Knowledge Base
 
-The current CHUNK 16 upload is synchronous. `POST /admin/knowledge-base`
+At the 2026-08-21 design audit, the CHUNK 16 upload was synchronous. `POST /admin/knowledge-base`
 reads the full upload, and `KnowledgeBaseService.create()` persists the file
 and item, calls `process()` before commit, and only then returns. `process()`
 performs native extraction or bounded OCR (`DocumentOCRService`, maximum 250
@@ -612,5 +612,26 @@ CHUNK 17 runtime implementation is not started by this design.
   `FOLLOWUP_ADMIN_KNOWLEDGE_BASE_MIGRATION_APPROVAL_REQUIRED`.
 - Existing Vision and public/private network boundaries remain unchanged.
 
-No production migration, Qdrant write, Temporary Chat analysis job, CHUNK 17
-runtime work or release is authorized by this design document.
+## 18. Runtime implementation checkpoint — 2026-08-22
+
+The owner consumed `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`
+for the bounded source implementation. Strict versioned request/local/package/
+result contracts, deterministic quality decisions, one sanitizer, local
+post-validation, durable generic jobs, KB processing jobs and derived artifacts
+are implemented. KB upload is persist/enqueue/return, with extraction and
+analysis performed by a recoverable dispatcher. Private purpose-separated
+`/analysis/*` uses the existing Temporary Chat browser primitives and shares one
+global lease with Vision; `/vision/*` remains compatible.
+
+Runtime enablement and KB vector writes default to false. The revised pending
+migration passes isolated up/down/up with zero backfill. Source-only KB vector
+indexing passes against an isolated Qdrant 1.18.3 target. A public-safe browser
+smoke failed closed at `AUTH_REQUIRED` before submission; durable pause/restart,
+result binding and accepted/review/rejected behavior are covered synthetically.
+No production migration, KB collection/write, customer Temporary Chat/Vision
+job, CHUNK 17 rollout or release occurred.
+
+Remaining ordered gates:
+
+1. `FOLLOWUP_ADMIN_KNOWLEDGE_BASE_MIGRATION_APPROVAL_REQUIRED`;
+2. `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.

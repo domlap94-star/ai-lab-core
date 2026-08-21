@@ -54,14 +54,23 @@ class KnowledgeBasePageRead(BaseModel):
     id: int; page_number: int; text: str | None; extraction_method: str; confidence: float | None
 
 
+class KnowledgeBaseAnalysisArtifactRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int; kind: str; payload: dict; source_page_refs: list
+    origin: str; validation_state: str; created_at: datetime
+
+
 class KnowledgeBaseItemRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int; title: str; source: str; publisher: str | None; version: str | None
     effective_date: date | None; category: str; tags: list[str]; status: str; supersedes_id: int | None
     original_filename: str; content_type: str; file_size: int; checksum_sha256: str
     processing_status: str; processing_method: str | None; processing_error: str | None
+    analysis_status: str; analysis_error: str | None; analysis_reason: str | None
+    indexing_status: str
     created_at: datetime; updated_at: datetime
     pages: list[KnowledgeBasePageRead] = Field(default_factory=list)
+    analysis_artifacts: list[KnowledgeBaseAnalysisArtifactRead] = Field(default_factory=list)
 
 
 class KnowledgeBasePageResult(BaseModel):
@@ -76,4 +85,4 @@ class KnowledgeBaseUploadResponse(BaseModel):
 class KnowledgeBaseSearchResult(BaseModel):
     knowledge_base_item_id: int; title: str; publisher: str | None; version: str | None
     effective_date: date | None; category: str; status: str; source_file: str
-    page: int | None; excerpt: str; retrieval_method: Literal["lexical"] = "lexical"
+    page: int | None; excerpt: str; retrieval_method: Literal["lexical", "vector"] = "lexical"

@@ -8,6 +8,7 @@ from app.database.session import get_db
 from app.models.user import User
 from app.schemas.knowledge_base import KnowledgeBaseItemRead, KnowledgeBaseMetadata, KnowledgeBasePageResult, KnowledgeBasePatch, KnowledgeBaseSearchResult, KnowledgeBaseUploadResponse
 from app.services.knowledge_base_service import KnowledgeBaseError, KnowledgeBaseService
+from app.services.knowledge_base_retrieval_service import KnowledgeBaseRetrievalService
 
 router = APIRouter(prefix="/admin/knowledge-base", tags=["Admin Knowledge Base"])
 
@@ -23,8 +24,10 @@ def list_items(q: str | None = Query(None, max_length=255), category: str | None
 
 
 @router.get("/search", response_model=list[KnowledgeBaseSearchResult])
-def search(q: str = Query(..., min_length=2, max_length=255), limit: int = Query(20, ge=1, le=50), _: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return KnowledgeBaseService(db).search(q, limit)
+def search(q: str = Query(..., min_length=2, max_length=255), limit: int = Query(20, ge=1, le=50),
+           method: str = Query("hybrid", pattern="^(lexical|vector|hybrid)$"), include_superseded: bool = False,
+           _: User = Depends(require_admin), db: Session = Depends(get_db)):
+    return KnowledgeBaseRetrievalService(db).search(q, limit=limit, method=method, include_superseded=include_superseded)
 
 
 @router.post("", response_model=KnowledgeBaseUploadResponse, status_code=status.HTTP_201_CREATED)
@@ -53,7 +56,7 @@ def update(item_id: int, patch: KnowledgeBasePatch, actor: User = Depends(requir
 @router.post("/{item_id}/retry", response_model=KnowledgeBaseItemRead)
 def retry(item_id: int, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
     service = KnowledgeBaseService(db)
-    try: return service.process(service.get(item_id), actor=actor)
+    try: return service.enqueue_retry(service.get(item_id), actor=actor)
     except KnowledgeBaseError as error: db.rollback(); raise mapped(error) from error
 
 

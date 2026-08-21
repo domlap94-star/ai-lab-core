@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { TemporaryChatArbiter } = require('./temporary_chat_arbiter');
 
 const TERMINAL = new Set(['COMPLETE', 'FAILED', 'CANCELLED']);
 const MAX_BODY_BYTES = 64 * 1024;
@@ -28,13 +29,14 @@ function readJson(filePath) {
 }
 
 class VisionQueue {
-  constructor({ spoolRoot, workerScript, workerRoot, spawnWorker } = {}) {
+  constructor({ spoolRoot, workerScript, workerRoot, spawnWorker, arbiter } = {}) {
     this.spoolRoot = path.resolve(spoolRoot);
     this.jobsRoot = path.join(this.spoolRoot, 'jobs');
     this.incomingRoot = path.join(this.spoolRoot, 'incoming');
     this.workerScript = workerScript;
     this.workerRoot = workerRoot;
     this.spawnWorker = spawnWorker || this._spawnWorker.bind(this);
+    this.arbiter = arbiter || new TemporaryChatArbiter();
     this.queue = [];
     this.active = null;
     this.pausedState = null;
@@ -61,6 +63,7 @@ class VisionQueue {
         this.pausedState = status.state;
       }
     }
+    if (this.pausedState) this.arbiter.pause(this.pausedState);
     setImmediate(() => this.pump());
   }
 
@@ -154,6 +157,7 @@ class VisionQueue {
       }, 10000).unref();
     }
     this.queue = this.queue.filter((item) => item !== jobId);
+    this.arbiter.cancel('vision', jobId);
     return this._set(jobId, {
       state: 'CANCELLED',
       error_code: null,
@@ -163,6 +167,7 @@ class VisionQueue {
 
   resume() {
     this.pausedState = null;
+    this.arbiter.resume();
     for (const entry of fs.readdirSync(this.jobsRoot, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const status = this.get(entry.name);
@@ -188,6 +193,15 @@ class VisionQueue {
     const jobId = this.queue.shift();
     const current = this.get(jobId);
     if (!current || current.state !== 'QUEUED') return this.pump();
+    this.arbiter.acquire('vision', jobId, () => this._start(jobId));
+  }
+
+  _start(jobId) {
+    const current = this.get(jobId);
+    if (!current || current.state !== 'QUEUED') {
+      this.arbiter.release('vision', jobId);
+      return this.pump();
+    }
     const attempt = current.attempt_count + 1;
     this._set(jobId, { state: 'RUNNING', attempt_count: attempt, next_retry_at: null });
     const child = this.spawnWorker(path.join(this.jobsRoot, jobId));
@@ -196,6 +210,7 @@ class VisionQueue {
       this.active = null;
       const latest = this.get(jobId);
       if (latest && latest.state === 'CANCELLED') {
+        this.arbiter.release('vision', jobId);
         this.pump();
         return;
       }
@@ -216,9 +231,11 @@ class VisionQueue {
         });
       } else if (code === 20 || text.includes('AUTH_REQUIRED')) {
         this.pausedState = 'AUTH_REQUIRED';
+        this.arbiter.pause('AUTH_REQUIRED');
         this._set(jobId, { state: 'AUTH_REQUIRED', error_code: 'AUTH_REQUIRED' });
       } else if (code === 21 || text.includes('UI_CHANGED')) {
         this.pausedState = 'UI_CHANGED';
+        this.arbiter.pause('UI_CHANGED');
         this._set(jobId, { state: 'UI_CHANGED', error_code: 'UI_CHANGED' });
       } else if (attempt < 3) {
         const delay = RETRY_DELAYS[attempt];
@@ -229,6 +246,7 @@ class VisionQueue {
       } else {
         this._set(jobId, { state: 'FAILED', error_code: 'WORKER_FAILED' });
       }
+      this.arbiter.release('vision', jobId);
       this.pump();
     });
   }

@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     data_dir: str = "/data"
     vision_supervisor_url: str = "http://host.docker.internal:8787"
     vision_automation_enabled: bool = False
+    advanced_analysis_enabled: bool = False
+    knowledge_base_processing_enabled: bool = False
+    knowledge_base_vector_writes_enabled: bool = False
+    qdrant_knowledge_base_chunks_collection: str = "ai_lab_knowledge_base_chunks"
     backup_supervisor_url: str = "http://host.docker.internal:8787"
     backup_root: str = "C:\\ai-lab-core-backups"
     backup_release_version: str = "1.0.2+25"

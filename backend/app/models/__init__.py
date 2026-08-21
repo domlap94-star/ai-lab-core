@@ -31,7 +31,9 @@ from app.models.work_item_document import WorkItemDocument
 from app.models.absence_request import AbsenceRequest
 from app.models.trash_entry import TrashEntry
 from app.models.backup_operation import BackupRun, BackupSchedule, RestoreRun
-from app.models.knowledge_base import KnowledgeBaseItem, KnowledgeBasePage
+from app.models.knowledge_base import (AnalysisJob, AnalysisJobSource,
+    KnowledgeBaseAnalysisArtifact, KnowledgeBaseItem, KnowledgeBasePage,
+    KnowledgeBaseProcessingJob)
 
 __all__ = [
     "AgentExecution",
@@ -71,4 +73,8 @@ __all__ = [
     "RestoreRun",
     "KnowledgeBaseItem",
     "KnowledgeBasePage",
+    "KnowledgeBaseProcessingJob",
+    "KnowledgeBaseAnalysisArtifact",
+    "AnalysisJob",
+    "AnalysisJobSource",
 ]

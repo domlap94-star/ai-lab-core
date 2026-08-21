@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -19,6 +20,45 @@ const Map<String, String> _categories = <String, String>{
   'other': 'Inne',
 };
 
+String _processingLabel(String value) =>
+    <String, String>{
+      'uploaded': 'Przesłano',
+      'queued': 'W kolejce',
+      'extracting': 'Ekstrakcja',
+      'ocr': 'OCR',
+      'processed': 'Wyodrębniono',
+      'failed': 'Błąd',
+    }[value] ??
+    value;
+
+String _analysisLabel(String value) =>
+    <String, String>{
+      'not_required': 'Analiza niewymagana',
+      'local_pending': 'Analiza lokalna oczekuje',
+      'local_processing': 'Analiza lokalna',
+      'local_accepted': 'Analiza lokalna gotowa',
+      'advanced_required': 'Wymagana analiza zaawansowana',
+      'advanced_queued': 'Analiza zaawansowana w kolejce',
+      'advanced_processing': 'Analiza zaawansowana',
+      'awaiting_auth': 'Oczekuje na logowanie',
+      'awaiting_ui_fix': 'Oczekuje na poprawkę integracji',
+      'advanced_validating': 'Walidacja',
+      'advanced_accepted': 'Gotowe',
+      'review_required': 'Wymaga przeglądu',
+      'failed': 'Błąd',
+    }[value] ??
+    value;
+
+String _indexingLabel(String value) =>
+    <String, String>{
+      'not_ready': 'Niezaindeksowany',
+      'pending': 'Oczekuje na indeks',
+      'indexing': 'Indeksowanie',
+      'indexed': 'Zaindeksowany',
+      'failed': 'Błąd indeksu',
+    }[value] ??
+    value;
+
 class AdminKnowledgeBasePage extends ConsumerStatefulWidget {
   const AdminKnowledgeBasePage({super.key});
   @override
@@ -34,6 +74,7 @@ class _AdminKnowledgeBasePageState
   bool _loading = true;
   String? _error;
   List<KnowledgeBaseItem> _items = const <KnowledgeBaseItem>[];
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -43,6 +84,7 @@ class _AdminKnowledgeBasePageState
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _search.dispose();
     super.dispose();
   }
@@ -61,11 +103,34 @@ class _AdminKnowledgeBasePageState
             category: _category,
             status: _status,
           );
-      if (mounted) setState(() => _items = result.items);
+      if (mounted) {
+        setState(() => _items = result.items);
+        _schedulePolling();
+      }
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _schedulePolling() {
+    _pollTimer?.cancel();
+    const terminalProcessing = <String>{'processed', 'failed'};
+    const terminalAnalysis = <String>{
+      'not_required',
+      'local_accepted',
+      'advanced_accepted',
+      'review_required',
+      'failed',
+    };
+    final pending = _items.any(
+      (item) =>
+          !terminalProcessing.contains(item.processingStatus) ||
+          !terminalAnalysis.contains(item.analysisStatus),
+    );
+    if (pending && mounted) {
+      _pollTimer = Timer(const Duration(seconds: 2), _load);
     }
   }
 
@@ -124,6 +189,10 @@ class _AdminKnowledgeBasePageState
                 Text(
                   'Przetwarzanie: ${detail.processingStatus} (${detail.processingMethod ?? '—'})',
                 ),
+                Text('Analiza: ${_analysisLabel(detail.analysisStatus)}'),
+                Text('Indeks: ${_indexingLabel(detail.indexingStatus)}'),
+                if (detail.analysisReason != null)
+                  Text('Powód: ${detail.analysisReason}'),
                 const Divider(),
                 Text(
                   'Cytowania / strony',
@@ -291,7 +360,7 @@ class _AdminKnowledgeBasePageState
                   isThreeLine: true,
                   title: Text(item.title),
                   subtitle: Text(
-                    '${_categories[item.category] ?? item.category} • ${item.publisher ?? 'Brak wydawcy'} • ${item.version ?? 'bez wersji'}\n${item.status == 'current' ? 'Aktualny' : 'Zastąpiony'} • ${item.processingStatus} • ${item.tags.join(', ')}',
+                    '${_categories[item.category] ?? item.category} • ${item.publisher ?? 'Brak wydawcy'} • ${item.version ?? 'bez wersji'}\n${item.status == 'current' ? 'Aktualny' : 'Zastąpiony'} • ${_processingLabel(item.processingStatus)} • ${_analysisLabel(item.analysisStatus)} • ${item.tags.join(', ')}',
                   ),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) async {

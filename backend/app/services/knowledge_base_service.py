@@ -11,7 +11,7 @@ from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
-from app.models.knowledge_base import KnowledgeBaseItem, KnowledgeBasePage
+from app.models.knowledge_base import KnowledgeBaseItem, KnowledgeBasePage, KnowledgeBaseProcessingJob
 from app.models.user import User
 from app.schemas.knowledge_base import KnowledgeBaseMetadata, KnowledgeBasePatch
 from app.services.change_history_service import ChangeHistoryService
@@ -43,7 +43,7 @@ class KnowledgeBaseService:
 
     @staticmethod
     def _snapshot(item: KnowledgeBaseItem) -> dict[str, object]:
-        snapshot = {name: getattr(item, name) for name in ("title", "source", "publisher", "version", "effective_date", "category", "status", "supersedes_id", "processing_status", "processing_method", "archived_at")}
+        snapshot = {name: getattr(item, name) for name in ("title", "source", "publisher", "version", "effective_date", "category", "status", "supersedes_id", "processing_status", "processing_method", "analysis_status", "indexing_status", "archived_at")}
         snapshot["tags"] = ", ".join(item.tags or [])
         return snapshot
 
@@ -70,7 +70,7 @@ class KnowledgeBaseService:
         self.storage_root.mkdir(parents=True, exist_ok=True)
         path = self.storage_root / stored
         path.write_bytes(content)
-        item = KnowledgeBaseItem(**metadata.model_dump(), original_filename=safe, stored_filename=stored, content_type=(content_type or "application/octet-stream")[:255], file_size=len(content), storage_path=str(path), checksum_sha256=checksum, created_by_user_id=actor.id, updated_by_user_id=actor.id)
+        item = KnowledgeBaseItem(**metadata.model_dump(), original_filename=safe, stored_filename=stored, content_type=(content_type or "application/octet-stream")[:255], file_size=len(content), storage_path=str(path), checksum_sha256=checksum, processing_status="queued", analysis_status="local_pending", indexing_status="not_ready", created_by_user_id=actor.id, updated_by_user_id=actor.id)
         self.db.add(item); self.db.flush()
         try:
             if item.supersedes_id is not None:
@@ -79,7 +79,10 @@ class KnowledgeBaseService:
                     raise KnowledgeBaseError("knowledge_base_superseded_item_missing")
                 superseded.status = "superseded"
                 superseded.updated_by_user_id = actor.id
-            self.process(item, actor=actor, audit=False)
+                if settings.knowledge_base_vector_writes_enabled:
+                    from app.services.knowledge_base_vector_service import KnowledgeBaseVectorService
+                    KnowledgeBaseVectorService(self.db).update_metadata(superseded)
+            self.db.add(KnowledgeBaseProcessingJob(item_id=item.id, status="queued", stage="queued", input_fingerprint=checksum, created_by_user_id=actor.id))
             ChangeHistoryService(self.db).persist(actor_user_id=actor.id, entity_type="knowledge_base_item", entity_id=item.id, action="created", before={}, after=self._snapshot(item), source_key=f"knowledge_base:{item.id}:created")
             self.db.commit(); self.db.refresh(item)
             return item, duplicates
@@ -121,6 +124,22 @@ class KnowledgeBaseService:
             self.db.commit(); self.db.refresh(item)
         return item
 
+    def enqueue_retry(self, item: KnowledgeBaseItem, *, actor: User) -> KnowledgeBaseItem:
+        active = self.db.query(KnowledgeBaseProcessingJob).filter(
+            KnowledgeBaseProcessingJob.item_id == item.id,
+            KnowledgeBaseProcessingJob.status.in_(["queued", "running"]),
+        ).first()
+        if active is not None:
+            return item
+        before = self._snapshot(item)
+        item.processing_status = "queued"; item.processing_error = None
+        item.analysis_status = "local_pending"; item.analysis_error = None
+        item.indexing_status = "not_ready"; item.updated_by_user_id = actor.id
+        self.db.add(KnowledgeBaseProcessingJob(item_id=item.id, status="queued", stage="queued", input_fingerprint=item.checksum_sha256, created_by_user_id=actor.id))
+        self.db.flush()
+        ChangeHistoryService(self.db).persist(actor_user_id=actor.id, entity_type="knowledge_base_item", entity_id=item.id, action="processing_retried", before=before, after=self._snapshot(item), source_key=f"knowledge_base:{item.id}:retry:{uuid.uuid4().hex}")
+        self.db.commit(); self.db.refresh(item); return item
+
     def update(self, item: KnowledgeBaseItem, patch: KnowledgeBasePatch, actor: User) -> KnowledgeBaseItem:
         before = self._snapshot(item)
         values = patch.model_dump(exclude_unset=True)
@@ -135,6 +154,12 @@ class KnowledgeBaseService:
             superseded.updated_by_user_id = actor.id
         item.updated_by_user_id = actor.id
         self.db.flush()
+        if settings.knowledge_base_vector_writes_enabled:
+            from app.services.knowledge_base_vector_service import KnowledgeBaseVectorService
+            vectors = KnowledgeBaseVectorService(self.db)
+            vectors.update_metadata(item)
+            if item.supersedes_id is not None:
+                vectors.update_metadata(superseded)
         ChangeHistoryService(self.db).persist(actor_user_id=actor.id, entity_type="knowledge_base_item", entity_id=item.id, action="updated", before=before, after=self._snapshot(item), source_key=f"knowledge_base:{item.id}:update:{uuid.uuid4().hex}")
         self.db.commit(); self.db.refresh(item); return item
 
@@ -163,6 +188,9 @@ class KnowledgeBaseService:
         item.archived_at = datetime.now(UTC)
         item.updated_by_user_id = actor.id
         self.db.flush()
+        if settings.knowledge_base_vector_writes_enabled:
+            from app.services.knowledge_base_vector_service import KnowledgeBaseVectorService
+            KnowledgeBaseVectorService(self.db).delete_item(item.id)
         ChangeHistoryService(self.db).persist(actor_user_id=actor.id, entity_type="knowledge_base_item", entity_id=item.id, action="deleted", before=before, after=self._snapshot(item), source_key=f"knowledge_base:{item.id}:archive:{uuid.uuid4().hex}")
         self.db.commit()
 

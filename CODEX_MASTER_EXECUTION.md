@@ -115,32 +115,37 @@ no executable build, WDAC/Bitdefender change or trust-store mutation is part of
 the canonical recovery path. CHUNK 15 remains COMPLETE. Current release remains
 NEXT Stabil `1.0.2+25`; no intermediate Phase D release is allowed.
 
-**FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — IMPLEMENTATION COMPLETE TO
-VECTOR GATE.** A distinct Administrator-only Knowledge Base domain now has
+**FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — RUNTIME IMPLEMENTATION COMPLETE;
+AWAITING PRODUCTION MIGRATION + KB VECTOR APPROVAL.** A distinct
+Administrator-only Knowledge Base domain now has
 bounded upload, extraction/OCR, metadata/versioning, audit, page citations,
 archive/retry and lexical search plus a responsive Flutter workspace. The
 additive `followup_admin_knowledge_base_20260821` migration passes an isolated
 round-trip but is not applied to production. Vector retrieval is designed as
 the separate `ai_lab_knowledge_base_chunks` collection and passed an isolated
 Qdrant 1.18.3 ownership/idempotency proof. Production KB items/vectors remain
-zero, `ai_lab_document_chunks` remains unchanged, and work stops at
-`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`. CHUNK 17 is not
-started.
+zero and `ai_lab_document_chunks` remains 57. Upload now persists/enqueues and
+returns before durable extraction/OCR/local analysis. The generic analysis
+runtime, strict sanitizer/quality/post-validation contracts, shared private
+Temporary Chat queue, separate KB vector source service and truthful Flutter
+polling are implemented and pass isolated acceptance. Work stops first at
+`FOLLOWUP_ADMIN_KNOWLEDGE_BASE_MIGRATION_APPROVAL_REQUIRED`; vector execution
+still requires `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
+CHUNK 17 is not started.
 
-**GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — DESIGN READY.** The
+**GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
+SYNTHETIC ACCEPTANCE PASS.** The
 owner-approved cross-domain architecture is recorded in
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`. Current KB upload is confirmed
-synchronous (`KnowledgeBaseService.create() -> process()`); the target is a
-durable persist/enqueue/return pipeline with separate processing and analysis
-states. A generic `AdvancedAnalysisOrchestrator` will run local processors
-first, apply deterministic quality rules, sanitize only externally eligible
-minimum data, use the existing private Temporary Chat bridge through shared
-serialized internals, and locally validate strict structured results. Existing
-Vision `/vision/*` contracts remain compatible. Runtime implementation,
-production migration and vector writes have not started. Future CHUNK 17 is
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`. KB upload now uses the durable
+persist/enqueue/return pipeline with separate processing, analysis and indexing
+states. `AdvancedAnalysisOrchestrator` runs local processors first, applies
+deterministic quality rules, sanitizes only externally eligible minimum data,
+uses the private Temporary Chat bridge through shared serialized internals, and
+locally validates strict structured results. Existing
+Vision `/vision/*` contracts remain compatible. The runtime approval was
+consumed; production migration and vector writes have not started. Future CHUNK 17 is
 renamed **GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT ESCALATION** and is
-NOT STARTED; its runtime gate is
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`.
+NOT STARTED.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

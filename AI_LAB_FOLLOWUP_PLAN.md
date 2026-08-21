@@ -1527,7 +1527,8 @@ reserved by this decision.
 
 **Priority: P1**
 
-**[~] IMPLEMENTATION COMPLETE TO VECTOR GATE — 2026-08-21.** The additive,
+**[~] RUNTIME IMPLEMENTATION COMPLETE; AWAITING PRODUCTION MIGRATION + KB
+VECTOR APPROVAL — 2026-08-22.** The additive,
 separate Knowledge Base domain, Administrator-only API and Polish Flutter
 workspace are implemented. Metadata, bounded upload, native extraction, OCR,
 page-level provenance/citations, duplicate-checksum warning, current/
@@ -1549,21 +1550,44 @@ search, current/superseded filtering, idempotent re-index and exact ownership
 delete. Production KB vector writes were zero and the existing customer
 collection remained 57 points.
 
-Exact gate: `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
+The upload path is now durable and asynchronous: validation/file persistence,
+item plus processing-job commit and immediate HTTP return precede extraction,
+OCR, local technical parsing, deterministic quality evaluation, optional
+sanitized advanced escalation, local post-validation and gated indexing.
+Processing, analysis and indexing states are separate and the Flutter view
+polls truthful stages. The global contracts, sanitizer, calculation validator,
+post-validator and durable generic analysis jobs are implemented. Supervisor
+keeps `/vision/*` compatible, adds private purpose-separated `/analysis/*`, and
+serializes both job types through one Temporary Chat browser arbiter.
+
+The vector source service is implemented fail-closed behind configuration. Its
+isolated Qdrant 1.18.3 proof passed source-only payload isolation, hybrid
+retrieval, current/superseded filtering, idempotent re-index and exact ownership
+delete. Production still has no KB tables/rows/collection/vectors and
+`ai_lab_document_chunks` remains 57 points.
+
+Exact next gate: `FOLLOWUP_ADMIN_KNOWLEDGE_BASE_MIGRATION_APPROVAL_REQUIRED`.
+After migration, vector execution still requires
+`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
 CHUNK 17 is not started and the Phase D no-intermediate-release policy remains
 in force.
 
-**GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — DESIGN READY — 2026-08-21.**
+**GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
+SYNTHETIC ACCEPTANCE PASS — 2026-08-22.**
 Owner-approved architecture is documented in
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`. The audit confirms that the
-current KB upload still performs extraction/OCR synchronously through
-`KnowledgeBaseService.create() -> process()`. The target pipeline persists and
-queues first, returns the HTTP response, then performs extraction/OCR, local
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`. The original audit found
+`KnowledgeBaseService.create() -> process()` synchronous; this implementation
+replaced it with persist/enqueue/return followed by extraction/OCR and local
 analysis, a deterministic quality gate and—only when safe and necessary—a
 sanitized Temporary Chat escalation followed by local verification. Existing
-`/vision/*` compatibility remains; future generic `/analysis/*` work shares
-the serialized browser queue through factored internals. Runtime implementation,
-the pending production migration and production vectors were not started.
+`/vision/*` compatibility remains; generic private `/analysis/*` now shares the
+serialized browser queue through factored internals. Unit/isolated acceptance
+covers quality decisions, privacy fail-closed behavior, 30 deterministic
+calculations, hash/source binding, durable restart/idempotency, AUTH_REQUIRED /
+UI_CHANGED pause, cancellation and existing Vision regression. One public-safe
+browser smoke reached the expected durable `AUTH_REQUIRED` state before any
+package was sent; no customer job was created. The pending production migration
+and production vectors remain unstarted.
 
 Admin-only `Baza wiedzy`: building standards, norms, technical datasheets,
 manuals, producer materials, formulas i reference calculations.
@@ -1582,10 +1606,11 @@ Human gate: dla Qdrant wymagany
 
 **Priority: P1 / ARCHITECTURE IMPLEMENTATION**
 
-Cel: wdrożyć globalny, wielodomenowy przepływ
+Cel: rozszerzyć wdrożony pod CHUNK 16 wspólny runtime na kolejne domeny poprzez
 `local-first -> deterministic quality gate -> sanitized Temporary Chat -> local
 post-validation`, zgodnie z `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`.
-CHUNK pozostaje **NOT STARTED**.
+CHUNK pozostaje **NOT STARTED**; infrastruktura wspólna wdrożona wcześniej nie
+oznacza wdrożenia domen technicznych/klienckich/obliczeniowych CHUNK 17.
 
 Wspólny kontrakt ma obsługiwać Knowledge Base, analizę techniczną, dokumenty,
 Vision, tabele, porównanie standardów, spójność, formuły i obliczenia. Zachować
@@ -1602,7 +1627,9 @@ Android może w przyszłości być tylko wymiennym local-first adapterem. Tempor
 Chat nie jest domyślnym procesorem i nie może bezpośrednio mutować CRM, DB ani
 Qdrant.
 
-Runtime gate: `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`.
+Runtime approval `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`
+was consumed for this bounded implementation. Multi-domain CHUNK 17 rollout is
+still NOT STARTED.
 Wymagane są testy privacy/sanitization, source-ref integrity, retry/persistence,
 AUTH_REQUIRED/UI_CHANGED, Vision regression i co najmniej 30 kontrolowanych
 formuł/obliczeń z unit checking oraz deterministic comparison.

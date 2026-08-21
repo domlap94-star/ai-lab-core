@@ -19,6 +19,8 @@ const FORMAT_RETRY_ERRORS = new Set([
 ]);
 let cancelPath = null;
 
+function setCancelPath(value) { cancelPath = value; }
+
 function event(name, extra = '') {
   process.stdout.write(`${new Date().toISOString()} ${name}${extra ? ` ${extra}` : ''}\n`);
 }
@@ -119,6 +121,7 @@ async function assistantContentText(message) {
 
 function diagnosticEnabled(manifest) {
   return process.env.NEXT_STABIL_VISION_DIAGNOSTIC === '1'
+    && Array.isArray(manifest.sources)
     && manifest.sources.every((source) => source.document_id >= 900000);
 }
 
@@ -396,4 +399,5 @@ module.exports = {
   assistantContentText,
   parseAndValidateResponse,
   responseControlState,
+  setCancelPath,
 };

@@ -68,7 +68,8 @@ class ChangeHistoryService:
         "knowledge_base_item": {
             "title", "source", "publisher", "version", "effective_date",
             "category", "tags", "status", "supersedes_id",
-            "processing_status", "processing_method", "archived_at",
+            "processing_status", "processing_method", "analysis_status",
+            "indexing_status", "archived_at",
         },
     }
     ACTIONS = {

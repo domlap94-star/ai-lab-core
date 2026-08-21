@@ -10,12 +10,15 @@ class KnowledgeBaseItem {
     required this.originalFilename,
     required this.fileSize,
     required this.processingStatus,
+    this.analysisStatus = 'not_required',
+    this.indexingStatus = 'not_ready',
     required this.pages,
     this.publisher,
     this.version,
     this.effectiveDate,
     this.processingMethod,
     this.processingError,
+    this.analysisReason,
   });
   final int id;
   final String title;
@@ -30,8 +33,11 @@ class KnowledgeBaseItem {
   final String originalFilename;
   final int fileSize;
   final String processingStatus;
+  final String analysisStatus;
+  final String indexingStatus;
   final String? processingMethod;
   final String? processingError;
+  final String? analysisReason;
   final List<KnowledgeBasePageExcerpt> pages;
   factory KnowledgeBaseItem.fromJson(Map<String, dynamic> json) =>
       KnowledgeBaseItem(
@@ -49,8 +55,11 @@ class KnowledgeBaseItem {
         originalFilename: json['original_filename'] as String,
         fileSize: json['file_size'] as int,
         processingStatus: json['processing_status'] as String,
+        analysisStatus: (json['analysis_status'] as String?) ?? 'not_required',
+        indexingStatus: (json['indexing_status'] as String?) ?? 'not_ready',
         processingMethod: json['processing_method'] as String?,
         processingError: json['processing_error'] as String?,
+        analysisReason: json['analysis_reason'] as String?,
         pages: ((json['pages'] as List<dynamic>?) ?? const <dynamic>[])
             .map(
               (dynamic value) => KnowledgeBasePageExcerpt.fromJson(

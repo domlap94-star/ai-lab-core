@@ -68,10 +68,45 @@ class _Api extends KnowledgeBaseApi {
   Future<KnowledgeBaseItem> detail(AuthSession session, int id) async => _item;
 }
 
+class _StatusApi extends KnowledgeBaseApi {
+  _StatusApi() : super(Dio());
+  int retries = 0;
+  final item = KnowledgeBaseItem(
+    id: 18,
+    title: 'Materiał oczekujący',
+    source: 'Publiczna próbka',
+    category: 'norms',
+    tags: const <String>[],
+    status: 'current',
+    originalFilename: 'queued.txt',
+    fileSize: 100,
+    processingStatus: 'queued',
+    analysisStatus: 'advanced_queued',
+    indexingStatus: 'not_ready',
+    analysisReason: 'analysis_runtime_disabled',
+    pages: const <KnowledgeBasePageExcerpt>[],
+  );
+  @override
+  Future<KnowledgeBaseListResult> list(
+    AuthSession session, {
+    String? query,
+    String? category,
+    String? status,
+  }) async => KnowledgeBaseListResult(<KnowledgeBaseItem>[item], 1);
+  @override
+  Future<KnowledgeBaseItem> detail(AuthSession session, int id) async => item;
+  @override
+  Future<void> retry(AuthSession session, int id) async {
+    retries += 1;
+  }
+}
+
 Future<void> _pump(
   WidgetTester tester,
   double width, {
   String role = 'Administrator',
+  KnowledgeBaseApi? api,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = Size(width, 1800);
   tester.view.devicePixelRatio = 1;
@@ -80,7 +115,7 @@ Future<void> _pump(
   final container = ProviderContainer(
     overrides: [
       authControllerProvider.overrideWith(() => _AuthController(role)),
-      knowledgeBaseApiProvider.overrideWithValue(_Api()),
+      knowledgeBaseApiProvider.overrideWithValue(api ?? _Api()),
     ],
   );
   addTearDown(container.dispose);
@@ -91,7 +126,11 @@ Future<void> _pump(
       child: const MaterialApp(home: AdminKnowledgeBasePage()),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump(const Duration(milliseconds: 200));
+  }
 }
 
 void main() {
@@ -126,4 +165,22 @@ void main() {
     expect(find.text('Strona 1 • native_text'), findsOneWidget);
     expect(find.text('Formula R = U / I'), findsOneWidget);
   });
+
+  testWidgets(
+    'queued and advanced pipeline state is truthful and retry is exact',
+    (tester) async {
+      final api = _StatusApi();
+      await _pump(tester, 390, api: api, settle: false);
+      expect(find.textContaining('W kolejce'), findsOneWidget);
+      expect(
+        find.textContaining('Analiza zaawansowana w kolejce'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ponów przetwarzanie'));
+      await tester.pumpAndSettle();
+      expect(api.retries, 1);
+    },
+  );
 }

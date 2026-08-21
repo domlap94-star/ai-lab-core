@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { VisionQueue, MAX_BODY_BYTES } = require('./vision_queue');
+const { AnalysisQueue } = require('./analysis_queue');
+const { TemporaryChatArbiter } = require('./temporary_chat_arbiter');
 const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
 const { previewSchedules, reconcileSchedules } = require('./backup_scheduler');
 
@@ -18,6 +20,9 @@ const ENV_FILE = path.join(PROJECT_DIR, '.env');
 const VISION_SPOOL = path.join(PROJECT_DIR, 'data', 'vision-spool');
 const VISION_WORKER_ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'C:\\ChatGPT-Vision-Worker';
 const VISION_WORKER_SCRIPT = process.env.NEXT_STABIL_VISION_WORKER_SCRIPT || path.join(VISION_WORKER_ROOT, 'worker', 'vision-job.js');
+const ANALYSIS_SPOOL = path.join(PROJECT_DIR, 'data', 'analysis-spool');
+const ANALYSIS_WORKER_SCRIPT = process.env.NEXT_STABIL_ANALYSIS_WORKER_SCRIPT
+  || path.join(PROJECT_DIR, 'operations', 'vision-worker', 'analysis-job.js');
 
 const CORE_SERVICES = [
   'postgres',
@@ -82,6 +87,10 @@ const VISION_BRIDGE_KEY = crypto
   .createHmac('sha256', SECRET_KEY)
   .update('next-stabil-vision-supervisor-v1')
   .digest('hex');
+const ANALYSIS_BRIDGE_KEY = crypto
+  .createHmac('sha256', SECRET_KEY)
+  .update('next-stabil-analysis-supervisor-v1')
+  .digest('hex');
 
 const BACKUP_BRIDGE_KEY = crypto
   .createHmac('sha256', SECRET_KEY)
@@ -94,15 +103,31 @@ const BACKUP_STAGES = new Set(['validating', 'database', 'documents', 'qdrant', 
 const backupOperations = new Map();
 let activeBackupOperationId = null;
 
+const temporaryChatArbiter = new TemporaryChatArbiter();
 const visionQueue = new VisionQueue({
   spoolRoot: VISION_SPOOL,
   workerScript: VISION_WORKER_SCRIPT,
   workerRoot: VISION_WORKER_ROOT,
+  arbiter: temporaryChatArbiter,
+});
+const analysisQueue = new AnalysisQueue({
+  spoolRoot: ANALYSIS_SPOOL,
+  workerScript: ANALYSIS_WORKER_SCRIPT,
+  workerRoot: VISION_WORKER_ROOT,
+  arbiter: temporaryChatArbiter,
 });
 
 function authorizeVision(req) {
   const supplied = Buffer.from(String(req.headers['x-next-stabil-vision-key'] || ''), 'utf8');
   const expected = Buffer.from(VISION_BRIDGE_KEY, 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    throw new Error('Unauthorized');
+  }
+}
+
+function authorizeAnalysis(req) {
+  const supplied = Buffer.from(String(req.headers['x-next-stabil-analysis-key'] || ''), 'utf8');
+  const expected = Buffer.from(ANALYSIS_BRIDGE_KEY, 'utf8');
   if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
     throw new Error('Unauthorized');
   }
@@ -586,6 +611,22 @@ async function handle(req, res) {
     }
   }
 
+  if (requestUrl.pathname.startsWith('/analysis/')) {
+    try { authorizeAnalysis(req); } catch (_) { sendJson(res, 401, { detail: 'Unauthorized' }); return; }
+    try {
+      if (req.method === 'GET' && requestUrl.pathname === '/analysis/health') { sendJson(res, 200, analysisQueue.health()); return; }
+      if (req.method === 'POST' && requestUrl.pathname === '/analysis/jobs') { sendJson(res, 202, analysisQueue.create(await readJsonBody(req))); return; }
+      if (req.method === 'POST' && requestUrl.pathname === '/analysis/resume') { sendJson(res, 202, analysisQueue.resume()); return; }
+      const match = /^\/analysis\/jobs\/([a-f0-9-]{36})(\/cancel)?$/i.exec(requestUrl.pathname);
+      if (match && req.method === 'GET' && !match[2]) { const status = analysisQueue.get(match[1]); sendJson(res, status ? 200 : 404, status || { detail: 'Not found' }); return; }
+      if (match && req.method === 'POST' && match[2]) { const status = analysisQueue.cancel(match[1]); sendJson(res, status ? 202 : 404, status || { detail: 'Not found' }); return; }
+      sendJson(res, 404, { detail: 'Not found' }); return;
+    } catch (error) {
+      const bad = ['BODY_TOO_LARGE','INVALID_JSON'].includes(error.message) || /^(INVALID|PACKAGE|RESULT)/.test(error.message);
+      sendJson(res, bad ? 422 : 500, { detail: bad ? 'Invalid analysis job request' : 'Analysis supervisor failure' }); return;
+    }
+  }
+
   if (requestUrl.pathname.startsWith('/backup/')) {
     try {
       authorizeBackup(req);
@@ -711,3 +752,5 @@ server.listen(PORT, HOST, () => {
 
 const cleanupTimer = setInterval(() => visionQueue.cleanup(), 60 * 60 * 1000);
 cleanupTimer.unref();
+const analysisCleanupTimer = setInterval(() => analysisQueue.cleanup(), 60 * 60 * 1000);
+analysisCleanupTimer.unref();

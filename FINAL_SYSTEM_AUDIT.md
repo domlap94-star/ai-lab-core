@@ -737,3 +737,30 @@ The WinForms source is retained as DEFERRED / ENTERPRISE TRUST BLOCKED. WDAC,
 Bitdefender, certificate stores and SmartScreen were unchanged. Production
 restore remains behind `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`, no
 business data changed, no release occurred, and CHUNK 16 remains not started.
+
+## 2026-08-22 — CHUNK 16 global analysis runtime checkpoint
+
+The owner-approved global local-first analysis runtime is implemented in
+source without production enablement. KB uploads now persist/enqueue/return;
+durable processing and generic analysis jobs separate extraction, analysis and
+indexing state. The strict sanitizer, deterministic quality gate, calculation
+validator, Temporary Chat package/result binding and local post-validation are
+shared domain-neutral primitives. Private `/analysis/*` uses a purpose-separated
+HMAC and one browser arbiter shared with the backward-compatible `/vision/*`
+queue.
+
+The revised pending `followup_admin_knowledge_base_20260821` migration passed
+isolated upgrade/downgrade/re-upgrade with zero backfill and remains unapplied;
+production is still `followup_admin_backup_restore_ui_20260821`. Isolated
+Qdrant 1.18.3 indexing passed source namespace isolation, idempotent re-index,
+current/superseded filtering and exact ownership deletion. Production has no KB
+collection or vectors, and `ai_lab_document_chunks` remains 57 points.
+
+Backend analysis/privacy/idempotency/KB tests, Node generic/Vision queue and
+contract regressions, Flutter analyze, focused KB `7/7`, full Flutter `275/275`,
+and Android/Web/Windows debug builds pass. A public-safe live worker smoke
+stopped at `AUTH_REQUIRED` before submitting data; no customer job was run.
+The ordered remaining gates are
+`FOLLOWUP_ADMIN_KNOWLEDGE_BASE_MIGRATION_APPROVAL_REQUIRED`, then
+`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`. CHUNK 17 and release
+remain unstarted.
