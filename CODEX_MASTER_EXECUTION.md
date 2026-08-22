@@ -32,9 +32,13 @@ synthetic orphan point `648ab266-c5fb-5cab-b1c1-89e46fd47514` from
 `ai_lab_knowledge_base_chunks`; the healthy KB collection remains at 0 points
 and `ai_lab_document_chunks` remains unchanged at 57. A fail-closed test guard
 now rejects both production collection names and the production Qdrant
-endpoint. Phase E is IN PROGRESS at CHUNK 17; production advanced analysis
-remains disabled behind
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
+endpoint. CHUNK 17 is complete and production advanced analysis is enabled
+under mandatory local-first/privacy/post-validation rules. CHUNK 18 design and
+isolated quality benchmark are complete, but production customer-vector
+backfill is not recommended: the current retrieval path cannot meet both the
+declared recall and negative-query thresholds. CHUNK 19 was completed early
+under CHUNK 15. Phase E feature work is complete without backfill; no release
+was performed and Phase F remains blocked at the phase boundary.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -177,8 +181,10 @@ Release D under a separate prompt; Phase E remains blocked until it completes.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
 starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
-CHUNK 17 is COMPLETE; CHUNK 18 is NEXT / NOT STARTED and CHUNK 19 remains
-completed early under CHUNK 15. Current release is
+CHUNK 17 is COMPLETE; CHUNK 18 DESIGN/BENCHMARK is COMPLETE with production
+backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
+Phase E feature work is complete; no boundary release was performed. Current
+release is
 NEXT Stabil `1.0.2+26`.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
@@ -213,8 +219,13 @@ local-sufficient no-external-job path. The engineering-number PHONE false
 positive is fixed without weakening real-phone detection. Supervisor terminal
 idempotency is bound to `(analysis_id, package_sha256, analysis_type)`; a new
 analysis never adopts another analysis result, while an exact same-analysis
-retry reuses safely without another browser submission. CHUNK 18 is the next
-canonical item and remains NOT STARTED.
+retry reuses safely without another browser submission. CHUNK 18 subsequently
+completed its read-only live coverage audit and isolated benchmark. Production
+remains 57 points / 11 Documents / zero client-scoped usable vectors. The
+17-Document, 36-query benchmark proved zero scope leakage and material semantic
+gain, but no tested score cutoff met both Recall@3 and negative-query precision
+thresholds. Production backfill is therefore not recommended, and
+`FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED` remains unconsumed.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application

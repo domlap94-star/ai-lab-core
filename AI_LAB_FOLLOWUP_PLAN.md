@@ -1679,6 +1679,36 @@ Do not start CHUNK 18 without a separate owner decision.
 
 **Priority: P2**
 
+**[✓] DESIGN + ISOLATED QUALITY BENCHMARK COMPLETE — PRODUCTION BACKFILL NOT
+RECOMMENDED — 2026-08-22.** Live read-only audit found 5,929 Documents, 5,927
+active, 129 processed and only 82 conservatively eligible today. The production
+collection remains green at 57 points / 11 Documents / 1,024 Cosine, with zero
+usable `client_id` payloads and missing document-checksum/embedding-version
+ownership fields.
+
+A committed public-safe corpus of 17 synthetic Documents and 36 deterministic
+queries compared lexical, semantic and the existing additive hybrid merge in a
+pinned isolated Qdrant 1.18.3 target. All four bounded chunking variants had
+zero client leakage but identical retrieval quality. At score cutoff `0.60`,
+hybrid Recall@1/3/5 is `0.50/0.50/0.50`, MRR `0.516129` and negative precision
+`1.0`; lexical is `0.274194/0.274194/0.274194`, MRR `0.290323`. Lowering the
+cutoff to `0.50` raises hybrid Recall@3 to `0.795699` but drops negative
+precision to `0.60`; at the first cutoff with perfect negative behavior
+(`0.54`) Recall@3 is only `0.669355`. The explicit quality threshold is not
+met, so production backfill would add false-positive risk without sufficient
+evidence.
+
+The exact point/client/checksum/version ownership and resumable batch-10
+backfill design are recorded in
+`FOLLOWUP_CHUNK18_SEMANTIC_SEARCH_BENCHMARK.md`. Production Qdrant/DB writes,
+deletes, collection/index changes, Gmail, n8n, Vision and Temporary Chat are
+zero. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED` remains unconsumed and
+should not be requested until a later isolated reranker/query-representation
+design passes the same threshold. CHUNK 17 and CHUNK 19 are complete; Phase E
+feature work is complete without a customer-vector backfill. No release was
+performed and Phase F must not start before the owner-required phase-boundary
+release decision/execution.
+
 Baseline: 57 Qdrant points, 11/5,915 Documents, 0 client-scoped usable vectors,
 1,024 dimensions.
 
@@ -1946,7 +1976,10 @@ Nie wykonywać release po każdym micro-fixie.
 
 **Owner sequencing rule: every Phase must end with a release before the next
 Phase begins.** The required `CHUNK 26 -> Release D -> Phase E` boundary has
-been satisfied. Phase E is IN PROGRESS at CHUNK 17; CHUNK 18 is NOT STARTED.
+been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
+complete, and CHUNK 19 was completed early under CHUNK 15. No Phase E boundary
+release was performed in CHUNK 18; Phase F remains blocked pending a separate
+owner release prompt/decision.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.

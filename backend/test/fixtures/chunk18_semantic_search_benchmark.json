@@ -1,0 +1,188 @@
+{
+  "schema_version": "NEXT_STABIL_SEMANTIC_BENCHMARK_V1",
+  "documents": [
+    {
+      "id": "D01",
+      "client_id": 101,
+      "filename": "THX-420-karta-techniczna.txt",
+      "pages": [
+        "Karta techniczna izolacji THX-420. Wspolczynnik przewodzenia ciepla lambda wynosi 0.035 W/mK. Maksymalna temperatura pracy wynosi 80 C. Material ogranicza przeplyw ciepla przez przegrody budowlane.",
+        "Producent Synthetic Materials. Grubosc plyt 100 mm. Reakcja na ogien klasa A1. Produkt przeznaczony do izolacji scian i dachow."
+      ]
+    },
+    {
+      "id": "D02",
+      "client_id": 101,
+      "filename": "raport-rysa-konstrukcyjna.txt",
+      "pages": [
+        "Raport inspekcji. Rysa pionowa 2.4 mm na scianie nosnej powieksza sie po intensywnych opadach. Wilgotnosc w piwnicy wynosi 78 procent.",
+        "Zalecono monitoring szerokosci rysy, sprawdzenie odwodnienia oraz konsultacje konstruktora. Objaw moze wskazywac na nierownomierne osiadanie fundamentu."
+      ]
+    },
+    {
+      "id": "D03",
+      "client_id": 101,
+      "filename": "obliczenie-cisnienia.txt",
+      "pages": [
+        "Obliczenie referencyjne cisnienia. Wzor P = F / A. F = 12 kN, A = 0.4 m2. Po przeliczeniu sily na niutony wynik P = 30 kPa. Jednostki: P w paskalach, F w niutonach, A w metrach kwadratowych."
+      ]
+    },
+    {
+      "id": "D04",
+      "client_id": 101,
+      "filename": "faktura-syntetyczna.txt",
+      "pages": [
+        "Faktura testowa INV-SYN-2026-0042. Pozycja: przeglad instalacji, ilosc 2, cena jednostkowa 450 PLN, wartosc netto 900 PLN. Termin platnosci wynosi 14 dni od daty wystawienia. Dokument nie zawiera prawdziwych danych kontrahenta."
+      ]
+    },
+    {
+      "id": "D05",
+      "client_id": 101,
+      "filename": "norma-beton-aktualna.txt",
+      "pages": [
+        "Norma syntetyczna PN-EN 1992-1-1:2025 ma status aktualny i obowiazuje od 2025-01-01. Dotyczy projektowania konstrukcji z betonu.",
+        "Punkt 7.4 opisuje kontrolowanie ugiec elementow. Dopuszczalne ugiecie nalezy sprawdzac dla kombinacji obciazen oraz rozpietosci elementu."
+      ]
+    },
+    {
+      "id": "D06",
+      "client_id": 101,
+      "filename": "instrukcja-pompy-AB-77.txt",
+      "pages": [
+        "Instrukcja pompy AB-77. Przed pierwszym uruchomieniem dokrec wszystkie laczniki momentem 24 Nm, napelnij uklad woda i odpowietrz korpus.",
+        "Nie uruchamiaj pompy na sucho. Poziom drgan powyzej 4.5 mm/s wymaga zatrzymania i kontroli lozysk."
+      ]
+    },
+    {
+      "id": "D07",
+      "client_id": 101,
+      "filename": "ocr-dach-przeciek.txt",
+      "pages": [
+        "0CR RAP0RT DACHU. Zacieki pod swietlikiem pojawiaja sie podczas deszczu z wiatrem. Uszczelnienie kolnierza jest przerwane na dlugosci 18 cm. Zalecana naprawa obrobki i test wodny."
+      ]
+    },
+    {
+      "id": "D08",
+      "client_id": 101,
+      "filename": "wentylacja-wymagania.txt",
+      "repeat_last_page": 12,
+      "pages": [
+        "Wymagania wentylacji pomieszczenia technicznego. Minimalna wymiana powietrza wynosi 3 wymiany na godzine. Nawiew i wywiew powinny zapewniac przeplyw bez stref martwych.",
+        "Dla kubatury 120 m3 wymagany strumien obliczeniowy wynosi 360 m3/h. Kratki nalezy rozmiescic po przeciwnych stronach pomieszczenia.",
+        "Kontrola eksploatacyjna obejmuje pomiar strumienia, czystosc filtrow i droznosc przewodow. Wynik ponizej 90 procent wartosci projektowej wymaga regulacji."
+      ]
+    },
+    {
+      "id": "D09",
+      "client_id": 202,
+      "filename": "CX-420-plyn-techniczny.txt",
+      "pages": [
+        "Karta produktu CX-420. Syntetyczny plyn chlodzacy ma przewodnosc elektryczna 0.35 mS/cm i temperature zamarzania minus 28 C. Nie jest materialem izolacji cieplnej.",
+        "Plyn stosuje sie w zamknietych obiegach technologicznych. Maksymalna temperatura robocza wynosi 110 C."
+      ]
+    },
+    {
+      "id": "D10",
+      "client_id": 202,
+      "filename": "raport-rysa-powloki.txt",
+      "pages": [
+        "Inspekcja wykonczenia. Drobna rysa powloki malarskiej ma szerokosc 0.2 mm i nie zmienia sie po opadach. Nie stwierdzono uszkodzenia sciany nosnej ani oznak osiadania.",
+        "Zalecono miejscowa naprawe powloki podczas kolejnego malowania. Monitoring konstrukcyjny nie jest wymagany."
+      ]
+    },
+    {
+      "id": "D11",
+      "client_id": 202,
+      "filename": "obliczenie-mocy-elektrycznej.txt",
+      "pages": [
+        "Obliczenie mocy pradu stalego. Wzor P = U razy I. Dla U = 24 V i I = 5 A moc wynosi 120 W. Symbol P oznacza tutaj moc, a nie cisnienie."
+      ]
+    },
+    {
+      "id": "D12",
+      "client_id": 101,
+      "filename": "norma-beton-wycofana.txt",
+      "pages": [
+        "Norma syntetyczna PN-B-OLD-1984 ma status wycofany i zostala zastapiona. Historyczne zalecenie ugiecia belki nie powinno byc stosowane jako aktualna podstawa projektowa."
+      ]
+    },
+    {
+      "id": "D13",
+      "client_id": 101,
+      "filename": "proba-cisnieniowa-klient-a.txt",
+      "pages": [
+        "Procedura klienta A. Probe szczelnosci instalacji wykonuje sie przy cisnieniu 600 kPa przez 30 minut. Spadek cisnienia nie moze przekroczyc 10 kPa."
+      ]
+    },
+    {
+      "id": "D14",
+      "client_id": 202,
+      "filename": "proba-cisnieniowa-klient-b.txt",
+      "pages": [
+        "Procedura klienta B. Probe wytrzymalosci instalacji wykonuje sie przy cisnieniu 900 kPa przez 45 minut. Dopuszczalny spadek wynosi 15 kPa."
+      ]
+    },
+    {
+      "id": "D15",
+      "client_id": 202,
+      "filename": "dane-kontaktowe-dystraktor.txt",
+      "pages": [
+        "Syntetyczny dystraktor wyszukiwania. Kontakt testowy: qa@example.invalid, telefon +48 500 000 018. Wersja aplikacji 1.0.2+26. Kolekcja ma parametry 1024 / Cosine."
+      ]
+    },
+    {
+      "id": "D16",
+      "client_id": 101,
+      "filename": "krotka-notatka.txt",
+      "pages": [
+        "Kontrola zakonczona bez uwag."
+      ]
+    },
+    {
+      "id": "D17",
+      "client_id": 202,
+      "filename": "tabela-momentow.txt",
+      "pages": [
+        "Tabela syntetyczna momentow dokrecania. Sruba M8 klasa 8.8: 25 Nm. Sruba M10 klasa 8.8: 49 Nm. Sruba M12 klasa 8.8: 85 Nm. Wartosc zalezy od klasy i warunkow tarcia."
+      ]
+    }
+  ],
+  "queries": [
+    {"id":"Q01","group":"exact","text":"THX-420","relevant":["D01"]},
+    {"id":"Q02","group":"exact","text":"PN-EN 1992-1-1:2025","relevant":["D05"]},
+    {"id":"Q03","group":"exact","text":"30 kPa","relevant":["D03"]},
+    {"id":"Q04","group":"exact","text":"F = 12 kN","relevant":["D03"]},
+    {"id":"Q05","group":"exact","text":"INV-SYN-2026-0042","relevant":["D04"]},
+    {"id":"Q06","group":"exact","text":"0.035 W/mK","relevant":["D01"]},
+    {"id":"Q07","group":"exact","text":"Rysa pionowa 2.4 mm","relevant":["D02"]},
+    {"id":"Q08","group":"exact","text":"AB-77","relevant":["D06"]},
+    {"id":"Q09","group":"semantic","text":"material ograniczajacy straty ciepla przez sciany","relevant":["D01"]},
+    {"id":"Q10","group":"semantic","text":"pekniecie nosnej przegrody powiekszajace sie po deszczu","relevant":["D02"]},
+    {"id":"Q11","group":"semantic","text":"jak obliczyc nacisk z sily i powierzchni","relevant":["D03"]},
+    {"id":"Q12","group":"semantic","text":"aktualna podstawa projektowania konstrukcji betonowej","relevant":["D05"]},
+    {"id":"Q13","group":"semantic","text":"co zrobic przed pierwszym uruchomieniem pompy","relevant":["D06"]},
+    {"id":"Q14","group":"semantic","text":"platnosc dwa tygodnie po wystawieniu dokumentu","relevant":["D04"]},
+    {"id":"Q15","group":"semantic","text":"zawilgocenie piwnicy i mozliwe osiadanie","relevant":["D02"]},
+    {"id":"Q16","group":"semantic","text":"przeciek przy oknie dachowym podczas wiatru","relevant":["D07"]},
+    {"id":"Q17","group":"semantic","text":"wymagany przeplyw powietrza dla kubatury 120 metrow szesciennych","relevant":["D08"]},
+    {"id":"Q18","group":"semantic","text":"limit ugiecia belki wedlug obowiazujacej normy","relevant":["D05"]},
+    {"id":"Q19","group":"semantic","text":"obliczenie mocy z napiecia i natezenia","relevant":["D11"]},
+    {"id":"Q20","group":"semantic","text":"moment dokrecania sruby M10 klasy 8.8","relevant":["D17"]},
+    {"id":"Q21","group":"client_scope","text":"cisnienie proby szczelnosci","client_id":101,"relevant":["D13"]},
+    {"id":"Q22","group":"client_scope","text":"cisnienie proby wytrzymalosci","client_id":202,"relevant":["D14"]},
+    {"id":"Q23","group":"client_scope","text":"rysa po opadach","client_id":101,"relevant":["D02"]},
+    {"id":"Q24","group":"client_scope","text":"rysa po opadach","client_id":202,"relevant":["D10"]},
+    {"id":"Q25","group":"client_scope","text":"wzor z symbolem P","client_id":101,"relevant":["D03"]},
+    {"id":"Q26","group":"client_scope","text":"wzor z symbolem P","client_id":202,"relevant":["D11"]},
+    {"id":"Q27","group":"negative","text":"receptura farby antykorozyjnej cynkowej","relevant":[]},
+    {"id":"Q28","group":"negative","text":"instrukcja kalibracji lasera geodezyjnego","relevant":[]},
+    {"id":"Q29","group":"negative","text":"harmonogram serwisu windy hydraulicznej","relevant":[]},
+    {"id":"Q30","group":"negative","text":"wspolczynnik tlumienia akustycznego sufitu","relevant":[]},
+    {"id":"Q31","group":"negative","text":"procedura spawania stali nierdzewnej TIG","relevant":[]},
+    {"id":"Q32","group":"ambiguous","text":"maksymalna temperatura robocza","relevant":["D01","D09"]},
+    {"id":"Q33","group":"ambiguous","text":"kontrola instalacji","relevant":["D04","D08","D13","D14"]},
+    {"id":"Q34","group":"ambiguous","text":"obliczenie P","relevant":["D03","D11"]},
+    {"id":"Q35","group":"ambiguous","text":"rysa w scianie","relevant":["D02","D10"]},
+    {"id":"Q36","group":"ambiguous","text":"wymaganie techniczne i wartosc graniczna","relevant":["D05","D06","D08","D13","D14","D17"]}
+  ]
+}
