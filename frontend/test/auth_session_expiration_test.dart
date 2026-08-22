@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:ai_lab/core/network/api_client.dart';
+import 'package:ai_lab/core/network/session_expiration_coordinator.dart';
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_providers.dart';
 import 'package:ai_lab/features/auth/application/auth_repository.dart';
@@ -92,6 +96,61 @@ void main() {
   });
 
   test(
+    'expired stored token is cleared before fresh login and never reaches login header',
+    () async {
+      final List<String> events = <String>[];
+      final _MemoryTokenStorage storage = _MemoryTokenStorage(
+        _sessionA,
+        events: events,
+      );
+      final _ExpiredThenFreshAdapter adapter = _ExpiredThenFreshAdapter(events);
+      final SessionExpirationCoordinator coordinator =
+          SessionExpirationCoordinator();
+      final Dio dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
+        ..httpClientAdapter = adapter;
+      installSessionExpirationInterceptor(dio, coordinator);
+      final ProviderContainer container = ProviderContainer(
+        overrides: [
+          authTokenStorageProvider.overrideWithValue(storage),
+          dioProvider.overrideWithValue(dio),
+          sessionExpirationCoordinatorProvider.overrideWithValue(coordinator),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final AuthState expired = await container.read(
+        authControllerProvider.future,
+      );
+      expect(expired.isAuthenticated, isFalse);
+      expect(expired.notice, 'Sesja wygasła. Zaloguj się ponownie.');
+      expect(storage.session, isNull);
+      expect(events, <String>[
+        'GET /api/v1/auth/me authorization=Bearer token-a',
+        'storage.clear',
+      ]);
+
+      await container
+          .read(authControllerProvider.notifier)
+          .login(username: 'user-b', password: 'valid');
+
+      final AuthState authenticated = container
+          .read(authControllerProvider)
+          .requireValue;
+      expect(authenticated.user?.username, 'user-b');
+      expect(authenticated.session?.accessToken, _sessionB.accessToken);
+      expect(storage.session?.accessToken, _sessionB.accessToken);
+      expect(storage.session?.tokenType, _sessionB.tokenType);
+      expect(events, <String>[
+        'GET /api/v1/auth/me authorization=Bearer token-a',
+        'storage.clear',
+        'POST /api/v1/auth/login authorization=none',
+        'GET /api/v1/auth/me authorization=Bearer token-b',
+        'storage.save',
+      ]);
+    },
+  );
+
+  test(
     'network failure during restore preserves token with clear notice',
     () async {
       final _MemoryTokenStorage storage = _MemoryTokenStorage(_sessionA);
@@ -161,13 +220,16 @@ const AuthSession _sessionB = AuthSession(
 );
 
 class _MemoryTokenStorage extends AuthTokenStorage {
-  _MemoryTokenStorage(this.session) : super(const FlutterSecureStorage());
+  _MemoryTokenStorage(this.session, {this.events})
+    : super(const FlutterSecureStorage());
 
   AuthSession? session;
+  final List<String>? events;
   int clearCount = 0;
 
   @override
   Future<void> saveSession(AuthSession value) async {
+    events?.add('storage.save');
     session = value;
   }
 
@@ -176,9 +238,72 @@ class _MemoryTokenStorage extends AuthTokenStorage {
 
   @override
   Future<void> clearSession() async {
+    events?.add('storage.clear');
     clearCount++;
     session = null;
   }
+}
+
+class _ExpiredThenFreshAdapter implements HttpClientAdapter {
+  _ExpiredThenFreshAdapter(this.events);
+
+  final List<String> events;
+  int currentUserCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final Object? authorization = options.headers.entries
+        .where(
+          (MapEntry<String, dynamic> entry) =>
+              entry.key.toLowerCase() == 'authorization',
+        )
+        .map((MapEntry<String, dynamic> entry) => entry.value)
+        .firstOrNull;
+    events.add(
+      '${options.method} ${options.path} '
+      'authorization=${authorization ?? 'none'}',
+    );
+
+    if (options.method == 'POST' && options.path == '/api/v1/auth/login') {
+      return _jsonResponse(200, const <String, Object>{
+        'access_token': 'token-b',
+        'token_type': 'bearer',
+      });
+    }
+    if (options.method == 'GET' && options.path == '/api/v1/auth/me') {
+      currentUserCalls++;
+      if (currentUserCalls == 1) {
+        return _jsonResponse(401, const <String, Object>{'detail': 'expired'});
+      }
+      return _jsonResponse(200, const <String, Object>{
+        'id': 2,
+        'username': 'user-b',
+        'email': 'b@example.invalid',
+        'role': 'user',
+        'is_active': true,
+        'must_change_password': false,
+        'password_reset_requested': false,
+      });
+    }
+    throw StateError('Unexpected request: ${options.method} ${options.path}');
+  }
+
+  ResponseBody _jsonResponse(int status, Map<String, Object> body) {
+    return ResponseBody.fromBytes(
+      utf8.encode(jsonEncode(body)),
+      status,
+      headers: <String, List<String>>{
+        Headers.contentTypeHeader: <String>['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 class _AuthRepository extends AuthRepository {

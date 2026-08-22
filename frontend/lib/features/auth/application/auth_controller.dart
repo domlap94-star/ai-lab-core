@@ -7,7 +7,6 @@ import '../data/auth_token_storage.dart';
 import '../domain/auth_session.dart';
 import '../domain/current_user.dart';
 import 'auth_providers.dart';
-import 'auth_diagnostics.dart';
 import 'auth_repository.dart';
 import 'auth_state.dart';
 
@@ -41,9 +40,6 @@ class AuthController extends AsyncNotifier<AuthState> {
     final AuthSession? session = await _tokenStorage.readSession();
 
     if (session == null || !session.isAuthenticated) {
-      ref
-          .read(authDiagnosticControllerProvider.notifier)
-          .recordNoStoredSession();
       return const AuthState.unauthenticated();
     }
 
@@ -56,14 +52,8 @@ class AuthController extends AsyncNotifier<AuthState> {
       }
 
       _sessionExpirationCoordinator.markSessionActive(session.accessToken);
-      ref
-          .read(authDiagnosticControllerProvider.notifier)
-          .recordSessionSuccess();
       return AuthState(session: session, user: user);
     } on DioException catch (error) {
-      ref
-          .read(authDiagnosticControllerProvider.notifier)
-          .recordSessionFailure(error);
       if (error.response?.statusCode != 401) {
         return const AuthState.unauthenticated(
           notice:
@@ -75,10 +65,7 @@ class AuthController extends AsyncNotifier<AuthState> {
       return const AuthState.unauthenticated(
         notice: 'Sesja wygasła. Zaloguj się ponownie.',
       );
-    } on FormatException catch (error) {
-      ref
-          .read(authDiagnosticControllerProvider.notifier)
-          .recordSessionFailure(error);
+    } on FormatException {
       return const AuthState.unauthenticated(
         notice:
             'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
@@ -90,25 +77,15 @@ class AuthController extends AsyncNotifier<AuthState> {
     required String username,
     required String password,
   }) async {
-    final AuthDiagnosticController diagnostics = ref.read(
-      authDiagnosticControllerProvider.notifier,
+    final AuthSession session = await _repository.login(
+      username: username,
+      password: password,
     );
-    diagnostics.recordLoginStarted();
-    final AuthSession session;
-    try {
-      session = await _repository.login(username: username, password: password);
-      diagnostics.recordLoginTokenResponse();
-    } catch (error) {
-      diagnostics.recordLoginFailure(error, path: '/api/v1/auth/login');
-      rethrow;
-    }
 
     final CurrentUser user;
     try {
       user = await _repository.fetchCurrentUser(session);
-      diagnostics.recordLoginConfirmed();
     } on DioException catch (error) {
-      diagnostics.recordLoginFailure(error, path: '/api/v1/auth/me');
       if (error.response?.statusCode == 401) {
         throw const AuthException(
           'Nie udało się potwierdzić sesji. Zaloguj się ponownie.',
@@ -117,9 +94,6 @@ class AuthController extends AsyncNotifier<AuthState> {
       throw const AuthException(
         'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
       );
-    } on FormatException catch (error) {
-      diagnostics.recordLoginFailure(error, path: '/api/v1/auth/me');
-      rethrow;
     }
 
     if (!user.isActive) {

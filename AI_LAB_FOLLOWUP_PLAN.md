@@ -2079,9 +2079,33 @@ Android diagnostic versionCode 28 is now consumed by the signed, non-stable
 adds only compile-time-gated safe Dio/auth tracing plus an in-app `/health`
 probe. It reports host/path/method/status, Dio type, TLS/socket/timeout class,
 safe error code and parse state, never credentials, tokens, headers or response
-bodies. Release E remains open pending its physical preserve-data test. A final
-hotfix must be at least `1.0.2+29` unless this exact +28 byte artifact is
-promoted unchanged after acceptance.
+bodies. Its preserve-data physical test passed app-native `/health` with HTTP
+200, classified the retained token through `/api/v1/auth/me` as an ordinary
+HTTP 401, displayed the expected expired-session notice, and then completed a
+fresh credential login to Dashboard.
+
+The exact +27/+28 source comparison proves that the observed 401-clear-login
+path did not gain a functional auth fix in +28: +27 already awaited secure
+storage clearing before completing startup, marked the session inactive, and
+sent no Authorization header on `/auth/login`. The only behavior-capable +28
+change was malformed-response handling; diagnostic provider writes added
+observability/timing but did not alter the recorded HTTP path. Isolated tests
+now exercise the real shared Dio/interceptor and prove the ordered sequence
+old `/auth/me` 401 -> storage clear -> header-free `/auth/login` -> fresh-token
+`/auth/me` 200. The original +27 `DioExceptionType.unknown` transport symptom
+is therefore classified as transient/non-reproducible rather than a stale-token
+race; its unavailable original low-level exception prevents a narrower causal
+claim.
+
+Release E is **HOTFIX ACCEPTANCE IN PROGRESS**. Temporary diagnostic runtime/UI
+is removed from the production candidate; bounded error mapping no longer calls
+known/unknown client failures an "unknown login error" or exposes exception
+details. Signed non-stable `NEXT-Stabil-1.0.2+29-hotfix-candidate.apk` is built
+with the production HTTPS endpoint, package `pl.ailab.app`, the unchanged v2
+signer and no diagnostic UI/markers. SHA-256 is
+`33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E`.
+It requires the five-step preserve-data physical acceptance before any stable
+publication. Public stable remains +26.
 
 **PHASE F — BLOCKED / NOT STARTED. CHUNK 20 — NOT STARTED.** Owner release
 naming remains canonical: Release E = Phase E / AI + Search; Release F = Phase

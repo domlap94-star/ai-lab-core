@@ -49,12 +49,21 @@ changed in the Phase E range, and independent production HTTPS health passes;
 the owner phone browser also returns healthy. The exact +26/+27 package and v2
 signer match, so Android correctly rejected installing lower versionCode 26
 over 27 without uninstall/data loss. Signed non-stable diagnostic versionCode
-28 is consumed for a preserve-data physical test. It adds compile-time-gated,
-safe Dio health/session/login codes without recording credentials, tokens,
-headers or bodies. A later fixed artifact must use at least +29 unless this
-exact +28 byte artifact is promoted unchanged. Phase F is BLOCKED / NOT STARTED
-and CHUNK 20 is NOT STARTED. Release E canonically names the Phase E boundary;
-Release F is reserved for Phase F / Security + Operations.
+28 is consumed. Its preserve-data physical test returned app-native `/health`
+200, an expected stored-session `/auth/me` 401, the expired-session notice, and
+a successful manual login to Dashboard. Exact source comparison and a real
+Dio/interceptor regression prove +27 already awaited stale-token removal and
+never attached that token to `/auth/login`; +28 did not functionally change the
+observed 401-login path. The original +27 Dio `unknown` transport symptom is
+transient/non-reproducible and lacks retained low-level telemetry for a narrower
+cause. Release E is HOTFIX ACCEPTANCE IN PROGRESS: diagnostic UI/runtime is
+removed from the signed +29 production candidate, error mapping is bounded,
+the compiled API endpoint and unchanged signer are verified, and stable remains
++26 until mandatory physical +29 acceptance. Candidate SHA-256:
+`33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E`.
+Phase F is BLOCKED / NOT STARTED and CHUNK 20 is NOT STARTED. Release E
+canonically names the Phase E boundary; Release F is reserved for Phase F /
+Security + Operations.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -303,9 +312,10 @@ kontraktu.
 - RELEASE E: +27 PUBLISHED 2026-08-22; Android regression investigation OPEN.
   The stable manifest is rolled back to exact +26 metadata/hashes; immutable
   +27 artifacts remain available for diagnosis and are not overwritten. Phase
-  F and CHUNK 20 are blocked. Android diagnostic versionCode 28 is consumed but
-  is not stable; a fixed release must use monotonic build +29 unless the exact
-  accepted +28 diagnostic bytes are promoted unchanged.
+  F and CHUNK 20 are blocked. Android diagnostic versionCode 28 is consumed and
+  its app-health/expired-session/fresh-login physical flow passed, but it is not
+  stable. Release E hotfix acceptance is in progress with monotonic build +29;
+  no stable publication is allowed before its five-step physical acceptance.
   Release E Web, Windows and signed Android carry
   Phase E AI/Search, including the CHUNK 17 production-enabled global
   local-first advanced-analysis runtime and CHUNK 18 benchmark/design assets.

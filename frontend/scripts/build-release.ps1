@@ -15,9 +15,7 @@ param(
 
     [string]$Version = "1.0.0",
 
-    [int]$BuildNumber = 1,
-
-    [switch]$AndroidAuthDiagnostics
+    [int]$BuildNumber = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -70,19 +68,6 @@ $commonArguments = @(
     "--dart-define=API_BASE_URL=$ApiBaseUrl",
     "--dart-define=SUPERVISOR_BASE_URL=$SupervisorBaseUrl"
 )
-
-if ($AndroidAuthDiagnostics) {
-    if ($Platform -ne "android") {
-        throw "Android auth diagnostics may only be enabled for an Android-only build"
-    }
-
-    if ($BuildNumber -lt 28) {
-        throw "Android auth diagnostics require a monotonic build number of at least 28"
-    }
-
-    $commonArguments += "--dart-define=ANDROID_AUTH_DIAGNOSTICS=true"
-    Write-Host "AUTH DIAGNOSTICS: ENABLED (safe metadata only)"
-}
 
 if ($Platform -in @("all", "windows")) {
     Write-Host ""

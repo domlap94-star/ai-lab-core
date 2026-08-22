@@ -155,6 +155,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Niepoprawna odpowiedź logowania.'), findsOneWidget);
   });
+
+  testWidgets('unknown Dio socket failure maps to connectivity message', (
+    WidgetTester tester,
+  ) async {
+    final _LoginRepository repository = _LoginRepository(
+      loginError: DioException(
+        requestOptions: RequestOptions(path: '/api/v1/auth/login'),
+        type: DioExceptionType.unknown,
+        error: const _SyntheticSocketException(),
+      ),
+    );
+    await _pumpLogin(
+      tester,
+      storage: _MemoryTokenStorage(),
+      repository: repository,
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'user');
+    await tester.enterText(find.byType(TextFormField).at(1), 'valid');
+    await tester.tap(find.text('Zaloguj się'));
+    repository.releaseLogin();
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nie można połączyć się z serwerem NEXT Stabil.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('nieznany błąd'), findsNothing);
+  });
+
+  testWidgets('non-Dio client failure uses bounded generic message', (
+    WidgetTester tester,
+  ) async {
+    final _LoginRepository repository = _LoginRepository(
+      loginError: StateError('synthetic private detail'),
+    );
+    await _pumpLogin(
+      tester,
+      storage: _MemoryTokenStorage(),
+      repository: repository,
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'user');
+    await tester.enterText(find.byType(TextFormField).at(1), 'valid');
+    await tester.tap(find.text('Zaloguj się'));
+    repository.releaseLogin();
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nie udało się zalogować. Spróbuj ponownie.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('synthetic private detail'), findsNothing);
+  });
+}
+
+class _SyntheticSocketException implements Exception {
+  const _SyntheticSocketException();
 }
 
 Future<void> _pumpLogin(
