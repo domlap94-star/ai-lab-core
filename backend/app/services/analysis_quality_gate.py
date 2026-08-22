@@ -12,6 +12,7 @@ class QualityGateResult:
 
 
 class AnalysisQualityGate:
+    EXTERNAL_ELIGIBLE_SENSITIVITIES = {"public_reference", "customer_sanitizable"}
     MIN_COVERAGE = {
         "formula_calculation": 1.0,
         "standards_comparison": 0.9,
@@ -40,6 +41,8 @@ class AnalysisQualityGate:
         weak = local.confidence in {"low", "indeterminate"} or signals.model_uncertain
         if not hard and not weak and signals.source_coverage >= threshold:
             return QualityGateResult("ACCEPT_LOCAL", "analysis_local_accepted")
-        if "temporary_chat" in request.allowed_methods and signals.source_coverage >= 0.5:
+        if (request.sensitivity in self.EXTERNAL_ELIGIBLE_SENSITIVITIES
+                and "temporary_chat" in request.allowed_methods
+                and signals.source_coverage >= 0.5):
             return QualityGateResult("ESCALATE_TEMP_CHAT", "analysis_advanced_required")
         return QualityGateResult("REVIEW_REQUIRED", "analysis_review_required")

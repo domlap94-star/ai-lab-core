@@ -1618,9 +1618,8 @@ Human gate: dla Qdrant wymagany
 Cel: rozszerzyć wdrożony pod CHUNK 16 wspólny runtime na kolejne domeny poprzez
 `local-first -> deterministic quality gate -> sanitized Temporary Chat -> local
 post-validation`, zgodnie z `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`.
-**[~] MULTI-DOMAIN IMPLEMENTATION / ISOLATED ACCEPTANCE / AUTHENTICATED
-PUBLIC-SAFE TEMPORARY CHAT E2E PASS — 2026-08-22; PRODUCTION
-ADVANCED-ANALYSIS ENABLEMENT APPROVAL REQUIRED.** Phase E is IN PROGRESS. The
+**[✓] COMPLETE — MULTI-DOMAIN LOCAL-FIRST / TEMPORARY CHAT ESCALATION —
+2026-08-22.** Phase E is IN PROGRESS and CHUNK 18 is NEXT / NOT STARTED. The
 shared runtime now has canonical local-first adapters for all seven approved
 analysis types without adding another queue, sanitizer, browser worker or
 persistence model.
@@ -1658,15 +1657,23 @@ local post-validation independently accepted `12 kN / 0.004 m2 = 3 MPa` as
 startup race, worker/backend result-schema drift and missing unit-aware
 post-validation. One durable synthetic job/source reached terminal acceptance,
 the shared arbiter returned to READY and operational logs contained no package
-or result body. Production remains `ADVANCED_ANALYSIS_ENABLED=false`; real
-customer data externalization is zero. Exact next gate is
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
+or result body. The production-enablement approval was consumed after two
+fail-closed remediation cycles: the canonical PHONE detector now distinguishes
+real phone structures from engineering numeric output, and Supervisor external
+jobs are owned by immutable analysis/package/type bindings rather than input
+fingerprint alone. Production `ADVANCED_ANALYSIS_ENABLED=true`. Fresh bounded
+production acceptance proves restricted input creates no external job, a new
+analysis with the prior public input receives a new manifest-bound Temporary
+Chat job, same-analysis retry creates no second browser submission,
+customer-sanitizable synthetic identifiers are removed with clean result
+post-validation, and a sufficient local calculation remains `accepted_local`.
+Real customer externalization, business writes, Qdrant mutation, Gmail, n8n
+and Vision jobs are zero. The exact next item is CHUNK 18, NOT STARTED.
 Wymagane są testy privacy/sanitization, source-ref integrity, retry/persistence,
 AUTH_REQUIRED/UI_CHANGED, Vision regression i co najmniej 30 kontrolowanych
 formuł/obliczeń z unit checking oraz deterministic comparison.
 
-Do not enable production advanced analysis or start CHUNK 18 without a separate
-owner decision.
+Do not start CHUNK 18 without a separate owner decision.
 
 ## FOLLOW-UP CHUNK 18 — SEMANTIC SEARCH COVERAGE V2
 

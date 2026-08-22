@@ -41,6 +41,8 @@ def main() -> None:
     hard = request(); require(gate.evaluate(hard, local(hard, model_uncertain=True)).decision == "ESCALATE_TEMP_CHAT", "hard analysis did not escalate")
     missing = request(); require(gate.evaluate(missing, local(missing, missing_evidence=True, insufficient_evidence=True)).decision == "REVIEW_REQUIRED", "missing evidence guessed")
     restricted = request(sensitivity="restricted_never_external"); require(gate.evaluate(restricted, local(restricted, model_uncertain=True)).decision == "REVIEW_REQUIRED", "restricted data externalized")
+    internal_easy = request(sensitivity="internal_non_sensitive"); require(gate.evaluate(internal_easy, local(internal_easy)).decision == "ACCEPT_LOCAL", "internal local result rejected")
+    internal_hard = request(sensitivity="internal_non_sensitive"); require(gate.evaluate(internal_hard, local(internal_hard, model_uncertain=True)).decision == "REVIEW_REQUIRED", "internal data externalized")
 
     sanitizer = AnalysisSanitizer()
     pii = request(sensitivity="customer_sanitizable", text="Klient: Jan Kowalski, email jan@example.com, telefon +48 500 600 700, ul. Testowa 4, CRM_ID=123. Parametr 20 MPa.")

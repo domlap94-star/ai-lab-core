@@ -177,8 +177,8 @@ Release D under a separate prompt; Phase E remains blocked until it completes.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
 starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
-CHUNK 17 is IN PROGRESS at its production-enablement gate; CHUNK 18 is NOT
-STARTED and CHUNK 19 remains completed early under CHUNK 15. Current release is
+CHUNK 17 is COMPLETE; CHUNK 18 is NEXT / NOT STARTED and CHUNK 19 remains
+completed early under CHUNK 15. Current release is
 NEXT Stabil `1.0.2+26`.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
@@ -206,8 +206,15 @@ and source reached `accepted_advanced`; strict manifest/package/source binding,
 unit-aware local recalculation and log privacy pass. The acceptance fixed the
 analysis worker's authenticated-UI startup wait, strict Node/backend result
 shape parity and unit-aware calculation post-validation. The arbiter is READY.
-Production `ADVANCED_ANALYSIS_ENABLED` remains false. Exact gate is
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
+Production `ADVANCED_ANALYSIS_ENABLED=true`. Production acceptance proves the
+mandatory local-first gate, restricted-never-external block, clean
+customer-sanitizable escalation, strict result binding/post-validation and a
+local-sufficient no-external-job path. The engineering-number PHONE false
+positive is fixed without weakening real-phone detection. Supervisor terminal
+idempotency is bound to `(analysis_id, package_sha256, analysis_type)`; a new
+analysis never adopts another analysis result, while an exact same-analysis
+retry reuses safely without another browser submission. CHUNK 18 is the next
+canonical item and remains NOT STARTED.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application
