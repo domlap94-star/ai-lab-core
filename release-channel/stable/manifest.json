@@ -1,9 +1,9 @@
 {
     "channel":  "stable",
     "version":  "1.0.2",
-    "build_number":  27,
+    "build_number":  26,
     "minimum_version":  "1.0.0",
-    "published_at":  "2026-08-22T20:32:16Z",
+    "published_at":  "2026-08-22T09:16:40Z",
     "platforms":  {
                       "web":  {
                                   "available":  true,
@@ -11,13 +11,13 @@
                               },
                       "windows":  {
                                       "available":  true,
-                                      "url":  "/updates/stable/windows/NEXT-Stabil-Setup-1.0.2+27.exe",
-                                      "sha256":  "78FAD64EDAE833610E0272A74EB0996F8730F44FD1B2D6F6DE3D1F96F3410088"
+                                      "url":  "/updates/stable/windows/NEXT-Stabil-Setup-1.0.2+26.exe",
+                                      "sha256":  "F3BFA1EAB69E1F260EDC58D0DE233CC90E8650CFB075DD4E8EFF7702D0D8EBE7"
                                   },
                       "android":  {
                                       "available":  true,
-                                      "url":  "/updates/stable/android/NEXT-Stabil-1.0.2+27.apk",
-                                      "sha256":  "965024FA522B082C8BFC11CA62CAE9079CB8D36F2B42BA86B8D72BF7CBFC7AEA"
+                                      "url":  "/updates/stable/android/NEXT-Stabil-1.0.2+26.apk",
+                                      "sha256":  "7A8C8A841173BD4B1EDB5CBAC2D642B47922E5A8044BE2E30586AAD1EC0D5405"
                                   }
                   }
 }

@@ -2037,8 +2037,13 @@ with 0 points. Test safety now rejects both production Qdrant collections and
 the production endpoint, requiring an explicit isolated endpoint and
 `ai_lab_test_*` collection.
 
-**[✓] RELEASE E — PUBLISHED / COMPLETE — 2026-08-22 — NEXT Stabil
-`1.0.2+27`.** Phase E / AI + Search is COMPLETE / RELEASED. It contains the
+**[!] RELEASE E — PUBLISHED AS NEXT Stabil `1.0.2+27`; ANDROID LOGIN
+REGRESSION UNDER INVESTIGATION — 2026-08-22.** Phase E release acceptance is
+REOPENED and Phase F is BLOCKED / NOT STARTED. The public stable manifest was
+emergency-repointed to the exact retained `1.0.2+26` metadata and verified
+immutable hashes to prevent further +27 upgrades. Existing +27 installations
+will not self-downgrade; +27 artifacts remain immutable for diagnosis. It
+contains the
 completed CHUNK 17 global local-first advanced-analysis runtime and the CHUNK
 18 semantic-search benchmark/design; CHUNK 19 remains completed early under
 CHUNK 15. Production `ADVANCED_ANALYSIS_ENABLED=true` with mandatory
@@ -2059,7 +2064,14 @@ Raw and installed +27 smokes pass with no new Code Integrity event, and no
 security policy, antivirus exclusion, signing identity, gateway or firewall was
 weakened. Authenticated Web +27 Dashboard smoke and exact loopback CORS pass.
 
-**PHASE F — UNBLOCKED / NOT STARTED.** Exact next item:
-`FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2`. Do not start it without a
-separate owner prompt. Owner release naming is canonical: Release E = Phase E /
-AI + Search; Release F = Phase F / Security + Operations.
+Physical Android displayed startup-session and login failures on +27. Artifact
+audit proves +26 and +27 embed the same HTTPS API/Supervisor endpoints and the
+same Android manifest/network policy (apart from versionCode); no Flutter auth,
+network or Android source changed after Release D, and the public production
+API currently passes independent HTTPS health. A same-device/same-network +26
+control is required before classifying the incident or preparing a monotonic
+`1.0.2+28` hotfix.
+
+**PHASE F — BLOCKED / NOT STARTED. CHUNK 20 — NOT STARTED.** Owner release
+naming remains canonical: Release E = Phase E / AI + Search; Release F = Phase
+F / Security + Operations.

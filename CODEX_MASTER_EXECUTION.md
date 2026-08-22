@@ -24,8 +24,12 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**RELEASE E COMPLETE — NEXT STABIL 1.0.2+27 — 2026-08-22.** Phase E / AI +
-Search is COMPLETE / RELEASED. CHUNK 17 is complete and production advanced
+**RELEASE E +27 PUBLISHED; ANDROID LOGIN REGRESSION UNDER INVESTIGATION —
+2026-08-22.** Phase E release acceptance is REOPENED. The stable manifest has
+been emergency-repointed to the exact retained NEXT Stabil `1.0.2+26` metadata
+and verified artifact hashes, preventing new +27 upgrades while preserving +27
+bytes for diagnosis. Existing +27 clients do not automatically downgrade.
+CHUNK 17 is complete and production advanced
 analysis is enabled under mandatory local-first/privacy/post-validation rules.
 CHUNK 18 design and isolated quality benchmark are complete, but production
 customer-vector backfill is not recommended: the current retrieval path cannot
@@ -38,9 +42,13 @@ resolved an enterprise Code Integrity rejection by pinning the byte-identical,
 already accepted Release D native permission/geolocator plugin binaries; raw
 and installed +27 smokes pass without weakening Code Integrity, antivirus,
 gateway or firewall policy. Authenticated Web +27 Dashboard and exact loopback
-CORS smokes pass. Phase F is UNBLOCKED / NOT STARTED; exact next item is
-`FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2`. Release E canonically names the
-Phase E boundary; Release F is reserved for Phase F / Security + Operations.
+CORS smokes pass. Physical Android subsequently reported startup-session and
+login connectivity errors on +27. The +26/+27 APKs contain the same production
+HTTPS endpoints and Android network policy, no Flutter auth/network source
+changed in the Phase E range, and independent production HTTPS health passes;
+a same-device/same-network +26 control remains mandatory. Phase F is BLOCKED /
+NOT STARTED and CHUNK 20 is NOT STARTED. Release E canonically names the Phase
+E boundary; Release F is reserved for Phase F / Security + Operations.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -185,8 +193,9 @@ Release D under a separate prompt; Phase E remains blocked until it completes.
 starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
 CHUNK 17 is COMPLETE; CHUNK 18 DESIGN/BENCHMARK is COMPLETE with production
 backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
-Phase E feature work is complete and Release E was published. Current release
-is NEXT Stabil `1.0.2+27`. Phase F is UNBLOCKED / NOT STARTED.
+Phase E feature work is complete and Release E +27 was published, but Android
+release acceptance is reopened. The stable channel is contained at NEXT Stabil
+`1.0.2+26`; Phase F is BLOCKED / NOT STARTED.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -283,17 +292,21 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+27
+## CURRENT STABLE — NEXT STABIL 1.0.2+26 (EMERGENCY CONTAINMENT)
 
-- RELEASE E: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
+- RELEASE E: +27 PUBLISHED 2026-08-22; Android regression investigation OPEN.
+  The stable manifest is rolled back to exact +26 metadata/hashes; immutable
+  +27 artifacts remain available for diagnosis and are not overwritten. Phase
+  F and CHUNK 20 are blocked. A fixed release, if required after root-cause
+  proof and mandatory physical acceptance, must use monotonic build +28.
+  Release E Web, Windows and signed Android carry
   Phase E AI/Search, including the CHUNK 17 production-enabled global
   local-first advanced-analysis runtime and CHUNK 18 benchmark/design assets.
-  Stable build is `27`; `minimum_version` remains `1.0.0`. Public Windows and
+  Release E artifact build is `27`; the contained stable manifest advertises
+  build `26` and `minimum_version` remains `1.0.0`. Published +27 Windows and
   Android hashes match verified local bytes, authenticated Web +27 smoke passes,
   and +26/+25 immutable rollback artifacts remain available. Production
   customer-vector backfill is NOT RECOMMENDED / NOT APPROVED / NOT PERFORMED.
-  Phase E is COMPLETE / RELEASED; Phase F is UNBLOCKED / NOT STARTED, with
-  CHUNK 20 the exact next item.
 
 - RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web
