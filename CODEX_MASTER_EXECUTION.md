@@ -24,46 +24,30 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**RELEASE E +27 PUBLISHED; ANDROID LOGIN REGRESSION UNDER INVESTIGATION —
-2026-08-22.** Phase E release acceptance is REOPENED. The stable manifest has
-been emergency-repointed to the exact retained NEXT Stabil `1.0.2+26` metadata
-and verified artifact hashes, preventing new +27 upgrades while preserving +27
-bytes for diagnosis. Existing +27 clients do not automatically downgrade.
-CHUNK 17 is complete and production advanced
-analysis is enabled under mandatory local-first/privacy/post-validation rules.
-CHUNK 18 design and isolated quality benchmark are complete, but production
-customer-vector backfill is not recommended: the current retrieval path cannot
-meet both the declared recall and negative-query thresholds. CHUNK 19 was
-completed early under CHUNK 15. Production DB remains at
+**RELEASE E COMPLETE / HOTFIXED — NEXT Stabil `1.0.2+29` PUBLISHED
+2026-08-22.** Phase E is COMPLETE / RELEASED. The +27 Android startup/login
+incident reopened release acceptance and caused an emergency stable-manifest
+rollback to exact +26 bytes. +28 was consumed as diagnostic-only / never stable.
+The exact signed +29 candidate then passed preserve-data physical acceptance
+over +28: install, startup, login/Dashboard, logout/login and force-close/session
+restore all PASS. Those byte-identical Android bytes were published with SHA-256
+`33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E`.
+Unified Windows and authenticated Web +29 smokes pass; the Windows package keeps
+the already Code-Integrity-accepted permission/geolocator plug-in bytes without
+weakening security policy. +25/+26 remain rollback artifacts, +27 remains the
+superseded regression artifact, and +28 remains diagnostic-only. The original
++27 low-level exception was not retained, so its cause remains bounded to a
+transient/non-reproducible Dio unknown transport condition.
+
+CHUNK 17 is complete and production advanced analysis remains enabled under
+mandatory local-first/privacy/post-validation rules. CHUNK 18 design/benchmark
+is complete with customer-vector backfill NOT RECOMMENDED / NOT APPROVED / NOT
+PERFORMED; CHUNK 19 was completed early under CHUNK 15. Production DB remains
 `followup_contact_person_20260822`; customer Qdrant remains 57 points and the
 healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
-is unconsumed and no backfill was performed. Release E Windows acceptance
-resolved an enterprise Code Integrity rejection by pinning the byte-identical,
-already accepted Release D native permission/geolocator plugin binaries; raw
-and installed +27 smokes pass without weakening Code Integrity, antivirus,
-gateway or firewall policy. Authenticated Web +27 Dashboard and exact loopback
-CORS smokes pass. Physical Android subsequently reported startup-session and
-login connectivity errors on +27. The +26/+27 APKs contain the same production
-HTTPS endpoints and Android network policy, no Flutter auth/network source
-changed in the Phase E range, and independent production HTTPS health passes;
-the owner phone browser also returns healthy. The exact +26/+27 package and v2
-signer match, so Android correctly rejected installing lower versionCode 26
-over 27 without uninstall/data loss. Signed non-stable diagnostic versionCode
-28 is consumed. Its preserve-data physical test returned app-native `/health`
-200, an expected stored-session `/auth/me` 401, the expired-session notice, and
-a successful manual login to Dashboard. Exact source comparison and a real
-Dio/interceptor regression prove +27 already awaited stale-token removal and
-never attached that token to `/auth/login`; +28 did not functionally change the
-observed 401-login path. The original +27 Dio `unknown` transport symptom is
-transient/non-reproducible and lacks retained low-level telemetry for a narrower
-cause. Release E is HOTFIX ACCEPTANCE IN PROGRESS: diagnostic UI/runtime is
-removed from the signed +29 production candidate, error mapping is bounded,
-the compiled API endpoint and unchanged signer are verified, and stable remains
-+26 until mandatory physical +29 acceptance. Candidate SHA-256:
-`33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E`.
-Phase F is BLOCKED / NOT STARTED and CHUNK 20 is NOT STARTED. Release E
-canonically names the Phase E boundary; Release F is reserved for Phase F /
-Security + Operations.
+is unconsumed. Phase F is UNBLOCKED / NOT STARTED and CHUNK 20 is NEXT / NOT
+STARTED. Release E canonically names Phase E; Release F remains reserved for
+Phase F / Security + Operations.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -208,9 +192,9 @@ Release D under a separate prompt; Phase E remains blocked until it completes.
 starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
 CHUNK 17 is COMPLETE; CHUNK 18 DESIGN/BENCHMARK is COMPLETE with production
 backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
-Phase E feature work is complete and Release E +27 was published, but Android
-release acceptance is reopened. The stable channel is contained at NEXT Stabil
-`1.0.2+26`; Phase F is BLOCKED / NOT STARTED.
+Phase E feature work is complete and Release E is COMPLETE / HOTFIXED as NEXT
+Stabil `1.0.2+29`. Phase F is UNBLOCKED / NOT STARTED; CHUNK 20 is NEXT / NOT
+STARTED and requires a separate owner prompt.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -307,23 +291,18 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT STABLE — NEXT STABIL 1.0.2+26 (EMERGENCY CONTAINMENT)
+## CURRENT STABLE — NEXT STABIL 1.0.2+29 (RELEASE E HOTFIX)
 
-- RELEASE E: +27 PUBLISHED 2026-08-22; Android regression investigation OPEN.
-  The stable manifest is rolled back to exact +26 metadata/hashes; immutable
-  +27 artifacts remain available for diagnosis and are not overwritten. Phase
-  F and CHUNK 20 are blocked. Android diagnostic versionCode 28 is consumed and
-  its app-health/expired-session/fresh-login physical flow passed, but it is not
-  stable. Release E hotfix acceptance is in progress with monotonic build +29;
-  no stable publication is allowed before its five-step physical acceptance.
-  Release E Web, Windows and signed Android carry
-  Phase E AI/Search, including the CHUNK 17 production-enabled global
-  local-first advanced-analysis runtime and CHUNK 18 benchmark/design assets.
-  Release E artifact build is `27`; the contained stable manifest advertises
-  build `26` and `minimum_version` remains `1.0.0`. Published +27 Windows and
-  Android hashes match verified local bytes, authenticated Web +27 smoke passes,
-  and +26/+25 immutable rollback artifacts remain available. Production
-  customer-vector backfill is NOT RECOMMENDED / NOT APPROVED / NOT PERFORMED.
+- RELEASE E: COMPLETE / HOTFIXED 2026-08-22 as unified build `1.0.2+29` with
+  `minimum_version` unchanged at `1.0.0`. The physically accepted Android bytes
+  were published unchanged; Windows raw/installed and authenticated Web smokes
+  pass. +27 is retained as the superseded Android-regression artifact, +28 is
+  retained diagnostic-only / never stable, and +26/+25 remain immutable rollback
+  artifacts. Release E carries Phase E AI/Search, including CHUNK 17's
+  production-enabled global local-first advanced-analysis runtime and CHUNK 18
+  benchmark/design assets. Production customer-vector backfill is NOT
+  RECOMMENDED / NOT APPROVED / NOT PERFORMED. Phase F is UNBLOCKED / NOT STARTED
+  and CHUNK 20 is NEXT / NOT STARTED.
 
 - RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web

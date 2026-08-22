@@ -1941,7 +1941,8 @@ promptami.
 
 **[✓] Mandatory Phase D exit satisfied — Release D published 2026-08-22 as
 NEXT Stabil `1.0.2+26`.** Phase D is COMPLETE / RELEASED. Phase E subsequently
-completed and was released as Release E / NEXT Stabil `1.0.2+27`.
+completed and, after the contained +27 Android incident and preserve-data
+hotfix acceptance, was released as Release E / NEXT Stabil `1.0.2+29`.
 
 ### PHASE E — AI / SEARCH
 
@@ -1977,10 +1978,10 @@ Nie wykonywać release po każdym micro-fixie.
 **Owner sequencing rule: every Phase must end with a release before the next
 Phase begins.** The required `CHUNK 26 -> Release D -> Phase E` boundary has
 been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
-complete, and CHUNK 19 was completed early under CHUNK 15. Release E was
-published on 2026-08-22 as NEXT Stabil `1.0.2+27`; Phase E is COMPLETE /
-RELEASED. Phase F is UNBLOCKED / NOT STARTED and requires a separate owner
-prompt.
+complete, and CHUNK 19 was completed early under CHUNK 15. Release E is
+COMPLETE / HOTFIXED and was published on 2026-08-22 as NEXT Stabil
+`1.0.2+29`; Phase E is COMPLETE / RELEASED. Phase F is UNBLOCKED / NOT
+STARTED and requires a separate owner prompt. CHUNK 20 is NEXT / NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
@@ -2037,13 +2038,13 @@ with 0 points. Test safety now rejects both production Qdrant collections and
 the production endpoint, requiring an explicit isolated endpoint and
 `ai_lab_test_*` collection.
 
-**[!] RELEASE E — PUBLISHED AS NEXT Stabil `1.0.2+27`; ANDROID LOGIN
-REGRESSION UNDER INVESTIGATION — 2026-08-22.** Phase E release acceptance is
-REOPENED and Phase F is BLOCKED / NOT STARTED. The public stable manifest was
-emergency-repointed to the exact retained `1.0.2+26` metadata and verified
-immutable hashes to prevent further +27 upgrades. Existing +27 installations
-will not self-downgrade; +27 artifacts remain immutable for diagnosis. It
-contains the
+**[✓] RELEASE E — COMPLETE / HOTFIXED AS NEXT Stabil `1.0.2+29` —
+2026-08-22.** The initially published +27 Android artifact produced a physical
+startup/login incident, so release acceptance was reopened and the public
+stable manifest was emergency-repointed to the exact retained `1.0.2+26`
+metadata and verified immutable hashes. Existing +27 installations did not
+self-downgrade; +27 remains immutable as the superseded regression artifact.
+Release E contains the
 completed CHUNK 17 global local-first advanced-analysis runtime and the CHUNK
 18 semantic-search benchmark/design; CHUNK 19 remains completed early under
 CHUNK 15. Production `ADVANCED_ANALYSIS_ENABLED=true` with mandatory
@@ -2097,16 +2098,21 @@ is therefore classified as transient/non-reproducible rather than a stale-token
 race; its unavailable original low-level exception prevents a narrower causal
 claim.
 
-Release E is **HOTFIX ACCEPTANCE IN PROGRESS**. Temporary diagnostic runtime/UI
-is removed from the production candidate; bounded error mapping no longer calls
-known/unknown client failures an "unknown login error" or exposes exception
-details. Signed non-stable `NEXT-Stabil-1.0.2+29-hotfix-candidate.apk` is built
-with the production HTTPS endpoint, package `pl.ailab.app`, the unchanged v2
-signer and no diagnostic UI/markers. SHA-256 is
+The +29 production hotfix removed the temporary diagnostic runtime/UI and keeps
+bounded error mapping without exposing exception details. The exact signed
+`NEXT-Stabil-1.0.2+29-hotfix-candidate.apk` bytes passed preserve-data physical
+acceptance over +28: install, startup, login/Dashboard, logout/login and
+force-close/session restore all PASS. Those unchanged bytes were published as
+`NEXT-Stabil-1.0.2+29.apk`; SHA-256 is
 `33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E`.
-It requires the five-step preserve-data physical acceptance before any stable
-publication. Public stable remains +26.
+The public stable manifest now advertises build 29 with minimum version 1.0.0.
+Unified Windows/Web +29 smokes pass; the Windows package retains the already
+accepted native plug-in bytes without weakening Code Integrity. +25 and +26
+remain rollback artifacts, +27 remains the regression artifact, and +28 remains
+diagnostic-only / never stable. The original +27 low-level exception was not
+retained, so the incident remains classified only as a transient,
+non-reproducible Dio unknown transport condition.
 
-**PHASE F — BLOCKED / NOT STARTED. CHUNK 20 — NOT STARTED.** Owner release
-naming remains canonical: Release E = Phase E / AI + Search; Release F = Phase
-F / Security + Operations.
+**PHASE F — UNBLOCKED / NOT STARTED. CHUNK 20 — NEXT / NOT STARTED.** Owner
+release naming remains canonical: Release E = Phase E / AI + Search; Release F
+= Phase F / Security + Operations. No Phase F work was started by Release E.
