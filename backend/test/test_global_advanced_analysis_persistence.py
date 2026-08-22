@@ -128,6 +128,12 @@ def main() -> None:
                 "normalized_units": {}, "formula_used": "u/i", "calculation_steps": ["230 / 10 = 23"],
                 "verification_recommendation": "accept",
             }), encoding="utf-8")
+            result_dir.joinpath("result_manifest.json").write_text(json.dumps({
+                "job_id": supervisor.job_id,
+                "analysis_id": str(calculation.analysis_id),
+                "package_sha256": advanced.sanitized_package_hash,
+                "format_retry_used": False,
+            }), encoding="utf-8")
             require(orchestrator.apply_external(job=advanced, request=calculation) == "accepted_advanced",
                     "valid synthetic Temporary Chat result was not accepted")
             db.commit()

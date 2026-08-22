@@ -32,8 +32,9 @@ synthetic orphan point `648ab266-c5fb-5cab-b1c1-89e46fd47514` from
 `ai_lab_knowledge_base_chunks`; the healthy KB collection remains at 0 points
 and `ai_lab_document_chunks` remains unchanged at 57. A fail-closed test guard
 now rejects both production collection names and the production Qdrant
-endpoint. Phase E is UNBLOCKED / NOT STARTED; canonical next work is CHUNK 17
-under a separate prompt.
+endpoint. Phase E is IN PROGRESS at CHUNK 17; production advanced analysis
+remains disabled behind
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -176,7 +177,9 @@ Release D under a separate prompt; Phase E remains blocked until it completes.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
 starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
-CHUNK 17/18/19 are NOT STARTED. Current release is NEXT Stabil `1.0.2+26`.
+CHUNK 17 is IN PROGRESS at its production-enablement gate; CHUNK 18 is NOT
+STARTED and CHUNK 19 remains completed early under CHUNK 15. Current release is
+NEXT Stabil `1.0.2+26`.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -189,9 +192,17 @@ uses the private Temporary Chat bridge through shared serialized internals, and
 locally validates strict structured results. Existing
 Vision `/vision/*` contracts remain compatible. The runtime approval was
 consumed; the KB production migration and bounded source-only vector acceptance
-are complete. Future CHUNK 17 is
-renamed **GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT ESCALATION** and is
-NOT STARTED.
+are complete. CHUNK 17 **GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT
+ESCALATION** now passes multi-domain source and isolated acceptance. The one
+canonical processor registry covers formula calculation, technical/document
+interpretation, bounded table analysis, standards comparison, consistency and
+existing Vision results. Privacy, source/package/result hashes, deterministic
+post-validation, 36 controlled calculations, durable idempotency/recovery,
+AUTH_REQUIRED/UI_CHANGED, bounded retry, shared browser arbitration and
+KB/Vision regressions pass. A public-safe live attempt stopped before submission
+at truthful `AUTH_REQUIRED`; the synthetic job was cancelled and the arbiter is
+READY. Production `ADVANCED_ANALYSIS_ENABLED` remains false. Exact gate is
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
 
 Mutating isolated backend tests now fail closed through one shared guard: an
 approved `POSTGRES_DB` test name must be set before importing the application
@@ -254,7 +265,7 @@ kontraktu.
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web
   CORS fix. Stable build is `26`; `minimum_version` remains `1.0.0`. Public
   artifact hashes match verified local bytes. Phase D is COMPLETE / RELEASED;
-  Phase E is UNBLOCKED / NOT STARTED and CHUNK 17 is the next canonical item.
+  Phase E is IN PROGRESS at CHUNK 17; CHUNK 18 is NOT STARTED.
 - Final release hygiene deleted exactly synthetic orphan KB point
   `648ab266-c5fb-5cab-b1c1-89e46fd47514`, leaving the KB collection healthy and
   empty and the customer collection unchanged at 57 points. Tests now require

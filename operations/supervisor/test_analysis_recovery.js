@@ -14,8 +14,8 @@ function fixture(root) {
     analysis_id: crypto.randomUUID(),
     analysis_type: 'technical_interpretation',
     problem: 'Synthetic public fixture',
-    sources: [{ source_ref: 'S1', technical_excerpt: 'R = U / I', page: 1 }],
-    tables: [], formulas: [], variables: {}, values: {}, units: {}, constraints: [],
+    sources: [{ source_ref: 'S1', source_sha256: 'c'.repeat(64), technical_excerpt: 'R = U / I', page: 1 }],
+    tables: [], formulas: [], variables: {}, values: {}, units: {}, constraints: [], standards: [], claims: [],
     requested_output: 'result', validation_requirements: [],
   };
   const raw = JSON.stringify(value);

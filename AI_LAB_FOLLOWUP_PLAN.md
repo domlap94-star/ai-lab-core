@@ -1618,8 +1618,11 @@ Human gate: dla Qdrant wymagany
 Cel: rozszerzyć wdrożony pod CHUNK 16 wspólny runtime na kolejne domeny poprzez
 `local-first -> deterministic quality gate -> sanitized Temporary Chat -> local
 post-validation`, zgodnie z `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_DESIGN.md`.
-CHUNK pozostaje **NOT STARTED**; infrastruktura wspólna wdrożona wcześniej nie
-oznacza wdrożenia domen technicznych/klienckich/obliczeniowych CHUNK 17.
+**[~] MULTI-DOMAIN IMPLEMENTATION / ISOLATED ACCEPTANCE PASS — 2026-08-22;
+PRODUCTION ADVANCED-ANALYSIS ENABLEMENT APPROVAL REQUIRED.** Phase E is IN
+PROGRESS. The shared runtime now has canonical local-first adapters for all
+seven approved analysis types without adding another queue, sanitizer, browser
+worker or persistence model.
 
 Wspólny kontrakt ma obsługiwać Knowledge Base, analizę techniczną, dokumenty,
 Vision, tabele, porównanie standardów, spójność, formuły i obliczenia. Zachować
@@ -1637,13 +1640,25 @@ Chat nie jest domyślnym procesorem i nie może bezpośrednio mutować CRM, DB a
 Qdrant.
 
 Runtime approval `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_RUNTIME_APPROVAL_REQUIRED`
-was consumed for this bounded implementation. Multi-domain CHUNK 17 rollout is
-still NOT STARTED.
+was consumed for this bounded implementation. Deterministic acceptance covers
+36 calculations, SI-prefix/dimensional/range failures, technical/document page
+evidence, bounded tables, standard identity/version/status, unresolved
+consistency conflicts, visual-result adaptation, aggressive nested privacy,
+package/source/result binding and local post-validation. Durable idempotency,
+restart recovery, AUTH_REQUIRED/UI_CHANGED, bounded retry, cancellation, shared
+Vision/analysis serialization, Vision compatibility and isolated KB/Qdrant
+regressions pass. A single public-safe browser smoke reached truthful
+`AUTH_REQUIRED` before package submission; its synthetic job was cancelled and
+the shared arbiter returned to READY. Production remains
+`ADVANCED_ANALYSIS_ENABLED=false`; real customer data externalization is zero.
+Exact next gate is
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
 Wymagane są testy privacy/sanitization, source-ref integrity, retry/persistence,
 AUTH_REQUIRED/UI_CHANGED, Vision regression i co najmniej 30 kontrolowanych
 formuł/obliczeń z unit checking oraz deterministic comparison.
 
-Nie rozpoczynać implementacji bez osobnej decyzji właściciela.
+Do not enable production advanced analysis or start CHUNK 18 without a separate
+owner decision.
 
 ## FOLLOW-UP CHUNK 18 — SEMANTIC SEARCH COVERAGE V2
 
@@ -1916,7 +1931,7 @@ Nie wykonywać release po każdym micro-fixie.
 
 **Owner sequencing rule: every Phase must end with a release before the next
 Phase begins.** The required `CHUNK 26 -> Release D -> Phase E` boundary has
-been satisfied. Phase E remains NOT STARTED.
+been satisfied. Phase E is IN PROGRESS at CHUNK 17; CHUNK 18 is NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
@@ -1969,6 +1984,9 @@ orphan KB point `648ab266-c5fb-5cab-b1c1-89e46fd47514`; the customer collection
 remained unchanged at 57 points and the healthy KB collection remains present
 with 0 points. Test safety now rejects both production Qdrant collections and
 the production endpoint, requiring an explicit isolated endpoint and
-`ai_lab_test_*` collection. Phase E is UNBLOCKED / NOT STARTED. Canonical next
-item is **FOLLOW-UP CHUNK 17 — GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT
-ESCALATION**, under a separate prompt; CHUNK 18/19 remain NOT STARTED.
+`ai_lab_test_*` collection. Phase E is IN PROGRESS at **FOLLOW-UP CHUNK 17 —
+GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT ESCALATION**. Multi-domain
+source and isolated acceptance pass; production external analysis remains
+disabled behind
+`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
+CHUNK 18 is NOT STARTED; CHUNK 19 remains completed early under CHUNK 15.

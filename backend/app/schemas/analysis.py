@@ -133,6 +133,7 @@ class LocalAnalysisResult(BaseModel):
 class SanitizedSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
     source_ref: str = Field(pattern=r"^S[1-8]$")
+    source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     technical_excerpt: str = Field(min_length=1, max_length=2000)
     page: int | None = Field(None, ge=1)
 
@@ -146,10 +147,12 @@ class AdvancedAnalysisPackage(BaseModel):
     sources: list[SanitizedSource] = Field(min_length=1, max_length=8)
     tables: list[list[list[str | float | int | None]]] = Field(default_factory=list, max_length=4)
     formulas: list[str] = Field(default_factory=list, max_length=32)
-    variables: dict[str, str | float | int | None] = Field(default_factory=dict)
-    values: dict[str, float | int] = Field(default_factory=dict)
+    variables: dict[str, str | float | int | None] = Field(default_factory=dict, max_length=128)
+    values: dict[str, float | int] = Field(default_factory=dict, max_length=128)
     units: dict[str, str] = Field(default_factory=dict)
     constraints: list[str] = Field(default_factory=list, max_length=64)
+    standards: list[dict[str, str | int | float | None]] = Field(default_factory=list, max_length=16)
+    claims: list[dict[str, str | int | float | None]] = Field(default_factory=list, max_length=64)
     requested_output: str = Field(min_length=1, max_length=1000)
     validation_requirements: list[str] = Field(default_factory=list, max_length=32)
 
@@ -157,6 +160,8 @@ class AdvancedAnalysisPackage(BaseModel):
     def bounded_tables(self):
         if sum(len(row) for table in self.tables for row in table) > 2000:
             raise ValueError("analysis_table_cell_limit")
+        if sum(len(source.technical_excerpt) for source in self.sources) > 48000:
+            raise ValueError("analysis_excerpt_total_limit")
         return self
 
 

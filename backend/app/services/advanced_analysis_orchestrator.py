@@ -16,6 +16,7 @@ from app.services.analysis_post_validator import AnalysisPostValidator
 from app.services.analysis_quality_gate import AnalysisQualityGate
 from app.services.analysis_sanitizer import AnalysisSanitizationError, AnalysisSanitizer
 from app.services.analysis_supervisor_client import AnalysisSupervisorClient, AnalysisSupervisorUnavailable
+from app.services.analysis_processors import AnalysisProcessorRegistry
 
 
 class AdvancedAnalysisOrchestrator:
@@ -25,6 +26,7 @@ class AdvancedAnalysisOrchestrator:
         self.gate = AnalysisQualityGate()
         self.sanitizer = AnalysisSanitizer()
         self.validator = AnalysisPostValidator()
+        self.processors = AnalysisProcessorRegistry.canonical()
         self.spool_root = (Path(settings.data_dir) / "analysis-spool").resolve()
 
     @staticmethod
@@ -97,6 +99,22 @@ class AdvancedAnalysisOrchestrator:
         self.db.flush()
         return job
 
+    def execute(
+        self,
+        *,
+        request: AnalysisRequest,
+        source_entities: dict[str, tuple[str, str, int | None]],
+        actor_user_id: int | None,
+    ) -> AnalysisJob:
+        """Run the canonical local-first processor before the shared quality gate."""
+        local = self.processors.process(request)
+        return self.execute_local(
+            request=request,
+            local=local,
+            source_entities=source_entities,
+            actor_user_id=actor_user_id,
+        )
+
     def _enqueue_advanced(self, job: AnalysisJob, request: AnalysisRequest) -> None:
         try:
             sanitized = self.sanitizer.sanitize(request)
@@ -136,6 +154,21 @@ class AdvancedAnalysisOrchestrator:
             job.error_code = str(external.get("error_code") or state).lower()[:100]
             self.db.flush(); return job.status
         result_path = self.spool_root / "jobs" / job.external_job_id / "output" / "analysis.json"
+        manifest_path = result_path.with_name("result_manifest.json")
+        if not manifest_path.is_file():
+            job.status = "failed"; job.decision = "rejected"
+            job.error_code = "analysis_result_manifest_missing"; job.finished_at = datetime.now(UTC)
+            self.db.flush(); return job.status
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected_manifest = {
+            "job_id": job.external_job_id,
+            "analysis_id": job.id,
+            "package_sha256": job.sanitized_package_hash,
+        }
+        if any(str(manifest.get(key)) != str(value) for key, value in expected_manifest.items()):
+            job.status = "failed"; job.decision = "rejected"
+            job.error_code = "analysis_result_manifest_binding_invalid"; job.finished_at = datetime.now(UTC)
+            self.db.flush(); return job.status
         raw = json.loads(result_path.read_text(encoding="utf-8"))
         result = AdvancedAnalysisResult.model_validate(raw)
         validation = self.validator.validate(request=request, result=result, package_sha256=job.sanitized_package_hash or "")
