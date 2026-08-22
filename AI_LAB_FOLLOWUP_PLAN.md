@@ -1879,9 +1879,9 @@ promptami.
 16. CHUNK 16 — Knowledge Base
 17. CHUNK 26 — Contact Person decision
 
-**Mandatory Phase D exit:** complete the owner-selected CHUNK 26 outcome, then
-perform **Release D** under a separate release prompt. Phase E must not start
-before Release D.
+**[✓] Mandatory Phase D exit satisfied — Release D published 2026-08-22 as
+NEXT Stabil `1.0.2+26`.** Phase D is COMPLETE / RELEASED. Phase E is unblocked,
+but remains NOT STARTED; its canonical next item requires a separate prompt.
 
 ### PHASE E — AI / SEARCH
 
@@ -1915,8 +1915,8 @@ before Release D.
 Nie wykonywać release po każdym micro-fixie.
 
 **Owner sequencing rule: every Phase must end with a release before the next
-Phase begins.** The current mandatory order is `CHUNK 26 -> Release D -> Phase
-E`; `CHUNK 26 -> CHUNK 17` is forbidden.
+Phase begins.** The required `CHUNK 26 -> Release D -> Phase E` boundary has
+been satisfied. Phase E remains NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
@@ -1959,6 +1959,16 @@ Production restore remains fail-closed behind
 **FOLLOW-UP CHUNK 26 — CONTACT PERSON — COMPLETE.** Option B and its production
 schema are live at `followup_contact_person_20260822`; zero historical backfill,
 bounded synthetic domain acceptance and authenticated production Client
-Details visual smoke pass. Phase D feature work is COMPLETE. Exact next action
-is **Release D** under a separate prompt. Phase E remains blocked until Release
-D completes; CHUNK 17/18/19 remain NOT STARTED.
+Details visual smoke pass.
+
+**[✓] RELEASE D — PUBLISHED / COMPLETE — 2026-08-22 — NEXT Stabil
+`1.0.2+26`.** Phase D is COMPLETE / RELEASED and includes CHUNK 15 Backup UI,
+CHUNK 16 Knowledge Base, CHUNK 26 Contact Person and the exact loopback Web CORS
+fix for `http://127.0.0.1:8789`. Final release hygiene deleted only synthetic
+orphan KB point `648ab266-c5fb-5cab-b1c1-89e46fd47514`; the customer collection
+remained unchanged at 57 points and the healthy KB collection remains present
+with 0 points. Test safety now rejects both production Qdrant collections and
+the production endpoint, requiring an explicit isolated endpoint and
+`ai_lab_test_*` collection. Phase E is UNBLOCKED / NOT STARTED. Canonical next
+item is **FOLLOW-UP CHUNK 17 — GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT
+ESCALATION**, under a separate prompt; CHUNK 18/19 remain NOT STARTED.

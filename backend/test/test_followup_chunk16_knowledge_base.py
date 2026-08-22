@@ -12,6 +12,7 @@ from test.support.database_safety import assert_isolated_database, require_test_
 
 TEST_DATABASE_NAME = require_test_database_environment()
 
+from app.core.config import settings
 from app.core.security import create_access_token, hash_password
 from app.database.session import SessionLocal
 from app.main import app
@@ -44,6 +45,10 @@ def token(user: User) -> str:
 
 
 def main() -> None:
+    require(
+        not settings.knowledge_base_vector_writes_enabled,
+        "Knowledge Base foundation test requires vector writes to be disabled",
+    )
     shutil.rmtree(TEST_ROOT, ignore_errors=True)
     TEST_ROOT.mkdir(parents=True)
     suffix = uuid4().hex[:8]

@@ -7,7 +7,7 @@ odczytowego audytu bazy, nie ze starych checkboxów.
 ## ACTIVE POST-PROJECT ROADMAP
 
 **`AI_LAB_FOLLOWUP_PLAN.md`** jest aktywnym źródłem kolejności dalszych prac po
-release 1.0.2+25.
+release 1.0.2+26.
 
 - `AI_LAB_MASTER_PLAN.txt` jest zakończonym, historycznym masterplanem głównej
   implementacji.
@@ -24,6 +24,18 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
+**RELEASE D COMPLETE — NEXT STABIL 1.0.2+26.** Phase D is COMPLETE / RELEASED
+with CHUNK 15 Backup UI, CHUNK 16 Knowledge Base, CHUNK 26 Contact Person and
+the bounded Web `127.0.0.1:8789` CORS fix. Production DB remains at
+`followup_contact_person_20260822`. Final release hygiene removed exactly one
+synthetic orphan point `648ab266-c5fb-5cab-b1c1-89e46fd47514` from
+`ai_lab_knowledge_base_chunks`; the healthy KB collection remains at 0 points
+and `ai_lab_document_chunks` remains unchanged at 57. A fail-closed test guard
+now rejects both production collection names and the production Qdrant
+endpoint. Phase E is UNBLOCKED / NOT STARTED; canonical next work is CHUNK 17
+under a separate prompt.
+
+Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
 bounded hotfix publishes the shared Client Documents Trash action, active-only
 User Management projection and canonical repair of the one approved legacy
@@ -163,9 +175,8 @@ errors or overflow. Phase D feature work is COMPLETE. Exact next action is
 Release D under a separate prompt; Phase E remains blocked until it completes.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
-starts. Required order: `CHUNK 26 completion -> Release D (separate prompt) ->
-Phase E`. CHUNK 17/18/19 are NOT STARTED. Current release remains NEXT Stabil
-`1.0.2+25`.
+starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
+CHUNK 17/18/19 are NOT STARTED. Current release is NEXT Stabil `1.0.2+26`.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -237,7 +248,17 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+25
+## CURRENT RELEASE — NEXT STABIL 1.0.2+26
+
+- RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
+  Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web
+  CORS fix. Stable build is `26`; `minimum_version` remains `1.0.0`. Public
+  artifact hashes match verified local bytes. Phase D is COMPLETE / RELEASED;
+  Phase E is UNBLOCKED / NOT STARTED and CHUNK 17 is the next canonical item.
+- Final release hygiene deleted exactly synthetic orphan KB point
+  `648ab266-c5fb-5cab-b1c1-89e46fd47514`, leaving the KB collection healthy and
+  empty and the customer collection unchanged at 57 points. Tests now require
+  an explicit isolated Qdrant endpoint plus an `ai_lab_test_*` collection.
 
 - POST-1.0.2+24 CONSISTENCY HOTFIX: RELEASED. Stable Web, Windows and Android
   include Client Document Trash parity, the active-only User list and the

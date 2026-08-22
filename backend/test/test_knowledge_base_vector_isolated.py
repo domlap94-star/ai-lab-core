@@ -7,7 +7,7 @@ from uuid import uuid4
 from qdrant_client import QdrantClient
 
 from test.support.database_safety import assert_isolated_database, require_test_database_environment
-from test.support.qdrant_safety import assert_test_qdrant_collection
+from test.support.qdrant_safety import assert_test_qdrant_target
 
 
 TEST_DATABASE_NAME = require_test_database_environment()
@@ -33,9 +33,14 @@ def require(value: bool, message: str) -> None:
 
 
 def main() -> None:
+    host = os.environ.get("QDRANT_TEST_HOST", "host.docker.internal")
     port = int(os.environ.get("QDRANT_TEST_PORT", "16333"))
-    collection = assert_test_qdrant_collection(f"ai_lab_test_kb_analysis_{uuid4().hex[:8]}")
-    client = QdrantClient(host="host.docker.internal", port=port, timeout=30)
+    host, port, collection = assert_test_qdrant_target(
+        host,
+        port,
+        f"ai_lab_test_kb_analysis_{uuid4().hex[:8]}",
+    )
+    client = QdrantClient(host=host, port=port, timeout=30)
     db = SessionLocal()
     item_id = None
     try:
