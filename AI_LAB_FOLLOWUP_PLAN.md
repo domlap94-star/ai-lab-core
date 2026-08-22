@@ -1742,6 +1742,21 @@ Human gate: `FOLLOWUP_N8N_RETENTION_APPROVAL_REQUIRED`.
 
 **Priority: P2**
 
+**[~] AUDIT COMPLETE / OWNER DECISION REQUIRED — 2026-08-22.** The read-only
+source/schema/production audit is recorded in
+`FOLLOWUP_CHUNK26_CONTACT_PERSON_DECISION.md`. The current
+`client_contact_points` model supports multiple independent e-mail/phone
+coordinates with one primary per kind and coordinate-level provenance, but it
+does not persist identified people, roles, person grouping, preferred person,
+decision maker or person-specific notes. Recommendation: **OPTION B**, using an
+additive `ContactPerson` parent while retaining existing contact points as the
+only coordinate model. No migration, backfill or production write occurred.
+
+Exact owner gate:
+`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. If Option B is selected,
+the later schema change is separately gated by
+`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+
 Historyczny CHUNK 7B. Najpierw decyzja:
 
 - A: istniejący multi-contact model jest wystarczający — Contact Person staje
@@ -1845,6 +1860,10 @@ promptami.
 16. CHUNK 16 — Knowledge Base
 17. CHUNK 26 — Contact Person decision
 
+**Mandatory Phase D exit:** complete the owner-selected CHUNK 26 outcome, then
+perform **Release D** under a separate release prompt. Phase E must not start
+before Release D.
+
 ### PHASE E — AI / SEARCH
 
 18. CHUNK 17 — Global Advanced Analysis Bridge / Temporary Chat Escalation
@@ -1876,10 +1895,15 @@ promptami.
 
 Nie wykonywać release po każdym micro-fixie.
 
+**Owner sequencing rule: every Phase must end with a release before the next
+Phase begins.** The current mandatory order is `CHUNK 26 -> Release D -> Phase
+E`; `CHUNK 26 -> CHUNK 17` is forbidden.
+
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
 - **Release C** — Calendar, Tasks i Dashboard.
-- **Release D** — Backup UI i Knowledge Base.
+- **Release D** — Backup UI, Knowledge Base and the owner-selected CHUNK 26
+  outcome; required before Phase E.
 - **Release E** — Security/operations, jeśli zmieniają client/runtime artifacts.
 
 Każdy release wymaga osobnego promptu.
@@ -1909,5 +1933,12 @@ DATA SAFETY
 `PRE-CHUNK16 — WINDOWS DISASTER RECOVERY TOOL — POWERSHELL` is COMPLETE. The
 WinForms source is retained as DEFERRED / ENTERPRISE TRUST BLOCKED.
 Production restore remains fail-closed behind
-`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`. Current next item is
-`FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE`, not started.
+`FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
+
+**FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — COMPLETE.** Current Phase D item
+is **FOLLOW-UP CHUNK 26 — CONTACT PERSON DECISION**, with read-only audit
+complete and owner decision required at
+`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. Recommendation is Option
+B; no schema or runtime implementation is authorized by the audit. Phase E is
+blocked until CHUNK 26 is completed and a separately prompted Release D is
+published. CHUNK 17/18/19 remain NOT STARTED.

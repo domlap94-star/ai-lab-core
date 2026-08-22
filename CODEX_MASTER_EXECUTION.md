@@ -135,7 +135,24 @@ Temporary Chat queue, separate KB vector source service and truthful Flutter
 polling are implemented and pass acceptance. Both migration and KB vector
 approvals were consumed. KB processing/vector flags are enabled persistently;
 no customer-vector mutation, Temporary Chat send, Vision job or historical
-scan occurred. Canonical next work is CHUNK 17, still NOT STARTED.
+scan occurred. Canonical next work is CHUNK 26, not CHUNK 17; Phase E remains
+blocked until the CHUNK 26 outcome is complete and Release D is published.
+
+**FOLLOW-UP CHUNK 26 — CONTACT PERSON DECISION — AUDIT COMPLETE / OWNER
+DECISION REQUIRED.** The current Client contact model stores independent
+e-mail/phone coordinates with primary-per-kind and provenance, but has no
+persistent person identity, role, coordinate grouping, preferred person,
+decision maker or person-specific notes. The bounded decision record
+`FOLLOWUP_CHUNK26_CONTACT_PERSON_DECISION.md` recommends additive Option B and
+stops at `FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`; any schema work
+is separately gated by
+`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. No implementation,
+migration or production write occurred.
+
+**PHASE BOUNDARY:** every Phase must end with a release before the next Phase
+starts. Required order: `CHUNK 26 completion -> Release D (separate prompt) ->
+Phase E`. CHUNK 17/18/19 are NOT STARTED. Current release remains NEXT Stabil
+`1.0.2+25`.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
