@@ -138,8 +138,8 @@ no customer-vector mutation, Temporary Chat send, Vision job or historical
 scan occurred. Canonical next work is CHUNK 26, not CHUNK 17; Phase E remains
 blocked until the CHUNK 26 outcome is complete and Release D is published.
 
-**FOLLOW-UP CHUNK 26 — CONTACT PERSON — OPTION B IMPLEMENTED IN SOURCE /
-ISOLATED ACCEPTANCE PASS; PRODUCTION MIGRATION APPROVAL REQUIRED.** Option B is
+**FOLLOW-UP CHUNK 26 — CONTACT PERSON — PRODUCTION MIGRATION APPLIED / BOUNDED
+DOMAIN ACCEPTANCE PASS; AUTHENTICATED UI SMOKE REMAINS.** Option B is
 the final product decision. The additive implementation introduces a
 Client-owned ContactPerson identity/grouping layer while retaining
 `client_contact_points` as the sole canonical phone/e-mail model. Composite DB
@@ -148,10 +148,16 @@ enforced, multiple decision makers are allowed, and archive preserves contact
 coordinates by returning them to generic Client ownership. Client Details,
 Client/Global Search, exact mail attribution, Change History and the Agent read
 projection are additive. Migration `followup_contact_person_20260822` passes
-isolated up/down/up and zero-backfill proofs; Flutter analyze, full `281/281`
-and all three debug builds pass. Production remains unchanged at
-`followup_admin_knowledge_base_20260821`. Exact next gate:
-`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+isolated up/down/up and is applied to production after verified Database
+checkpoint `20260822T070620Z`. Production acceptance proved zero historical
+backfill, constraints, CRUD/ownership lifecycle, shared search, exact mail
+person attribution, Agent projection, archive/restore and Trash cleanup; final
+active synthetic people and historical linked coordinates are both zero.
+Focused Flutter ContactPerson tests pass 6/6, and the live Web shell starts at
+1.0.2+25, but the available browser session is unauthenticated. Actual Client
+Details visual smoke therefore remains and CHUNK 26 is not COMPLETE. Exact
+next action: authenticated production Client Details UI smoke; then Release D
+under a separate prompt. Phase E remains blocked.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
 starts. Required order: `CHUNK 26 completion -> Release D (separate prompt) ->

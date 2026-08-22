@@ -1742,9 +1742,11 @@ Human gate: `FOLLOWUP_N8N_RETENTION_APPROVAL_REQUIRED`.
 
 **Priority: P2**
 
-**[~] OPTION B IMPLEMENTED IN SOURCE / ISOLATED ACCEPTANCE PASS; AWAITING
-CONTACT PERSON PRODUCTION MIGRATION APPROVAL — 2026-08-22.** The owner consumed
-`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. The additive domain keeps
+**[~] PRODUCTION MIGRATION APPLIED / BOUNDED DOMAIN ACCEPTANCE PASS;
+AUTHENTICATED CLIENT DETAILS UI SMOKE REMAINS — 2026-08-22.** The owner consumed
+`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED` and
+`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. The additive
+domain keeps
 `client_contact_points` as the only e-mail/phone model and adds Client-owned
 `ContactPerson` grouping with display name, role, preferred and decision-maker
 semantics, notes and provenance. Generic coordinates remain valid with
@@ -1755,12 +1757,19 @@ unassigns—never deletes—its canonical coordinates.
 
 Migration `followup_contact_person_20260822` (parent
 `followup_admin_knowledge_base_20260821`) passes isolated
-upgrade/downgrade/re-upgrade, preferred and cross-Client constraints, multiple
-decision makers and zero historical backfill. Flutter analyze, focused tests,
-full `281/281`, and Android/Web/Windows debug builds pass. Production remains
-at `followup_admin_knowledge_base_20260821`; the `contact_persons` table is
-absent and Client/contact production writes are zero. Exact next gate:
-`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+upgrade/downgrade/re-upgrade and is applied to production after a verified
+Database checkpoint `20260822T070620Z`. Immediate acceptance proved zero
+historical backfill, preferred and cross-Client constraints, multiple decision
+makers, create/update/assign/unassign/move, exact mail attribution, shared
+search, Agent projection, archive/restore and canonical Trash cleanup. The
+synthetic acceptance ends with 0 active ContactPersons and 0 historical linked
+coordinates; Qdrant remains 57 customer / 0 KB points. The live Web shell
+starts at 1.0.2+25 and focused Flutter ContactPerson tests pass 6/6, but the
+available browser has no authenticated production session, so the actual
+Client Details screen was not visually accepted and CHUNK 26 is not COMPLETE.
+Exact next action: authenticated production Client Details UI smoke using a
+normal owner-provided session, then mark CHUNK 26 COMPLETE and require Release
+D. Phase E remains blocked.
 
 Historyczny CHUNK 7B. Najpierw decyzja:
 
@@ -1941,8 +1950,9 @@ Production restore remains fail-closed behind
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
 
 **FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — COMPLETE.** Current Phase D item
-is **FOLLOW-UP CHUNK 26 — CONTACT PERSON**, with Option B implemented in source
-and isolated acceptance complete. Production migration is not applied; exact
-next gate is `FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
-Phase E is blocked until CHUNK 26 is completed and a separately prompted
-Release D is published. CHUNK 17/18/19 remain NOT STARTED.
+is **FOLLOW-UP CHUNK 26 — CONTACT PERSON**. Option B and its production schema
+are live at `followup_contact_person_20260822`; zero historical backfill and
+bounded synthetic production domain acceptance passed. Authenticated Client
+Details visual smoke remains before CHUNK 26 can be marked COMPLETE. Phase E
+is blocked until that smoke completes, CHUNK 26 is closed, and a separately
+prompted Release D is published. CHUNK 17/18/19 remain NOT STARTED.
