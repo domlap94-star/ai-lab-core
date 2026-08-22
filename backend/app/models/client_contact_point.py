@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, String
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, ForeignKeyConstraint, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.mixins import BusinessBase
@@ -23,6 +23,13 @@ class ClientContactPoint(BusinessBase):
         ),
         Index("ix_client_contact_points_client_kind", "client_id", "kind"),
         Index("ix_client_contact_points_source_id", "source_id"),
+        ForeignKeyConstraint(
+            ["contact_person_id", "client_id"],
+            ["contact_persons.id", "contact_persons.client_id"],
+            name="fk_client_contact_points_person_client",
+            ondelete="RESTRICT",
+        ),
+        Index("ix_client_contact_points_contact_person_id", "contact_person_id"),
     )
 
     client_id: Mapped[int] = mapped_column(
@@ -42,5 +49,13 @@ class ClientContactPoint(BusinessBase):
     source_id: Mapped[int | None] = mapped_column(
         ForeignKey("candidate_sources.id", ondelete="RESTRICT"), nullable=True
     )
+    contact_person_id: Mapped[int | None] = mapped_column(nullable=True)
 
     client: Mapped["Client"] = relationship("Client", back_populates="contact_points")
+    contact_person: Mapped["ContactPerson | None"] = relationship(
+        "ContactPerson",
+        back_populates="contact_points",
+        primaryjoin="and_(ClientContactPoint.contact_person_id == ContactPerson.id, ClientContactPoint.client_id == ContactPerson.client_id)",
+        foreign_keys="[ClientContactPoint.contact_person_id, ClientContactPoint.client_id]",
+        overlaps="client,contact_points",
+    )

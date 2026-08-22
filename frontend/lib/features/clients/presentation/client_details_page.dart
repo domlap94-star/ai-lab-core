@@ -16,6 +16,7 @@ import '../domain/industry.dart';
 import 'client_workspace_panels.dart';
 import 'client_edit_dialog.dart';
 import 'client_contact_actions.dart';
+import 'contact_person_dialog.dart';
 import '../../tasks/presentation/client_work_items_panel.dart';
 import 'client_realizations_panel.dart';
 
@@ -476,41 +477,62 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
                 editKey: const Key('client-section-edit-contact'),
                 onEdit: () => onEditSection(ClientEditSection.contact),
                 children: <Widget>[
-                  ...(client.emails.isNotEmpty
-                          ? client.emails
-                          : <ClientContactPoint>[
-                              if (client.primaryEmail != null)
-                                ClientContactPoint(
-                                  id: 0,
-                                  value: client.primaryEmail!,
-                                  isPrimary: true,
-                                ),
-                            ])
-                      .map(
-                        (item) => _DetailRow(
-                          label:
-                              '${item.isPrimary ? 'E-mail (główny)' : 'E-mail'} • ${_originLabel(item.origin)}',
-                          value: item.value,
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          'Osoby kontaktowe',
+                          style: theme.textTheme.titleMedium,
                         ),
                       ),
-                  ...(client.phones.isNotEmpty
-                          ? client.phones
-                          : <ClientContactPoint>[
-                              if (client.primaryPhone != null)
-                                ClientContactPoint(
-                                  id: 0,
-                                  value: client.primaryPhone!,
-                                  isPrimary: true,
-                                ),
-                            ])
-                      .map(
-                        (item) => _DetailRow(
-                          label: item.isPrimary
-                              ? 'Telefon (główny) • ${_originLabel(item.origin)}'
-                              : 'Telefon • ${_originLabel(item.origin)}',
-                          value: item.value,
-                        ),
+                      TextButton.icon(
+                        key: const Key('contact-person-add'),
+                        onPressed: () => _editContactPerson(context),
+                        icon: const Icon(Icons.person_add_alt_1_outlined),
+                        label: const Text('Dodaj osobę'),
                       ),
+                    ],
+                  ),
+                  if (client.contactPersons.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8, bottom: 16),
+                      child: Text('Brak osób kontaktowych'),
+                    )
+                  else
+                    ...client.contactPersons.map(
+                      (person) => _ContactPersonCard(
+                        person: person,
+                        onEdit: () => _editContactPerson(context, person),
+                        onArchive: () => _archiveContactPerson(context, person),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Kontakty ogólne firmy',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  if (client.genericEmails.isEmpty &&
+                      client.genericPhones.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text('Brak kontaktów ogólnych'),
+                    ),
+                  ...client.genericEmails.map(
+                    (item) => _DetailRow(
+                      label:
+                          '${item.isPrimary ? 'E-mail (główny)' : 'E-mail'} • ${_originLabel(item.origin)}',
+                      value: item.value,
+                    ),
+                  ),
+                  ...client.genericPhones.map(
+                    (item) => _DetailRow(
+                      label: item.isPrimary
+                          ? 'Telefon (główny) • ${_originLabel(item.origin)}'
+                          : 'Telefon • ${_originLabel(item.origin)}',
+                      value: item.value,
+                    ),
+                  ),
                   if (_canCall(client.primaryPhone)) ...<Widget>[
                     Padding(
                       padding: const EdgeInsets.only(top: 2, bottom: 18),
@@ -751,6 +773,110 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
     }
   }
 
+  Future<void> _editContactPerson(
+    BuildContext context, [
+    ContactPerson? person,
+  ]) async {
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => ContactPersonDialog(client: client, person: person),
+    );
+    if (data == null || !mounted) return;
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null) return;
+    try {
+      final repository = ref.read(clientsRepositoryProvider);
+      if (person == null) {
+        await repository.createContactPerson(
+          session: session,
+          clientId: client.id,
+          data: data,
+        );
+      } else {
+        await repository.updateContactPerson(
+          session: session,
+          clientId: client.id,
+          personId: person.id,
+          data: data,
+        );
+      }
+      ref.invalidate(clientDetailsProvider(client.id));
+      ref.invalidate(clientsControllerProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              person == null
+                  ? 'Osoba kontaktowa dodana.'
+                  : 'Osoba kontaktowa zapisana.',
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_contactPersonError(error))));
+      }
+    }
+  }
+
+  Future<void> _archiveContactPerson(
+    BuildContext context,
+    ContactPerson person,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Usunąć osobę kontaktową?'),
+        content: const Text(
+          'Osoba zostanie zarchiwizowana. Jej e-maile i telefony pozostaną przy kliencie jako kontakty ogólne.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Usuń osobę'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null) return;
+    try {
+      await ref
+          .read(clientsRepositoryProvider)
+          .archiveContactPerson(
+            session: session,
+            clientId: client.id,
+            personId: person.id,
+          );
+      ref.invalidate(clientDetailsProvider(client.id));
+      ref.invalidate(clientsControllerProvider);
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(_contactPersonError(error))));
+      }
+    }
+  }
+
+  String _contactPersonError(Object error) {
+    if (error is DioException) {
+      final detail = error.response?.data is Map
+          ? (error.response!.data as Map)['detail']?.toString()
+          : null;
+      return detail ?? 'Nie udało się zapisać osoby kontaktowej.';
+    }
+    return 'Nie udało się zapisać osoby kontaktowej.';
+  }
+
   Future<void> _openGoogleMaps(BuildContext context, String address) async {
     await openCanonicalClientMaps(context, address);
   }
@@ -762,6 +888,83 @@ class _ClientDetailsState extends ConsumerState<_ClientDetails> {
     'manual' => 'ręcznie',
     _ => 'inne',
   };
+}
+
+class _ContactPersonCard extends StatelessWidget {
+  const _ContactPersonCard({
+    required this.person,
+    required this.onEdit,
+    required this.onArchive,
+  });
+
+  final ContactPerson person;
+  final VoidCallback onEdit;
+  final VoidCallback onArchive;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      key: Key('contact-person-${person.id}'),
+      margin: const EdgeInsets.only(top: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: <Widget>[
+                Text(
+                  person.displayName,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (person.isPreferred) const Chip(label: Text('Preferowany')),
+                if (person.isDecisionMaker) const Chip(label: Text('Decydent')),
+              ],
+            ),
+            if (person.role?.trim().isNotEmpty == true) ...<Widget>[
+              const SizedBox(height: 4),
+              Text(person.role!, style: theme.textTheme.bodyMedium),
+            ],
+            if (person.emails.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 10),
+              ...person.emails.map((point) => Text('E-mail: ${point.value}')),
+            ],
+            if (person.phones.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 6),
+              ...person.phones.map((point) => Text('Telefon: ${point.value}')),
+            ],
+            if (person.notes?.trim().isNotEmpty == true) ...<Widget>[
+              const SizedBox(height: 10),
+              Text('Notatka: ${person.notes}'),
+            ],
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              children: <Widget>[
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edytuj'),
+                ),
+                TextButton.icon(
+                  onPressed: onArchive,
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Usuń'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ClientWorkflowStatusCard extends ConsumerWidget {

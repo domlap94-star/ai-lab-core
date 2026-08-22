@@ -16,6 +16,7 @@ from app.database.session import SessionLocal
 from app.models.client import Client
 from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
+from app.models.contact_person import ContactPerson
 from app.models.document import Document
 from app.models.document_asset import DocumentAsset
 from app.models.document_chunk import DocumentChunk
@@ -396,6 +397,16 @@ class TrashLifecycleService:
             contact.value = f"deleted-contact-{contact.id}"
             contact.normalized_value = f"deleted-contact-{contact.id}"
             contact.deleted_at = contact.deleted_at or now
+        for person in self.db.query(ContactPerson).filter(ContactPerson.client_id == client.id).with_for_update().all():
+            person.display_name = f"Usunięta osoba #{person.id}"
+            person.role = None
+            person.notes = None
+            person.is_preferred = False
+            person.is_decision_maker = False
+            person.origin = "other"
+            person.source_type = None
+            person.source_id = None
+            person.deleted_at = person.deleted_at or now
         for address in self.db.query(ClientAddress).filter(ClientAddress.client_id == client.id).with_for_update().all():
             address.label = "Usunięty adres"
             for field in ("street", "building_number", "unit_number", "postal_code", "city"):

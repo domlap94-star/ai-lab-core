@@ -176,6 +176,60 @@ class ClientsApi {
     );
   }
 
+  Future<void> createContactPerson({
+    required int clientId,
+    required Map<String, dynamic> data,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '$_clientsPath/$clientId/contact-persons',
+      data: data,
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+  }
+
+  Future<void> updateContactPerson({
+    required int clientId,
+    required int personId,
+    required Map<String, dynamic> data,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.patch<Map<String, dynamic>>(
+      '$_clientsPath/$clientId/contact-persons/$personId',
+      data: data,
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+  }
+
+  Future<void> archiveContactPerson({
+    required int clientId,
+    required int personId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    await _dio.delete<void>(
+      '$_clientsPath/$clientId/contact-persons/$personId',
+      options: Options(
+        headers: _authorizationHeaders(
+          accessToken: accessToken,
+          tokenType: tokenType,
+        ),
+      ),
+    );
+  }
+
   Future<List<Map<String, dynamic>>> fetchWorkflowStatuses({
     required List<int> clientIds,
     required String accessToken,

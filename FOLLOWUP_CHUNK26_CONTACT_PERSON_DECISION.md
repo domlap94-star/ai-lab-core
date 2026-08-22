@@ -321,6 +321,34 @@ If the owner chooses Option B, schema work additionally requires:
 
 `FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
 
+## Owner decision and source implementation checkpoint — 2026-08-22
+
+The owner approved Option B through
+`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. Source now implements the
+audited B1 model: one Client owns many Contact Persons; existing
+`ClientContactPoint` rows optionally reference a same-Client person through a
+composite foreign key. Coordinates with a null person remain generic company
+contacts. No parallel phone/e-mail tables were introduced.
+
+The additive migration is `followup_contact_person_20260822`, directly after
+`followup_admin_knowledge_base_20260821`. It performs no backfill. Isolated
+upgrade/downgrade/re-upgrade proves that historical coordinate counts are
+preserved and all historical ownership remains null. It also proves the
+cross-Client ownership rejection, one-active-preferred rule, nullable generic
+ownership and multiple-decision-maker rule.
+
+Runtime source includes bounded CRUD and coordinate assignment, additive
+Client/Global Search matching, exact canonical-coordinate mail attribution,
+Change History and responsive Client Details cards. Archiving a person unlinks
+their coordinates to generic Client ownership and soft-deletes only the person;
+the e-mail/phone rows are retained. Full Flutter acceptance is `281/281`, with
+Android/Web/Windows debug builds passing.
+
+Production migration and production Contact Person creation were not
+performed. Exact next gate:
+
+`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+
 ## Phase boundary
 
 The owner sequencing rule is mandatory:

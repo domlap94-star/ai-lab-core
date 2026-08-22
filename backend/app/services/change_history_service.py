@@ -36,7 +36,12 @@ class ChangeHistoryService:
         },
         "client_contact": {
             "client_id", "kind", "email", "phone", "is_primary",
-            "position", "deleted_at",
+            "position", "contact_person_id", "deleted_at",
+        },
+        "contact_person": {
+            "client_id", "display_name", "role", "is_preferred",
+            "is_decision_maker", "notes", "position", "origin",
+            "source_type", "source_id", "deleted_at",
         },
         "client_address": {
             "client_id", "label", "street", "building_number",
@@ -109,10 +114,22 @@ class ChangeHistoryService:
             "kind": contact.kind,
             "is_primary": contact.is_primary,
             "position": contact.position,
+            "contact_person_id": contact.contact_person_id,
             "deleted_at": contact.deleted_at,
         }
         result["email" if contact.kind == "email" else "phone"] = contact.value
         return result
+
+    @staticmethod
+    def contact_person_snapshot(person) -> dict[str, Any]:
+        return {
+            field: getattr(person, field)
+            for field in (
+                "client_id", "display_name", "role", "is_preferred",
+                "is_decision_maker", "notes", "position", "origin",
+                "source_type", "source_id", "deleted_at",
+            )
+        }
 
     @staticmethod
     def address_snapshot(address) -> dict[str, Any]:

@@ -100,6 +100,41 @@ class ClientsRepository {
     tokenType: session.tokenType,
   );
 
+  Future<void> createContactPerson({
+    required AuthSession session,
+    required int clientId,
+    required Map<String, dynamic> data,
+  }) => _api.createContactPerson(
+    clientId: clientId,
+    data: data,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  Future<void> updateContactPerson({
+    required AuthSession session,
+    required int clientId,
+    required int personId,
+    required Map<String, dynamic> data,
+  }) => _api.updateContactPerson(
+    clientId: clientId,
+    personId: personId,
+    data: data,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  Future<void> archiveContactPerson({
+    required AuthSession session,
+    required int clientId,
+    required int personId,
+  }) => _api.archiveContactPerson(
+    clientId: clientId,
+    personId: personId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
   Future<List<Map<String, dynamic>>> fetchWorkflowStatuses({
     required AuthSession session,
     required List<int> clientIds,

@@ -9,6 +9,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.models.client import Client
 from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
+from app.models.contact_person import ContactPerson
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,15 @@ class ClientSearchMatchingService:
                 and_(
                     ClientContactPoint.deleted_at.is_(None),
                     ClientContactPoint.normalized_value.ilike(pattern),
+                )
+            ),
+            Client.contact_persons.any(
+                and_(
+                    ContactPerson.deleted_at.is_(None),
+                    or_(
+                        ContactPerson.display_name.ilike(pattern),
+                        ContactPerson.role.ilike(pattern),
+                    ),
                 )
             ),
             Client.address_records.any(

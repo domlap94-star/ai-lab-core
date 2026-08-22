@@ -23,6 +23,7 @@ from app.main import app
 from app.models.client import Client
 from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
+from app.models.contact_person import ContactPerson
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.role import Role
@@ -324,6 +325,18 @@ def main() -> None:
             notes="sensitive",
         )
         db.add(purge_client)
+        db.flush()
+        purge_person = ContactPerson(
+            client_id=purge_client.id,
+            display_name=f"Private Person {suffix}",
+            role="Sensitive role",
+            notes="sensitive person note",
+            is_preferred=True,
+            is_decision_maker=True,
+            position=0,
+            origin="manual",
+        )
+        db.add(purge_person)
         db.commit()
         purge_client_entry = service.trash(entity_type="client", entity_id=purge_client.id, actor=admin)
         db.commit()
@@ -345,8 +358,18 @@ def main() -> None:
             tombstone_summary = TrashPurgeRunner(data_root=TEST_ROOT).run()
         db.expire_all()
         purge_client = db.get(Client, purge_client.id)
+        purge_person = db.get(ContactPerson, purge_person.id)
         purge_user = db.get(User, purge_user.id)
         require(purge_client.purged_at is not None and purge_client.primary_email is None, "Client PII tombstone failed")
+        require(
+            purge_person.deleted_at is not None
+            and purge_person.display_name == f"Usunięta osoba #{purge_person.id}"
+            and purge_person.role is None
+            and purge_person.notes is None
+            and not purge_person.is_preferred
+            and not purge_person.is_decision_maker,
+            "ContactPerson PII tombstone failed",
+        )
         require(purge_user.purged_at is not None and purge_user.email.endswith(".invalid"), "User tombstone failed")
         require(not purge_user.is_active and purge_user.auth_version == 2, "User purge auth state mismatch")
         require(int(tombstone_summary["purged"]) >= 2, "Tombstone purge count mismatch")

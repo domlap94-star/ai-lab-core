@@ -211,7 +211,21 @@ class AgentToolRegistry:
     def _get_contacts(self, args: ClientIdArgs) -> AgentToolResult:
         self._require_client(args.client_id)
         x = self.clients.get_client(args.client_id)
-        contacts = [{"type": c.kind, "value": c.value, "primary": c.is_primary, "origin": c.origin} for c in (x.emails + x.phones)[:20]]
+        people = {person.id: person for person in x.active_contact_persons}
+        contacts = [
+            {
+                "type": c.kind,
+                "value": c.value,
+                "primary": c.is_primary,
+                "origin": c.origin,
+                "person_id": c.contact_person_id,
+                "person_name": people[c.contact_person_id].display_name if c.contact_person_id in people else None,
+                "person_role": people[c.contact_person_id].role if c.contact_person_id in people else None,
+                "preferred_person": people[c.contact_person_id].is_preferred if c.contact_person_id in people else False,
+                "decision_maker": people[c.contact_person_id].is_decision_maker if c.contact_person_id in people else False,
+            }
+            for c in (x.emails + x.phones)[:20]
+        ]
         return AgentToolResult({"contacts": contacts}, [self._source("client", x.id, x.name, f"/clients/{x.id}", f"Kontakty: {len(contacts)}")], {"contacts": len(contacts)}, [])
 
     def _get_timeline(self, args: TimelineArgs) -> AgentToolResult:

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
+from app.models.contact_person import ContactPerson
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.models.inspection import Inspection
@@ -131,6 +132,7 @@ class GlobalSearchService:
             self.db.query(Client)
             .options(
                 selectinload(Client.contact_points),
+                selectinload(Client.contact_persons).selectinload(ContactPerson.contact_points),
                 selectinload(Client.address_records),
             )
             .filter(
@@ -157,6 +159,7 @@ class GlobalSearchService:
     ) -> GlobalSearchResult:
         emails = [row.primary_email, *(item.value for item in row.emails)]
         phones = [row.primary_phone, *(item.value for item in row.phones)]
+        people = [item for item in row.contact_persons if item.deleted_at is None]
         reasons: list[str] = []
         score = 0.0
         if self._exact(q.folded, [row.name, row.legal_name]):
@@ -213,13 +216,35 @@ class GlobalSearchService:
         if self._contains(q.folded, [row.notes]):
             reasons.append("notes")
             score = max(score, 0.7)
+        person_match = next(
+            (
+                item for item in people
+                if self._contains(q.folded, [item.display_name, item.role])
+            ),
+            None,
+        )
+        if person_match is not None:
+            reasons.append("contact_person")
+            score = max(score, 0.95)
         return self._result(
             type="client",
             id=row.id,
             title=row.name,
-            subtitle=row.legal_name or self._address(addresses),
+            subtitle=(
+                f"Osoba kontaktowa: {person_match.display_name}"
+                + (f" — {person_match.role}" if person_match.role else "")
+                if person_match is not None
+                else row.legal_name or self._address(addresses)
+            ),
             snippet=self._matching_snippet(
-                q.folded, [row.notes, *emails, *phones]
+                q.folded,
+                [
+                    row.notes,
+                    *emails,
+                    *phones,
+                    *(item.display_name for item in people),
+                    *(item.role for item in people),
+                ],
             ),
             score=score,
             reasons=reasons,

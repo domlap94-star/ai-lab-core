@@ -33,6 +33,7 @@ class ClientResponse {
     this.emails = const <Map<String, dynamic>>[],
     this.phones = const <Map<String, dynamic>>[],
     this.addresses = const <Map<String, dynamic>>[],
+    this.contactPersons = const <Map<String, dynamic>>[],
   });
 
   final int id;
@@ -65,6 +66,7 @@ class ClientResponse {
   final List<Map<String, dynamic>> emails;
   final List<Map<String, dynamic>> phones;
   final List<Map<String, dynamic>> addresses;
+  final List<Map<String, dynamic>> contactPersons;
 
   factory ClientResponse.fromJson(Map<String, dynamic> json) {
     final dynamic industryJson = json['industry'];
@@ -105,6 +107,7 @@ class ClientResponse {
       emails: _parseContacts(json['emails']),
       phones: _parseContacts(json['phones']),
       addresses: _parseContacts(json['addresses']),
+      contactPersons: _parseContacts(json['contact_persons']),
     );
   }
 
@@ -146,6 +149,7 @@ class ClientResponse {
               origin: item['origin']?.toString() ?? 'manual',
               sourceType: _parseNullableString(item['source_type']),
               sourceId: _parseNullableInt(item['source_id']),
+              contactPersonId: _parseNullableInt(item['contact_person_id']),
             ),
           )
           .toList(growable: false),
@@ -158,6 +162,7 @@ class ClientResponse {
               origin: item['origin']?.toString() ?? 'manual',
               sourceType: _parseNullableString(item['source_type']),
               sourceId: _parseNullableInt(item['source_id']),
+              contactPersonId: _parseNullableInt(item['contact_person_id']),
             ),
           )
           .toList(growable: false),
@@ -179,6 +184,42 @@ class ClientResponse {
             ),
           )
           .toList(growable: false),
+      contactPersons: contactPersons
+          .map<ContactPerson>(_parseContactPerson)
+          .toList(growable: false),
+    );
+  }
+
+  static ContactPerson _parseContactPerson(Map<String, dynamic> item) {
+    final List<ClientContactPoint> points =
+        _parseContacts(item['contact_points'])
+            .map<ClientContactPoint>(
+              (point) => ClientContactPoint(
+                id: _parseInt(point['id']),
+                value: point['value']?.toString() ?? '',
+                isPrimary: point['is_primary'] == true,
+                origin: point['origin']?.toString() ?? 'manual',
+                sourceType: _parseNullableString(point['source_type']),
+                sourceId: _parseNullableInt(point['source_id']),
+                contactPersonId: _parseNullableInt(point['contact_person_id']),
+              ),
+            )
+            .toList(growable: false);
+    return ContactPerson(
+      id: _parseInt(item['id']),
+      clientId: _parseInt(item['client_id']),
+      displayName: item['display_name']?.toString() ?? '',
+      role: _parseNullableString(item['role']),
+      isPreferred: item['is_preferred'] == true,
+      isDecisionMaker: item['is_decision_maker'] == true,
+      notes: _parseNullableString(item['notes']),
+      position: _parseInt(item['position']),
+      origin: item['origin']?.toString() ?? 'manual',
+      sourceType: _parseNullableString(item['source_type']),
+      sourceId: _parseNullableInt(item['source_id']),
+      createdAt: _parseDateTime(item['created_at']),
+      updatedAt: _parseDateTime(item['updated_at']),
+      contactPoints: points,
     );
   }
 

@@ -26,7 +26,7 @@ class ChangeHistoryEvent(Base):
             "'client_workflow_status','client_candidate','candidate_merge',"
             "'ignored_mail_source','user','work_item','work_item_note',"
             "'work_item_document','absence_request','document',"
-            "'knowledge_base_item')",
+            "'knowledge_base_item','contact_person')",
             name="ck_change_history_events_entity_type",
         ),
         CheckConstraint(

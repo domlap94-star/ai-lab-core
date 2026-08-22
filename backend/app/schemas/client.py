@@ -47,6 +47,103 @@ class ClientContactRead(ClientContactInput):
     origin: Literal["manual", "gmail", "sheets", "migration", "other"]
     source_type: str | None = None
     source_id: int | None = None
+    contact_person_id: int | None = None
+
+
+class ContactPersonBase(BaseModel):
+    display_name: str = Field(min_length=1, max_length=255)
+    role: str | None = Field(default=None, max_length=150)
+    is_preferred: bool = False
+    is_decision_maker: bool = False
+    notes: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def normalize_display_name(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("Contact person display name is required")
+        return normalized
+
+    @field_validator("role", "notes", mode="before")
+    @classmethod
+    def strip_optional_person_text(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        return normalized or None
+
+
+class ContactPersonCreate(ContactPersonBase):
+    contact_point_ids: list[int] = Field(default_factory=list, max_length=50)
+    emails: list[ClientContactInput] = Field(default_factory=list, max_length=20)
+    phones: list[ClientContactInput] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="after")
+    def validate_new_coordinates(self):
+        self.emails = _validate_contacts(self.emails, kind="email", ensure_primary=False) or []
+        self.phones = _validate_contacts(self.phones, kind="phone", ensure_primary=False) or []
+        if len(set(self.contact_point_ids)) != len(self.contact_point_ids):
+            raise ValueError("Duplicate contact point ID")
+        return self
+
+
+class ContactPersonUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=255)
+    role: str | None = Field(default=None, max_length=150)
+    is_preferred: bool | None = None
+    is_decision_maker: bool | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+    contact_point_ids: list[int] | None = Field(default=None, max_length=50)
+    emails: list[ClientContactInput] | None = Field(default=None, max_length=20)
+    phones: list[ClientContactInput] | None = Field(default=None, max_length=20)
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def normalize_display_name(cls, value: object) -> object:
+        if value is None or not isinstance(value, str):
+            return value
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("Contact person display name is required")
+        return normalized
+
+    @field_validator("role", "notes", mode="before")
+    @classmethod
+    def strip_optional_person_text(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        normalized = value.strip()
+        return normalized or None
+
+    @model_validator(mode="after")
+    def validate_coordinates(self):
+        if self.contact_point_ids is not None and len(set(self.contact_point_ids)) != len(self.contact_point_ids):
+            raise ValueError("Duplicate contact point ID")
+        if self.emails is not None:
+            self.emails = _validate_contacts(self.emails, kind="email", ensure_primary=False) or []
+        if self.phones is not None:
+            self.phones = _validate_contacts(self.phones, kind="phone", ensure_primary=False) or []
+        return self
+
+
+class ContactPersonRead(ContactPersonBase):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    client_id: int
+    position: int
+    origin: Literal["manual", "gmail", "sheets", "migration", "other"]
+    source_type: str | None = None
+    source_id: int | None = None
+    contact_points: list[ClientContactRead] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ContactPointPersonAssignment(BaseModel):
+    contact_person_id: int | None = Field(default=None, ge=1)
 
 
 class ClientAddressInput(BaseModel):
@@ -90,7 +187,12 @@ class ClientAddressRead(ClientAddressInput):
     source_id: int | None = None
 
 
-def _validate_contacts(contacts: list[ClientContactInput] | None, *, kind: str):
+def _validate_contacts(
+    contacts: list[ClientContactInput] | None,
+    *,
+    kind: str,
+    ensure_primary: bool = True,
+):
     if contacts is None:
         return None
     seen: set[str] = set()
@@ -111,7 +213,7 @@ def _validate_contacts(contacts: list[ClientContactInput] | None, *, kind: str):
         primary_count += int(contact.is_primary)
     if primary_count > 1:
         raise ValueError(f"At most one primary {kind} is allowed")
-    if contacts and primary_count == 0:
+    if contacts and primary_count == 0 and ensure_primary:
         contacts[0].is_primary = True
     return contacts
 
@@ -399,6 +501,10 @@ class ClientRead(ClientBase):
     emails: list[ClientContactRead] = Field(default_factory=list)
     phones: list[ClientContactRead] = Field(default_factory=list)
     addresses: list[ClientAddressRead] = Field(default_factory=list)
+    contact_persons: list[ContactPersonRead] = Field(
+        default_factory=list,
+        validation_alias="active_contact_persons",
+    )
 
 
 class ClientPage(BaseModel):

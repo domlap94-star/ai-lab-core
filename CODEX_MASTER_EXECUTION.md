@@ -138,16 +138,20 @@ no customer-vector mutation, Temporary Chat send, Vision job or historical
 scan occurred. Canonical next work is CHUNK 26, not CHUNK 17; Phase E remains
 blocked until the CHUNK 26 outcome is complete and Release D is published.
 
-**FOLLOW-UP CHUNK 26 — CONTACT PERSON DECISION — AUDIT COMPLETE / OWNER
-DECISION REQUIRED.** The current Client contact model stores independent
-e-mail/phone coordinates with primary-per-kind and provenance, but has no
-persistent person identity, role, coordinate grouping, preferred person,
-decision maker or person-specific notes. The bounded decision record
-`FOLLOWUP_CHUNK26_CONTACT_PERSON_DECISION.md` recommends additive Option B and
-stops at `FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`; any schema work
-is separately gated by
-`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. No implementation,
-migration or production write occurred.
+**FOLLOW-UP CHUNK 26 — CONTACT PERSON — OPTION B IMPLEMENTED IN SOURCE /
+ISOLATED ACCEPTANCE PASS; PRODUCTION MIGRATION APPROVAL REQUIRED.** Option B is
+the final product decision. The additive implementation introduces a
+Client-owned ContactPerson identity/grouping layer while retaining
+`client_contact_points` as the sole canonical phone/e-mail model. Composite DB
+ownership rejects cross-Client assignment, one active preferred person is
+enforced, multiple decision makers are allowed, and archive preserves contact
+coordinates by returning them to generic Client ownership. Client Details,
+Client/Global Search, exact mail attribution, Change History and the Agent read
+projection are additive. Migration `followup_contact_person_20260822` passes
+isolated up/down/up and zero-backfill proofs; Flutter analyze, full `281/281`
+and all three debug builds pass. Production remains unchanged at
+`followup_admin_knowledge_base_20260821`. Exact next gate:
+`FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
 starts. Required order: `CHUNK 26 completion -> Release D (separate prompt) ->

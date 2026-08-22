@@ -163,6 +163,17 @@ class Client(BusinessBase):
         passive_deletes=True,
     )
 
+    contact_persons: Mapped[list["ContactPerson"]] = relationship(
+        "ContactPerson",
+        back_populates="client",
+        order_by="ContactPerson.position, ContactPerson.id",
+        passive_deletes=True,
+    )
+
+    @property
+    def active_contact_persons(self):
+        return [item for item in self.contact_persons if item.deleted_at is None]
+
     address_records: Mapped[list["ClientAddress"]] = relationship(
         "ClientAddress",
         back_populates="client",

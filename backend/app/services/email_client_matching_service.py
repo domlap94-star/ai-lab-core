@@ -34,9 +34,10 @@ class EmailClientMatch:
     contradictory: bool
     vision_required: bool
     evidence_by_client: tuple[tuple[int, tuple[str, ...]], ...]
+    matched_contact_person_id: int | None = None
 
     def metadata(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "version": "NEXT_STABIL_EMAIL_CLIENT_MATCH_V2",
             "confidence": self.confidence,
             "matched_client_id": self.client.id if self.client else None,
@@ -49,6 +50,9 @@ class EmailClientMatch:
                 for client_id, reasons in self.evidence_by_client
             ],
         }
+        if self.matched_contact_person_id is not None:
+            result["matched_contact_person_id"] = self.matched_contact_person_id
+        return result
 
 
 class EmailClientMatchingService:
@@ -185,7 +189,29 @@ class EmailClientMatchingService:
                 )
             add(reason, clients, strong=(kind in {"tax", "phone"}))
 
-        return self._resolve(groups, overflow=overflow, vision_required=vision_required)
+        result = self._resolve(groups, overflow=overflow, vision_required=vision_required)
+        if result.client is not None and sender_email:
+            normalized_sender = sender_email.strip().casefold()
+            person_ids = {
+                point.contact_person_id
+                for point in getattr(result.client, "contact_points", ())
+                if point.deleted_at is None
+                and point.kind == "email"
+                and point.normalized_value == normalized_sender
+                and point.contact_person_id is not None
+            }
+            if len(person_ids) == 1:
+                return EmailClientMatch(
+                    client=result.client,
+                    confidence=result.confidence,
+                    reasons=result.reasons,
+                    candidate_client_ids=result.candidate_client_ids,
+                    contradictory=result.contradictory,
+                    vision_required=result.vision_required,
+                    evidence_by_client=result.evidence_by_client,
+                    matched_contact_person_id=next(iter(person_ids)),
+                )
+        return result
 
     def _resolve(
         self,

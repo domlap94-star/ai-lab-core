@@ -252,12 +252,12 @@ class ClientService(BaseService[Client]):
 
             if "emails" in data.model_fields_set:
                 self._replace_contacts(client, "email", data.emails or [])
-                client.primary_email = self._primary_value(data.emails or [])
+                self._sync_primary_contact_scalar(client, "email")
             elif "primary_email" in payload:
                 self._set_legacy_primary(client, "email", payload["primary_email"])
             if "phones" in data.model_fields_set:
                 self._replace_contacts(client, "phone", data.phones or [])
-                client.primary_phone = self._primary_value(data.phones or [])
+                self._sync_primary_contact_scalar(client, "phone")
             elif "primary_phone" in payload:
                 self._set_legacy_primary(client, "phone", payload["primary_phone"])
             if "addresses" in data.model_fields_set:
@@ -394,16 +394,48 @@ class ClientService(BaseService[Client]):
         )
 
     def _replace_contacts(self, client: Client, kind: str, contacts: list) -> None:
-        client.contact_points[:] = [item for item in client.contact_points if item.kind != kind]
+        retained = {
+            item.normalized_value: item
+            for item in client.contact_points
+            if item.kind == kind and item.contact_person_id is not None
+        }
+        client.contact_points[:] = [
+            item
+            for item in client.contact_points
+            if item.kind != kind or item.contact_person_id is not None
+        ]
         self.db.flush()
+        if any(
+            (raw.is_primary if hasattr(raw, "is_primary") else raw["is_primary"])
+            for raw in contacts
+        ):
+            for item in retained.values():
+                item.is_primary = False
         for position, raw in enumerate(contacts):
             value = raw.value if hasattr(raw, "value") else raw["value"]
             primary = raw.is_primary if hasattr(raw, "is_primary") else raw["is_primary"]
+            normalized = self._normalize_contact(kind, value)
+            if normalized in retained:
+                retained[normalized].is_primary = primary
+                retained[normalized].position = position
+                continue
             client.contact_points.append(ClientContactPoint(
                 kind=kind, value=value.strip(),
-                normalized_value=self._normalize_contact(kind, value),
+                normalized_value=normalized,
                 is_primary=primary, position=position, origin="manual",
             ))
+
+    @staticmethod
+    def _sync_primary_contact_scalar(client: Client, kind: str) -> None:
+        primary = next(
+            (
+                item.value
+                for item in client.contact_points
+                if item.kind == kind and item.deleted_at is None and item.is_primary
+            ),
+            None,
+        )
+        setattr(client, "primary_email" if kind == "email" else "primary_phone", primary)
 
     def _replace_addresses(self, client: Client, addresses: list) -> None:
         for existing in client.address_records:

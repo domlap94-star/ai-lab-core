@@ -8,6 +8,7 @@ class ClientContactPoint {
     this.origin = 'manual',
     this.sourceType,
     this.sourceId,
+    this.contactPersonId,
   });
   final int id;
   final String value;
@@ -15,6 +16,48 @@ class ClientContactPoint {
   final String origin;
   final String? sourceType;
   final int? sourceId;
+  final int? contactPersonId;
+}
+
+class ContactPerson {
+  const ContactPerson({
+    required this.id,
+    required this.clientId,
+    required this.displayName,
+    required this.isPreferred,
+    required this.isDecisionMaker,
+    required this.position,
+    required this.origin,
+    required this.createdAt,
+    required this.updatedAt,
+    this.role,
+    this.notes,
+    this.sourceType,
+    this.sourceId,
+    this.contactPoints = const <ClientContactPoint>[],
+  });
+
+  final int id;
+  final int clientId;
+  final String displayName;
+  final String? role;
+  final bool isPreferred;
+  final bool isDecisionMaker;
+  final String? notes;
+  final int position;
+  final String origin;
+  final String? sourceType;
+  final int? sourceId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final List<ClientContactPoint> contactPoints;
+
+  List<ClientContactPoint> get emails => contactPoints
+      .where((item) => item.value.contains('@'))
+      .toList(growable: false);
+  List<ClientContactPoint> get phones => contactPoints
+      .where((item) => !item.value.contains('@'))
+      .toList(growable: false);
 }
 
 class ClientAddress {
@@ -129,6 +172,7 @@ class Client {
     this.emails = const <ClientContactPoint>[],
     this.phones = const <ClientContactPoint>[],
     this.addresses = const <ClientAddress>[],
+    this.contactPersons = const <ContactPerson>[],
   });
 
   final int id;
@@ -161,6 +205,14 @@ class Client {
   final List<ClientContactPoint> emails;
   final List<ClientContactPoint> phones;
   final List<ClientAddress> addresses;
+  final List<ContactPerson> contactPersons;
+
+  List<ClientContactPoint> get genericEmails => emails
+      .where((item) => item.contactPersonId == null)
+      .toList(growable: false);
+  List<ClientContactPoint> get genericPhones => phones
+      .where((item) => item.contactPersonId == null)
+      .toList(growable: false);
 
   String get displayName {
     return name.trim().isEmpty ? 'Klient bez nazwy' : name.trim();

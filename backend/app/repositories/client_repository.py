@@ -5,6 +5,7 @@ from sqlalchemy.orm import Query
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.client import Client
+from app.models.contact_person import ContactPerson
 from app.models.client_workflow_status import ClientWorkflowStatus
 from app.repositories.base_repository import BaseRepository
 from app.services.client_search_matching_service import (
@@ -22,6 +23,7 @@ class ClientRepository(BaseRepository[Client]):
             .options(
                 joinedload(Client.industry),
                 selectinload(Client.contact_points),
+                selectinload(Client.contact_persons).selectinload(ContactPerson.contact_points),
                 selectinload(Client.address_records),
             )
             .filter(
@@ -55,6 +57,7 @@ class ClientRepository(BaseRepository[Client]):
             .options(
                 joinedload(Client.industry),
                 selectinload(Client.contact_points),
+                selectinload(Client.contact_persons).selectinload(ContactPerson.contact_points),
                 selectinload(Client.address_records),
             )
             .order_by(
@@ -96,6 +99,7 @@ class ClientRepository(BaseRepository[Client]):
             .options(
                 joinedload(Client.industry),
                 selectinload(Client.contact_points),
+                selectinload(Client.contact_persons).selectinload(ContactPerson.contact_points),
                 selectinload(Client.address_records),
             )
             .filter(

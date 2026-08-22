@@ -7,6 +7,7 @@ from app.models.client_activity_event import ClientActivityEvent
 from app.models.client_workflow_status import ClientWorkflowStatus
 from app.models.client_address import ClientAddress
 from app.models.client_contact_point import ClientContactPoint
+from app.models.contact_person import ContactPerson
 from app.models.client_candidate import ClientCandidate
 from app.models.conversation import Conversation
 from app.models.document import Document
@@ -45,6 +46,7 @@ __all__ = [
     "ClientWorkflowStatus",
     "ClientAddress",
     "ClientContactPoint",
+    "ContactPerson",
     "ClientCandidate",
     "Conversation",
     "Document",

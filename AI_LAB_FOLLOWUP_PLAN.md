@@ -1742,19 +1742,24 @@ Human gate: `FOLLOWUP_N8N_RETENTION_APPROVAL_REQUIRED`.
 
 **Priority: P2**
 
-**[~] AUDIT COMPLETE / OWNER DECISION REQUIRED — 2026-08-22.** The read-only
-source/schema/production audit is recorded in
-`FOLLOWUP_CHUNK26_CONTACT_PERSON_DECISION.md`. The current
-`client_contact_points` model supports multiple independent e-mail/phone
-coordinates with one primary per kind and coordinate-level provenance, but it
-does not persist identified people, roles, person grouping, preferred person,
-decision maker or person-specific notes. Recommendation: **OPTION B**, using an
-additive `ContactPerson` parent while retaining existing contact points as the
-only coordinate model. No migration, backfill or production write occurred.
+**[~] OPTION B IMPLEMENTED IN SOURCE / ISOLATED ACCEPTANCE PASS; AWAITING
+CONTACT PERSON PRODUCTION MIGRATION APPROVAL — 2026-08-22.** The owner consumed
+`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. The additive domain keeps
+`client_contact_points` as the only e-mail/phone model and adds Client-owned
+`ContactPerson` grouping with display name, role, preferred and decision-maker
+semantics, notes and provenance. Generic coordinates remain valid with
+`contact_person_id = NULL`; composite ownership prevents cross-Client links.
+Client Details, shared Client/Global Search, exact mail attribution and the
+read-only Agent projection are additive. Archive soft-deletes the person and
+unassigns—never deletes—its canonical coordinates.
 
-Exact owner gate:
-`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. If Option B is selected,
-the later schema change is separately gated by
+Migration `followup_contact_person_20260822` (parent
+`followup_admin_knowledge_base_20260821`) passes isolated
+upgrade/downgrade/re-upgrade, preferred and cross-Client constraints, multiple
+decision makers and zero historical backfill. Flutter analyze, focused tests,
+full `281/281`, and Android/Web/Windows debug builds pass. Production remains
+at `followup_admin_knowledge_base_20260821`; the `contact_persons` table is
+absent and Client/contact production writes are zero. Exact next gate:
 `FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
 
 Historyczny CHUNK 7B. Najpierw decyzja:
@@ -1936,9 +1941,8 @@ Production restore remains fail-closed behind
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
 
 **FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — COMPLETE.** Current Phase D item
-is **FOLLOW-UP CHUNK 26 — CONTACT PERSON DECISION**, with read-only audit
-complete and owner decision required at
-`FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED`. Recommendation is Option
-B; no schema or runtime implementation is authorized by the audit. Phase E is
-blocked until CHUNK 26 is completed and a separately prompted Release D is
-published. CHUNK 17/18/19 remain NOT STARTED.
+is **FOLLOW-UP CHUNK 26 — CONTACT PERSON**, with Option B implemented in source
+and isolated acceptance complete. Production migration is not applied; exact
+next gate is `FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+Phase E is blocked until CHUNK 26 is completed and a separately prompted
+Release D is published. CHUNK 17/18/19 remain NOT STARTED.

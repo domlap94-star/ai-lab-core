@@ -48,11 +48,11 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
       'registration_number': TextEditingController(text: c.registrationNumber),
       'website': TextEditingController(text: c.website),
     };
-    final Iterable<String?> emailValues = c.emails.isNotEmpty
-        ? c.emails.map<String?>((contact) => contact.value)
+    final Iterable<String?> emailValues = c.genericEmails.isNotEmpty
+        ? c.genericEmails.map<String?>((contact) => contact.value)
         : <String?>[c.primaryEmail];
-    final Iterable<String?> phoneValues = c.phones.isNotEmpty
-        ? c.phones.map<String?>((contact) => contact.value)
+    final Iterable<String?> phoneValues = c.genericPhones.isNotEmpty
+        ? c.genericPhones.map<String?>((contact) => contact.value)
         : <String?>[c.primaryPhone];
     _emails = emailValues
         .whereType<String>()
@@ -62,8 +62,8 @@ class _ClientEditDialogState extends State<ClientEditDialog> {
         .whereType<String>()
         .map((value) => TextEditingController(text: value))
         .toList();
-    _primaryEmail = _initialPrimary(c.emails, _emails);
-    _primaryPhone = _initialPrimary(c.phones, _phones);
+    _primaryEmail = _initialPrimary(c.genericEmails, _emails);
+    _primaryPhone = _initialPrimary(c.genericPhones, _phones);
     _addresses = c.addresses.isNotEmpty
         ? c.addresses.map(_AddressControllers.fromAddress).toList()
         : c.hasStructuredAddressData

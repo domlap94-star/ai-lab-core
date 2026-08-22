@@ -30,6 +30,11 @@ from app.schemas.client import (
     ClientRead,
     ClientType,
     ClientUpdate,
+    ClientContactRead,
+    ContactPersonCreate,
+    ContactPersonRead,
+    ContactPersonUpdate,
+    ContactPointPersonAssignment,
 )
 from app.schemas.client_bulk import (
     ClientBatchResponse,
@@ -51,6 +56,12 @@ from app.services.client_service import (
     ClientService,
     DuplicateTaxIdError,
     IndustryNotFoundError,
+)
+from app.services.contact_person_service import (
+    ContactPersonConflictError,
+    ContactPersonNotFoundError,
+    ContactPersonService,
+    ContactPersonValidationError,
 )
 from app.services.client_bulk_service import ClientBulkService
 from app.services.client_activity_service import (
@@ -368,6 +379,122 @@ def get_client(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Client not found",
         ) from error
+
+
+def _contact_person_http_error(error: Exception) -> HTTPException:
+    if isinstance(error, ContactPersonNotFoundError):
+        return HTTPException(status_code=404, detail={"code": str(error)})
+    if isinstance(error, ContactPersonConflictError):
+        return HTTPException(status_code=409, detail={"code": str(error)})
+    return HTTPException(status_code=422, detail={"code": str(error)})
+
+
+@router.get("/{client_id}/contact-persons", response_model=list[ContactPersonRead])
+def list_contact_persons(
+    client_id: int,
+    db: Session = Depends(get_db),
+) -> list[ContactPersonRead]:
+    try:
+        return ContactPersonService(db).list(client_id)
+    except ContactPersonNotFoundError as error:
+        raise _contact_person_http_error(error) from error
+
+
+@router.post(
+    "/{client_id}/contact-persons",
+    response_model=ContactPersonRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_contact_person(
+    client_id: int,
+    data: ContactPersonCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ContactPersonRead:
+    try:
+        return ContactPersonService(db).create(
+            client_id, data, actor_user_id=current_user.id
+        )
+    except (ContactPersonNotFoundError, ContactPersonConflictError, ContactPersonValidationError) as error:
+        raise _contact_person_http_error(error) from error
+
+
+@router.patch(
+    "/{client_id}/contact-persons/{person_id}",
+    response_model=ContactPersonRead,
+)
+def update_contact_person(
+    client_id: int,
+    person_id: int,
+    data: ContactPersonUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ContactPersonRead:
+    try:
+        return ContactPersonService(db).update(
+            client_id, person_id, data, actor_user_id=current_user.id
+        )
+    except (ContactPersonNotFoundError, ContactPersonConflictError, ContactPersonValidationError) as error:
+        raise _contact_person_http_error(error) from error
+
+
+@router.delete(
+    "/{client_id}/contact-persons/{person_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def archive_contact_person(
+    client_id: int,
+    person_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    try:
+        ContactPersonService(db).archive(
+            client_id, person_id, actor_user_id=current_user.id
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except (ContactPersonNotFoundError, ContactPersonConflictError, ContactPersonValidationError) as error:
+        raise _contact_person_http_error(error) from error
+
+
+@router.post(
+    "/{client_id}/contact-persons/{person_id}/restore",
+    response_model=ContactPersonRead,
+)
+def restore_contact_person(
+    client_id: int,
+    person_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ContactPersonRead:
+    try:
+        return ContactPersonService(db).restore(
+            client_id, person_id, actor_user_id=current_user.id
+        )
+    except (ContactPersonNotFoundError, ContactPersonConflictError, ContactPersonValidationError) as error:
+        raise _contact_person_http_error(error) from error
+
+
+@router.patch(
+    "/{client_id}/contact-points/{contact_point_id}/person",
+    response_model=ClientContactRead,
+)
+def assign_contact_point_person(
+    client_id: int,
+    contact_point_id: int,
+    data: ContactPointPersonAssignment,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ClientContactRead:
+    try:
+        return ContactPersonService(db).assign_coordinate(
+            client_id,
+            contact_point_id,
+            data.contact_person_id,
+            actor_user_id=current_user.id,
+        )
+    except (ContactPersonNotFoundError, ContactPersonConflictError, ContactPersonValidationError) as error:
+        raise _contact_person_http_error(error) from error
 
 
 @router.post(
