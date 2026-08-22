@@ -1527,8 +1527,8 @@ reserved by this decision.
 
 **Priority: P1**
 
-**[~] PRODUCTION MIGRATION COMPLETE; AWAITING KB VECTOR WRITE APPROVAL —
-2026-08-22.** The additive,
+**[✓] FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — COMPLETE — 2026-08-22.**
+The additive,
 separate Knowledge Base domain, Administrator-only API and Polish Flutter
 workspace are implemented. Metadata, bounded upload, native extraction, OCR,
 page-level provenance/citations, duplicate-checksum warning, current/
@@ -1545,13 +1545,16 @@ pages, processing jobs, analysis artifacts, analysis jobs and analysis
 sources. The backend, empty-state projection and zero-work dispatcher smoke
 pass on the new schema.
 
-Vector design is ready in `FOLLOWUP_CHUNK16_KNOWLEDGE_BASE_VECTOR_DESIGN.md`:
+Vector implementation is active as documented in
+`FOLLOWUP_CHUNK16_KNOWLEDGE_BASE_VECTOR_DESIGN.md`:
 separate `ai_lab_knowledge_base_chunks`, canonical
 `qwen3-embedding:0.6b`, 1024/Cosine, explicit `source_type=knowledge_base` and
-deterministic item ownership. An isolated Qdrant 1.18.3 proof passed insert,
-search, current/superseded filtering, idempotent re-index and exact ownership
-delete. Production KB vector writes were zero and the existing customer
-collection remained 57 points.
+deterministic item ownership. Production acceptance used two versions of one
+public-safe synthetic formula fixture through the real Admin API. Async
+processing returned queued, local analysis was accepted without Temporary
+Chat, source-only indexing/retrieval/citations passed, re-index remained one
+deterministic point per item, supersession filtered current/history correctly,
+and canonical archive removed only exact owned points.
 
 The upload path is now durable and asynchronous: validation/file persistence,
 item plus processing-job commit and immediate HTTP return precede extraction,
@@ -1566,14 +1569,17 @@ serializes both job types through one Temporary Chat browser arbiter.
 The vector source service is implemented fail-closed behind configuration. Its
 isolated Qdrant 1.18.3 proof passed source-only payload isolation, hybrid
 retrieval, current/superseded filtering, idempotent re-index and exact ownership
-delete. Production now has the empty KB/analysis schema, but still has no KB
-rows, collection or vectors; `ai_lab_document_chunks` remains 57 points.
+delete. Production now has the KB/analysis schema and a healthy, empty
+`ai_lab_knowledge_base_chunks` collection. Both synthetic versions are archived;
+active KB items and KB points are zero. `ai_lab_document_chunks` remained 57
+points with unchanged 1024/Cosine configuration.
 
-The production migration approval was consumed. Exact next gate:
-`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`. Vector execution
-remains fail-closed and `ai_lab_knowledge_base_chunks` remains absent.
-CHUNK 17 is not started and the Phase D no-intermediate-release policy remains
-in force.
+The production migration and KB vector approvals were consumed. KB processing
+and KB vector writes are enabled persistently; no customer collection write,
+historical scan or CHUNK 17 rollout occurred. Canonical next item is
+`FOLLOW-UP CHUNK 17 — GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT
+ESCALATION`, still NOT STARTED. The Phase D no-intermediate-release policy
+remains in force.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS — 2026-08-22.**

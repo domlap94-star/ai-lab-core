@@ -1,8 +1,9 @@
 # FOLLOW-UP CHUNK 16 — Knowledge Base vector design
 
-Status: **DESIGN READY / PRODUCTION WRITES NOT APPROVED**
+Status: **PRODUCTION ENABLED / BOUNDED ACCEPTANCE PASS — 2026-08-22**
 
-Gate: `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`
+Gate `FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED` was consumed for
+the bounded production enablement described below.
 
 ## Boundary
 
@@ -58,12 +59,17 @@ The entire item is the deletion/re-index ownership boundary. Any mismatch in
 - Rollback: delete the new item-owned set and restore the previous verified set;
   the customer collection is never part of the operation.
 
-## Gate and expected initial delta
+## Production acceptance
 
-Production contains zero Knowledge Base items at this gate, so the expected
-initial Knowledge Base point count is `0`. No collection creation, embedding,
-upsert, payload rewrite or delete is permitted until the owner grants
-`FOLLOWUP_KNOWLEDGE_BASE_VECTOR_WRITE_APPROVAL_REQUIRED`.
+Production collection `ai_lab_knowledge_base_chunks` is active and healthy at
+1024/Cosine using `qwen3-embedding:0.6b`. Two versions of one locally generated,
+public-safe formula fixture exercised the real Admin upload, durable processing,
+local acceptance, source-only indexing, lexical/vector/hybrid retrieval,
+current/superseded filtering, deterministic re-index and exact ownership
+deletion. Both versions were archived through the canonical API. Final active
+KB items and KB points are zero; retained archive/audit rows preserve the
+acceptance history. Customer collection `ai_lab_document_chunks` remained
+unchanged at 57 points.
 
 ## Isolated proof
 
