@@ -199,9 +199,14 @@ interpretation, bounded table analysis, standards comparison, consistency and
 existing Vision results. Privacy, source/package/result hashes, deterministic
 post-validation, 36 controlled calculations, durable idempotency/recovery,
 AUTH_REQUIRED/UI_CHANGED, bounded retry, shared browser arbitration and
-KB/Vision regressions pass. A public-safe live attempt stopped before submission
-at truthful `AUTH_REQUIRED`; the synthetic job was cancelled and the arbiter is
-READY. Production `ADVANCED_ANALYSIS_ENABLED` remains false. Exact gate is
+KB/Vision regressions pass. Authenticated public-safe Temporary Chat E2E now
+passes for the deterministic `12 kN / 0.004 m2 = 3 MPa` fixture through the
+canonical backend/Supervisor/shared-arbiter route. One durable synthetic job
+and source reached `accepted_advanced`; strict manifest/package/source binding,
+unit-aware local recalculation and log privacy pass. The acceptance fixed the
+analysis worker's authenticated-UI startup wait, strict Node/backend result
+shape parity and unit-aware calculation post-validation. The arbiter is READY.
+Production `ADVANCED_ANALYSIS_ENABLED` remains false. Exact gate is
 `FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
 
 Mutating isolated backend tests now fail closed through one shared guard: an

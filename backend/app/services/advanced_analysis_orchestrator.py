@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -170,7 +171,12 @@ class AdvancedAnalysisOrchestrator:
             job.error_code = "analysis_result_manifest_binding_invalid"; job.finished_at = datetime.now(UTC)
             self.db.flush(); return job.status
         raw = json.loads(result_path.read_text(encoding="utf-8"))
-        result = AdvancedAnalysisResult.model_validate(raw)
+        try:
+            result = AdvancedAnalysisResult.model_validate(raw)
+        except ValidationError:
+            job.status = "failed"; job.decision = "rejected"
+            job.error_code = "analysis_result_schema_invalid"; job.finished_at = datetime.now(UTC)
+            self.db.flush(); return job.status
         validation = self.validator.validate(request=request, result=result, package_sha256=job.sanitized_package_hash or "")
         job.status = {"accepted_advanced": "accepted_advanced", "review_required": "review_required", "rejected": "failed"}[validation.status]
         job.decision = validation.status

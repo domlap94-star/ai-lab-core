@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import time
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from test.support.database_safety import assert_isolated_database, require_test_database_environment
 
@@ -14,6 +14,7 @@ if os.environ.get("CHUNK17_PUBLIC_SAFE_E2E") != "1":
 
 from app.core.config import settings
 from app.database.session import SessionLocal
+from app.models.knowledge_base import AnalysisJob
 from app.schemas.analysis import (
     AnalysisProvenance,
     AnalysisQualitySignals,
@@ -28,16 +29,18 @@ from app.services.advanced_analysis_orchestrator import AdvancedAnalysisOrchestr
 def main() -> None:
     text = "Synthetic public rule: pressure equals force divided by area."
     checksum = hashlib.sha256(text.encode()).hexdigest()
+    existing_analysis_id = os.environ.get("CHUNK17_PUBLIC_SAFE_EXISTING_ANALYSIS_ID")
     request = AnalysisRequest(
-        analysis_id=uuid4(), analysis_type="formula_calculation", source_domain="calculation",
+        analysis_id=UUID(existing_analysis_id) if existing_analysis_id else uuid4(),
+        analysis_type="formula_calculation", source_domain="calculation",
         source_refs=[AnalysisSourceRef(source_ref="S1", checksum_sha256=checksum, page=1,
                                        excerpt=text, extraction_confidence=100)],
         problem_statement="Calculate the synthetic pressure fixture.",
-        structured_inputs={"expression": "force/area", "variables": {"force": 12, "area": .4},
-                           "values": {"force": 12, "area": .4}, "expected_result": 30,
-                           "result_unit": "kPa", "requested_output": "Return pressure in kPa."},
+        structured_inputs={"expression": "force/area", "variables": {"force": 12, "area": .004},
+                           "values": {"force": 12, "area": .004}, "expected_result": 3,
+                           "result_unit": "MPa", "requested_output": "Return pressure in MPa."},
         units={"force": "kN", "area": "m2"}, formulas=["force/area"],
-        constraints=["Expected deterministic result: 30 kPa"], evidence=["S1"],
+        constraints=["Expected deterministic result: 3 MPa"], evidence=["S1"],
         sensitivity="public_reference",
         allowed_methods=["deterministic_calculation", "temporary_chat"],
         provenance=AnalysisProvenance(source_checksum=checksum),
@@ -57,12 +60,18 @@ def main() -> None:
         assert_isolated_database(db, TEST_DATABASE_NAME)
         settings.advanced_analysis_enabled = True
         orchestrator = AdvancedAnalysisOrchestrator(db)
-        job = orchestrator.execute_local(
-            request=request, local=deliberately_insufficient,
-            source_entities={"S1": ("synthetic_public_fixture", "chunk17", 1)},
-            actor_user_id=None,
-        )
-        db.commit()
+        if existing_analysis_id:
+            job = db.get(AnalysisJob, existing_analysis_id)
+            if job is None or not job.external_job_id:
+                raise AssertionError("existing synthetic analysis job not found")
+            orchestrator.supervisor.resume()
+        else:
+            job = orchestrator.execute_local(
+                request=request, local=deliberately_insufficient,
+                source_entities={"S1": ("synthetic_public_fixture", "chunk17", 1)},
+                actor_user_id=None,
+            )
+            db.commit()
         if not job.external_job_id:
             raise AssertionError(f"synthetic escalation not queued: {job.error_code}")
         deadline = time.monotonic() + 300

@@ -45,7 +45,12 @@ class AnalysisPostValidator:
             variables = request.structured_inputs.get("variables")
             if isinstance(expression, str) and isinstance(variables, dict):
                 try:
-                    recalculated = calculator.evaluate(expression, variables)
+                    recalculated = calculator.evaluate_checked(
+                        expression,
+                        variables,
+                        request.units,
+                        request.structured_inputs.get("result_unit"),
+                    ).value
                 except (CalculationValidationError, TypeError, ZeroDivisionError):
                     return PostValidationResult("rejected", "analysis_deterministic_recalculation_failed")
                 actual = result.result.get("value")

@@ -83,6 +83,9 @@ def calculation_matrix() -> None:
     pressure = validator.evaluate_checked("force/area", {"force": 12, "area": .4},
                                           {"force": "kN", "area": "m2"}, "kPa")
     require(validator.compare(pressure.value, 30) and pressure.unit == "kPa", "pressure units")
+    pressure_mpa = validator.evaluate_checked("force/area", {"force": 12, "area": .004},
+                                              {"force": "kN", "area": "m2"}, "MPa")
+    require(validator.compare(pressure_mpa.value, 3) and pressure_mpa.unit == "MPa", "pressure MPa units")
     percent = validator.evaluate_checked("part/whole", {"part": 25, "whole": 100},
                                          {"part": "kg", "whole": "kg"}, "%")
     require(validator.compare(percent.value, 25), "percentage conversion")
@@ -206,6 +209,22 @@ def contract_matrix() -> None:
     wrong = valid.model_copy(update={"result": {"value": 24}})
     require(post.validate(request=request, result=wrong, package_sha256=package.sha256).status == "rejected",
             "calculation disagreement accepted")
+    pressure_request = make_request("formula_calculation", structured_inputs={
+        "expression": "force/area", "variables": {"force": 12, "area": .004},
+        "expected_result": 3, "result_unit": "MPa",
+    }, units={"force": "kN", "area": "m2"})
+    pressure_request.formulas = ["force/area"]
+    pressure_package = sanitizer.sanitize(pressure_request)
+    pressure_result = AdvancedAnalysisResult(
+        schema_version="NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
+        analysis_id=pressure_request.analysis_id, package_sha256=pressure_package.sha256,
+        result={"value": 3}, source_refs=["S1"],
+        normalized_units={"force": "N", "area": "m2", "result": "MPa"},
+        formula_used="force/area", verification_recommendation="accept",
+    )
+    require(post.validate(request=pressure_request, result=pressure_result,
+                          package_sha256=pressure_package.sha256).status == "accepted_advanced",
+            "unit-normalized pressure result rejected")
     try:
         AdvancedAnalysisResult.model_validate({**valid.model_dump(mode="json"), "unknown": True})
     except ValidationError:
