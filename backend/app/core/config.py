@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     qdrant_knowledge_base_chunks_collection: str = "ai_lab_knowledge_base_chunks"
     backup_supervisor_url: str = "http://host.docker.internal:8787"
     backup_root: str = "C:\\ai-lab-core-backups"
-    backup_release_version: str = "1.0.2+26"
+    backup_release_version: str = "1.0.2+27"
     production_restore_enabled: bool = False
 
     @computed_field

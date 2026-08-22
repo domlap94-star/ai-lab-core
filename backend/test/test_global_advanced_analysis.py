@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.schemas.analysis import (AdvancedAnalysisResult, AnalysisProvenance,
     AnalysisQualitySignals, AnalysisRequest, AnalysisSourceRef,
@@ -73,6 +73,7 @@ def main() -> None:
         "12 kN / 0.004 m² = 3 MPa", "10 kN / 0.005 m² = 2 MPa",
         "12 kN / 0.004 m² = 3,000,000 Pa = 3 MPa",
         "100 000 000 Pa", "100000000 N", "100 000 000 %",
+        "6ca64919-6686-4141-9314-959c62f8729e",
     ]
     for value in phone_positives:
         require("PHONE" in sanitizer.detect_sensitive_kinds(value), f"phone missed: {value}")
@@ -90,6 +91,13 @@ def main() -> None:
     }
     require(not sanitizer.detect_sensitive_kinds(clean_result), "clean technical result rejected")
     sanitizer.validate_external_result(clean_result)
+    uuid_request = request(
+        sensitivity="customer_sanitizable",
+        text="Parametr techniczny 20 MPa.",
+        inputs={"tables": [[["jan@example.com", "+48 500 600 700"]]]},
+    )
+    uuid_request.analysis_id = UUID("6ca64919-6686-4141-9314-959c62f8729e")
+    sanitizer.sanitize(uuid_request)
     reintroduced = {
         "result": "Test Company Alpha; Jan Testowy; test@example.invalid; +48 500 000 017; "
                   "ul. Testowa 1; client_id=999999",

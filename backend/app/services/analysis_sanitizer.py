@@ -24,6 +24,11 @@ class AnalysisSanitizer:
     FORBIDDEN_KEYS = re.compile(r"(?i)(name|client|customer|company|address|location|phone|email|crm|database|jwt|cookie|token|secret|password|path|note)")
     EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
     PHONE = re.compile(r"(?<!\w)(?:\+?\d[\s().-]*){7,15}(?!\w)")
+    UUID = re.compile(
+        r"(?i)(?<![0-9a-f])"
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+        r"(?![0-9a-f])"
+    )
     PHONE_THOUSANDS_NUMBER = re.compile(r"^\d{1,3}(?:[,.]\d{3})+(?:[,.]\d+)?$")
     PHONE_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
     TECHNICAL_UNIT_AFTER = re.compile(
@@ -158,6 +163,9 @@ class AnalysisSanitizer:
         raw = match.group(0).strip()
         digits = re.sub(r"\D", "", raw)
         if not 9 <= len(digits) <= 15:
+            return False
+        if any(uuid.start() <= match.start() and match.end() <= uuid.end()
+               for uuid in cls.UUID.finditer(text)):
             return False
         if cls.PHONE_DATE.fullmatch(raw) or cls.PHONE_THOUSANDS_NUMBER.fullmatch(raw):
             return False

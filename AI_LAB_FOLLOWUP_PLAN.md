@@ -1940,8 +1940,8 @@ promptami.
 17. CHUNK 26 — Contact Person decision
 
 **[✓] Mandatory Phase D exit satisfied — Release D published 2026-08-22 as
-NEXT Stabil `1.0.2+26`.** Phase D is COMPLETE / RELEASED. Phase E is unblocked,
-but remains NOT STARTED; its canonical next item requires a separate prompt.
+NEXT Stabil `1.0.2+26`.** Phase D is COMPLETE / RELEASED. Phase E subsequently
+completed and was released as Release E / NEXT Stabil `1.0.2+27`.
 
 ### PHASE E — AI / SEARCH
 
@@ -1977,16 +1977,19 @@ Nie wykonywać release po każdym micro-fixie.
 **Owner sequencing rule: every Phase must end with a release before the next
 Phase begins.** The required `CHUNK 26 -> Release D -> Phase E` boundary has
 been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
-complete, and CHUNK 19 was completed early under CHUNK 15. No Phase E boundary
-release was performed in CHUNK 18; Phase F remains blocked pending a separate
-owner release prompt/decision.
+complete, and CHUNK 19 was completed early under CHUNK 15. Release E was
+published on 2026-08-22 as NEXT Stabil `1.0.2+27`; Phase E is COMPLETE /
+RELEASED. Phase F is UNBLOCKED / NOT STARTED and requires a separate owner
+prompt.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
 - **Release C** — Calendar, Tasks i Dashboard.
-- **Release D** — Backup UI, Knowledge Base and the owner-selected CHUNK 26
-  outcome; required before Phase E.
-- **Release E** — Security/operations, jeśli zmieniają client/runtime artifacts.
+- **Release D** — Phase D / Admin + Knowledge: Backup UI, Knowledge Base and
+  the owner-selected CHUNK 26 outcome; required before Phase E.
+- **Release E** — Phase E / AI + Search.
+- **Release F** — Phase F / Security + Operations, jeśli zmieniają
+  client/runtime artifacts.
 
 Każdy release wymaga osobnego promptu.
 
@@ -2032,9 +2035,31 @@ orphan KB point `648ab266-c5fb-5cab-b1c1-89e46fd47514`; the customer collection
 remained unchanged at 57 points and the healthy KB collection remains present
 with 0 points. Test safety now rejects both production Qdrant collections and
 the production endpoint, requiring an explicit isolated endpoint and
-`ai_lab_test_*` collection. Phase E is IN PROGRESS at **FOLLOW-UP CHUNK 17 —
-GLOBAL ADVANCED ANALYSIS BRIDGE / TEMPORARY CHAT ESCALATION**. Multi-domain
-source and isolated acceptance pass; production external analysis remains
-disabled behind
-`FOLLOWUP_GLOBAL_ADVANCED_ANALYSIS_PRODUCTION_ENABLE_APPROVAL_REQUIRED`.
-CHUNK 18 is NOT STARTED; CHUNK 19 remains completed early under CHUNK 15.
+`ai_lab_test_*` collection.
+
+**[✓] RELEASE E — PUBLISHED / COMPLETE — 2026-08-22 — NEXT Stabil
+`1.0.2+27`.** Phase E / AI + Search is COMPLETE / RELEASED. It contains the
+completed CHUNK 17 global local-first advanced-analysis runtime and the CHUNK
+18 semantic-search benchmark/design; CHUNK 19 remains completed early under
+CHUNK 15. Production `ADVANCED_ANALYSIS_ENABLED=true` with mandatory
+local-first processing, fail-closed sanitization, verified Temporary Chat only,
+and local post-validation. `public_reference` is externally eligible after the
+quality gate, `customer_sanitizable` only after sanitizer PASS, and
+`restricted_never_external` is always blocked. The CHUNK 18 customer-vector
+backfill remains NOT RECOMMENDED / NOT APPROVED / NOT PERFORMED;
+`FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED` is unconsumed and production
+Qdrant remains 57 customer points and 0 KB points.
+
+Release E's Windows acceptance initially hit enterprise Code Integrity policy
+on freshly relinked unsigned `permission_handler_windows_plugin.dll`. No source
+or plugin dependency changed since Release D, so the final staged +27 Windows
+payload pins the byte-identical, already accepted +26 native
+`permission_handler_windows_plugin.dll` and `geolocator_windows_plugin.dll`.
+Raw and installed +27 smokes pass with no new Code Integrity event, and no
+security policy, antivirus exclusion, signing identity, gateway or firewall was
+weakened. Authenticated Web +27 Dashboard smoke and exact loopback CORS pass.
+
+**PHASE F — UNBLOCKED / NOT STARTED.** Exact next item:
+`FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2`. Do not start it without a
+separate owner prompt. Owner release naming is canonical: Release E = Phase E /
+AI + Search; Release F = Phase F / Security + Operations.

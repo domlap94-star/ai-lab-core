@@ -24,21 +24,23 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
-**RELEASE D COMPLETE — NEXT STABIL 1.0.2+26.** Phase D is COMPLETE / RELEASED
-with CHUNK 15 Backup UI, CHUNK 16 Knowledge Base, CHUNK 26 Contact Person and
-the bounded Web `127.0.0.1:8789` CORS fix. Production DB remains at
-`followup_contact_person_20260822`. Final release hygiene removed exactly one
-synthetic orphan point `648ab266-c5fb-5cab-b1c1-89e46fd47514` from
-`ai_lab_knowledge_base_chunks`; the healthy KB collection remains at 0 points
-and `ai_lab_document_chunks` remains unchanged at 57. A fail-closed test guard
-now rejects both production collection names and the production Qdrant
-endpoint. CHUNK 17 is complete and production advanced analysis is enabled
-under mandatory local-first/privacy/post-validation rules. CHUNK 18 design and
-isolated quality benchmark are complete, but production customer-vector
-backfill is not recommended: the current retrieval path cannot meet both the
-declared recall and negative-query thresholds. CHUNK 19 was completed early
-under CHUNK 15. Phase E feature work is complete without backfill; no release
-was performed and Phase F remains blocked at the phase boundary.
+**RELEASE E COMPLETE — NEXT STABIL 1.0.2+27 — 2026-08-22.** Phase E / AI +
+Search is COMPLETE / RELEASED. CHUNK 17 is complete and production advanced
+analysis is enabled under mandatory local-first/privacy/post-validation rules.
+CHUNK 18 design and isolated quality benchmark are complete, but production
+customer-vector backfill is not recommended: the current retrieval path cannot
+meet both the declared recall and negative-query thresholds. CHUNK 19 was
+completed early under CHUNK 15. Production DB remains at
+`followup_contact_person_20260822`; customer Qdrant remains 57 points and the
+healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
+is unconsumed and no backfill was performed. Release E Windows acceptance
+resolved an enterprise Code Integrity rejection by pinning the byte-identical,
+already accepted Release D native permission/geolocator plugin binaries; raw
+and installed +27 smokes pass without weakening Code Integrity, antivirus,
+gateway or firewall policy. Authenticated Web +27 Dashboard and exact loopback
+CORS smokes pass. Phase F is UNBLOCKED / NOT STARTED; exact next item is
+`FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2`. Release E canonically names the
+Phase E boundary; Release F is reserved for Phase F / Security + Operations.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -183,9 +185,8 @@ Release D under a separate prompt; Phase E remains blocked until it completes.
 starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
 CHUNK 17 is COMPLETE; CHUNK 18 DESIGN/BENCHMARK is COMPLETE with production
 backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
-Phase E feature work is complete; no boundary release was performed. Current
-release is
-NEXT Stabil `1.0.2+26`.
+Phase E feature work is complete and Release E was published. Current release
+is NEXT Stabil `1.0.2+27`. Phase F is UNBLOCKED / NOT STARTED.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -282,13 +283,22 @@ strategii release/migracji. Legacy endpoint może zostać usunięty dopiero, gdy
 minimum supported app version gwarantuje brak wspieranych konsumentów starego
 kontraktu.
 
-## CURRENT RELEASE — NEXT STABIL 1.0.2+26
+## CURRENT RELEASE — NEXT STABIL 1.0.2+27
+
+- RELEASE E: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
+  Phase E AI/Search, including the CHUNK 17 production-enabled global
+  local-first advanced-analysis runtime and CHUNK 18 benchmark/design assets.
+  Stable build is `27`; `minimum_version` remains `1.0.0`. Public Windows and
+  Android hashes match verified local bytes, authenticated Web +27 smoke passes,
+  and +26/+25 immutable rollback artifacts remain available. Production
+  customer-vector backfill is NOT RECOMMENDED / NOT APPROVED / NOT PERFORMED.
+  Phase E is COMPLETE / RELEASED; Phase F is UNBLOCKED / NOT STARTED, with
+  CHUNK 20 the exact next item.
 
 - RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web
   CORS fix. Stable build is `26`; `minimum_version` remains `1.0.0`. Public
-  artifact hashes match verified local bytes. Phase D is COMPLETE / RELEASED;
-  Phase E is IN PROGRESS at CHUNK 17; CHUNK 18 is NOT STARTED.
+  artifact hashes match verified local bytes. Phase D is COMPLETE / RELEASED.
 - Final release hygiene deleted exactly synthetic orphan KB point
   `648ab266-c5fb-5cab-b1c1-89e46fd47514`, leaving the KB collection healthy and
   empty and the customer collection unchanged at 57 points. Tests now require
