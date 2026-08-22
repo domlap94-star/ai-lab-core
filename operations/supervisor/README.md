@@ -14,6 +14,11 @@ Endpoints:
 - `GET /vision/jobs/{job_id}` - get private job state
 - `POST /vision/jobs/{job_id}/cancel` - cancel a job
 - `POST /vision/resume` - resume after manual ChatGPT authentication/UI review
+- `GET /analysis/health` - private advanced-analysis bridge health
+- `POST /analysis/jobs` - enqueue one sanitized, hash-bound analysis package
+- `GET /analysis/jobs/{job_id}` - get private analysis job state
+- `POST /analysis/jobs/{job_id}/cancel` - cancel an analysis job
+- `POST /analysis/resume` - resume after manual authentication/UI review
 
 The supervisor binds to `127.0.0.1:8787` and runs outside Docker so it can
 start the stack when the backend is stopped.
@@ -26,6 +31,15 @@ backend and supervisor. They accept neither arbitrary paths/URLs nor commands.
 Vision jobs are serialized (one visible Temporary Chat at a time), use only
 the `data/vision-spool` tree, and expire terminal working directories after
 72 hours.
+
+For advanced analysis, `request_key` is the local input fingerprint used for
+diagnostics and duplicate hints; it is not sufficient job ownership. Durable
+external identity is the immutable `(analysis_id, package_sha256,
+analysis_type)` binding stored in the job manifest. Repeating that exact
+binding returns the same queued/running/paused/terminal job. The same
+`analysis_id` with a different package or request key fails closed, while a
+different `analysis_id` creates a distinct job even when its input fingerprint
+matches an older terminal analysis.
 
 The production host starts this process through the existing limited-user
 Windows Scheduled Task `NEXT Stabil - Supervisor`. It is not installed as a

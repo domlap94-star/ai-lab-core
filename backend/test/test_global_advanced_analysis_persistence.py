@@ -19,7 +19,7 @@ from app.schemas.analysis import (
     AnalysisProvenance, AnalysisQualitySignals, AnalysisRequest, AnalysisSourceRef,
     DeterministicCheck, LocalAnalysisResult,
 )
-from app.services.advanced_analysis_orchestrator import AdvancedAnalysisOrchestrator
+from app.services.advanced_analysis_orchestrator import AdvancedAnalysisOrchestrator, AnalysisIdempotencyConflict
 
 
 class SyntheticSupervisor:
@@ -76,13 +76,29 @@ def main() -> None:
         db.commit()
         require(first.status == "advanced_queued", "disabled runtime did not remain fail-closed")
         require(first.error_code == "analysis_runtime_disabled", "wrong disabled-runtime reason")
-        second_request = make_request()
-        second = AdvancedAnalysisOrchestrator(db).execute_local(
-            request=second_request, local=make_local(second_request),
+        same = AdvancedAnalysisOrchestrator(db).execute_local(
+            request=first_request, local=make_local(first_request),
             source_entities={"S1": ("synthetic_fixture", "1", 1)}, actor_user_id=None,
         )
-        require(second.id == first.id, "active input fingerprint created duplicate escalation")
+        require(same.id == first.id, "same analysis ID did not remain idempotent")
         require(db.query(AnalysisJob).count() == 1, "duplicate durable job created")
+        changed_request = make_request(analysis_id=first_request.analysis_id)
+        changed_request.problem_statement = "Changed immutable analysis input."
+        try:
+            AdvancedAnalysisOrchestrator(db).execute_local(
+                request=changed_request, local=make_local(changed_request),
+                source_entities={"S1": ("synthetic_fixture", "1", 1)}, actor_user_id=None,
+            )
+        except AnalysisIdempotencyConflict: pass
+        else: raise AssertionError("same analysis ID accepted a different input fingerprint")
+        concurrent_request = make_request()
+        try:
+            AdvancedAnalysisOrchestrator(db).execute_local(
+                request=concurrent_request, local=make_local(concurrent_request),
+                source_entities={"S1": ("synthetic_fixture", "1", 1)}, actor_user_id=None,
+            )
+        except AnalysisIdempotencyConflict: pass
+        else: raise AssertionError("active fingerprint was cross-bound to another analysis ID")
 
         restricted_request = make_request(sensitivity="restricted_never_external")
         restricted = AdvancedAnalysisOrchestrator(db).execute_local(

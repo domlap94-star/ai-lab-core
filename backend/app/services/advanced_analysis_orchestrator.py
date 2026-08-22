@@ -20,6 +20,10 @@ from app.services.analysis_supervisor_client import AnalysisSupervisorClient, An
 from app.services.analysis_processors import AnalysisProcessorRegistry
 
 
+class AnalysisIdempotencyConflict(RuntimeError):
+    pass
+
+
 class AdvancedAnalysisOrchestrator:
     def __init__(self, db: Session, *, supervisor=None) -> None:
         self.db = db
@@ -42,6 +46,8 @@ class AdvancedAnalysisOrchestrator:
         fingerprint = self.fingerprint(request)
         existing = self.db.get(AnalysisJob, str(request.analysis_id))
         if existing is not None:
+            if existing.input_fingerprint != fingerprint:
+                raise AnalysisIdempotencyConflict("analysis_idempotency_conflict")
             return existing
         active_statuses = ["queued", "local_processing", "local_validating", "advanced_queued",
                            "advanced_processing", "awaiting_auth", "awaiting_ui_fix", "advanced_validating"]
@@ -52,7 +58,7 @@ class AdvancedAnalysisOrchestrator:
             AnalysisJob.status.in_(active_statuses),
         ).first()
         if existing is not None:
-            return existing
+            raise AnalysisIdempotencyConflict("analysis_active_fingerprint_conflict")
         savepoint = self.db.begin_nested()
         try:
             job = AnalysisJob(
@@ -83,6 +89,8 @@ class AdvancedAnalysisOrchestrator:
                 AnalysisJob.status.in_(active_statuses),
             ).first()
             if existing is None: raise
+            if existing.id != str(request.analysis_id):
+                raise AnalysisIdempotencyConflict("analysis_active_fingerprint_conflict")
             return existing
         except Exception:
             savepoint.rollback()
