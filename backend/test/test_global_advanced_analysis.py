@@ -59,6 +59,45 @@ def main() -> None:
     require("jan@example.com" not in structured.canonical_json and "500 600 700" not in structured.canonical_json,
             "structured PII remained")
     require("prywatne ustalenia" not in structured.canonical_json, "free-form customer note remained")
+    phone_positives = [
+        "+48 500 000 017", "+48500000017", "500 000 017", "500-000-017",
+        "+48 (500) 000 017", "0048 500 000 017", "22 123 45 67",
+    ]
+    phone_negatives = [
+        "3,000,000 Pa", "3 000 000 Pa", "2,000,000 Pa", "2 000 000 Pa",
+        "3.000 MPa", "2.000 MPa", "0.005 m²", "0.004 m2", "12,000 N",
+        "10,000 N", "1 250.50", "1,250.50", "1024 / Cosine", "57 / 57",
+        "2026-08-22", "1.0.2+26", "sha256:1234567890abcdef",
+        "12 kN / 0.004 m² = 3 MPa", "10 kN / 0.005 m² = 2 MPa",
+        "12 kN / 0.004 m² = 3,000,000 Pa = 3 MPa",
+        "100 000 000 Pa", "100000000 N", "100 000 000 %",
+    ]
+    for value in phone_positives:
+        require("PHONE" in sanitizer.detect_sensitive_kinds(value), f"phone missed: {value}")
+    for value in phone_negatives:
+        require("PHONE" not in sanitizer.detect_sensitive_kinds(value), f"technical number flagged: {value}")
+    require("PHONE" in sanitizer.detect_sensitive_kinds(
+        {"result": "3 MPa.", "calculation_steps": ["Contact: +48 500 000 017."]}
+    ), "phone in technical result missed")
+    clean_result = {
+        "result": {"value": 3, "unit": "MPa"},
+        "assumptions": [], "uncertainties": [],
+        "calculation_steps": ["12 kN / 0.004 m² = 3,000,000 Pa = 3 MPa"],
+        "normalized_units": {"force": "N", "area": "m²"},
+        "constraints_checked": ["finite result"], "source_refs": ["S1"],
+    }
+    require(not sanitizer.detect_sensitive_kinds(clean_result), "clean technical result rejected")
+    sanitizer.validate_external_result(clean_result)
+    reintroduced = {
+        "result": "Test Company Alpha; Jan Testowy; test@example.invalid; +48 500 000 017; "
+                  "ul. Testowa 1; client_id=999999",
+    }
+    detected = sanitizer.detect_sensitive_kinds(reintroduced)
+    require({"EMAIL", "PHONE", "ADDRESS", "INTERNAL_ID"}.issubset(detected),
+            "reintroduced identifier matrix not detected")
+    try: sanitizer.validate_external_result(reintroduced)
+    except AnalysisSanitizationError: pass
+    else: raise AssertionError("reintroduced identifiers accepted")
     try: sanitizer.sanitize(request(text="password=VerySecret123"))
     except AnalysisSanitizationError: pass
     else: raise AssertionError("secret accepted")
@@ -97,6 +136,29 @@ def main() -> None:
     require(AnalysisPostValidator().validate(request=calc,result=result,package_sha256=package.sha256).status == "accepted_advanced", "valid advanced calculation rejected")
     wrong = result.model_copy(update={"result":{"value":24}})
     require(AnalysisPostValidator().validate(request=calc,result=wrong,package_sha256=package.sha256).status == "rejected", "wrong calculation accepted")
+    pressure = request(
+        analysis_type="formula_calculation",
+        text="Synthetic pressure rule P = F / A.",
+        inputs={"expression": "force/area", "variables": {"force": 12, "area": .004},
+                "values": {"force": 12, "area": .004}, "expected_result": 3,
+                "result_unit": "MPa"},
+    )
+    pressure.units = {"force": "kN", "area": "m2"}
+    pressure.formulas = ["force/area"]
+    pressure_package = sanitizer.sanitize(pressure)
+    pressure_result = AdvancedAnalysisResult(
+        schema_version="NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
+        analysis_id=pressure.analysis_id, package_sha256=pressure_package.sha256,
+        result={"value": 3, "unit": "MPa"}, source_refs=["S1"], assumptions=[],
+        uncertainties=[], constraints_checked=[], normalized_units={"pressure": "MPa"},
+        formula_used="force/area",
+        calculation_steps=["12 kN / 0.004 m² = 3,000,000 Pa = 3 MPa"],
+        verification_recommendation="accept",
+    )
+    sanitizer.validate_external_result(pressure_result.model_dump(mode="json"))
+    require(AnalysisPostValidator().validate(
+        request=pressure, result=pressure_result, package_sha256=pressure_package.sha256,
+    ).status == "accepted_advanced", "clean pressure calculation rejected")
     require(AnalysisSupervisorClient().bridge_key != VisionSupervisorClient().bridge_key, "HMAC purpose separation failed")
     print("GLOBAL_ADVANCED_ANALYSIS=PASS")
     print("PRIVACY_MATRIX=PASS")

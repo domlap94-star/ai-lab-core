@@ -24,6 +24,12 @@ class AnalysisSanitizer:
     FORBIDDEN_KEYS = re.compile(r"(?i)(name|client|customer|company|address|location|phone|email|crm|database|jwt|cookie|token|secret|password|path|note)")
     EMAIL = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
     PHONE = re.compile(r"(?<!\w)(?:\+?\d[\s().-]*){7,15}(?!\w)")
+    PHONE_THOUSANDS_NUMBER = re.compile(r"^\d{1,3}(?:[,.]\d{3})+(?:[,.]\d+)?$")
+    PHONE_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    TECHNICAL_UNIT_AFTER = re.compile(
+        r"^\s*(?:kPa|MPa|Pa|kN|N|mm|cm|m2|m²|m|kg|g|%|V|A)"
+        r"(?=\s|[,.;:=/)]|$)"
+    )
     ADDRESS = re.compile(r"(?i)\b(?:ul\.?|ulica|al\.?|aleja|os\.?|plac)\s+[\wąćęłńóśźż.-]+(?:\s+[\wąćęłńóśźż.-]+){0,3}\s+\d+[a-z]?\b")
     SECRET = re.compile(r"(?i)\b(?:bearer\s+[a-z0-9._-]+|sk-[a-z0-9_-]{12,}|eyJ[a-z0-9_-]{12,}|(?:password|api_?key|access_?token|client_?secret)\s*[:=])")
     WINDOWS_PATH = re.compile(r"(?i)\b[A-Z]:\\[^\r\n]+")
@@ -69,6 +75,29 @@ class AnalysisSanitizer:
         self._assert_clean(canonical)
         return SanitizedPackage(package, canonical, hashlib.sha256(canonical.encode("utf-8")).hexdigest())
 
+    def validate_external_result(self, value: object) -> None:
+        """Reject sensitive data reintroduced anywhere in a structured result."""
+        if self.detect_sensitive_kinds(value):
+            raise AnalysisSanitizationError("analysis_external_result_sensitive_data")
+
+    def detect_sensitive_kinds(self, value: object) -> set[str]:
+        detected: set[str] = set()
+        fixed = (
+            ("EMAIL", self.EMAIL), ("ADDRESS", self.ADDRESS), ("SECRET", self.SECRET),
+            ("WINDOWS_PATH", self.WINDOWS_PATH), ("UNIX_PATH", self.UNIX_PATH),
+            ("PRIVATE_URL", self.PRIVATE_URL), ("LABELED_IDENTITY", self.LABELED_IDENTITY),
+            ("INTERNAL_ID", self.INTERNAL_ID), ("COORDINATES", self.COORDINATES),
+            ("PERSON_NAME", self.PERSON_NAME), ("COMPANY", self.COMPANY),
+            ("FREEFORM_NOTE", self.FREEFORM_NOTE),
+        )
+        for text in self._iter_text(value):
+            if any(self._is_plausible_phone(text, match) for match in self.PHONE.finditer(text)):
+                detected.add("PHONE")
+            for name, pattern in fixed:
+                if pattern.search(text):
+                    detected.add(name)
+        return detected
+
     def _validate_keys(self, value: object) -> None:
         if isinstance(value, dict):
             for key, nested in value.items():
@@ -101,7 +130,7 @@ class AnalysisSanitizer:
     def _clean(self, value: str, sensitivity: str) -> str:
         text = " ".join(value.split())
         text = self.EMAIL.sub("[USUNIĘTO_EMAIL]", text)
-        text = self.PHONE.sub("[USUNIĘTO_TELEFON]", text)
+        text = self._redact_phones(text)
         text = self.ADDRESS.sub("[USUNIĘTO_ADRES]", text)
         text = self.WINDOWS_PATH.sub("[USUNIĘTO_SCIEZKE]", text)
         text = self.UNIX_PATH.sub("[USUNIĘTO_SCIEZKE]", text)
@@ -120,5 +149,43 @@ class AnalysisSanitizer:
     def _assert_clean(self, value: str) -> None:
         if (self.EMAIL.search(value) or self.ADDRESS.search(value) or self.SECRET.search(value)
                 or self.WINDOWS_PATH.search(value) or self.UNIX_PATH.search(value)
-                or self.PRIVATE_URL.search(value)):
+                or self.PRIVATE_URL.search(value)
+                or any(self._is_plausible_phone(value, match) for match in self.PHONE.finditer(value))):
             raise AnalysisSanitizationError("analysis_sanitization_failed")
+
+    @classmethod
+    def _is_plausible_phone(cls, text: str, match: re.Match[str]) -> bool:
+        raw = match.group(0).strip()
+        digits = re.sub(r"\D", "", raw)
+        if not 9 <= len(digits) <= 15:
+            return False
+        if cls.PHONE_DATE.fullmatch(raw) or cls.PHONE_THOUSANDS_NUMBER.fullmatch(raw):
+            return False
+        if cls.TECHNICAL_UNIT_AFTER.match(text[match.end():match.end() + 12]):
+            return False
+        if raw.startswith("+") or raw.startswith("00") or "(" in raw or ")" in raw:
+            return True
+        if re.fullmatch(r"\d{9}", raw):
+            return True
+        groups = re.split(r"[ -]+", raw)
+        if len(groups) >= 3 and all(group.isdigit() for group in groups):
+            return True
+        return False
+
+    def _redact_phones(self, text: str) -> str:
+        return self.PHONE.sub(
+            lambda match: "[USUNIĘTO_TELEFON]" if self._is_plausible_phone(text, match) else match.group(0),
+            text,
+        )
+
+    @classmethod
+    def _iter_text(cls, value: object):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for key, nested in value.items():
+                yield str(key)
+                yield from cls._iter_text(nested)
+        elif isinstance(value, (list, tuple)):
+            for nested in value:
+                yield from cls._iter_text(nested)

@@ -177,6 +177,12 @@ class AdvancedAnalysisOrchestrator:
             job.status = "failed"; job.decision = "rejected"
             job.error_code = "analysis_result_schema_invalid"; job.finished_at = datetime.now(UTC)
             self.db.flush(); return job.status
+        try:
+            self.sanitizer.validate_external_result(result.model_dump(mode="json"))
+        except AnalysisSanitizationError as error:
+            job.status = "review_required"; job.decision = "REVIEW_REQUIRED"
+            job.error_code = str(error)[:100]; job.finished_at = datetime.now(UTC)
+            self.db.flush(); return job.status
         validation = self.validator.validate(request=request, result=result, package_sha256=job.sanitized_package_hash or "")
         job.status = {"accepted_advanced": "accepted_advanced", "review_required": "review_required", "rejected": "failed"}[validation.status]
         job.decision = validation.status
