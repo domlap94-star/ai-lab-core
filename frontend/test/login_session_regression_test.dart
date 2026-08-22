@@ -94,6 +94,67 @@ void main() {
     );
     expect(storage.session, isNull);
   });
+
+  testWidgets('login connection error is identified as connectivity failure', (
+    WidgetTester tester,
+  ) async {
+    final _LoginRepository repository = _LoginRepository(
+      loginError: DioException.connectionError(
+        requestOptions: RequestOptions(path: '/api/v1/auth/login'),
+        reason: 'synthetic offline',
+      ),
+    );
+    await _pumpLogin(
+      tester,
+      storage: _MemoryTokenStorage(),
+      repository: repository,
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'user');
+    await tester.enterText(find.byType(TextFormField).at(1), 'valid');
+    await tester.tap(find.text('Zaloguj się'));
+    repository.releaseLogin();
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nie można połączyć się z serwerem NEXT Stabil.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('login backend 500 is identified as an HTTP response', (
+    WidgetTester tester,
+  ) async {
+    final _LoginRepository repository = _LoginRepository(loginStatus: 500);
+    await _pumpLogin(
+      tester,
+      storage: _MemoryTokenStorage(),
+      repository: repository,
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'user');
+    await tester.enterText(find.byType(TextFormField).at(1), 'valid');
+    await tester.tap(find.text('Zaloguj się'));
+    repository.releaseLogin();
+    await tester.pumpAndSettle();
+    expect(find.text('Serwer zwrócił błąd HTTP 500.'), findsOneWidget);
+  });
+
+  testWidgets('malformed login response reports schema failure', (
+    WidgetTester tester,
+  ) async {
+    final _LoginRepository repository = _LoginRepository(
+      loginError: const FormatException('Niepoprawna odpowiedź logowania.'),
+    );
+    await _pumpLogin(
+      tester,
+      storage: _MemoryTokenStorage(),
+      repository: repository,
+    );
+    await tester.enterText(find.byType(TextFormField).at(0), 'user');
+    await tester.enterText(find.byType(TextFormField).at(1), 'valid');
+    await tester.tap(find.text('Zaloguj się'));
+    repository.releaseLogin();
+    await tester.pumpAndSettle();
+    expect(find.text('Niepoprawna odpowiedź logowania.'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpLogin(
@@ -160,10 +221,14 @@ class _MemoryTokenStorage extends AuthTokenStorage {
 }
 
 class _LoginRepository extends AuthRepository {
-  _LoginRepository({this.loginStatus, this.fetchNetworkError = false})
-    : super(AuthApi(Dio()));
+  _LoginRepository({
+    this.loginStatus,
+    this.loginError,
+    this.fetchNetworkError = false,
+  }) : super(AuthApi(Dio()));
 
   final int? loginStatus;
+  final Object? loginError;
   final bool fetchNetworkError;
   final Completer<void> _loginGate = Completer<void>();
 
@@ -177,6 +242,9 @@ class _LoginRepository extends AuthRepository {
     required String password,
   }) async {
     await _loginGate.future;
+    if (loginError case final Object error) {
+      throw error;
+    }
     if (loginStatus case final int status) {
       final RequestOptions request = RequestOptions(path: '/api/v1/auth/login');
       throw DioException.badResponse(

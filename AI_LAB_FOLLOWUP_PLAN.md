@@ -2068,9 +2068,20 @@ Physical Android displayed startup-session and login failures on +27. Artifact
 audit proves +26 and +27 embed the same HTTPS API/Supervisor endpoints and the
 same Android manifest/network policy (apart from versionCode); no Flutter auth,
 network or Android source changed after Release D, and the public production
-API currently passes independent HTTPS health. A same-device/same-network +26
-control is required before classifying the incident or preparing a monotonic
-`1.0.2+28` hotfix.
+API currently passes independent HTTPS health. The owner phone browser also
+returns `{"status":"ok"}`. +26 and +27 are the same `pl.ailab.app` package,
+share the exact v2 signing certificate, and use versionCodes 26/27; Android's
+normal installer therefore rejected the lower-version +26 control as expected,
+without uninstalling +27 or clearing data.
+
+Android diagnostic versionCode 28 is now consumed by the signed, non-stable
+`NEXT-Stabil-1.0.2+28-diagnostic.apk`. It preserves application ID/signing and
+adds only compile-time-gated safe Dio/auth tracing plus an in-app `/health`
+probe. It reports host/path/method/status, Dio type, TLS/socket/timeout class,
+safe error code and parse state, never credentials, tokens, headers or response
+bodies. Release E remains open pending its physical preserve-data test. A final
+hotfix must be at least `1.0.2+29` unless this exact +28 byte artifact is
+promoted unchanged after acceptance.
 
 **PHASE F — BLOCKED / NOT STARTED. CHUNK 20 — NOT STARTED.** Owner release
 naming remains canonical: Release E = Phase E / AI + Search; Release F = Phase

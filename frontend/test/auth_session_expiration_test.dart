@@ -121,6 +121,34 @@ void main() {
       expect(storage.session, _sessionA);
     },
   );
+
+  test(
+    'malformed session response preserves token with clear notice',
+    () async {
+      final _MemoryTokenStorage storage = _MemoryTokenStorage(_sessionA);
+      final _AuthRepository repository = _AuthRepository(
+        fetchError: const FormatException('synthetic malformed response'),
+      );
+      final ProviderContainer container = ProviderContainer(
+        overrides: [
+          authTokenStorageProvider.overrideWithValue(storage),
+          authRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final AuthState state = await container.read(
+        authControllerProvider.future,
+      );
+      expect(state.isAuthenticated, isFalse);
+      expect(
+        state.notice,
+        'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
+      );
+      expect(storage.clearCount, 0);
+      expect(storage.session, _sessionA);
+    },
+  );
 }
 
 const AuthSession _sessionA = AuthSession(

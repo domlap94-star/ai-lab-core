@@ -46,9 +46,15 @@ CORS smokes pass. Physical Android subsequently reported startup-session and
 login connectivity errors on +27. The +26/+27 APKs contain the same production
 HTTPS endpoints and Android network policy, no Flutter auth/network source
 changed in the Phase E range, and independent production HTTPS health passes;
-a same-device/same-network +26 control remains mandatory. Phase F is BLOCKED /
-NOT STARTED and CHUNK 20 is NOT STARTED. Release E canonically names the Phase
-E boundary; Release F is reserved for Phase F / Security + Operations.
+the owner phone browser also returns healthy. The exact +26/+27 package and v2
+signer match, so Android correctly rejected installing lower versionCode 26
+over 27 without uninstall/data loss. Signed non-stable diagnostic versionCode
+28 is consumed for a preserve-data physical test. It adds compile-time-gated,
+safe Dio health/session/login codes without recording credentials, tokens,
+headers or bodies. A later fixed artifact must use at least +29 unless this
+exact +28 byte artifact is promoted unchanged. Phase F is BLOCKED / NOT STARTED
+and CHUNK 20 is NOT STARTED. Release E canonically names the Phase E boundary;
+Release F is reserved for Phase F / Security + Operations.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -297,8 +303,9 @@ kontraktu.
 - RELEASE E: +27 PUBLISHED 2026-08-22; Android regression investigation OPEN.
   The stable manifest is rolled back to exact +26 metadata/hashes; immutable
   +27 artifacts remain available for diagnosis and are not overwritten. Phase
-  F and CHUNK 20 are blocked. A fixed release, if required after root-cause
-  proof and mandatory physical acceptance, must use monotonic build +28.
+  F and CHUNK 20 are blocked. Android diagnostic versionCode 28 is consumed but
+  is not stable; a fixed release must use monotonic build +29 unless the exact
+  accepted +28 diagnostic bytes are promoted unchanged.
   Release E Web, Windows and signed Android carry
   Phase E AI/Search, including the CHUNK 17 production-enabled global
   local-first advanced-analysis runtime and CHUNK 18 benchmark/design assets.
