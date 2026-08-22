@@ -138,8 +138,7 @@ no customer-vector mutation, Temporary Chat send, Vision job or historical
 scan occurred. Canonical next work is CHUNK 26, not CHUNK 17; Phase E remains
 blocked until the CHUNK 26 outcome is complete and Release D is published.
 
-**FOLLOW-UP CHUNK 26 — CONTACT PERSON — PRODUCTION MIGRATION APPLIED / BOUNDED
-DOMAIN ACCEPTANCE PASS; AUTHENTICATED UI SMOKE REMAINS.** Option B is
+**FOLLOW-UP CHUNK 26 — CONTACT PERSON — COMPLETE.** Option B is
 the final product decision. The additive implementation introduces a
 Client-owned ContactPerson identity/grouping layer while retaining
 `client_contact_points` as the sole canonical phone/e-mail model. Composite DB
@@ -153,11 +152,15 @@ checkpoint `20260822T070620Z`. Production acceptance proved zero historical
 backfill, constraints, CRUD/ownership lifecycle, shared search, exact mail
 person attribution, Agent projection, archive/restore and Trash cleanup; final
 active synthetic people and historical linked coordinates are both zero.
-Focused Flutter ContactPerson tests pass 6/6, and the live Web shell starts at
-1.0.2+25, but the available browser session is unauthenticated. Actual Client
-Details visual smoke therefore remains and CHUNK 26 is not COMPLETE. Exact
-next action: authenticated production Client Details UI smoke; then Release D
-under a separate prompt. Phase E remains blocked.
+Focused Flutter ContactPerson tests pass 6/6. The Web-only login failure was
+the missing exact public-gateway origin `http://127.0.0.1:8789` in the backend
+CORS allowlist while the deployed Web API base remained correctly set to
+`http://127.0.0.1:8000`. The bounded allowlist fix rejects arbitrary LAN
+origins and changes no gateway, firewall or Android endpoint. Preflight,
+normal owner login and authenticated read-only Client Details smoke pass:
+the empty ContactPerson state and generic e-mail/phone render once without
+errors or overflow. Phase D feature work is COMPLETE. Exact next action is
+Release D under a separate prompt; Phase E remains blocked until it completes.
 
 **PHASE BOUNDARY:** every Phase must end with a release before the next Phase
 starts. Required order: `CHUNK 26 completion -> Release D (separate prompt) ->

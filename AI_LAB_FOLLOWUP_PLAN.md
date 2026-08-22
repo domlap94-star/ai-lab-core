@@ -1742,8 +1742,8 @@ Human gate: `FOLLOWUP_N8N_RETENTION_APPROVAL_REQUIRED`.
 
 **Priority: P2**
 
-**[~] PRODUCTION MIGRATION APPLIED / BOUNDED DOMAIN ACCEPTANCE PASS;
-AUTHENTICATED CLIENT DETAILS UI SMOKE REMAINS — 2026-08-22.** The owner consumed
+**[✓] FOLLOW-UP CHUNK 26 — CONTACT PERSON — COMPLETE — 2026-08-22.** The
+owner consumed
 `FOLLOWUP_CONTACT_PERSON_OPTION_B_APPROVAL_REQUIRED` and
 `FOLLOWUP_CONTACT_PERSON_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. The additive
 domain keeps
@@ -1763,13 +1763,18 @@ historical backfill, preferred and cross-Client constraints, multiple decision
 makers, create/update/assign/unassign/move, exact mail attribution, shared
 search, Agent projection, archive/restore and canonical Trash cleanup. The
 synthetic acceptance ends with 0 active ContactPersons and 0 historical linked
-coordinates; Qdrant remains 57 customer / 0 KB points. The live Web shell
-starts at 1.0.2+25 and focused Flutter ContactPerson tests pass 6/6, but the
-available browser has no authenticated production session, so the actual
-Client Details screen was not visually accepted and CHUNK 26 is not COMPLETE.
-Exact next action: authenticated production Client Details UI smoke using a
-normal owner-provided session, then mark CHUNK 26 COMPLETE and require Release
-D. Phase E remains blocked.
+coordinates; Qdrant remains 57 customer / 0 KB points. The Web-only login
+failure was caused by the canonical public gateway origin
+`http://127.0.0.1:8789` being absent from the backend CORS allowlist while the
+Web bundle correctly targeted `http://127.0.0.1:8000`. The bounded backend
+configuration fix adds only that exact loopback origin; wildcard, LAN,
+gateway, firewall and Android API settings remain unchanged. Preflight, normal
+owner login and authenticated read-only Client Details smoke pass. A Client
+with zero ContactPersons shows `Brak osób kontaktowych`, existing generic
+e-mail/phone coordinates remain visible once without duplication, and no UI,
+API or layout error occurred. Phase D feature work is COMPLETE. Exact next
+action is a separately prompted **Release D**; Phase E remains blocked until
+that release completes.
 
 Historyczny CHUNK 7B. Najpierw decyzja:
 
@@ -1949,10 +1954,11 @@ WinForms source is retained as DEFERRED / ENTERPRISE TRUST BLOCKED.
 Production restore remains fail-closed behind
 `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED`.
 
-**FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — COMPLETE.** Current Phase D item
-is **FOLLOW-UP CHUNK 26 — CONTACT PERSON**. Option B and its production schema
-are live at `followup_contact_person_20260822`; zero historical backfill and
-bounded synthetic production domain acceptance passed. Authenticated Client
-Details visual smoke remains before CHUNK 26 can be marked COMPLETE. Phase E
-is blocked until that smoke completes, CHUNK 26 is closed, and a separately
-prompted Release D is published. CHUNK 17/18/19 remain NOT STARTED.
+**FOLLOW-UP CHUNK 16 — ADMIN KNOWLEDGE BASE — COMPLETE.**
+
+**FOLLOW-UP CHUNK 26 — CONTACT PERSON — COMPLETE.** Option B and its production
+schema are live at `followup_contact_person_20260822`; zero historical backfill,
+bounded synthetic domain acceptance and authenticated production Client
+Details visual smoke pass. Phase D feature work is COMPLETE. Exact next action
+is **Release D** under a separate prompt. Phase E remains blocked until Release
+D completes; CHUNK 17/18/19 remain NOT STARTED.
