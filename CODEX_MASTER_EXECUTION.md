@@ -67,6 +67,20 @@ an owner decision but remains unconsumed; no pull/delete/resource tuning or
 production rewire occurred. Release E canonically names Phase E; Release F remains
 reserved for Phase F / Security + Operations.
 
+The PRE-CHUNK23 multi-model pipeline qualification is COMPLETE with
+`NEW_MODEL_BENCHMARK_REQUIRED`. A deterministic router covers 100% of required
+tool classes and dominates Gemma 4B planning (43/50 validator failures).
+Gemma's document-specialist role is rejected (0/40 admissible artifacts).
+Pipeline F — deterministic routing/tools -> Qwen 9B @4096 -> quality gate ->
+controlled Temporary Chat/Vision -> local post-validation — is the preferred
+architecture, but it is not declared end-to-end qualified: 35/50 cases pass
+locally at 100% factual/evidence with zero local hard failures, while the exact
+external final answers for 15 gated cases were not rerun. The remaining gap is
+final synthesis/source discipline. `gemma3:12b` @4096 remains the preferred
+next candidate; `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` is READY / NOT
+CONSUMED. CHUNK22 remains in physical recheck and CHUNK23 remains blocked/not
+started. Evidence is in `FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
+
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
 password literal is removed in favor of required untracked runtime injection;
 generic AI/RAG exceptions no longer leak internal details; Android release
@@ -246,9 +260,12 @@ Stabil `1.0.2+29`. Phase F is IN PROGRESS; CHUNK 20 is COMPLETE after final
 CHUNK 22 is IN PROGRESS / PHYSICAL DEFECTS FOUND. Android now has a bounded
 authenticated backend-mediated read-only status design while private controls
 remain host-only; physical recheck is pending. PRE-CHUNK23 AI Assistant
-reconstruction design and local-model qualification are complete with no
-installed final-reasoning model passing the fixed gate. The next decision is
-`FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` for `gemma3:12b`. CHUNK23 is
+reconstruction design, local-model qualification and multi-model pipeline
+qualification are complete with no installed end-to-end pipeline passing the
+fixed gate. Deterministic-router Pipeline F is preferred; 35/50 local results
+pass with 100% factual/evidence and 15 exact external finals remain untested.
+The next decision is `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` for a
+bounded `gemma3:12b` @4096 final-synthesizer benchmark. CHUNK23 is
 BLOCKED / NOT STARTED. The hardware capacity gate is COMPLETE and bounds the
 candidate to `num_ctx=4096`: Windows physical RAM binds first, while WSL swap
 and the Windows pagefile remained unused/negligible during the 9B controls.

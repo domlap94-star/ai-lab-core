@@ -105,6 +105,43 @@ Visual requests route through the controlled visual-analysis pipeline. A text-on
 
 Qualification assigns each installed model exactly one outcome: `KEEP — FINAL REASONING`, `KEEP — ROUTING / EXTRACTION`, `KEEP — EMBEDDING`, `KEEP — SPECIALIZED`, or `RETIREMENT_RECOMMENDED`. A small model failing final synthesis may still be retained for bounded routing/extraction. The embedding model is assessed separately and does not reopen the CHUNK18 production-vector decision.
 
+## Evidence-based pipeline decision (2026-08-24)
+
+The frozen multi-model qualification rejects free-form and structured
+Gemma-4B handoffs as production roles. Gemma planning failed deterministic
+validation on 43/50 cases; its document-specialist artifacts were inadmissible
+on 40/40 eligible cases. Both variants added an independent model load without
+improving accepted final quality.
+
+The preferred pipeline is therefore deliberately small:
+
+```text
+deterministic scope + intent/domain router
+  -> bounded retrieval and deterministic tools
+  -> unified evidence artifact v1
+  -> qwen3.5:9b @4096, think=false, on demand
+  -> deterministic usefulness/source/privacy gate
+     -> accept local, or
+     -> sanitize and use controlled Temporary Chat / Vision
+  -> strict local post-validation
+```
+
+The evidence artifact is defined by
+`backend/test/fixtures/unified_evidence_artifact_v1.json`. No downstream stage
+may detach a claim from its allowlisted source refs; tool-result claims inherit
+the tool result's underlying refs. Invalid specialist output is discarded,
+never “cleaned up” by a later model.
+
+This installed pipeline is not yet qualified end to end. It accepted 35/50
+cases locally at 97.67 overall and 100% factual/evidence with zero local hard
+failures, while 15/50 correctly reached the escalation gate. The exact external
+final answers for those 15 were not rerun, so no passing outcome is inferred.
+The remaining gap is final local synthesis/source discipline rather than
+routing. The next justified benchmark role is a stronger final synthesizer;
+`gemma3:12b` at 4096 remains the preferred bounded candidate under the existing
+unconsumed download approval gate. Full evidence is in
+`FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
+
 ## Migration plan
 
 1. Freeze new behavior in the three user-facing modes.

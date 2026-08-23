@@ -1861,7 +1861,7 @@ gated by `FOLLOWUP_LLM_MODEL_RETIREMENT_APPROVAL_REQUIRED`. Evidence is in
 `FOLLOWUP_LOCAL_LLM_QUALIFICATION_REPORT.md` and
 `FOLLOWUP_AI_ASSISTANT_RECONSTRUCTION_DESIGN.md`.
 
-**DESIGN + INSTALLED-MODEL QUALIFICATION COMPLETE / OWNER DECISION REQUIRED.**
+**DESIGN + INSTALLED/MULTI-MODEL QUALIFICATION COMPLETE / NEW MODEL BENCHMARK DECISION REQUIRED.**
 All four installed generative models completed the frozen 50-case synthetic
 matrix. `qwen3.5:9b` was strongest (81.88 overall) but failed the independent
 90% factual/evidence, zero-wrong-source and hard-failure gates; no installed
@@ -1881,6 +1881,21 @@ and unloaded cleanly. Empirical scaling classifies `gemma3:12b` as
 Windows RAM binds before WSL/commit. The exact unchanged download gate is READY
 FOR OWNER DECISION but NOT CONSUMED. No pull, resource tuning or production
 rewire occurred. Evidence: `FOLLOWUP_LLM_HARDWARE_CAPACITY_REPORT.md`.
+
+**MULTI-MODEL PIPELINE QUALIFICATION COMPLETE — NEW MODEL BENCHMARK REQUIRED.**
+The frozen 50-case and 15-case orchestration matrices reject additional
+installed-model stages: Gemma 4B planner output failed deterministic validation
+on 43/50 cases, and 0/40 eligible document-specialist artifacts were
+admissible. The Pareto-preferred architecture is deterministic routing and
+tools -> `qwen3.5:9b` @4096 -> deterministic gate -> controlled Temporary
+Chat/Vision -> local post-validation. It accepts 35/50 locally with 100%
+factual/evidence and zero accepted-local hard failures; 15/50 require
+escalation, whose exact external final answers were not rerun, so the installed
+pipeline is not declared qualified. The remaining gap is final synthesis and
+source discipline. `gemma3:12b` @4096 remains the preferred next bounded
+candidate. `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` is READY / NOT
+CONSUMED; no pull/delete/production rewire occurred. Evidence:
+`FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
 
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 
