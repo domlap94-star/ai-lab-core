@@ -4,6 +4,8 @@ Audit date: 2026-08-23
 
 Source baseline: `e7fef2793f0d68ec12bb6baddabb403bd075420d`
 
+Owner-gated remediation baseline: `319d01b2c04ccacbdfc82a08abdc4fdd1046c8e0`
+
 Stable release: NEXT Stabil `1.0.2+29`
 
 Production DB: `followup_contact_person_20260822`
@@ -11,11 +13,13 @@ Production DB: `followup_contact_person_20260822`
 ## Outcome
 
 The current local/private architecture has no P0 finding. Bounded,
-backward-compatible P1 source fixes passed, but CHUNK 20 remains in progress
-because live ACL remediation, public security headers, login throttling and
-publisher-signing trust require explicit owner decisions. No firewall,
-Tailscale, WDAC, Scheduled Task, credential, production schema or business-data
-change was made.
+backward-compatible P1 source fixes passed. The owner subsequently approved
+runtime ACL remediation, staged public security headers and proxy-aware login
+throttling; publisher-signing trust was deferred to CHUNK 21. Headers, login
+throttling and final ACL acceptance pass. ACL rollback safety has complete
+current-state coverage and the approved elevated apply protected all 22
+canonical targets without owner/group/SACL changes. No firewall, Tailscale, WDAC,
+credential, production schema or business-data change was made.
 
 ## Threat model
 
@@ -60,11 +64,12 @@ container environments and runtime storage.
 - Client, Contact Person, Document, Work Item and project edits intentionally
   share the authenticated User product boundary. Administrator-only controls
   remain admin-only.
-- Login has no IP/account-aware rate limit. The local/private deployment lowers
-  exposure, but the public auth path makes this P1 defense-in-depth work. It
-  requires `FOLLOWUP_LOGIN_RATE_LIMITING_APPROVAL_REQUIRED` because proxy
-  attribution, anti-enumeration, cooldown and lockout-DoS behavior must be
-  agreed together.
+- Login now uses a bounded in-process limiter keyed by the normalized socket
+  peer and a SHA-256 account key. Untrusted forwarded headers are ignored.
+  Five failures in 60 seconds yield a 60-second cooldown; the source-wide
+  ceiling is 30. Valid credentials reset/bypass the failure bucket, preventing
+  a trivial attacker-created permanent account lockout. Invalid, missing and
+  disabled accounts retain the same bounded response shape.
 - Password change does not revoke other access tokens immediately; exposure is
   bounded by the 60-minute token lifetime. A compatible re-issue/revocation UX
   is deferred rather than breaking stable clients.
@@ -146,15 +151,119 @@ container environments and runtime storage.
   They and the Windows installer are not Authenticode-signed. WDAC was not
   weakened. This is both a reproducibility issue (CHUNK 21) and a publisher
   trust limitation.
-- `Authenticated Users` currently have Modify on the repo, Supervisor and
-  gateway scripts, Vision/analysis spools, release channel, backup root,
-  `.env` and Android key properties. This is P1.
+- Before remediation, `Authenticated Users` had Modify on the repo, Supervisor
+  and gateway scripts, Vision/analysis spools, release channel, backup root,
+  `.env` and Android key properties. This was P1.
 - Supervisor/public/private gateway and backup tasks run as `domai`, limited.
   Trash Purge runs as `domai`, S4U, Highest, and loads a PowerShell script from
-  the writable repo. No task or ACL was changed. Correcting principals,
-  ownership, inheritance and operational write paths requires
-  `FOLLOWUP_RUNTIME_ACL_HARDENING_APPROVAL_REQUIRED` with rollback and service
-  restart checks.
+  the writable repo. After approval, protected ACLs were applied to the repo
+  root, backend, compose, hardening task scripts, Vision/analysis spools,
+  backup root and `.env`; these no longer grant `Authenticated Users`/`Users`
+  write access. The original partial pre-change record is retained as bounded
+  historical evidence only; the repaired rollback model is documented below.
+  The approved elevated apply subsequently protected the Administrator-owned
+  gateway/Supervisor/Windows paths, release-channel and Android signing
+  properties. The Highest Trash and backup task load paths remain protected.
+
+### ACL rollback safety micro-fix
+
+The original record
+`%LOCALAPPDATA%\Temp\next-stabil-chunk20-acl-before.json` remains unchanged.
+Its byte-identical copy is explicitly named
+`%LOCALAPPDATA%\NEXT Stabil\Security\chunk20-acl-partial-pre-hardening-evidence.json`.
+It is historical evidence for its 10 listed targets only: coverage is `10/22`
+and no pre-CHUNK20 state is claimed for the missing targets.
+
+The canonical inventory is defined once by `Get-Chunk20AclTargets` in
+`operations/hardening/acl-hardening-core.ps1`; both apply and acceptance consume
+it. Classification from preserved evidence, earlier apply output and current
+read-only ACL inspection is:
+
+| # | Target | Type | Elevation | Earlier mutation | Evidence class |
+|---:|---|---|---:|---:|---|
+| 1 | `C:\ai-lab-core` | directory | no | yes | A |
+| 2 | `C:\ai-lab-core\backend` | directory | no | yes | A |
+| 3 | `C:\ai-lab-core\compose` | directory | no | yes | A |
+| 4 | `C:\ai-lab-core\operations` | directory | yes | no | A |
+| 5 | `C:\ai-lab-core\operations\hardening` | directory | no | yes | B |
+| 6 | `C:\ai-lab-core\operations\gateway` | directory | yes | no | C |
+| 7 | `C:\ai-lab-core\operations\supervisor` | directory | yes | no | C |
+| 8 | `C:\ai-lab-core\operations\windows` | directory | yes | no | C |
+| 9 | `C:\ai-lab-core\release-channel` | directory | yes | no | A |
+| 10 | `C:\ai-lab-core\operations\hardening\run-trash-purge.ps1` | file | no | yes | B |
+| 11 | `C:\ai-lab-core\operations\hardening\run-backup-schedule.ps1` | file | no | yes | B |
+| 12 | `C:\ai-lab-core\operations\hardening\backup-production.ps1` | file | no | yes | B |
+| 13 | `C:\ai-lab-core\operations\gateway\public_web_server.cjs` | file | yes | no | C |
+| 14 | `C:\ai-lab-core\operations\gateway\web_server.cjs` | file | yes | no | C |
+| 15 | `C:\ai-lab-core\operations\supervisor\server.js` | file | yes | no | C |
+| 16 | `C:\ai-lab-core\operations\windows\start-compose-after-docker.ps1` | file | yes | no | C |
+| 17 | `C:\ai-lab-core\release-channel\stable\manifest.json` | file | yes | no | C |
+| 18 | `C:\ai-lab-core\data\vision-spool` | directory | no | yes | A |
+| 19 | `C:\ai-lab-core\data\analysis-spool` | directory | no | yes | A |
+| 20 | `C:\ai-lab-core-backups` | directory | no | yes | A |
+| 21 | `C:\ai-lab-core\.env` | file | no | yes | A |
+| 22 | `C:\ai-lab-core\frontend\android\key.properties` | file | yes | no | A |
+
+Class A means trustworthy historical SDDL exists; B means already changed and
+historical SDDL is unavailable; C means not yet changed; D would mean unknown.
+Counts are A=`10`, B=`4`, C=`8`, D=`0`; `11` targets were partially hardened
+and `11` required elevation before the final apply.
+
+The new canonical record is
+`%LOCALAPPDATA%\NEXT Stabil\Security\chunk20-acl-current-baseline-v3.json`.
+It is explicitly `CURRENT_PRE_FINALIZATION_BASELINE`, not historical evidence,
+and captures 22/22 current owner, group and DACL values without file contents.
+Schema is `NEXT_STABIL_ACL_BASELINE_V3`; source HEAD is
+`319d01b2c04ccacbdfc82a08abdc4fdd1046c8e0`; target-list SHA-256 is
+`d69b3025a4f81ad4bd7d9bc3eb6c6b598dac01dfcb6609514fd24aea2289b05f`.
+The per-user record directory and record expose no broad Users/Authenticated
+Users write grant.
+
+Future apply requires exactly 22 unique normalized paths, zero missing/extra/
+duplicate entries, matching target hash, matching current DACL/owner/group and
+an elevated token before mutation. Each touched target is tracked. Any error
+restores the current invocation's touched DACLs in reverse order and verifies
+DACL plus unchanged owner/group. Audit/SACL state is deliberately not modified.
+Temporary file/directory tests pass baseline restoration, target-three failure
+rollback, untouched later targets and repeated-apply idempotency. A
+non-elevated real-target invocation fails before mutation. No production ACL
+was changed by this micro-fix.
+
+### Final elevated ACL acceptance
+
+The UAC-authorized final invocation used the complete current-state baseline
+`%LOCALAPPDATA%\NEXT Stabil\Security\chunk20-acl-current-baseline-v3.json`.
+Its preflight, source-HEAD check, target-list hash, complete-coverage check and
+current-state drift gate passed. All 22 targets were evaluated successfully;
+automatic rollback was not needed. Post-apply inspection found zero
+`Authenticated Users` or ordinary `Users` write grants, zero owner/group
+changes and zero SACL changes across the canonical inventory. Administrators,
+SYSTEM and the `domai` operator retain the rights defined by each target's
+access class.
+
+The acceptance suite confirms protected task-loaded scripts, public/private
+gateway and Supervisor sources, release-channel manifest/artifacts, `.env`,
+Android `key.properties` and backup integrity paths. Bounded structural
+negative-write probes report access-denied semantics without altering real
+content. Safe create/delete probes prove the required operator can still write
+Vision spool, analysis spool and backup output. Existing Supervisor, gateway,
+backup and Trash tasks retain their run-as identities and privilege modes and
+remain healthy. The invocation baseline retained for transactional recovery is
+`%LOCALAPPDATA%\NEXT Stabil\Security\chunk20-acl-invocation-20260823T120842415Z.json`.
+
+## Public security headers and CORS
+
+- The canonical public gateway emits `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`
+  and Flutter-compatible `Content-Security-Policy-Report-Only` on Web, API and
+  update responses. HSTS is not enabled because HTTP loopback remains a
+  supported local path.
+- Local and public HTTPS responses include the headers; HTML, main bundle and
+  service-worker MIME types remain correct. Exact loopback CORS is allowed and
+  arbitrary LAN origin remains rejected. The owner completed normal sign-in;
+  the authenticated +29 Dashboard loaded with no console/runtime error. Main
+  assets, service worker, stable manifest and immutable artifact HEAD/download
+  paths remain available.
 
 ## Update channel
 
@@ -218,15 +327,12 @@ container environments and runtime storage.
 5. Added deterministic path, filename, admin-negative, error-leak, tracked
    secret, Android policy and public-Supervisor boundary tests.
 
-### P1 owner-gated
+### P1 approved remediation
 
-1. Writable runtime/secret/release/task paths:
-   `FOLLOWUP_RUNTIME_ACL_HARDENING_APPROVAL_REQUIRED`.
-2. Staged public headers/CSP compatibility:
-   `FOLLOWUP_PUBLIC_SECURITY_HEADERS_APPROVAL_REQUIRED`.
-3. Proxy-aware, anti-enumeration login throttling:
-   `FOLLOWUP_LOGIN_RATE_LIMITING_APPROVAL_REQUIRED`.
-4. Manifest/Windows publisher authenticity:
+1. Runtime ACL hardening: final elevated 22-target apply and acceptance PASS.
+2. Staged public headers/CSP compatibility: implemented and verified.
+3. Proxy-aware, anti-enumeration login throttling: implemented and verified.
+4. Manifest/Windows publisher authenticity: DEFERRED TO CHUNK 21 under
    `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`.
 
 ### P2 / defer
@@ -246,11 +352,26 @@ container environments and runtime storage.
 - Advanced analysis: privacy PASS, calculations `30/30` and `36/36`, adapters
   `7/7`; Supervisor idempotency/recovery/AUTH/UI and Vision contracts PASS.
 - Qdrant safety and public CORS/LAN rejection: PASS.
-- Flutter analyze: PASS; focused auth/update `40/40`; full Flutter `289/289`.
+- Public security headers local/HTTPS and gateway source tests: PASS.
+- Login limiter unit/E2E, proxy spoofing, anti-enumeration, successful-login
+  reset/bypass and bounded-storage tests: PASS.
+- ACL parser, canonical inventory `22/22`, current baseline `22/22`, missing/
+  duplicate/extra fail-closed, transactional rollback, target-three partial
+  failure, idempotency and apply/test parity: PASS. Non-elevated apply fails
+  before mutation. Elevated apply, complete protected-path verification,
+  DACL-only invariants, negative-write semantics and positive operational
+  writes: PASS.
+- Flutter analyze: PASS; focused current auth tests `27/27`; full Flutter was
+  not rerun because Flutter source did not change (latest baseline `289/289`).
 - Android debug build: PASS. No release build or release was performed.
 - Production DB head and Qdrant counts are unchanged.
 
 ## Decision
 
-`CHUNK20_OWNER_GATE_REQUIRED`. CHUNK 21 remains NOT STARTED. Release F was not
-performed.
+`CHUNK20_COMPLETE_CHUNK21_NEXT`: bounded source controls, public headers,
+proxy-aware login limiting, repaired transactional rollback, final 22-target
+ACL acceptance and authenticated +29 Web Dashboard smoke pass. The historical
+pre-hardening evidence remains truthfully limited to 10/22 targets; no complete
+historical rollback is claimed. Update signing trust is DEFERRED TO CHUNK 21
+under `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`. CHUNK 21 is NEXT / NOT
+STARTED. Release F was not performed.

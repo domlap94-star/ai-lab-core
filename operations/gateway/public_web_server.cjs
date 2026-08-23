@@ -16,6 +16,31 @@ const BACKEND = {
   port: 8000,
 };
 
+const CONTENT_SECURITY_POLICY_REPORT_ONLY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' http://127.0.0.1:8000 ws://127.0.0.1:* wss: https://domai.tail1927bd.ts.net",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "media-src 'self' blob:",
+].join('; ');
+
+function publicSecurityHeaders() {
+  return {
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy-Report-Only': CONTENT_SECURITY_POLICY_REPORT_ONLY,
+  };
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -42,6 +67,7 @@ function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
 
   res.writeHead(statusCode, {
+    ...publicSecurityHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
     'Cache-Control': 'no-store',
@@ -65,7 +91,10 @@ function proxy(req, res, target, rewrittenPath) {
     (upstreamRes) => {
       res.writeHead(
         upstreamRes.statusCode || 502,
-        upstreamRes.headers,
+        {
+          ...upstreamRes.headers,
+          ...publicSecurityHeaders(),
+        },
       );
 
       upstreamRes.pipe(res);
@@ -112,6 +141,7 @@ function serveFile(req, res, filePath, noStore = false) {
     const ext = path.extname(filePath).toLowerCase();
 
     const headers = {
+      ...publicSecurityHeaders(),
       'Content-Type':
         MIME[ext] || 'application/octet-stream',
 

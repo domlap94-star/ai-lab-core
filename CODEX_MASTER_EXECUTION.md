@@ -45,13 +45,13 @@ is complete with customer-vector backfill NOT RECOMMENDED / NOT APPROVED / NOT
 PERFORMED; CHUNK 19 was completed early under CHUNK 15. Production DB remains
 `followup_contact_person_20260822`; customer Qdrant remains 57 points and the
 healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
-is unconsumed. Phase F is IN PROGRESS. CHUNK 20 completed its comprehensive
-audit and bounded source fixes but remains IN PROGRESS / OWNER GATES REQUIRED;
-CHUNK 21 is NOT STARTED. Release E canonically names Phase E; Release F remains
+is unconsumed. Phase F is IN PROGRESS. CHUNK 20 is COMPLETE after its
+comprehensive audit, bounded source fixes, public-header rollout, login
+throttling, owner-approved 22-target ACL acceptance and authenticated +29 Web
+Dashboard smoke. CHUNK 21 is NEXT / NOT STARTED. Release E canonically names Phase E; Release F remains
 reserved for Phase F / Security + Operations.
 
-**FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — AUDIT + BOUNDED P1 SOURCE
-FIXES PASS / OWNER GATES REQUIRED.** No P0 was found. The tracked Postgres
+**FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
 password literal is removed in favor of required untracked runtime injection;
 generic AI/RAG exceptions no longer leak internal details; Android release
 source disables backup/full-backup and cleartext; native updater URLs are
@@ -59,12 +59,18 @@ restricted to canonical same-origin stable paths. Auth/admin/Trash/backup/KB,
 advanced-analysis privacy, Supervisor/Vision, Qdrant guard, CORS, Flutter
 analyze/full `289/289` and Android debug build pass. Production DB/Qdrant and
 stable `1.0.2+29` are unchanged. The report is
-`FOLLOWUP_CHUNK20_SECURITY_HARDENING_REPORT.md`. Required gates are
-`FOLLOWUP_RUNTIME_ACL_HARDENING_APPROVAL_REQUIRED`,
-`FOLLOWUP_PUBLIC_SECURITY_HEADERS_APPROVAL_REQUIRED`,
-`FOLLOWUP_LOGIN_RATE_LIMITING_APPROVAL_REQUIRED` and
-`FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`. CHUNK 21 and Release F were
-not started.
+`FOLLOWUP_CHUNK20_SECURITY_HARDENING_REPORT.md`. The owner approved runtime
+ACL hardening, staged public headers and proxy-aware login throttling. Headers
+and throttling pass live/focused acceptance. ACLs are hardened on domai-owned
+repo/runtime/backup/secret paths. The partial historical rollback evidence is
+preserved as 10/22 only; a distinct current 22/22 baseline, one canonical
+inventory and transactional per-invocation rollback pass fixture tests. The
+elevated final apply passed preflight and drift validation for all 22 targets,
+made DACL-only changes without rollback, and preserved owner/group/SACL state.
+Final ACL, task, Supervisor/gateway, backup, Trash, secret-file, header,
+rate-limit and authenticated +29 Web Dashboard acceptance pass.
+`FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED` is DEFERRED TO CHUNK 21.
+CHUNK 21 is NEXT / NOT STARTED and Release F was not started.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -210,8 +216,9 @@ starts. The `CHUNK 26 completion -> Release D -> Phase E` boundary is satisfied.
 CHUNK 17 is COMPLETE; CHUNK 18 DESIGN/BENCHMARK is COMPLETE with production
 backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
 Phase E feature work is complete and Release E is COMPLETE / HOTFIXED as NEXT
-Stabil `1.0.2+29`. Phase F is IN PROGRESS; CHUNK 20 is IN PROGRESS / OWNER
-GATES REQUIRED after its audit and bounded fixes. CHUNK 21 is NOT STARTED.
+Stabil `1.0.2+29`. Phase F is IN PROGRESS; CHUNK 20 is COMPLETE after final
+22/22 ACL and authenticated Web acceptance passed. CHUNK 21 is NEXT / NOT
+STARTED.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -319,7 +326,7 @@ kontraktu.
   production-enabled global local-first advanced-analysis runtime and CHUNK 18
   benchmark/design assets. Production customer-vector backfill is NOT
   RECOMMENDED / NOT APPROVED / NOT PERFORMED. Phase F is IN PROGRESS; CHUNK 20
-  is IN PROGRESS / OWNER GATES REQUIRED and CHUNK 21 is NOT STARTED.
+  is COMPLETE and CHUNK 21 is NEXT / NOT STARTED.
 
 - RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web

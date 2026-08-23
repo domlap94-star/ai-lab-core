@@ -1733,8 +1733,8 @@ temporary target was removed. No upgrade, rebuild or vector mutation occurred.
 
 **Priority: P1**
 
-**[~] CURRENT — AUDIT + BOUNDED P1 SOURCE FIXES PASS; OWNER GATES REQUIRED —
-2026-08-23.** The current network/auth/authz/Supervisor/AI/backup/path/upload/
+**[✓] COMPLETE — SECURITY HARDENING CONTROLS ACCEPTED — 2026-08-23.** The current
+network/auth/authz/Supervisor/AI/backup/path/upload/
 SQL/Qdrant/secrets/logging/Windows/ACL/tasks/update/Web/Android/Docker and
 dependency audit is recorded in `FOLLOWUP_CHUNK20_SECURITY_HARDENING_REPORT.md`.
 No P0 was found. Source now fails closed on the runtime Postgres password,
@@ -1743,16 +1743,42 @@ cleartext traffic, and restricts native updater downloads to canonical
 same-origin stable paths. Focused backend/Node security regressions, privacy
 matrices, Flutter analyze, full `289/289` and Android debug build pass.
 
-CHUNK 20 cannot be marked complete yet. `Authenticated Users` have Modify on
-runtime scripts, AI spools, release/backup roots and untracked secret/signing
-configuration; the Highest Trash task loads from that writable tree. The exact
-gate is `FOLLOWUP_RUNTIME_ACL_HARDENING_APPROVAL_REQUIRED`. Public headers stay
-behind `FOLLOWUP_PUBLIC_SECURITY_HEADERS_APPROVAL_REQUIRED`; proxy-aware login
-throttling needs `FOLLOWUP_LOGIN_RATE_LIMITING_APPROVAL_REQUIRED`; durable
-manifest/Windows publisher trust needs
-`FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`. No ACL/task/firewall/
-Tailscale/WDAC/credential/schema/production-data change or release occurred.
-CHUNK 21 remains NOT STARTED.
+The owner approved runtime ACL hardening, staged public security headers and
+proxy-aware login throttling. The public gateway now emits `nosniff`,
+`strict-origin-when-cross-origin`, `DENY` framing and a Flutter-compatible CSP
+in Report-Only mode; HSTS remains deliberately off. Login throttling uses the
+socket peer plus a hashed normalized account key, ignores untrusted forwarded
+headers, allows valid credentials through to prevent lockout abuse, and uses a
+bounded process-local store appropriate to the single-worker deployment.
+
+The ACL rollback-safety audit found that the
+original pre-hardening evidence covered only 10 of the canonical 22 targets;
+it remains byte-preserved and is not represented as a global rollback. The
+single canonical inventory now drives apply and acceptance. A separate
+`CURRENT_PRE_FINALIZATION_BASELINE` captures the complete current 22/22
+owner/group/DACL state with schema, source HEAD and target-list SHA-256.
+ACL apply is fail-closed on coverage/drift/elevation and transactionally
+restores every target touched by that invocation on failure. Temporary file and
+directory tests pass missing/duplicate/extra rejection, partial-failure
+rollback and idempotency; production ACL mutations during this safety repair
+were zero. The owner-approved elevated final apply subsequently passed its
+22-target preflight and drift gate, changed DACLs only, required no rollback,
+and preserved owner, group and SACL state.
+
+All 22 canonical targets now pass final ACL acceptance. `Authenticated Users`
+and ordinary `Users` have no write/modify grant on protected code, task-loaded
+scripts, release-channel, secret or backup-integrity paths. The Supervisor,
+public/private gateways, backup and Trash tasks retain their original run-as and
+privilege modes and remain healthy; Vision/analysis spools and backup output
+retain required operator write access. The bounded negative-write semantics,
+positive operational writes, secret-file checks and transactional rollback
+fixtures pass.
+Publisher/update signing trust is explicitly
+DEFERRED TO CHUNK 21 under
+`FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`. No firewall, Tailscale,
+WDAC, credential, schema, production-data change or release occurred. The
+manual authenticated +29 Web Dashboard smoke also passed. CHUNK 21 is NEXT /
+NOT STARTED.
 
 Zakres A — public headers: nosniff, Referrer-Policy, framing, staged HSTS oraz
 CSP Report-Only first. Zweryfikować Flutter Web, CanvasKit/WASM, workers,
@@ -2001,8 +2027,8 @@ Phase begins.** The required `CHUNK 26 -> Release D -> Phase E` boundary has
 been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
 complete, and CHUNK 19 was completed early under CHUNK 15. Release E is
 COMPLETE / HOTFIXED and was published on 2026-08-22 as NEXT Stabil
-`1.0.2+29`; Phase E is COMPLETE / RELEASED. Phase F is UNBLOCKED / NOT
-STARTED and requires a separate owner prompt. CHUNK 20 is NEXT / NOT STARTED.
+`1.0.2+29`; Phase E is COMPLETE / RELEASED. Phase F is IN PROGRESS. CHUNK 20
+is COMPLETE and CHUNK 21 is NEXT / NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
@@ -2134,6 +2160,7 @@ diagnostic-only / never stable. The original +27 low-level exception was not
 retained, so the incident remains classified only as a transient,
 non-reproducible Dio unknown transport condition.
 
-**PHASE F — UNBLOCKED / NOT STARTED. CHUNK 20 — NEXT / NOT STARTED.** Owner
+**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — NEXT / NOT STARTED.** Owner
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
-= Phase F / Security + Operations. No Phase F work was started by Release E.
+= Phase F / Security + Operations. Update-signing trust is deferred to CHUNK 21 under
+`FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.

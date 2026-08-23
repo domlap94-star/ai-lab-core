@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
 from pydantic import BaseModel, Field
@@ -18,11 +18,16 @@ from app.core.security import (
 from app.database.session import get_db
 from app.models.user import User
 from app.services.user_service import UserService
+from app.services.login_rate_limiter import login_rate_limiter
 
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
+)
+
+_DUMMY_PASSWORD_HASH = (
+    "$2b$12$g0jSJRStXUd8xLXnKu86vOAYqMANTPoMX1DlGszMNaFJG3xCJC8di"
 )
 
 oauth2_scheme = OAuth2PasswordBearer(
@@ -80,26 +85,40 @@ def get_current_user(
 
 @router.post("/login")
 def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+    # Forwarded headers are intentionally ignored. The backend is loopback-
+    # published and does not yet have an authenticated proxy-header contract.
+    source = request.client.host if request.client is not None else "unknown"
+    was_limited = login_rate_limiter.is_limited(source, form_data.username)
     user_service = UserService(db)
     user = user_service.get_by_username(form_data.username)
+    candidate_hash = (
+        user.password_hash
+        if user is not None and user.is_active
+        else _DUMMY_PASSWORD_HASH
+    )
+    password_valid = verify_password(form_data.password, candidate_hash)
+    authenticated = user is not None and user.is_active and password_valid
 
-    if user is None or not user.is_active:
+    if not authenticated:
+        limited = login_rate_limiter.record_failure(source, form_data.username)
+        if was_limited or limited:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts. Try again shortly.",
+                headers={"Retry-After": "60"},
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
 
-    if not verify_password(
-        form_data.password,
-        user.password_hash,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-        )
+    # A valid credential is never locked out by a failure bucket. This avoids
+    # turning the short cooldown into an account-targeted denial of service.
+    login_rate_limiter.record_success(source, form_data.username)
 
     access_token = create_access_token(
         data={
