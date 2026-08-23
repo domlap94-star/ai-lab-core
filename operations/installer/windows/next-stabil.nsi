@@ -1,25 +1,39 @@
 !include "MUI2.nsh"
 
 !define APP_NAME "NEXT Stabil"
-!define APP_VERSION "1.0.2"
-!define APP_BUILD "29"
 !define APP_PUBLISHER "NEXT Stabil"
 !define APP_EXE "frontend.exe"
 !define APP_ID "NEXTStabil"
 
+!ifndef APP_VERSION
+  !error "APP_VERSION must be supplied by the canonical Windows build script"
+!endif
+!ifndef APP_BUILD
+  !error "APP_BUILD must be supplied by the canonical Windows build script"
+!endif
+!ifndef APP_FILE_VERSION
+  !error "APP_FILE_VERSION must be supplied by the canonical Windows build script"
+!endif
+!ifndef BUILD_PAYLOAD_DIR
+  !error "BUILD_PAYLOAD_DIR must be supplied by the canonical Windows build script"
+!endif
+!ifndef OUTPUT_FILE
+  !error "OUTPUT_FILE must be supplied by the canonical Windows build script"
+!endif
+
 Name "${APP_NAME}"
-OutFile "C:\ai-lab-core\release-channel\stable\windows\NEXT-Stabil-Setup-1.0.2+29.exe"
+OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\NEXT Stabil"
 RequestExecutionLevel user
 Unicode true
 SetCompressor /SOLID lzma
 
-VIProductVersion "1.0.2.29"
+VIProductVersion "${APP_FILE_VERSION}"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey "FileDescription" "NEXT Stabil Windows Installer"
-VIAddVersionKey "FileVersion" "1.0.2.29"
+VIAddVersionKey "FileVersion" "${APP_FILE_VERSION}"
 
 !define MUI_ABORTWARNING
 
@@ -37,7 +51,7 @@ VIAddVersionKey "FileVersion" "1.0.2.29"
 
 Section "NEXT Stabil" SEC_MAIN
   SetOutPath "$INSTDIR"
-  File /r "C:\ai-lab-core\frontend\build\windows\x64\runner\Release\*.*"
+  File /r "${BUILD_PAYLOAD_DIR}\*.*"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\NEXT Stabil"

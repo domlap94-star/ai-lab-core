@@ -48,7 +48,7 @@ healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
 is unconsumed. Phase F is IN PROGRESS. CHUNK 20 is COMPLETE after its
 comprehensive audit, bounded source fixes, public-header rollout, login
 throttling, owner-approved 22-target ACL acceptance and authenticated +29 Web
-Dashboard smoke. CHUNK 21 is NEXT / NOT STARTED. Release E canonically names Phase E; Release F remains
+Dashboard smoke. CHUNK 21 is COMPLETE and CHUNK 22 is NEXT / NOT STARTED. Release E canonically names Phase E; Release F remains
 reserved for Phase F / Security + Operations.
 
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
@@ -70,7 +70,16 @@ made DACL-only changes without rollback, and preserved owner/group/SACL state.
 Final ACL, task, Supervisor/gateway, backup, Trash, secret-file, header,
 rate-limit and authenticated +29 Web Dashboard acceptance pass.
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED` is DEFERRED TO CHUNK 21.
-CHUNK 21 is NEXT / NOT STARTED and Release F was not started.
+CHUNK 21 is COMPLETE. The initial 141,109-byte SourceForge response was landing
+HTML and was never executed; the approved mirror endpoint delivered the exact
+audited portable NSIS 3.12 ZIP. The protected per-user tool, explicit build
+script, fail-closed accepted-native hash normalization, two byte-identical
+normalized payload/installer builds, raw manual login/Dashboard, installed
+session-restored Dashboard and zero-new-WDAC-event proof all pass. Stable and
+the release channel remain unchanged. Publisher/manifest signing implementation
+remains unconsumed under `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`.
+CHUNK 22 is NEXT / NOT STARTED and Release F was not started. Evidence is in
+`FOLLOWUP_CHUNK21_WINDOWS_REPRODUCIBILITY_REPORT.md`.
 
 Historical release state:
 **POST-1.0.2+24 CONSISTENCY HOTFIX RELEASED — NEXT STABIL 1.0.2+25.** This
@@ -217,8 +226,8 @@ CHUNK 17 is COMPLETE; CHUNK 18 DESIGN/BENCHMARK is COMPLETE with production
 backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
 Phase E feature work is complete and Release E is COMPLETE / HOTFIXED as NEXT
 Stabil `1.0.2+29`. Phase F is IN PROGRESS; CHUNK 20 is COMPLETE after final
-22/22 ACL and authenticated Web acceptance passed. CHUNK 21 is NEXT / NOT
-STARTED.
+22/22 ACL and authenticated Web acceptance passed. CHUNK 21 is COMPLETE and
+CHUNK 22 is NEXT / NOT STARTED.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -326,7 +335,7 @@ kontraktu.
   production-enabled global local-first advanced-analysis runtime and CHUNK 18
   benchmark/design assets. Production customer-vector backfill is NOT
   RECOMMENDED / NOT APPROVED / NOT PERFORMED. Phase F is IN PROGRESS; CHUNK 20
-  is COMPLETE and CHUNK 21 is NEXT / NOT STARTED.
+  is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is NEXT / NOT STARTED.
 
 - RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web

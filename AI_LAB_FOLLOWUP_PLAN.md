@@ -1777,8 +1777,8 @@ Publisher/update signing trust is explicitly
 DEFERRED TO CHUNK 21 under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`. No firewall, Tailscale,
 WDAC, credential, schema, production-data change or release occurred. The
-manual authenticated +29 Web Dashboard smoke also passed. CHUNK 21 is NEXT /
-NOT STARTED.
+manual authenticated +29 Web Dashboard smoke also passed. CHUNK 21 subsequently
+completed its portable-NSIS, two-build, installer and WDAC reproducibility proof.
 
 Zakres A — public headers: nosniff, Referrer-Policy, framing, staged HSTS oraz
 CSP Report-Only first. Zweryfikować Flutter Web, CanvasKit/WASM, workers,
@@ -1800,7 +1800,20 @@ compatibility testach.
 Problem: NSIS/`makensis` jest niedostępny. Ustalić dokładną wersję NSIS,
 oficjalne źródło, checksum, build script i dokumentację. Nie republish +21.
 
-Human gate: `FOLLOWUP_HOST_TOOL_INSTALL_APPROVAL_REQUIRED`.
+**[✓] COMPLETE — SOURCEFORGE DELIVERY / TWO-BUILD / INSTALLER / WDAC
+ACCEPTANCE PASS.** The first 141,109-byte response was correctly classified as
+SourceForge landing HTML, never as a ZIP. The approved mirror endpoint then
+delivered the structurally valid 2,362,938-byte NSIS 3.12 archive with the
+audited SHA-256. Portable NSIS was installed per-user without PATH or registry
+changes. Two isolated builds produced byte-identical normalized 21-file
+payloads and byte-identical NSIS installers; fresh permission/geolocator relinks
+varied only in PE/debug timestamps and were normalized through fail-closed hash
+pinning. Raw manual login/Dashboard and installed session-restored Dashboard
+smokes passed with no Bad Image and zero new relevant WDAC 3077/3033 events.
+Build manifests contain toolchain, source, recursive payload and installer
+hashes without secrets. Stable remains NEXT Stabil `1.0.2+29`; no publication
+occurred. `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED` remains unconsumed
+for a later publisher/manifest trust decision. CHUNK 22 is NEXT / NOT STARTED.
 
 ## FOLLOW-UP CHUNK 22 — PHYSICAL ANDROID ACCEPTANCE
 
@@ -2028,7 +2041,7 @@ been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
 complete, and CHUNK 19 was completed early under CHUNK 15. Release E is
 COMPLETE / HOTFIXED and was published on 2026-08-22 as NEXT Stabil
 `1.0.2+29`; Phase E is COMPLETE / RELEASED. Phase F is IN PROGRESS. CHUNK 20
-is COMPLETE and CHUNK 21 is NEXT / NOT STARTED.
+is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is NEXT / NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
@@ -2160,7 +2173,7 @@ diagnostic-only / never stable. The original +27 low-level exception was not
 retained, so the incident remains classified only as a transient,
 non-reproducible Dio unknown transport condition.
 
-**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — NEXT / NOT STARTED.** Owner
+**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — NEXT / NOT STARTED.** Owner
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
 = Phase F / Security + Operations. Update-signing trust is deferred to CHUNK 21 under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.

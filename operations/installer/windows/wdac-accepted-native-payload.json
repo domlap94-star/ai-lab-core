@@ -1,0 +1,26 @@
+{
+  "schema": "NEXT_STABIL_WDAC_ACCEPTED_NATIVE_PAYLOAD_V1",
+  "architecture": "x64",
+  "accepted_release": "1.0.2+29",
+  "trust_statement": "Hash-pinned bytes accepted by the observed enterprise WDAC policy; not publisher-signed and not a claim of general trust.",
+  "files": [
+    {
+      "filename": "permission_handler_windows_plugin.dll",
+      "sha256": "5CC6D938143C687690A3B697C05EC7A50B76C0156D34E2439BD0C90AFE3CDA2A",
+      "plugin_package": "permission_handler_windows",
+      "plugin_version": "0.2.2",
+      "package_lock_checksum": "caeae01858a0a7d2df67a445ac98e1ad95e55a0e77c73044f4e9b1c8c2289cbd",
+      "authenticode": "not_signed",
+      "reason": "A freshly relinked build was blocked by enterprise Code Integrity during Release E acceptance."
+    },
+    {
+      "filename": "geolocator_windows_plugin.dll",
+      "sha256": "6C6B2B8FF8079CCB23DB375E5BEF561F7A3F8A3C4DFC54730BEEAC1AFF405898",
+      "plugin_package": "geolocator_windows",
+      "plugin_version": "0.2.5",
+      "package_lock_checksum": "175435404d20278ffd220de83c2ca293b73db95eafbdc8131fe8609be1421eb6",
+      "authenticode": "not_signed",
+      "reason": "Release E retained the previously Code-Integrity-accepted native payload alongside the permission plug-in."
+    }
+  ]
+}
