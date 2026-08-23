@@ -30,7 +30,10 @@ class UpdateInstallDelegate {
       );
     }
 
-    final Uri uri = Uri.parse(release.url);
+    final Uri uri = validateStableUpdateUrl(
+      platform: result.platform,
+      url: release.url,
+    );
 
     if (uri.pathSegments.isEmpty) {
       throw const FormatException('Update URL does not contain a file name.');
@@ -129,6 +132,32 @@ class UpdateInstallDelegate {
       'Native update installation is supported only on Windows and Android.',
     );
   }
+}
+
+Uri validateStableUpdateUrl({
+  required AppUpdatePlatform platform,
+  required String url,
+}) {
+  final Uri uri = Uri.parse(url.trim());
+  final String requiredPrefix = switch (platform) {
+    AppUpdatePlatform.windows => '/updates/stable/windows/',
+    AppUpdatePlatform.android => '/updates/stable/android/',
+    AppUpdatePlatform.web || AppUpdatePlatform.unsupported =>
+      throw UnsupportedError('Native update URL is not supported.'),
+  };
+
+  if (uri.hasScheme ||
+      uri.hasAuthority ||
+      uri.hasQuery ||
+      uri.hasFragment ||
+      !uri.path.startsWith(requiredPrefix) ||
+      uri.pathSegments.any((String segment) => segment == '..')) {
+    throw const FormatException(
+      'Update URL must be a canonical stable-channel relative path.',
+    );
+  }
+
+  return uri;
 }
 
 Future<String> calculateFileSha256(String filePath) async {

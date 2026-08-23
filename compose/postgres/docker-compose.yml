@@ -16,7 +16,7 @@ services:
     environment:
       POSTGRES_DB: ai_lab
       POSTGRES_USER: ai_lab
-      POSTGRES_PASSWORD: ai_lab_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the untracked runtime environment}
 
     ports:
       - "127.0.0.1:5432:5432"

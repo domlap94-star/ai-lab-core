@@ -1733,6 +1733,27 @@ temporary target was removed. No upgrade, rebuild or vector mutation occurred.
 
 **Priority: P1**
 
+**[~] CURRENT — AUDIT + BOUNDED P1 SOURCE FIXES PASS; OWNER GATES REQUIRED —
+2026-08-23.** The current network/auth/authz/Supervisor/AI/backup/path/upload/
+SQL/Qdrant/secrets/logging/Windows/ACL/tasks/update/Web/Android/Docker and
+dependency audit is recorded in `FOLLOWUP_CHUNK20_SECURITY_HARDENING_REPORT.md`.
+No P0 was found. Source now fails closed on the runtime Postgres password,
+withholds arbitrary AI/RAG exception text, disables Android release backup and
+cleartext traffic, and restricts native updater downloads to canonical
+same-origin stable paths. Focused backend/Node security regressions, privacy
+matrices, Flutter analyze, full `289/289` and Android debug build pass.
+
+CHUNK 20 cannot be marked complete yet. `Authenticated Users` have Modify on
+runtime scripts, AI spools, release/backup roots and untracked secret/signing
+configuration; the Highest Trash task loads from that writable tree. The exact
+gate is `FOLLOWUP_RUNTIME_ACL_HARDENING_APPROVAL_REQUIRED`. Public headers stay
+behind `FOLLOWUP_PUBLIC_SECURITY_HEADERS_APPROVAL_REQUIRED`; proxy-aware login
+throttling needs `FOLLOWUP_LOGIN_RATE_LIMITING_APPROVAL_REQUIRED`; durable
+manifest/Windows publisher trust needs
+`FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`. No ACL/task/firewall/
+Tailscale/WDAC/credential/schema/production-data change or release occurred.
+CHUNK 21 remains NOT STARTED.
+
 Zakres A — public headers: nosniff, Referrer-Policy, framing, staged HSTS oraz
 CSP Report-Only first. Zweryfikować Flutter Web, CanvasKit/WASM, workers,
 service worker, fonts, downloads i API.

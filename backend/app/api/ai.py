@@ -137,7 +137,7 @@ async def chat(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
+            detail="Asystent AI jest chwilowo niedostępny. Spróbuj ponownie.",
         ) from exc
 
 
@@ -217,5 +217,5 @@ async def rag(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(exc),
+            detail="Wyszukiwanie AI jest chwilowo niedostępne. Spróbuj ponownie.",
         ) from exc

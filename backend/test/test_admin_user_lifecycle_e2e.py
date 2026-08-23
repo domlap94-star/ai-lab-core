@@ -441,8 +441,8 @@ def main() -> None:
                 )
                 require(listed.status_code == 200, "List regression failed")
                 require(
-                    any(row["id"] == normal.id for row in listed.json()),
-                    "Inactive user disappeared from admin list",
+                    all(row["id"] != normal.id for row in listed.json()),
+                    "Inactive user appeared in the canonical active-user list",
                 )
         finally:
             app.dependency_overrides.clear()

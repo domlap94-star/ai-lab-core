@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ai_lab/features/app_update/data/update_install_service_io.dart';
+import 'package:ai_lab/features/app_update/domain/app_update.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -54,5 +55,41 @@ void main() {
       verifyFileSha256(file.path, wrong),
       throwsA(isA<StateError>()),
     );
+  });
+
+  test('native update URL is restricted to its stable platform path', () {
+    expect(
+      validateStableUpdateUrl(
+        platform: AppUpdatePlatform.windows,
+        url: '/updates/stable/windows/NEXT-Stabil-Setup-1.0.2+29.exe',
+      ).path,
+      '/updates/stable/windows/NEXT-Stabil-Setup-1.0.2+29.exe',
+    );
+    expect(
+      validateStableUpdateUrl(
+        platform: AppUpdatePlatform.android,
+        url: '/updates/stable/android/NEXT-Stabil-1.0.2+29.apk',
+      ).path,
+      '/updates/stable/android/NEXT-Stabil-1.0.2+29.apk',
+    );
+
+    for (final String unsafe in <String>[
+      'https://example.invalid/update.apk',
+      '//example.invalid/update.apk',
+      '/updates/stable/android/../windows/update.exe',
+      '/updates/stable/android/%2e%2e/windows/update.exe',
+      '/updates/stable/android/update.apk?token=secret',
+      '/updates/stable/android/update.apk#fragment',
+      '/updates/diagnostic/android/update.apk',
+    ]) {
+      expect(
+        () => validateStableUpdateUrl(
+          platform: AppUpdatePlatform.android,
+          url: unsafe,
+        ),
+        throwsFormatException,
+        reason: unsafe,
+      );
+    }
   });
 }
