@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/application/auth_state.dart';
+import '../../../core/network/api_client.dart';
 import '../data/supervisor_api.dart';
 
 class SystemControlPage extends ConsumerStatefulWidget {
@@ -32,7 +33,10 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
   void initState() {
     super.initState();
 
-    _api = SupervisorApi(ref.read(authTokenStorageProvider));
+    _api = SupervisorApi(
+      ref.read(dioProvider),
+      ref.read(authTokenStorageProvider),
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
@@ -61,8 +65,8 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
       setState(() {
         _status = null;
         _message =
-            'Supervisor nie jest jeszcze uruchomiony lub nie można '
-            'się z nim połączyć.';
+            'Nie udało się pobrać stanu. Brak łączności nie oznacza, że '
+            'usługa jest offline.';
       });
     } catch (_) {
       if (!mounted) {
@@ -210,16 +214,20 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                   ],
                   const SizedBox(height: 16),
                   _StatusRow(
+                    label: 'Backend',
+                    state: current?.backend ?? RuntimeState.unknown,
+                  ),
+                  _StatusRow(
                     label: 'Supervisor',
-                    online: current?.supervisorOnline == true,
+                    state: current?.supervisor ?? RuntimeState.unknown,
                   ),
                   _StatusRow(
                     label: 'NEXT Stabil',
-                    online: current?.systemRunning == true,
+                    state: current?.nextStabil ?? RuntimeState.unknown,
                   ),
                   ...?current?.services.entries.map(
-                    (MapEntry<String, bool> entry) =>
-                        _StatusRow(label: entry.key, online: entry.value),
+                    (MapEntry<String, RuntimeState> entry) =>
+                        _StatusRow(label: entry.key, state: entry.value),
                   ),
                 ],
               ),
@@ -233,8 +241,17 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                 spacing: 12,
                 runSpacing: 12,
                 children: <Widget>[
+                  if (!_api.supportsHostControl)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Sterowanie start/stop/restart jest dostępne tylko '
+                        'na komputerze hosta. Z tego urządzenia można '
+                        'bezpiecznie odczytać stan.',
+                      ),
+                    ),
                   FilledButton.icon(
-                    onPressed: _loading
+                    onPressed: _loading || !_api.supportsHostControl
                         ? null
                         : () {
                             _execute(
@@ -247,7 +264,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                     label: const Text('Uruchom system'),
                   ),
                   FilledButton.tonalIcon(
-                    onPressed: _loading
+                    onPressed: _loading || !_api.supportsHostControl
                         ? null
                         : () {
                             _execute(
@@ -260,7 +277,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                     label: const Text('Restartuj system'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _loading
+                    onPressed: _loading || !_api.supportsHostControl
                         ? null
                         : () {
                             _execute(
@@ -283,18 +300,32 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
 }
 
 class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.label, required this.online});
+  const _StatusRow({required this.label, required this.state});
 
   final String label;
-  final bool online;
+  final RuntimeState state;
+
+  String get _text => switch (state) {
+    RuntimeState.online => 'online',
+    RuntimeState.offline => 'offline',
+    RuntimeState.unknown => 'nieznany / nieosiągalny',
+    RuntimeState.unavailable => 'niedostępny na tym urządzeniu',
+  };
+
+  IconData get _icon => switch (state) {
+    RuntimeState.online => Icons.check_circle,
+    RuntimeState.offline => Icons.cancel,
+    RuntimeState.unknown => Icons.help_outline,
+    RuntimeState.unavailable => Icons.block,
+  };
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(online ? Icons.check_circle : Icons.cancel),
+      leading: Icon(_icon),
       title: Text(label),
-      trailing: Text(online ? 'online' : 'offline'),
+      trailing: Text(_text),
     );
   }
 }

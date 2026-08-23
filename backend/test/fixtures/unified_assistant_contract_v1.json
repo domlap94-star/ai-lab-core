@@ -1,0 +1,38 @@
+{
+  "schema": "NEXT_STABIL_UNIFIED_ASSISTANT_RESULT_V1",
+  "answer": "Najbardziej użyteczny wniosek oparty na dostarczonych dowodach.",
+  "claims": [
+    {
+      "claim_id": "C1",
+      "class": "FACT",
+      "text": "Pomiar rysy wynosi 1,8 mm.",
+      "source_refs": ["document:synthetic:page:2"],
+      "tool_result_refs": ["document_search:1"]
+    },
+    {
+      "claim_id": "C2",
+      "class": "ESTIMATE",
+      "text": "Zmiana może wynosić 0,4–0,8 mm.",
+      "source_refs": ["document:synthetic:page:2"],
+      "tool_result_refs": ["calculation:1"]
+    }
+  ],
+  "estimate": {
+    "claim_id": "C2",
+    "confidence": "LOW",
+    "basis_claim_ids": ["C1"],
+    "assumptions": ["Pomiary wykonano porównywalną metodą."],
+    "missing_inputs": ["Brak trzeciego pomiaru kontrolnego."]
+  },
+  "sources": [
+    {
+      "source_ref": "document:synthetic:page:2",
+      "source_type": "Dokument",
+      "title": "Syntetyczny protokół, strona 2",
+      "excerpt": "Pomiar rysy: 1,8 mm.",
+      "why_used": "Bezpośrednia podstawa pomiarowa.",
+      "supports_claim_ids": ["C1", "C2"]
+    }
+  ],
+  "external_analysis": null
+}

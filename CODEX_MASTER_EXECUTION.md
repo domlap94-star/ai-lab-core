@@ -48,7 +48,17 @@ healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
 is unconsumed. Phase F is IN PROGRESS. CHUNK 20 is COMPLETE after its
 comprehensive audit, bounded source fixes, public-header rollout, login
 throttling, owner-approved 22-target ACL acceptance and authenticated +29 Web
-Dashboard smoke. CHUNK 21 is COMPLETE and CHUNK 22 is NEXT / NOT STARTED. Release E canonically names Phase E; Release F remains
+Dashboard smoke. CHUNK 21 is COMPLETE. CHUNK 22 is IN PROGRESS / PHYSICAL
+DEFECTS FOUND: Android System Control incorrectly treated private-Supervisor
+unreachability as offline, and the current split Assistant quality was rejected.
+The bounded status projection fix is source-tested and awaits same-device
+physical recheck. PRE-CHUNK23 AI Assistant reconstruction + installed-model
+qualification design/benchmark is complete and blocks CHUNK23, which remains
+NOT STARTED. All four installed generative models completed the frozen 50-case
+matrix; none meets every production gate. `qwen3.5:9b` is the strongest
+installed specialist but not qualified for final reasoning. Exact next model
+gate is `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` for `gemma3:12b`.
+No pull/delete/production rewire occurred. Release E canonically names Phase E; Release F remains
 reserved for Phase F / Security + Operations.
 
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
@@ -78,7 +88,7 @@ normalized payload/installer builds, raw manual login/Dashboard, installed
 session-restored Dashboard and zero-new-WDAC-event proof all pass. Stable and
 the release channel remain unchanged. Publisher/manifest signing implementation
 remains unconsumed under `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`.
-CHUNK 22 is NEXT / NOT STARTED and Release F was not started. Evidence is in
+CHUNK 22 is IN PROGRESS / PHYSICAL DEFECTS FOUND and Release F was not started. Evidence is in
 `FOLLOWUP_CHUNK21_WINDOWS_REPRODUCIBILITY_REPORT.md`.
 
 Historical release state:
@@ -227,7 +237,13 @@ backfill not recommended, and CHUNK 19 remains completed early under CHUNK 15.
 Phase E feature work is complete and Release E is COMPLETE / HOTFIXED as NEXT
 Stabil `1.0.2+29`. Phase F is IN PROGRESS; CHUNK 20 is COMPLETE after final
 22/22 ACL and authenticated Web acceptance passed. CHUNK 21 is COMPLETE and
-CHUNK 22 is NEXT / NOT STARTED.
+CHUNK 22 is IN PROGRESS / PHYSICAL DEFECTS FOUND. Android now has a bounded
+authenticated backend-mediated read-only status design while private controls
+remain host-only; physical recheck is pending. PRE-CHUNK23 AI Assistant
+reconstruction design and local-model qualification are complete with no
+installed final-reasoning model passing the fixed gate. The next decision is
+`FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` for `gemma3:12b`. CHUNK23 is
+BLOCKED / NOT STARTED and no Release F work has begun.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
@@ -335,7 +351,9 @@ kontraktu.
   production-enabled global local-first advanced-analysis runtime and CHUNK 18
   benchmark/design assets. Production customer-vector backfill is NOT
   RECOMMENDED / NOT APPROVED / NOT PERFORMED. Phase F is IN PROGRESS; CHUNK 20
-  is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is NEXT / NOT STARTED.
+  is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is IN PROGRESS / PHYSICAL
+  DEFECTS FOUND. Its bounded System Control status-projection repair awaits a
+  same-device physical recheck; CHUNK 23 remains NOT STARTED.
 
 - RELEASE D: PUBLISHED 2026-08-22. Stable Web, Windows and signed Android carry
   Phase D Backup UI, Knowledge Base, Contact Person and the exact loopback Web

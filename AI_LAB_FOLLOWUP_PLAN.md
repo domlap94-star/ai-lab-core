@@ -1813,7 +1813,9 @@ smokes passed with no Bad Image and zero new relevant WDAC 3077/3033 events.
 Build manifests contain toolchain, source, recursive payload and installer
 hashes without secrets. Stable remains NEXT Stabil `1.0.2+29`; no publication
 occurred. `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED` remains unconsumed
-for a later publisher/manifest trust decision. CHUNK 22 is NEXT / NOT STARTED.
+for a later publisher/manifest trust decision. CHUNK 22 is IN PROGRESS after
+physical acceptance found the Android System Control projection defect and
+unacceptable Assistant quality; both are recorded below.
 
 ## FOLLOW-UP CHUNK 22 — PHYSICAL ANDROID ACCEPTANCE
 
@@ -1826,6 +1828,49 @@ persistence i updater. Bez urządzenia wynik pozostaje UNVERIFIED.
 Human gate: dostęp operatora do urządzenia; brak zmian danych poza
 kontrolowanymi fixtures.
 
+**[~] IN PROGRESS / PHYSICAL DEFECTS FOUND.** Physical +29 acceptance found
+that Android directly used the private Supervisor URL and collapsed an
+unreachable response into `offline`, even while the public backend was online.
+The bounded repair uses an authenticated, read-only public-backend projection
+of private Supervisor state, distinguishes `online`, `offline`, `unknown` and
+device-unavailable control, and keeps start/stop/restart host-only. Focused
+source tests pass; completion still requires the same-device physical refresh
+proof with no false `offline` result.
+
+The same acceptance found the current Business/Technical/Agent user-facing
+split and local answer quality unacceptable. This is not recorded as a passing
+AI physical test and is handled by the owner-inserted pre-CHUNK23 item below.
+
+## [~] PRE-CHUNK23 — AI ASSISTANT RECONSTRUCTION + LOCAL MODEL QUALIFICATION
+
+**Priority: P1 / BLOCKS CHUNK23**
+
+Freeze further mode-specific feature accretion. Qualify every currently
+installed local model on at least 50 deterministic, sanitized NEXT Stabil
+tasks, including grounding, tool selection, cross-domain synthesis,
+estimation/refusal, visual routing and privacy hard failures. Design one
+user-facing Assistant with automatic multi-domain orchestration, strict
+FACT/ESTIMATE/HYPOTHESIS/MISSING semantics, usefulness gate, controlled
+Temporary Chat/Vision escalation, local post-validation and a collapsed,
+claim-linked `Źródła` inspector.
+
+No model pull/delete or production rewiring is implied. If no installed model
+meets the fixed production threshold, the exact next gate is
+`FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED`; retirement remains separately
+gated by `FOLLOWUP_LLM_MODEL_RETIREMENT_APPROVAL_REQUIRED`. Evidence is in
+`FOLLOWUP_LOCAL_LLM_QUALIFICATION_REPORT.md` and
+`FOLLOWUP_AI_ASSISTANT_RECONSTRUCTION_DESIGN.md`.
+
+**DESIGN + INSTALLED-MODEL QUALIFICATION COMPLETE / OWNER DECISION REQUIRED.**
+All four installed generative models completed the frozen 50-case synthetic
+matrix. `qwen3.5:9b` was strongest (81.88 overall) but failed the independent
+90% factual/evidence, zero-wrong-source and hard-failure gates; no installed
+model qualifies for final reasoning. The recommended bounded next candidate is
+official `gemma3:12b` under
+`FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED`. Llama and Qwen 2.5 VL are
+retirement recommendations only; no model was downloaded, deleted or rewired.
+CHUNK23 remains blocked.
+
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 
 **Priority: P1**
@@ -1836,6 +1881,9 @@ read verification i aktualizacji po rotation.
 
 Human gate: osobna zgoda operacyjna na escrow/rotation; wartości nigdy nie
 trafiają do raportu ani repo.
+
+**BLOCKED / NOT STARTED** until CHUNK22 physical System Control recheck and the
+PRE-CHUNK23 model/routing owner decision are complete.
 
 ## FOLLOW-UP CHUNK 24 — BACKUP RETENTION + ALERTING
 
@@ -2041,7 +2089,9 @@ been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
 complete, and CHUNK 19 was completed early under CHUNK 15. Release E is
 COMPLETE / HOTFIXED and was published on 2026-08-22 as NEXT Stabil
 `1.0.2+29`; Phase E is COMPLETE / RELEASED. Phase F is IN PROGRESS. CHUNK 20
-is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is NEXT / NOT STARTED.
+is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is IN PROGRESS / PHYSICAL
+DEFECTS FOUND. Its bounded System Control status-projection repair awaits a
+same-device physical recheck; CHUNK 23 remains NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.
