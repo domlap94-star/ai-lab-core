@@ -104,7 +104,17 @@ Only official Ollama library metadata was used for the shortlist; no pull occurr
 
 `qwen3.5:27b` (official Q4 artifact 17 GB) and `mistral-small3.2:24b` (15 GB) are not recommended on the current 18.86 GB WSL cap: model plus KV cache, Ollama and the rest of the stack would leave no stable headroom. Sources: [official Gemma 3 library](https://ollama.com/library/gemma3), [official Qwen3 library](https://ollama.com/library/qwen3), [official Qwen3.5 tags](https://ollama.com/library/qwen3.5/tags), [official Mistral Small 3.2 library](https://ollama.com/library/mistral-small3.2).
 
-Recommended next controlled download: **`gemma3:12b`** (official default Q4 class, approximately 8.1 GB disk; expected 10–13 GB working RAM at `num_ctx=8192`, CPU-only). Expected role: candidate normal local final reasoning; reason: the installed 4B family member is materially stronger than current Llama on business/cross-domain quality, while 12B remains inside the one-model WSL envelope. Exact gate: `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED`.
+Recommended next controlled download: **`gemma3:12b`** (official default Q4
+class, approximately 8.1 GB disk). Expected role: candidate normal local final
+reasoning; reason: the installed 4B family member is materially stronger than
+current Llama on business/cross-domain quality. Exact gate:
+`FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED`.
+
+Subsequent pre-download host measurement supersedes the provisional 8192
+capacity assumption: `FOLLOWUP_LLM_HARDWARE_CAPACITY_REPORT.md` classifies the
+candidate **SAFE_ONLY_AT_4096**. Any approved download benchmark must begin at
+4096 with the documented host/WSL abort gates; 8192 is not authorized by the
+capacity evidence.
 
 Any deletion requires `FOLLOWUP_LLM_MODEL_RETIREMENT_APPROVAL_REQUIRED`. Estimated disk recoverable if both retirement recommendations are later approved: about 5.22 GB (2.02 GB Llama + 3.20 GB Qwen 2.5 VL). Deletion is not part of this execution.
 

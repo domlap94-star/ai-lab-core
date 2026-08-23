@@ -1871,6 +1871,17 @@ official `gemma3:12b` under
 retirement recommendations only; no model was downloaded, deleted or rewired.
 CHUNK23 remains blocked.
 
+**HARDWARE CAPACITY GATE COMPLETE.** The normal running host completed bounded
+Qwen 3.5 9B capacity probes at 4096/8192, both alone and with the embedding
+model. Worst measured coexistence retained 5.16 GiB Windows and 6.42 GiB WSL
+available, used no WSL swap, did not grow the 46,080 MiB Windows pagefile beyond
+its negligible baseline, preserved backend/Postgres/Qdrant/Supervisor health
+and unloaded cleanly. Empirical scaling classifies `gemma3:12b` as
+`SAFE_ONLY_AT_4096`; 14B Q4 is MARGINAL at 4096 and UNSAFE at 8192. Physical
+Windows RAM binds before WSL/commit. The exact unchanged download gate is READY
+FOR OWNER DECISION but NOT CONSUMED. No pull, resource tuning or production
+rewire occurred. Evidence: `FOLLOWUP_LLM_HARDWARE_CAPACITY_REPORT.md`.
+
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 
 **Priority: P1**
@@ -2223,7 +2234,7 @@ diagnostic-only / never stable. The original +27 low-level exception was not
 retained, so the incident remains classified only as a transient,
 non-reproducible Dio unknown transport condition.
 
-**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — NEXT / NOT STARTED.** Owner
+**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — IN PROGRESS / PHYSICAL RECHECK PENDING.** Owner
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
-= Phase F / Security + Operations. Update-signing trust is deferred to CHUNK 21 under
+= Phase F / Security + Operations. Update-signing trust remains unconsumed under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.

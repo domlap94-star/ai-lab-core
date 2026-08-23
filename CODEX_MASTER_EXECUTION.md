@@ -58,7 +58,13 @@ NOT STARTED. All four installed generative models completed the frozen 50-case
 matrix; none meets every production gate. `qwen3.5:9b` is the strongest
 installed specialist but not qualified for final reasoning. Exact next model
 gate is `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` for `gemma3:12b`.
-No pull/delete/production rewire occurred. Release E canonically names Phase E; Release F remains
+The pre-download hardware capacity gate is COMPLETE: four bounded Qwen 3.5 9B
+4096/8192 solo/coexistence runs preserved host/WSL reserves, used no WSL swap,
+kept the Windows pagefile at negligible baseline use, retained all service
+health and unloaded cleanly. Observed scaling classifies `gemma3:12b` as
+SAFE_ONLY_AT_4096 and 14B Q4 as MARGINAL overall. The download gate is ready for
+an owner decision but remains unconsumed; no pull/delete/resource tuning or
+production rewire occurred. Release E canonically names Phase E; Release F remains
 reserved for Phase F / Security + Operations.
 
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
@@ -243,7 +249,11 @@ remain host-only; physical recheck is pending. PRE-CHUNK23 AI Assistant
 reconstruction design and local-model qualification are complete with no
 installed final-reasoning model passing the fixed gate. The next decision is
 `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` for `gemma3:12b`. CHUNK23 is
-BLOCKED / NOT STARTED and no Release F work has begun.
+BLOCKED / NOT STARTED. The hardware capacity gate is COMPLETE and bounds the
+candidate to `num_ctx=4096`: Windows physical RAM binds first, while WSL swap
+and the Windows pagefile remained unused/negligible during the 9B controls.
+The exact evidence is `FOLLOWUP_LLM_HARDWARE_CAPACITY_REPORT.md`. No Release F
+work has begun.
 
 **GLOBAL LOCAL-FIRST / TEMPORARY CHAT ESCALATION — RUNTIME IMPLEMENTED /
 SYNTHETIC ACCEPTANCE PASS.** The
