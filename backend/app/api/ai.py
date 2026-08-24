@@ -38,11 +38,32 @@ from app.services.technical_ai_service import (
     TechnicalAiModelUnavailable, TechnicalAiService,
     TechnicalContextMismatch, TechnicalContextNotFound,
 )
+from app.schemas.unified_assistant import UnifiedAssistantRequest, UnifiedAssistantResponse
+from app.services.unified_assistant_service import (
+    UnifiedAssistantContextError, UnifiedAssistantModelUnavailable,
+    UnifiedAssistantService,
+)
 
 router = APIRouter(
     prefix="/ai",
     tags=["AI"],
 )
+
+
+@router.post("/assistant/ask", response_model=UnifiedAssistantResponse)
+async def ask_unified_assistant(
+    request: UnifiedAssistantRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UnifiedAssistantResponse:
+    try:
+        return await UnifiedAssistantService(db).ask(request=request, user_id=current_user.id)
+    except UnifiedAssistantContextError as error:
+        raise HTTPException(status_code=422, detail="Wskazany kontekst nie należy do bieżącego zakresu.") from error
+    except UnifiedAssistantModelUnavailable as error:
+        raise HTTPException(status_code=503, detail="Asystent AI jest chwilowo niedostępny. Spróbuj ponownie.") from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Nie udało się odczytać danych CRM. Spróbuj ponownie.") from error
 
 
 @router.post("/agent/ask", response_model=AgentAskResponse)

@@ -55,6 +55,15 @@ class _ClientCandidateDetailsPageState
             icon: const Icon(Icons.arrow_back),
           ),
           title: Text('Kandydat #${widget.candidateId}'),
+          actions: <Widget>[
+            IconButton(
+              key: const Key('candidate-unified-assistant'),
+              tooltip: 'Zapytaj Asystenta AI',
+              onPressed: () =>
+                  context.push('/ai?candidate_id=${widget.candidateId}'),
+              icon: const Icon(Icons.auto_awesome_outlined),
+            ),
+          ],
         ),
         body: value.when(
           loading: () => const Center(child: CircularProgressIndicator()),

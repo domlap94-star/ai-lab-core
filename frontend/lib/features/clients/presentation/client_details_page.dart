@@ -60,6 +60,12 @@ class ClientDetailsPage extends ConsumerWidget {
           title: const Text('Szczegóły klienta'),
           actions: <Widget>[
             IconButton(
+              key: const Key('client-unified-assistant'),
+              tooltip: 'Zapytaj Asystenta AI',
+              onPressed: () => context.push('/ai?client_id=$clientId'),
+              icon: const Icon(Icons.auto_awesome_outlined),
+            ),
+            IconButton(
               tooltip: 'Odśwież dane klienta',
               onPressed: clientValue.isLoading
                   ? null

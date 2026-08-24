@@ -527,6 +527,16 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
         Wrap(
           spacing: 8,
           children: <Widget>[
+            OutlinedButton.icon(
+              key: const Key('mail-unified-assistant'),
+              onPressed: item.clientId == null
+                  ? null
+                  : () => context.push(
+                      '/ai?client_id=${item.clientId}&mail_source_id=${item.sourceId}&question=${Uri.encodeQueryComponent('Podsumuj tę wiadomość i wskaż najważniejsze działania.')}',
+                    ),
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: const Text('Zapytaj AI'),
+            ),
             FilledButton.tonalIcon(
               key: const Key('mail-reply'),
               onPressed: () => _compose('reply', source: item),

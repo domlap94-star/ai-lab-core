@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
@@ -821,6 +822,18 @@ class _DocumentDetailsDialog extends ConsumerWidget {
         ),
       ),
       actions: <Widget>[
+        if (details.value != null)
+          TextButton.icon(
+            key: const Key('document-unified-assistant'),
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.push(
+                '/ai?document_id=${details.value!.id}&question=${Uri.encodeQueryComponent('Co mówi ten dokument?')}',
+              );
+            },
+            icon: const Icon(Icons.auto_awesome_outlined),
+            label: const Text('Zapytaj AI'),
+          ),
         if (isAdmin && details.value != null)
           TextButton.icon(
             key: const Key('trash-document-action'),

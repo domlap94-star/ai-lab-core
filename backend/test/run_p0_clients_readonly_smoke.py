@@ -113,6 +113,9 @@ def main() -> None:
     _call(token, "BACKUP_MANAGED", "/api/v1/admin/backups/managed")
     _call(token, "BACKUP_LEGACY", "/api/v1/admin/backups/legacy-candidates")
     _call(token, "BACKUP_STORAGE", "/api/v1/admin/backups/storage-locations")
+    _call(token, "MAIL_LIST", "/api/v1/mail?skip=0&limit=1")
+    _call(token, "DOCUMENTS_LIST", "/api/v1/documents?skip=0&limit=1")
+    _call(token, "SYSTEM_CONTROL", "/api/v1/admin/system-status")
 
 
 if __name__ == "__main__":

@@ -229,3 +229,21 @@ No database migration is assumed. Any persisted contract change must be additive
 ## Acceptance before implementation
 
 Implementation can start only after the benchmark establishes a viable role/routing architecture or the owner approves a specific model download. Required fixtures cover source binding, similar-client isolation, missing data, estimation and refusal, hallucination hard failures, tool routing, cross-domain synthesis, privacy minimization, visual routing, Temporary Chat policy and source-inspector contracts. CHUNK23 remains blocked until this pre-CHUNK23 decision is resolved.
+
+## Qualified implementation checkpoint (2026-08-25)
+
+F0 is now implemented behind the additive
+`POST /api/v1/ai/assistant/ask` contract and one primary Flutter `Asystent AI`
+surface. The production implementation keeps the deterministic router,
+TARGET_01 evidence binding, Qwen3.5 9B at 4096/no-think, strict claim and
+estimate semantics, Temporary Chat V2/Vision gates and locally controlled
+disposition. Legacy AI APIs remain for +29 compatibility, but primary and old
+deep-link UI entry points converge on the Unified Assistant without a mode
+selector.
+
+The implemented frozen replay passes at 89.66 overall and 97.00%
+factual/evidence with 0 wrong sources, hard failures and privacy failures;
+local/advanced remains 35/15. Automated source acceptance and Windows/Web
+smoke pass. PRE-CHUNK23 is not complete until owner physical Android acceptance
+of non-stable candidate +33. See
+`FOLLOWUP_UNIFIED_ASSISTANT_IMPLEMENTATION_REPORT.md`.

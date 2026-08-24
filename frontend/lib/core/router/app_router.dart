@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/ai/presentation/ai_page.dart';
+import '../../features/ai/presentation/unified_assistant_page.dart';
 import '../../features/cases/presentation/cases_page.dart';
 import '../../features/client_candidates/presentation/client_candidate_details_page.dart';
 import '../../features/client_candidates/presentation/client_candidates_bulk_page.dart';
@@ -204,18 +204,23 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/ai',
           builder: (BuildContext context, GoRouterState state) {
-            return AiPage(
-              initialMode: switch (state.uri.queryParameters['mode']) {
-                'technical' => AiMode.technical,
-                'agent' => AiMode.agent,
-                _ => AiMode.business,
-              },
+            return UnifiedAssistantPage(
               initialClientId: int.tryParse(
                 state.uri.queryParameters['client_id'] ?? '',
               ),
               initialInspectionId: int.tryParse(
                 state.uri.queryParameters['inspection_id'] ?? '',
               ),
+              initialCandidateId: int.tryParse(
+                state.uri.queryParameters['candidate_id'] ?? '',
+              ),
+              initialDocumentId: int.tryParse(
+                state.uri.queryParameters['document_id'] ?? '',
+              ),
+              initialMailSourceId: int.tryParse(
+                state.uri.queryParameters['mail_source_id'] ?? '',
+              ),
+              initialQuestion: state.uri.queryParameters['question'],
             );
           },
         ),

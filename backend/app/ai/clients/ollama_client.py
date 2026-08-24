@@ -27,6 +27,10 @@ class OllamaClient:
         prompt: str,
         stream: bool = False,
         format: str | dict[str, Any] | None = None,
+        *,
+        options: dict[str, Any] | None = None,
+        think: bool | None = None,
+        keep_alive: str | int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": model,
@@ -36,6 +40,12 @@ class OllamaClient:
 
         if format is not None:
             payload["format"] = format
+        if options is not None:
+            payload["options"] = options
+        if think is not None:
+            payload["think"] = think
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
 
         async with httpx.AsyncClient(
             timeout=self.timeout

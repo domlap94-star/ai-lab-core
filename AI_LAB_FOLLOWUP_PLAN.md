@@ -2397,3 +2397,19 @@ PRE-CHUNK23 Unified Assistant returns to NEXT / AUTHORIZED TO PREPARE. Evidence:
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
 = Phase F / Security + Operations. Update-signing trust remains unconsumed under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.
+
+**PRE-CHUNK23 — UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED —
+2026-08-25.** The single `Asystent AI` UI and additive F0 production
+orchestrator are implemented. The production-like frozen replay passes at
+89.66 overall / 97.00% factual-evidence with 0 wrong-source, hard or privacy
+failures and the qualified 35/15 local/advanced split. Flutter analyze,
+focused/full tests, backend F0/V2/Vision controls, Windows/Web build smoke and
+authenticated read-only Clients/Backup/System Control/Mail/Documents smoke
+pass. Non-stable signed candidate `1.0.2+33` is built but not published;
+PRE-CHUNK23 remains open for owner physical Android Assistant acceptance.
+CHUNK23 stays BLOCKED / NOT STARTED. Stable remains `1.0.2+29`.
+
+**RELEASE F REQUIRED UI MICRO-FIX — IGNORE MAIL ADDRESS/DOMAIN.** Before
+Release F, restore consistent Administrator Ignore actions in Candidate
+Details, Global Mail and Client Emails, with exact sender/domain add and undo.
+This micro-fix was not implemented during Unified Assistant work.
