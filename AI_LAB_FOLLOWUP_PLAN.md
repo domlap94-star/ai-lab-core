@@ -1828,7 +1828,7 @@ persistence i updater. Bez urządzenia wynik pozostaje UNVERIFIED.
 Human gate: dostęp operatora do urządzenia; brak zmian danych poza
 kontrolowanymi fixtures.
 
-**[~] IN PROGRESS / PHYSICAL DEFECTS FOUND.** Physical +29 acceptance found
+**[~] IN PROGRESS / BACKUP PLANNER SCHEMA APPROVAL REQUIRED.** Physical +29 acceptance found
 that Android directly used the private Supervisor URL and collapsed an
 unreachable response into `offline`, even while the public backend was online.
 The bounded repair uses an authenticated, read-only public-backend projection
@@ -1836,6 +1836,19 @@ of private Supervisor state, distinguishes `online`, `offline`, `unknown` and
 device-unavailable control, and keeps start/stop/restart host-only. Focused
 source tests pass; completion still requires the same-device physical refresh
 proof with no false `offline` result.
+
+The owner expanded final CHUNK22 acceptance to include backup scheduler
+reliability, an explicit Windows manual-destination picker, independent
+multi-destination Backup Plans and safe managed-history retention/deletion.
+The design audit proved an additive schema migration is required: the current
+schedule table cannot durably represent destination/retention policy,
+revisioned reconciliation, managed backup ownership or deletion journaling.
+Current CRUD also reconciles Windows tasks before the database commit, leaving
+a deterministic cross-system failure window. No migration, production schedule
+mutation or backup deletion was performed. The reviewed design is in
+`FOLLOWUP_BACKUP_PLANNER_RETENTION_REPORT.md`; implementation is stopped at
+`FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`. The physical
+System Control recheck remains pending.
 
 The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing
@@ -1985,6 +1998,13 @@ PRE-CHUNK23 model/routing owner decision are complete.
 **Priority: P2**
 
 Retention proposal: 7 daily, 5 weekly, 12 monthly.
+
+**SCOPE NOTE:** owner-directed multi-destination planner, free-space retention,
+managed history and deletion implementation moved into CHUNK22. They are not
+yet complete because CHUNK22 is stopped at the additive schema gate. After that
+implementation and acceptance pass, remove the duplicate retention delivery
+scope here; CHUNK24 will retain broader alert delivery/channel integration and
+future policy enhancements only. Do not mark unrelated alerting complete.
 
 Human gate: dla deletion wymagany
 `FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED`.
@@ -2184,9 +2204,11 @@ been satisfied. Phase E feature work is COMPLETE: CHUNK 17 and CHUNK 18 are
 complete, and CHUNK 19 was completed early under CHUNK 15. Release E is
 COMPLETE / HOTFIXED and was published on 2026-08-22 as NEXT Stabil
 `1.0.2+29`; Phase E is COMPLETE / RELEASED. Phase F is IN PROGRESS. CHUNK 20
-is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is IN PROGRESS / PHYSICAL
-DEFECTS FOUND. Its bounded System Control status-projection repair awaits a
-same-device physical recheck; CHUNK 23 remains NOT STARTED.
+is COMPLETE, CHUNK 21 is COMPLETE, and CHUNK 22 is IN PROGRESS / BACKUP PLANNER
+SCHEMA APPROVAL REQUIRED. Its bounded System Control status-projection repair
+awaits a same-device physical recheck, and the owner-directed Backup Planner is
+stopped at `FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED` before
+any migration or implementation; CHUNK 23 remains NOT STARTED.
 
 - **Release A** — Client correctness, search i Candidate.
 - **Release B** — Activity i Mail.

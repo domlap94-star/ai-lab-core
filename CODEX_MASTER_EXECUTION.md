@@ -48,11 +48,15 @@ healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
 is unconsumed. Phase F is IN PROGRESS. CHUNK 20 is COMPLETE after its
 comprehensive audit, bounded source fixes, public-header rollout, login
 throttling, owner-approved 22-target ACL acceptance and authenticated +29 Web
-Dashboard smoke. CHUNK 21 is COMPLETE. CHUNK 22 is IN PROGRESS / PHYSICAL
-DEFECTS FOUND: Android System Control incorrectly treated private-Supervisor
-unreachability as offline, and the current split Assistant quality was rejected.
-The bounded status projection fix is source-tested and awaits same-device
-physical recheck. PRE-CHUNK23 AI Assistant reconstruction + installed-model
+Dashboard smoke. CHUNK 21 is COMPLETE. CHUNK 22 is IN PROGRESS / BACKUP PLANNER
+SCHEMA APPROVAL REQUIRED: Android System Control incorrectly treated
+private-Supervisor unreachability as offline and still awaits its same-device
+physical recheck. The owner-expanded Backup Planner audit proved that durable
+destination/retention policy, transactional task reconciliation, managed backup
+ownership and deletion journaling require an additive schema migration. No
+migration, production schedule mutation or backup deletion occurred; work is
+stopped at `FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+PRE-CHUNK23 AI Assistant reconstruction + installed-model
 qualification design/benchmark is complete and blocks CHUNK23, which remains
 NOT STARTED. All four installed generative models completed the frozen 50-case
 matrix; none meets every production gate. `qwen3.5:9b` is the strongest
@@ -161,7 +165,10 @@ normalized payload/installer builds, raw manual login/Dashboard, installed
 session-restored Dashboard and zero-new-WDAC-event proof all pass. Stable and
 the release channel remain unchanged. Publisher/manifest signing implementation
 remains unconsumed under `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`.
-CHUNK 22 is IN PROGRESS / PHYSICAL DEFECTS FOUND and Release F was not started. Evidence is in
+CHUNK 22 is IN PROGRESS / BACKUP PLANNER SCHEMA APPROVAL REQUIRED and Release F
+was not started. The migration design is in
+`FOLLOWUP_BACKUP_PLANNER_RETENTION_REPORT.md`; the same-device System Control
+recheck remains pending. Evidence for CHUNK21 is in
 `FOLLOWUP_CHUNK21_WINDOWS_REPRODUCIBILITY_REPORT.md`.
 
 Historical release state:
