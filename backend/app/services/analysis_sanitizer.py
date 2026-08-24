@@ -5,7 +5,12 @@ import json
 import re
 from dataclasses import dataclass
 
-from app.schemas.analysis import AdvancedAnalysisPackage, AnalysisRequest, SanitizedSource
+from app.schemas.analysis import (
+    AdvancedAnalysisPackage,
+    AnalysisRequest,
+    SanitizedSource,
+    TEMP_CHAT_RESULT_CONTRACT_V1,
+)
 
 
 class AnalysisSanitizationError(ValueError):
@@ -63,6 +68,7 @@ class AnalysisSanitizer:
         inputs = self._sanitize_inputs(request.structured_inputs, request.sensitivity)
         package = AdvancedAnalysisPackage(
             analysis_id=request.analysis_id, analysis_type=request.analysis_type,
+            contract_version=str(inputs.get("contract_version") or TEMP_CHAT_RESULT_CONTRACT_V1),
             problem=problem, sources=sources,
             tables=inputs.get("tables", []), formulas=[self._clean(value, request.sensitivity) for value in request.formulas],
             variables=inputs.get("variables", {}), values=inputs.get("values", {}),
@@ -113,7 +119,7 @@ class AnalysisSanitizer:
             for nested in value: self._validate_keys(nested)
 
     def _sanitize_inputs(self, value: dict, sensitivity: str) -> dict:
-        allowed = {"tables", "variables", "values", "standards", "claims",
+        allowed = {"tables", "variables", "values", "standards", "claims", "contract_version",
                    "requested_output", "validation_requirements"}
         return {key: self._sanitize_value(nested, sensitivity) for key, nested in value.items() if key in allowed}
 

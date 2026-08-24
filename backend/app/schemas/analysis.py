@@ -12,6 +12,8 @@ ANALYSIS_REQUEST_SCHEMA = "NEXT_STABIL_ANALYSIS_REQUEST_V1"
 LOCAL_RESULT_SCHEMA = "NEXT_STABIL_LOCAL_ANALYSIS_RESULT_V1"
 ADVANCED_PACKAGE_SCHEMA = "NEXT_STABIL_ADVANCED_ANALYSIS_V1"
 ADVANCED_RESULT_SCHEMA = "NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1"
+TEMP_CHAT_RESULT_CONTRACT_V1 = "NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1"
+TEMP_CHAT_RESULT_CONTRACT_V2 = "NEXT_STABIL_TEMP_CHAT_RESULT_V2"
 
 AnalysisType = Literal[
     "technical_interpretation", "formula_calculation", "table_analysis",
@@ -143,6 +145,10 @@ class AdvancedAnalysisPackage(BaseModel):
     schema_version: Literal["NEXT_STABIL_ADVANCED_ANALYSIS_V1"] = ADVANCED_PACKAGE_SCHEMA
     analysis_id: UUID
     analysis_type: AnalysisType
+    contract_version: Literal[
+        "NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
+        "NEXT_STABIL_TEMP_CHAT_RESULT_V2",
+    ] = TEMP_CHAT_RESULT_CONTRACT_V1
     problem: str = Field(min_length=1, max_length=4000)
     sources: list[SanitizedSource] = Field(min_length=1, max_length=8)
     tables: list[list[list[str | float | int | None]]] = Field(default_factory=list, max_length=4)

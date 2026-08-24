@@ -108,6 +108,20 @@ CHUNK22 physical recheck and PRE-CHUNK23 owner review remain open; CHUNK23 is
 BLOCKED / NOT STARTED. Evidence is in
 `FOLLOWUP_TEMP_CHAT_POST_VALIDATION_AUDIT.md`.
 
+The subsequent V2 worker interoperability repair is COMPLETE and PASSING as a
+transport/binding layer. The exact 15 frozen primary jobs emitted and bound
+strict V2 15/15 with no retries, legacy fallback or binding failures. Atomic
+result publication and exact job/request/contract/hash checks pass offline
+negative controls. Combined F0 reaches 94.80 overall and 94.50 factual/evidence
+with zero wrong-source/privacy failures, but F0 is not yet qualified because
+X04 revealed that the sanitized package lacks an opaque target-scope identity
+for two same-type sources. The model safely returned MISSING and no PII/source
+guessing occurred. PRE-CHUNK23 is
+`TEMP_CHAT_V2_INTEROPERABILITY_PASS / F0 NOT QUALIFIED`; CHUNK22 physical
+recheck and owner review of the bounded scope-manifest fix remain open, and
+CHUNK23 is BLOCKED / NOT STARTED. Gemma3 12B was not downloaded. Evidence is
+in `FOLLOWUP_TEMP_CHAT_V2_INTEROPERABILITY_REPORT.md`.
+
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
 password literal is removed in favor of required untracked runtime injection;
 generic AI/RAG exceptions no longer leak internal details; Android release

@@ -194,3 +194,15 @@ Exactly 15 additional Temporary Chat jobs were allocated under the approved
 synthetic/public-safe ceiling; 14 produced result files and one failed result
 binding. Stable remains NEXT Stabil `1.0.2+29`; no release or production routing
 change occurred.
+
+## Subsequent interoperability remediation
+
+The bounded worker/Supervisor repair is recorded separately in
+`FOLLOWUP_TEMP_CHAT_V2_INTEROPERABILITY_REPORT.md`. It proves the historical
+root cause was the worker's later hard-coded V1 prompt/parser/retry. With an
+explicit final V2 boundary, atomic artifact publication and exact binding, the
+same 15 frozen primary jobs produced bound V2 15/15 with zero retries. This
+supersedes the interoperability-blocked conclusion for transport, but not the
+historical audit evidence above. PRE-CHUNK23 is now
+`TEMP_CHAT_V2_INTEROPERABILITY_PASS / F0 NOT QUALIFIED` because X04 still lacks
+an opaque target-scope identity in its bounded source manifest.

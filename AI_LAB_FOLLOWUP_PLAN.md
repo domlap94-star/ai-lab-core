@@ -1932,6 +1932,23 @@ was not downloaded and cannot itself repair this contract. CHUNK22 physical
 System Control recheck remains pending; CHUNK23 remains BLOCKED / NOT STARTED.
 Evidence: `FOLLOWUP_TEMP_CHAT_POST_VALIDATION_AUDIT.md`.
 
+**TEMPORARY CHAT V2 INTEROPERABILITY PASS — F0 NOT QUALIFIED.** The bounded
+worker repair makes the contract explicit at the final answer boundary, parses
+strict V2 only, writes artifacts atomically and binds exact job/request/contract
+IDs with no V1 fallback. Offline fail-closed controls pass. The exact 15 frozen
+synthetic/public-safe primary jobs then emitted and bound V2 15/15 with zero
+format retries. Combined F0 scores are 94.80 overall and 94.50 factual/evidence,
+with zero wrong-source/privacy failures and one hard-failure case. F0 is not
+declared qualified because X04 exposed an unresolved critical package-scope
+identity gap: the two opaque sources did not identify which belonged to the
+target scope, and the model safely returned MISSING. No extra PII was sent and
+no source was guessed. PRE-CHUNK23 is
+`TEMP_CHAT_V2_INTEROPERABILITY_PASS / F0 NOT QUALIFIED`; the next action is
+owner review of a bounded opaque target-scope manifest repair and semantic
+acceptance. Gemma3 12B remains unauthorized and was not downloaded. CHUNK22
+physical recheck remains pending; CHUNK23 remains BLOCKED / NOT STARTED.
+Evidence: `FOLLOWUP_TEMP_CHAT_V2_INTEROPERABILITY_REPORT.md`.
+
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 
 **Priority: P1**

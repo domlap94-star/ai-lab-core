@@ -170,6 +170,25 @@ The next safe step is to make the external worker reliably emit the bounded V2
 schema and repeat the same acceptance corpus; heuristic V1 provenance repair is
 forbidden. Evidence: `FOLLOWUP_TEMP_CHAT_POST_VALIDATION_AUDIT.md`.
 
+### Temporary Chat V2 worker interoperability (2026-08-24)
+
+The failure was the outer browser-worker protocol, not the deterministic V2
+validator: a V2 package was followed by a hard-coded V1 final prompt, parser
+and retry. The repaired worker carries an explicit contract version, renders
+the schema from its canonical module, accepts strict JSON (or one exact outer
+fence), creates claim IDs/disposition locally, writes atomically and binds the
+exact job/request/contract. V2 jobs never silently enter V1 validation.
+
+Offline binding/privacy controls pass and the exact 15 frozen primary jobs now
+emit/bind V2 15/15 with zero retries. F0's combined numerical gates pass, but
+X04 remains a semantic package-design blocker: opaque source handles are not
+yet accompanied by an equally opaque target-scope handle. The next design step
+is a local mapping `target_scope_handle -> allowed source handles`; the external
+package must not expose customer identity, and the validator must not infer a
+source from prose. Until that bounded addition passes the frozen scope case,
+F0 remains not qualified and no production Assistant rewiring is authorized.
+Full evidence: `FOLLOWUP_TEMP_CHAT_V2_INTEROPERABILITY_REPORT.md`.
+
 F0 remains the preferred control. Neither downloaded model is wired into it.
 `gemma3:12b` at 4096 remains justified only as a bounded final-reasoner
 benchmark behind a new owner download decision. Full evidence is in

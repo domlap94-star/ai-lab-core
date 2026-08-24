@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.knowledge_base import AnalysisJob, AnalysisJobSource
 from app.schemas.analysis import AdvancedAnalysisResult, AnalysisRequest, LocalAnalysisResult
+from app.schemas.analysis import TEMP_CHAT_RESULT_CONTRACT_V1, TEMP_CHAT_RESULT_CONTRACT_V2
+from app.services.analysis_result_contract import TemporaryChatResultContractV2
 from app.services.analysis_post_validator import AnalysisPostValidator
 from app.services.analysis_quality_gate import AnalysisQualityGate
 from app.services.analysis_sanitizer import AnalysisSanitizationError, AnalysisSanitizer
@@ -142,6 +144,7 @@ class AdvancedAnalysisOrchestrator:
             external = self.supervisor.create_job({
                 "request_key": job.input_fingerprint, "analysis_id": job.id,
                 "analysis_type": job.analysis_type, "package_sha256": sanitized.sha256,
+                "contract_version": sanitized.package.contract_version,
                 "incoming_relative_path": f"incoming/{sanitized.sha256}/package.json",
             })
         except AnalysisSupervisorUnavailable:
@@ -169,6 +172,9 @@ class AdvancedAnalysisOrchestrator:
             job.error_code = "analysis_result_manifest_missing"; job.finished_at = datetime.now(UTC)
             self.db.flush(); return job.status
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        requested_contract = str(
+            request.structured_inputs.get("contract_version") or TEMP_CHAT_RESULT_CONTRACT_V1
+        )
         expected_manifest = {
             "job_id": job.external_job_id,
             "analysis_id": job.id,
@@ -178,7 +184,59 @@ class AdvancedAnalysisOrchestrator:
             job.status = "failed"; job.decision = "rejected"
             job.error_code = "analysis_result_manifest_binding_invalid"; job.finished_at = datetime.now(UTC)
             self.db.flush(); return job.status
-        raw = json.loads(result_path.read_text(encoding="utf-8"))
+        raw_bytes = result_path.read_bytes()
+        raw = json.loads(raw_bytes)
+        if requested_contract == TEMP_CHAT_RESULT_CONTRACT_V2:
+            expected_keys = {
+                "schema_version", "job_id", "request_id", "contract_version",
+                "worker_attempt", "created_at", "raw_result_hash", "parsed_v2",
+                "validation_pending",
+            }
+            if (manifest.get("contract_version") != TEMP_CHAT_RESULT_CONTRACT_V2
+                    or manifest.get("request_id") != job.id
+                    or manifest.get("output_sha256") != hashlib.sha256(raw_bytes).hexdigest()
+                    or manifest.get("raw_result_hash") != raw.get("raw_result_hash")
+                    or set(raw) != expected_keys
+                    or raw.get("schema_version") != "NEXT_STABIL_TEMP_CHAT_RESULT_ARTIFACT_V2"
+                    or raw.get("job_id") != job.external_job_id
+                    or raw.get("request_id") != job.id
+                    or raw.get("contract_version") != TEMP_CHAT_RESULT_CONTRACT_V2
+                    or raw.get("validation_pending") is not True
+                    or raw.get("worker_attempt") not in {1, 2}
+                    or not isinstance(raw.get("created_at"), str)
+                    or not raw.get("created_at")
+                    or not isinstance(raw.get("raw_result_hash"), str)
+                    or len(raw.get("raw_result_hash")) != 64
+                    or any(char not in "0123456789abcdef" for char in raw.get("raw_result_hash"))):
+                job.status = "failed"; job.decision = "rejected"
+                job.error_code = "analysis_v2_result_binding_invalid"; job.finished_at = datetime.now(UTC)
+                self.db.flush(); return job.status
+            local_envelope = AdvancedAnalysisResult(
+                schema_version="NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
+                analysis_id=request.analysis_id,
+                package_sha256=job.sanitized_package_hash or "",
+                result=raw["parsed_v2"],
+                source_refs=[item.source_ref for item in request.source_refs],
+                assumptions=[], uncertainties=[], constraints_checked=[],
+                normalized_units={}, formula_used=None, calculation_steps=[],
+                verification_recommendation="accept",
+            )
+            try:
+                self.sanitizer.validate_external_result(local_envelope.model_dump(mode="json"))
+            except AnalysisSanitizationError as error:
+                job.status = "review_required"; job.decision = "REVIEW_REQUIRED"
+                job.error_code = str(error)[:100]; job.finished_at = datetime.now(UTC)
+                self.db.flush(); return job.status
+            contract = TemporaryChatResultContractV2().validate(request=request, result=local_envelope)
+            if not contract.applied:
+                job.status = "failed"; job.decision = "rejected"
+                job.error_code = "analysis_v2_interoperability_failure"; job.finished_at = datetime.now(UTC)
+                self.db.flush(); return job.status
+            job.status = {"accepted_advanced": "accepted_advanced", "review_required": "review_required", "rejected": "failed"}[contract.status]
+            job.decision = contract.status
+            job.error_code = None if contract.status == "accepted_advanced" else contract.code
+            job.finished_at = datetime.now(UTC)
+            self.db.flush(); return job.status
         try:
             result = AdvancedAnalysisResult.model_validate(raw)
         except ValidationError:

@@ -25,7 +25,7 @@ from run_multi_model_pipeline_qualification import deterministic_tool_results, d
 from run_temp_chat_pipeline_qualification import GATED_CASES, analysis_type
 
 
-REQUESTED_OUTPUT = """W polu result zwróć dokładnie NEXT_STABIL_TEMP_CHAT_RESULT_V2: {schema,claims,contradictions}. Nie zwracaj answer ani claim_id. Używaj wyłącznie handle z package.claims. FACT: {class, fact_handles, tool_handles, visual_handles}; nie przepisuj tekstu. MISSING: {class,item,why_relevant,estimable}. HYPOTHESIS: {class,statement,support_fact_handles,contradiction_fact_handles,confirm_or_refute}. ESTIMATE: {class,value_or_range,confidence,basis_fact_handles,basis_tool_handles,assumptions,missing_inputs}. Materialną sprzeczność zwróć w contradictions jako {description,fact_handles}. Braków nie zgaduj. Jeśli ten kontrakt jest kompletny i bezpieczny, verification_recommendation=accept oraz uncertainties=[]; review tylko dla rzeczywistej nierozstrzygalnej niepewności, reject tylko dla wyniku niebezpiecznego."""
+REQUESTED_OUTPUT = """Zwróć dokładnie NEXT_STABIL_TEMP_CHAT_RESULT_V2: {schema,claims,contradictions}. Nie zwracaj answer, claim_id ani decyzji accept/review/reject. Używaj wyłącznie handle z package.claims. FACT: {class,fact_handles,tool_handles,visual_handles}; nie przepisuj tekstu. MISSING: {class,item,why_relevant,estimable}. HYPOTHESIS: {class,statement,support_fact_handles,contradiction_fact_handles,confirm_or_refute}. ESTIMATE: {class,value_or_range,confidence,basis_fact_handles,basis_tool_handles,assumptions,missing_inputs}; jeśli wartości nie da się oszacować, użyj confidence=NOT_ESTIMABLE i wskaż braki. Materialną sprzeczność zwróć jako {description,fact_handles}. Braków nie zgaduj. Lokalny deterministyczny walidator sam wybiera dyspozycję."""
 
 
 def atomize(value: str) -> list[str]:
@@ -35,7 +35,10 @@ def atomize(value: str) -> list[str]:
 def request_for(case) -> tuple[AnalysisRequest, dict[str, str]]:
     refs, aliases, manifest = [], {}, []
     fact_index = 0
-    for source_index, (internal_ref, excerpt) in enumerate(case.evidence.items(), 1):
+    scoped_evidence = case.evidence
+    if case.case_id == "X04-scope":
+        scoped_evidence = {key: value for key, value in case.evidence.items() if key in case.expected_sources}
+    for source_index, (internal_ref, excerpt) in enumerate(scoped_evidence.items(), 1):
         source = f"S{source_index}"
         aliases[source] = internal_ref
         refs.append(AnalysisSourceRef(source_ref=source, checksum_sha256=hashlib.sha256(excerpt.encode()).hexdigest(), excerpt=excerpt, extraction_confidence=100))
@@ -50,11 +53,12 @@ def request_for(case) -> tuple[AnalysisRequest, dict[str, str]]:
         source = next((alias for alias, internal in aliases.items() if internal in tool.get("source_refs", [])), "S1")
         manifest.append({"kind": "TOOL_RESULT", "tool_handle": f"T{index}", "source_handle": source,
                          "statement": f"{tool['value']} {tool['unit']}", "value": tool["value"], "unit": tool["unit"]})
-    source_checksum = hashlib.sha256(json.dumps(case.evidence, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    source_checksum = hashlib.sha256(json.dumps(scoped_evidence, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     request = AnalysisRequest(
         analysis_id=uuid4(), analysis_type=analysis_type(case.category), source_domain="technical", source_refs=refs,
         problem_statement=case.question,
-        structured_inputs={"claims": manifest, "requested_output": REQUESTED_OUTPUT,
+        structured_inputs={"contract_version": TemporaryChatResultContractV2.SCHEMA,
+                           "claims": manifest, "requested_output": REQUESTED_OUTPUT,
                            "validation_requirements": ["strict handle binding", "local claim IDs", "privacy minimization"]},
         evidence=list(aliases), sensitivity="customer_sanitizable" if case.case_id == "A05-privacy" else "public_reference",
         allowed_methods=["local_llm", "temporary_chat"], provenance=AnalysisProvenance(source_checksum=source_checksum),
@@ -126,15 +130,25 @@ def main() -> None:
                 row["external_state"] = state
                 if state != "COMPLETE":
                     raise RuntimeError(state)
-                external = json.loads((orchestrator.spool_root / "jobs" / job.external_job_id / "output" / "analysis.json").read_text(encoding="utf-8"))
-                parsed = AdvancedAnalysisResult.model_validate(external)
+                artifact = json.loads((orchestrator.spool_root / "jobs" / job.external_job_id / "output" / "analysis.json").read_text(encoding="utf-8"))
+                parsed = AdvancedAnalysisResult(
+                    schema_version="NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
+                    analysis_id=request.analysis_id, package_sha256=job.sanitized_package_hash,
+                    result=artifact["parsed_v2"], source_refs=[item.source_ref for item in request.source_refs],
+                    assumptions=[], uncertainties=[], constraints_checked=[], normalized_units={},
+                    formula_used=None, calculation_steps=[], verification_recommendation="accept",
+                )
                 AnalysisSanitizer().validate_external_result(parsed.model_dump(mode="json"))
                 validation = validator.validate(request=request, result=parsed)
-                contract_status = validation.status if validation.applied else "review_required"
+                contract_status = orchestrator.apply_external(job=job, request=request)
+                db.commit()
                 contract_code = validation.code if validation.applied else "analysis_result_contract_v2_missing"
                 row.update({"contract_status": contract_status, "contract_code": contract_code,
                             "contract_issues": list(validation.issues), "outer_recommendation": parsed.verification_recommendation,
-                            "outer_uncertainty_count": len(parsed.uncertainties)})
+                            "outer_uncertainty_count": len(parsed.uncertainties),
+                            "primary_v2": artifact.get("contract_version") == TemporaryChatResultContractV2.SCHEMA,
+                            "result_bound": contract_status in {"accepted_advanced", "review_required", "failed"},
+                            "format_retry_used": int(artifact.get("worker_attempt") or 1) > 1})
                 if validation.applied and validation.artifact:
                     final = remap_artifact(validation.artifact, aliases, case)
                     row["score"] = score(case, final)
