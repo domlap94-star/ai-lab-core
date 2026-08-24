@@ -1,4 +1,7 @@
 param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('qwen2.5:7b-instruct', 'phi4-mini:latest', 'qwen3.5:9b')]
+    [string]$Model,
     [ValidateSet(4096, 8192)]
     [int]$Context = 4096,
     [switch]$WithEmbedding,
@@ -12,7 +15,6 @@ trap {
     exit 1
 }
 $OllamaBase = 'http://127.0.0.1:11434'
-$Model = 'qwen3.5:9b'
 $EmbeddingModel = 'qwen3-embedding:0.6b'
 $StartedAt = [DateTime]::UtcNow
 $Samples = New-Object System.Collections.Generic.List[object]
@@ -155,10 +157,10 @@ function Invoke-Query([string]$Prompt, [int]$Index) {
         model = $Model
         prompt = $Prompt
         stream = $false
-        think = $false
         keep_alive = '10m'
         options = [ordered]@{ num_ctx = $Context; temperature = 0.1; num_predict = 120 }
     }
+    if ($Model -eq 'qwen3.5:9b') { $Payload.think = $false }
     $Body = $Payload | ConvertTo-Json -Depth 5 -Compress
     $Job = Start-Job -ScriptBlock {
         param($Uri, $Json)

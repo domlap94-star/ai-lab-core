@@ -77,9 +77,25 @@ architecture, but it is not declared end-to-end qualified: 35/50 cases pass
 locally at 100% factual/evidence with zero local hard failures, while the exact
 external final answers for 15 gated cases were not rerun. The remaining gap is
 final synthesis/source discipline. `gemma3:12b` @4096 remains the preferred
-next candidate; `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` is READY / NOT
-CONSUMED. CHUNK22 remains in physical recheck and CHUNK23 remains blocked/not
-started. Evidence is in `FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
+next candidate. At that checkpoint `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED`
+was READY / NOT CONSUMED; its subsequent exact two-model consumption is
+recorded below. CHUNK22 remains in physical recheck and CHUNK23 remains
+blocked/not started. Evidence is in
+`FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
+
+The owner then consumed the model-download gate only for
+`qwen2.5:7b-instruct` and `phi4-mini:latest`. Both official Ollama models were
+pulled and qualified at context 4096; no other model was pulled or deleted.
+Qwen7 did not replace Qwen9 and its validated document-specialist handoff
+increased hard/source failures. Phi did not earn a planner, extraction or
+validator role. Pipeline F0 remains the preferred installed control. Exactly
+15 synthetic/public-safe gated Temporary Chat cases produced strong raw output
+but only one passed the current strict local post-validator, so PRE-CHUNK23
+remains blocked on final-reasoner and post-validation architecture. Gemma3 12B
+remains justified for a future owner-approved 4096-only benchmark; the
+consumed gate does not authorize that pull. CHUNK22 remains pending and CHUNK23
+is NOT STARTED. Evidence is in
+`FOLLOWUP_QWEN7_PHI4_COOPERATIVE_QUALIFICATION_REPORT.md`.
 
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
 password literal is removed in favor of required untracked runtime injection;

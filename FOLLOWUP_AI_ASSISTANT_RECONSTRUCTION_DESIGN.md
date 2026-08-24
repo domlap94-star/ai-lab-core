@@ -105,7 +105,7 @@ Visual requests route through the controlled visual-analysis pipeline. A text-on
 
 Qualification assigns each installed model exactly one outcome: `KEEP — FINAL REASONING`, `KEEP — ROUTING / EXTRACTION`, `KEEP — EMBEDDING`, `KEEP — SPECIALIZED`, or `RETIREMENT_RECOMMENDED`. A small model failing final synthesis may still be retained for bounded routing/extraction. The embedding model is assessed separately and does not reopen the CHUNK18 production-vector decision.
 
-## Evidence-based pipeline decision (2026-08-24)
+## Evidence-based pipeline decision (2026-08-24, Qwen7/Phi round)
 
 The frozen multi-model qualification rejects free-form and structured
 Gemma-4B handoffs as production roles. Gemma planning failed deterministic
@@ -134,13 +134,28 @@ never “cleaned up” by a later model.
 
 This installed pipeline is not yet qualified end to end. It accepted 35/50
 cases locally at 97.67 overall and 100% factual/evidence with zero local hard
-failures, while 15/50 correctly reached the escalation gate. The exact external
-final answers for those 15 were not rerun, so no passing outcome is inferred.
-The remaining gap is final local synthesis/source discipline rather than
-routing. The next justified benchmark role is a stronger final synthesizer;
-`gemma3:12b` at 4096 remains the preferred bounded candidate under the existing
-unconsumed download approval gate. Full evidence is in
-`FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
+failures, while 15/50 reached the escalation gate.
+
+The owner-authorized second round pulled only `qwen2.5:7b-instruct` and
+`phi4-mini:latest`. Qwen7 as final reasoner was weaker and slower than F0. Its
+validated document-specialist handoff to Qwen9 increased comparable hard
+failures from 6 to 8 and wrong-source cases from 5 to 6. Phi failed as planner,
+extractor and validator; against canonical F0 it missed all 16 expected
+rejections. No additional local model stage earns a production role.
+
+The exact 15 synthetic/public-safe F0 escalations were executed. Raw Temporary
+Chat output passed the benchmark quality measures (95.12 overall, 94.44
+factual/evidence, zero hard/source/privacy failures), but strict local
+post-validation accepted only 1/15, held 12 for review and failed two. The
+remaining architecture gaps are (1) the local final-reasoning/source ceiling
+and (2) reconciliation of the external result contract with the local
+post-validator without weakening privacy or provenance.
+
+F0 remains the preferred control. Neither downloaded model is wired into it.
+`gemma3:12b` at 4096 remains justified only as a bounded final-reasoner
+benchmark behind a new owner download decision. Full evidence is in
+`FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md` and
+`FOLLOWUP_QWEN7_PHI4_COOPERATIVE_QUALIFICATION_REPORT.md`.
 
 ## Migration plan
 

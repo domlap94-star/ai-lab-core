@@ -1893,9 +1893,29 @@ factual/evidence and zero accepted-local hard failures; 15/50 require
 escalation, whose exact external final answers were not rerun, so the installed
 pipeline is not declared qualified. The remaining gap is final synthesis and
 source discipline. `gemma3:12b` @4096 remains the preferred next bounded
-candidate. `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` is READY / NOT
-CONSUMED; no pull/delete/production rewire occurred. Evidence:
+candidate. At that checkpoint `FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED`
+was READY / NOT CONSUMED; its later exact two-model consumption is recorded
+below. No pull/delete/production rewire occurred during the earlier round. Evidence:
 `FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md`.
+
+**QWEN7 + PHI COOPERATIVE QUALIFICATION COMPLETE — GEMMA12 BENCHMARK STILL
+JUSTIFIED.** On 2026-08-24 the owner consumed
+`FOLLOWUP_LLM_MODEL_DOWNLOAD_APPROVAL_REQUIRED` only for
+`qwen2.5:7b-instruct` (digest `845dbda0ea48...`, 7.6B Q4_K_M) and
+`phi4-mini:latest` (digest `78fad5d182a7...`, 3.8B Q4_K_M). No other model was
+pulled and no model was deleted. Both fit safely at 4096, including embedding
+coexistence, but neither passed the immutable production quality gates. Qwen7
+was slower and weaker than F0; validated Qwen7->Qwen9 handoff increased hard
+failures and source errors. Phi was not admissible as planner/specialist and
+missed all 16 expected F0 rejections as validator. Exactly 15 synthetic/public-
+safe F0 escalations were run: raw Temporary Chat quality passed, but strict
+local post-validation accepted 1, held 12 for review and failed 2. Pipeline F0
+remains the preferred installed control, not production-qualified. Gemma3 12B
+at 4096 remains a justified final-reasoner benchmark behind a new owner
+decision; the prior download approval is consumed and does not authorize it.
+CHUNK22 physical System Control recheck and the PRE-CHUNK23 architecture gate
+both remain open; CHUNK23 stays BLOCKED / NOT STARTED. Evidence:
+`FOLLOWUP_QWEN7_PHI4_COOPERATIVE_QUALIFICATION_REPORT.md`.
 
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 

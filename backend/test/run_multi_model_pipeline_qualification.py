@@ -214,10 +214,16 @@ def validate_final_response(response: dict, case: QualificationCase) -> list[str
 
 
 def call_ollama(base_url: str, model: str, prompt: str, schema: dict, num_ctx: int, num_predict: int) -> tuple[dict, dict]:
-    data = json.dumps({
-        "model": model, "prompt": prompt, "stream": False, "format": schema, "think": False,
+    request = {
+        "model": model, "prompt": prompt, "stream": False, "format": schema,
         "keep_alive": "5m", "options": {"temperature": 0.1, "num_ctx": num_ctx, "num_predict": num_predict},
-    }, ensure_ascii=False).encode("utf-8")
+    }
+    # Only qwen3.5 advertises Ollama's thinking capability.  Older Qwen and
+    # Phi candidates must use their canonical chat templates without an
+    # invented think/no-think option.
+    if model.startswith("qwen3.5:"):
+        request["think"] = False
+    data = json.dumps(request, ensure_ascii=False).encode("utf-8")
     started = time.perf_counter()
     with urlopen(Request(base_url.rstrip("/") + "/api/generate", data=data, headers={"Content-Type": "application/json"}), timeout=600) as response:
         envelope = json.loads(response.read().decode("utf-8"))
@@ -268,7 +274,7 @@ def unload_model(base_url: str, model: str) -> None:
         response.read()
 
 
-def prepare_stage_cache(pipeline: str, base_url: str, stage_cache: Path) -> dict[str, dict]:
+def prepare_stage_cache(pipeline: str, base_url: str, stage_cache: Path, stage_model: str = "gemma3:4b") -> dict[str, dict]:
     cached: dict[str, dict] = {}
     if stage_cache.exists():
         cached = {row["case_id"]: row for row in (json.loads(line) for line in stage_cache.read_text(encoding="utf-8").splitlines() if line.strip())}
@@ -279,13 +285,13 @@ def prepare_stage_cache(pipeline: str, base_url: str, stage_cache: Path) -> dict
             continue
         try:
             if pipeline == "B":
-                response, telemetry = call_ollama(base_url, "gemma3:4b", planner_prompt(case), PLANNER_SCHEMA, 4096, 300)
+                response, telemetry = call_ollama(base_url, stage_model, planner_prompt(case), PLANNER_SCHEMA, 4096, 300)
                 row = {"case_id": case.case_id, "planner": response, "planner_errors": validate_plan(response, case), "telemetry": telemetry}
             else:
                 if case.category == "business":
                     row = {"case_id": case.case_id, "specialist": {}, "specialist_errors": ["specialist_not_applicable"], "bypass": True, "telemetry": {"wall_seconds": 0}}
                 else:
-                    response, telemetry = call_ollama(base_url, "gemma3:4b", specialist_prompt(case), SPECIALIST_SCHEMA, 4096, 700)
+                    response, telemetry = call_ollama(base_url, stage_model, specialist_prompt(case), SPECIALIST_SCHEMA, 4096, 700)
                     graph = normalized_specialist_graph(case, response)
                     row = {"case_id": case.case_id, "specialist": response, "specialist_errors": validate_graph(graph, case), "telemetry": telemetry}
         except Exception as exc:
@@ -295,13 +301,13 @@ def prepare_stage_cache(pipeline: str, base_url: str, stage_cache: Path) -> dict
         cached[case.case_id] = row
         print(f"{pipeline}-stage {index}/50 {case.case_id}", flush=True)
     failures = [row for row in cached.values() if row.get("error")]
-    unload_model(base_url, "gemma3:4b")
+    unload_model(base_url, stage_model)
     if failures:
         raise RuntimeError(f"{len(failures)} stage outputs failed; rerun the stage cache to retry")
     return cached
 
 
-def run_pipeline(pipeline: str, base_url: str, output: Path, resume: bool, stage_cache: Path | None = None, retry_errors: bool = False) -> list[dict]:
+def run_pipeline(pipeline: str, base_url: str, output: Path, resume: bool, stage_cache: Path | None = None, retry_errors: bool = False, reasoner_model: str = "qwen3.5:9b", stage_model: str = "gemma3:4b") -> list[dict]:
     rows: list[dict] = []
     completed: set[str] = set()
     if resume and output.exists():
@@ -313,7 +319,7 @@ def run_pipeline(pipeline: str, base_url: str, output: Path, resume: bool, stage
         if len(rows) != len(loaded):
             output.write_text("".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows), encoding="utf-8")
         completed = {row["case_id"] for row in rows if not retry_errors or not row.get("error")}
-    stages = prepare_stage_cache(pipeline, base_url, stage_cache) if stage_cache is not None else {}
+    stages = prepare_stage_cache(pipeline, base_url, stage_cache, stage_model) if stage_cache is not None else {}
     for index, case in enumerate(cases(), 1):
         if case.case_id in completed:
             continue
@@ -334,7 +340,7 @@ def run_pipeline(pipeline: str, base_url: str, output: Path, resume: bool, stage
                 graph = candidate_graph if not specialist_errors else base_graph(case)
             long_cases = {"B07-history", "B08-estimate", "T06-pressure", "T11-load", "X03-timeline", "X05-commercial", "X06-calculation"}
             num_predict = 360 if pipeline == "C" or case.case_id in long_cases else 240
-            response, telemetry = call_ollama(base_url, "qwen3.5:9b", reasoner_prompt(case, graph, plan), FINAL_SCHEMA, 4096, num_predict)
+            response, telemetry = call_ollama(base_url, reasoner_model, reasoner_prompt(case, graph, plan), FINAL_SCHEMA, 4096, num_predict)
             if pipeline in {"B", "C", "F"}:
                 response["tool_plan"] = plan
             graph_errors = validate_graph(graph, case)
@@ -445,6 +451,8 @@ def main() -> None:
     parser.add_argument("--pipeline", choices=["A", "B", "C", "F"], required=True)
     parser.add_argument("--base-url", default="http://ollama:11434")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--reasoner-model", default="qwen3.5:9b")
+    parser.add_argument("--stage-model", default="gemma3:4b")
     parser.add_argument("--stage-cache")
     parser.add_argument("--stage-only", action="store_true")
     parser.add_argument("--resume", action="store_true")
@@ -458,11 +466,13 @@ def main() -> None:
     if args.stage_only:
         if stage_cache is None or args.pipeline not in {"B", "C"}:
             raise SystemExit("--stage-only requires pipeline B or C")
-        prepared = prepare_stage_cache(args.pipeline, args.base_url, stage_cache)
+        prepared = prepare_stage_cache(args.pipeline, args.base_url, stage_cache, args.stage_model)
         print(json.dumps({"pipeline": args.pipeline, "stage_cases": len(prepared), "stage_only": True}), flush=True)
         return
-    rows = run_pipeline(args.pipeline, args.base_url, output, args.resume, stage_cache, args.retry_errors)
+    rows = run_pipeline(args.pipeline, args.base_url, output, args.resume, stage_cache, args.retry_errors, args.reasoner_model, args.stage_model)
     summary = summarize_pipeline(args.pipeline, rows)
+    summary["reasoner_model"] = args.reasoner_model
+    summary["stage_model"] = args.stage_model
     summary["orchestration_suite"] = run_orchestration_suite()
     output.with_suffix(".summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False), flush=True)
