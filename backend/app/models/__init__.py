@@ -31,7 +31,8 @@ from app.models.work_item_note import WorkItemNote
 from app.models.work_item_document import WorkItemDocument
 from app.models.absence_request import AbsenceRequest
 from app.models.trash_entry import TrashEntry
-from app.models.backup_operation import BackupRun, BackupSchedule, RestoreRun
+from app.models.backup_operation import (BackupDeletionEvent, BackupPlanSyncEvent,
+    BackupRun, BackupSchedule, ManagedBackup, RestoreRun)
 from app.models.knowledge_base import (AnalysisJob, AnalysisJobSource,
     KnowledgeBaseAnalysisArtifact, KnowledgeBaseItem, KnowledgeBasePage,
     KnowledgeBaseProcessingJob)
@@ -72,6 +73,9 @@ __all__ = [
     "TrashEntry",
     "BackupSchedule",
     "BackupRun",
+    "BackupPlanSyncEvent",
+    "ManagedBackup",
+    "BackupDeletionEvent",
     "RestoreRun",
     "KnowledgeBaseItem",
     "KnowledgeBasePage",

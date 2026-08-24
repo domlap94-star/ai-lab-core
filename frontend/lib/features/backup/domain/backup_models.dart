@@ -34,6 +34,18 @@ class BackupSchedule {
     this.hostLastResult,
     this.lastBackupAt,
     this.lastBackupResult,
+    this.destinationType = 'local_path',
+    this.destinationStatus = 'unknown',
+    this.autoDelete = false,
+    this.minimumFreePercent,
+    this.minimumFreeBytes,
+    this.minimumBackupsToKeep = 3,
+    this.keepLastN,
+    this.keepDays,
+    this.retentionTrigger = 'after_successful_backup',
+    this.planRevision = 1,
+    this.lastReconciledRevision = 0,
+    this.lastSyncErrorCode,
   });
   final int id;
   final String name;
@@ -53,6 +65,18 @@ class BackupSchedule {
   final int? hostLastResult;
   final DateTime? lastBackupAt;
   final String? lastBackupResult;
+  final String destinationType;
+  final String destinationStatus;
+  final bool autoDelete;
+  final int? minimumFreePercent;
+  final int? minimumFreeBytes;
+  final int minimumBackupsToKeep;
+  final int? keepLastN;
+  final int? keepDays;
+  final String retentionTrigger;
+  final int planRevision;
+  final int lastReconciledRevision;
+  final String? lastSyncErrorCode;
   factory BackupSchedule.fromJson(Map<String, dynamic> json) => BackupSchedule(
     id: json['id'] as int,
     name: json['name'] as String,
@@ -78,7 +102,118 @@ class BackupSchedule {
       json['last_backup_at']?.toString() ?? '',
     )?.toLocal(),
     lastBackupResult: json['last_backup_result'] as String?,
+    destinationType: json['destination_type'] as String? ?? 'local_path',
+    destinationStatus: json['destination_status'] as String? ?? 'unknown',
+    autoDelete: json['auto_delete'] as bool? ?? false,
+    minimumFreePercent: json['minimum_free_percent'] as int?,
+    minimumFreeBytes: json['minimum_free_bytes'] as int?,
+    minimumBackupsToKeep: json['minimum_backups_to_keep'] as int? ?? 3,
+    keepLastN: json['keep_last_n'] as int?,
+    keepDays: json['keep_days'] as int?,
+    retentionTrigger:
+        json['retention_trigger'] as String? ?? 'after_successful_backup',
+    planRevision: json['plan_revision'] as int? ?? 1,
+    lastReconciledRevision: json['last_reconciled_revision'] as int? ?? 0,
+    lastSyncErrorCode: json['last_sync_error_code'] as String?,
   );
+}
+
+class ManualBackupPreflight {
+  const ManualBackupPreflight({
+    required this.destination,
+    required this.available,
+    required this.writable,
+    required this.totalBytes,
+    required this.freeBytes,
+    required this.token,
+    required this.expiresAt,
+    this.estimatedRequiredBytes,
+  });
+  final String destination;
+  final bool available;
+  final bool writable;
+  final int totalBytes;
+  final int freeBytes;
+  final int? estimatedRequiredBytes;
+  final String token;
+  final DateTime expiresAt;
+  factory ManualBackupPreflight.fromJson(Map<String, dynamic> json) =>
+      ManualBackupPreflight(
+        destination: json['normalized_destination'] as String,
+        available: json['available'] as bool,
+        writable: json['writable'] as bool,
+        totalBytes: json['total_bytes'] as int? ?? 0,
+        freeBytes: json['free_bytes'] as int? ?? 0,
+        estimatedRequiredBytes: json['estimated_required_bytes'] as int?,
+        token: json['token'] as String,
+        expiresAt: DateTime.parse(json['expires_at'] as String),
+      );
+}
+
+class ManagedBackup {
+  const ManagedBackup({
+    required this.id,
+    required this.backupId,
+    required this.destinationRoot,
+    required this.scope,
+    required this.appVersion,
+    required this.totalBytes,
+    required this.integrityStatus,
+    required this.protected,
+    required this.lifecycle,
+    required this.createdAt,
+    this.planId,
+  });
+  final int id;
+  final String backupId;
+  final int? planId;
+  final String destinationRoot;
+  final String scope;
+  final String appVersion;
+  final int totalBytes;
+  final String integrityStatus;
+  final bool protected;
+  final String lifecycle;
+  final DateTime createdAt;
+
+  factory ManagedBackup.fromJson(Map<String, dynamic> json) => ManagedBackup(
+    id: json['id'] as int,
+    backupId: json['backup_id'] as String,
+    planId: json['plan_id'] as int?,
+    destinationRoot: json['destination_root'] as String,
+    scope: json['scope'] as String,
+    appVersion: json['app_version'] as String,
+    totalBytes: json['total_bytes'] as int? ?? 0,
+    integrityStatus: json['integrity_status'] as String,
+    protected: json['protected'] as bool? ?? false,
+    lifecycle: json['lifecycle'] as String,
+    createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+  );
+}
+
+class RetentionPreview {
+  const RetentionPreview({
+    required this.currentFreeBytes,
+    required this.requiredFreeBytes,
+    required this.proposedDeletionCount,
+    required this.predictedReclaimedBytes,
+    this.blockedReason,
+  });
+  final int currentFreeBytes;
+  final int requiredFreeBytes;
+  final int proposedDeletionCount;
+  final int predictedReclaimedBytes;
+  final String? blockedReason;
+
+  factory RetentionPreview.fromJson(Map<String, dynamic> json) =>
+      RetentionPreview(
+        currentFreeBytes: json['current_free_bytes'] as int? ?? 0,
+        requiredFreeBytes: json['required_free_bytes'] as int? ?? 0,
+        proposedDeletionCount:
+            (json['proposed_deletions'] as List<dynamic>? ?? const []).length,
+        predictedReclaimedBytes: json['predicted_reclaimed_bytes'] as int? ?? 0,
+        blockedReason: json['blocked_reason'] as String?,
+      );
 }
 
 class BackupRun {

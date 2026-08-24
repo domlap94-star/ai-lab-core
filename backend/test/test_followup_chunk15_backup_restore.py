@@ -89,8 +89,16 @@ def expect_code(call, code: str) -> None:
 def main() -> None:
     name = require_test_database_environment()
     engine = create_engine(database_url(name))
-    from app.models.backup_operation import BackupRun, BackupSchedule, RestoreRun
+    from app.models.backup_operation import (
+        BackupDeletionEvent,
+        BackupPlanSyncEvent,
+        BackupRun,
+        BackupSchedule,
+        ManagedBackup,
+        RestoreRun,
+    )
     from app.models.user import User
+    from app.models.role import Role
     from app.schemas.admin_backup import BackupScheduleWrite
     from app.services.backup_restore_service import BackupRestoreService
 
@@ -98,11 +106,44 @@ def main() -> None:
         assert_isolated_database(db, name)
         # A production-copy fixture may contain legitimate operational history.
         # Normalize only the disposable isolated database before bounded tests.
+        db.query(BackupDeletionEvent).delete(synchronize_session=False)
+        db.query(ManagedBackup).delete(synchronize_session=False)
+        db.query(BackupPlanSyncEvent).delete(synchronize_session=False)
         db.query(RestoreRun).delete(synchronize_session=False)
         db.query(BackupRun).delete(synchronize_session=False)
         db.query(BackupSchedule).delete(synchronize_session=False)
         db.commit()
-        actor = db.query(User).filter(User.is_active.is_(True)).order_by(User.id).first()
+        actor = (
+            db.query(User)
+            .join(User.role)
+            .filter(
+                User.is_active.is_(True),
+                User.username == "backup-isolated-admin",
+                User.role.has(name="Administrator"),
+            )
+            .order_by(User.id)
+            .first()
+        )
+        if actor is None:
+            password_source = db.query(User).filter(User.is_active.is_(True)).order_by(User.id).first()
+            admin_role = db.query(Role).filter(Role.name == "Administrator").one_or_none()
+            if admin_role is None:
+                admin_role = Role(name="Administrator", description="Synthetic isolated administrator role")
+                db.add(admin_role)
+                db.flush()
+            actor = db.query(User).filter(User.username == "backup-isolated-admin").one_or_none()
+            if actor is None:
+                actor = User(
+                    username="backup-isolated-admin",
+                    email="backup-isolated-admin@example.invalid",
+                    password_hash=password_source.password_hash,
+                    is_active=True,
+                    role_id=admin_role.id,
+                )
+                db.add(actor)
+            else:
+                actor.role_id = admin_role.id
+            db.commit()
         require(actor is not None, "isolated fixture has no active user")
         fake = FakeSupervisor()
         service = BackupRestoreService(db, fake)
@@ -158,7 +199,7 @@ def main() -> None:
         db.rollback()
 
         synced = service.create_schedule(daily.model_copy(update={"name": "synced", "enabled": True}), actor)
-        service.reconcile_schedules()
+        service.reconcile_pending()
         require(fake.reconciled[-1][0]["id"] == synced.id, "schedule reconciliation lost canonical ID")
         view = service.schedule_views()[0]
         require(view["sync_status"] == "synced" and view["host_enabled"], "host schedule status not projected")
@@ -222,13 +263,39 @@ def main() -> None:
             lambda: service.request_restore(checkpoint_path=preview["checkpoint_path"], mode="database", acknowledged=True, confirmation="PRZYWRÓĆ", actor=actor, current_revision=preview["current_db_revision"]),
             "production_restore_approval_required",
         )
-        require(db.query(BackupRun).count() == 0 and db.query(BackupSchedule).count() == 0, "test rollback leaked metadata")
+        db.query(BackupDeletionEvent).delete(synchronize_session=False)
+        db.query(ManagedBackup).delete(synchronize_session=False)
+        db.query(BackupPlanSyncEvent).delete(synchronize_session=False)
+        db.query(RestoreRun).delete(synchronize_session=False)
+        db.query(BackupRun).delete(synchronize_session=False)
+        db.query(BackupSchedule).delete(synchronize_session=False)
+        db.commit()
+        require(db.query(BackupRun).count() == 0 and db.query(BackupSchedule).count() == 0, "test cleanup leaked metadata")
 
         from fastapi.testclient import TestClient
         from app.core.security import create_access_token
         from app.main import app
 
         regular = db.query(User).join(User.role).filter(User.is_active.is_(True), User.role.has(name="User")).first()
+        if regular is None:
+            regular_role = db.query(Role).filter(Role.name == "User").one_or_none()
+            if regular_role is None:
+                regular_role = Role(name="User", description="Synthetic isolated test role")
+                db.add(regular_role)
+                db.flush()
+            regular = db.query(User).filter(User.username == "backup-isolated-user").one_or_none()
+            if regular is None:
+                regular = User(
+                    username="backup-isolated-user",
+                    email="backup-isolated-user@example.invalid",
+                    password_hash=actor.password_hash,
+                    is_active=True,
+                    role_id=regular_role.id,
+                )
+                db.add(regular)
+            else:
+                regular.role_id = regular_role.id
+            db.commit()
         require(regular is not None, "isolated fixture has no regular user")
         admin_token = create_access_token({"sub": actor.username, "auth_version": actor.auth_version})
         user_token = create_access_token({"sub": regular.username, "auth_version": regular.auth_version})

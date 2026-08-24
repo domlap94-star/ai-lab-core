@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 BackupScope = Literal["full", "database", "documents", "qdrant", "n8n_config"]
 BackupCadence = Literal["daily", "weekly", "monthly"]
+DestinationType = Literal["local_path", "removable_or_mounted_path", "network_path"]
+RetentionTrigger = Literal["after_successful_backup", "daily", "custom_schedule"]
 RestoreMode = Literal["database", "full"]
 
 
@@ -14,10 +16,22 @@ class BackupScheduleWrite(BaseModel):
     enabled: bool = False
     scope: BackupScope
     destination: str = Field(min_length=3, max_length=500)
+    destination_type: DestinationType = "local_path"
     cadence: BackupCadence
     local_time: time
     weekday: int | None = Field(None, ge=1, le=7)
     month_day: int | None = Field(None, ge=1, le=28)
+    auto_delete: bool = False
+    minimum_free_percent: int | None = Field(None, ge=0, le=95)
+    minimum_free_bytes: int | None = Field(None, ge=0)
+    minimum_backups_to_keep: int = Field(3, ge=1, le=1000)
+    keep_last_n: int | None = Field(None, ge=0, le=1000)
+    keep_days: int | None = Field(None, ge=0, le=36500)
+    preserve_weekly_count: int | None = Field(None, ge=0, le=520)
+    preserve_monthly_count: int | None = Field(None, ge=0, le=1200)
+    retention_trigger: RetentionTrigger = "after_successful_backup"
+    retention_local_time: time | None = None
+    retention_weekday: int | None = Field(None, ge=1, le=7)
 
     @field_validator("name", "destination")
     @classmethod
@@ -37,6 +51,12 @@ class BackupScheduleWrite(BaseModel):
             raise ValueError("Invalid cadence fields")
         if time(2, 0) <= self.local_time < time(3, 0):
             raise ValueError("backup_schedule_dst_unsafe_time")
+        if self.retention_trigger == "custom_schedule" and self.retention_local_time is None:
+            raise ValueError("backup_retention_custom_time_required")
+        if self.retention_trigger != "custom_schedule" and (
+            self.retention_local_time is not None or self.retention_weekday is not None
+        ):
+            raise ValueError("backup_retention_custom_fields_invalid")
         return self
 
 
@@ -46,7 +66,18 @@ class BackupScheduleRead(BackupScheduleWrite):
     next_run_at: datetime
     created_at: datetime
     updated_at: datetime
-    sync_status: Literal["synced", "pending_sync", "sync_failed"] = "pending_sync"
+    destination_identity: str | None = None
+    destination_filesystem: str | None = None
+    destination_status: Literal["unknown", "available", "unavailable"] = "unknown"
+    destination_last_seen_at: datetime | None = None
+    destination_total_bytes: int | None = None
+    destination_free_bytes: int | None = None
+    plan_revision: int = 1
+    last_reconciled_revision: int = 0
+    sync_status: Literal["pending", "synced", "error", "disabled", "destination_unavailable"] = "pending"
+    last_sync_at: datetime | None = None
+    last_sync_error_code: str | None = None
+    last_destination_check_at: datetime | None = None
     host_task_name: str | None = None
     host_enabled: bool = False
     host_next_run_at: datetime | None = None
@@ -61,6 +92,85 @@ class BackupRunRequest(BaseModel):
     scope: BackupScope
     destination: str = Field(default="C:\\ai-lab-core-backups", min_length=3, max_length=500)
     confirmed: bool
+
+
+class ManualBackupPreflightRequest(BaseModel):
+    scope: BackupScope
+    destination: str = Field(min_length=3, max_length=500)
+
+
+class ManualBackupPreflight(BaseModel):
+    normalized_destination: str
+    available: bool
+    writable: bool
+    total_bytes: int
+    free_bytes: int
+    estimated_required_bytes: int | None = None
+    token: str
+    expires_at: datetime
+
+
+class ManualBackupStartRequest(BaseModel):
+    scope: BackupScope
+    destination: str = Field(min_length=3, max_length=500)
+    preflight_token: str = Field(min_length=32, max_length=2048)
+    confirmed: bool
+
+
+class BackupReconcileResult(BaseModel):
+    processed: int
+    succeeded: int
+    failed: int
+    superseded: int
+
+
+class RetentionCandidate(BaseModel):
+    backup_id: str
+    created_at: datetime
+    total_bytes: int
+    protected: bool
+    eligible: bool
+    reason: str | None = None
+
+
+class RetentionPreview(BaseModel):
+    plan_id: int
+    current_total_bytes: int
+    current_free_bytes: int
+    required_free_bytes: int
+    predicted_backup_bytes: int
+    eligible_backups: list[RetentionCandidate]
+    ineligible_backups: list[RetentionCandidate]
+    proposed_deletions: list[RetentionCandidate]
+    predicted_reclaimed_bytes: int
+    predicted_final_free_bytes: int
+    blocked_reason: str | None = None
+
+
+class ManagedBackupRead(BaseModel):
+    id: int
+    backup_id: str
+    plan_id: int | None
+    destination_root: str
+    checkpoint_path: str
+    manifest_schema: str
+    scope: str
+    app_version: str
+    source_head: str
+    db_revision: str
+    artifact_count: int
+    total_bytes: int
+    integrity_status: str
+    protected: bool
+    lifecycle: str
+    error_code: str | None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class ManagedBackupDeleteRequest(BaseModel):
+    confirmed: bool
+    confirmation: str = Field(max_length=32)
 
 
 class BackupRunRead(BaseModel):

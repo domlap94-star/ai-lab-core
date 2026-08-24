@@ -13,7 +13,9 @@ function normalizeSchedule(input) {
   const localTime = String((input && input.local_time) || '');
   const weekday = input && input.weekday == null ? 0 : Number(input.weekday);
   const monthDay = input && input.month_day == null ? 0 : Number(input.month_day);
+  const planRevision = Number((input && input.plan_revision) || 1);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error('backup_schedule_id_invalid');
+  if (!Number.isSafeInteger(planRevision) || planRevision <= 0) throw new Error('backup_schedule_revision_invalid');
   if (typeof enabled !== 'boolean') throw new Error('backup_schedule_enabled_invalid');
   if (!SAFE_CADENCES.has(cadence)) throw new Error('backup_schedule_cadence_invalid');
   if (!/^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(localTime)) throw new Error('backup_schedule_time_invalid');
@@ -23,14 +25,14 @@ function normalizeSchedule(input) {
     (cadence === 'monthly' && weekday === 0 && monthDay >= 1 && monthDay <= 28);
   if (!fieldsValid) throw new Error('backup_schedule_cadence_fields_invalid');
   if (String(input.timezone_name || '') !== 'Europe/Warsaw') throw new Error('backup_schedule_timezone_invalid');
-  return { id, enabled, cadence, local_time: localTime, weekday, month_day: monthDay };
+  return { id, enabled, cadence, local_time: localTime, weekday, month_day: monthDay, plan_revision: planRevision };
 }
 
 function scriptArgs(projectDir, mode, schedule, expectedIds = []) {
   const script = path.join(projectDir, 'operations', 'hardening', 'reconcile-backup-schedule-task.ps1');
   const args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, '-Mode', mode, '-RepositoryRoot', projectDir];
   if (mode === 'Prune') args.push('-ExpectedScheduleIds', expectedIds.join(','));
-  else args.push('-ScheduleId', String(schedule.id), '-Enabled', String(schedule.enabled), '-Cadence', schedule.cadence,
+  else args.push('-ScheduleId', String(schedule.id), '-PlanRevision', String(schedule.plan_revision), '-Enabled', String(schedule.enabled), '-Cadence', schedule.cadence,
     '-LocalTime', schedule.local_time, '-Weekday', String(schedule.weekday), '-MonthDay', String(schedule.month_day));
   return args;
 }

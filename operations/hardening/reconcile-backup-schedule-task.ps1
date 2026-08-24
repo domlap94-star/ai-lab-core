@@ -5,6 +5,8 @@ param(
     [string]$Mode,
     [ValidateRange(1, 9223372036854775807)]
     [long]$ScheduleId = 1,
+    [ValidateRange(1, 2147483647)]
+    [int]$PlanRevision = 1,
     [ValidateSet("true", "false")]
     [string]$Enabled = "false",
     [ValidateSet("daily", "weekly", "monthly")]
@@ -24,7 +26,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
 
 $managedPrefix = "NEXT Stabil - Backup - "
-$managedMarker = "NEXT_STABIL_MANAGED_BACKUP_V1"
+$managedMarker = "NEXT_STABIL_MANAGED_BACKUP_V2"
+$legacyManagedMarker = "NEXT_STABIL_MANAGED_BACKUP_V1"
 $repo = (Resolve-Path -LiteralPath $RepositoryRoot).Path.TrimEnd('\')
 $runner = Join-Path $repo "operations\hardening\run-backup-schedule.ps1"
 $powerShell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
@@ -35,7 +38,7 @@ function ConvertTo-SafeXml([string]$Value) {
 }
 
 function Get-ExpectedDescription {
-    return "$managedMarker schedule_id=$ScheduleId cadence=$Cadence time=$LocalTime weekday=$Weekday month_day=$MonthDay"
+    return "$managedMarker schedule_id=$ScheduleId revision=$PlanRevision cadence=$Cadence time=$LocalTime weekday=$Weekday month_day=$MonthDay"
 }
 
 function Get-ExpectedArguments {
@@ -46,7 +49,8 @@ function Get-OwnedTask([string]$TaskName) {
     $task = Get-ScheduledTask -TaskName $TaskName -TaskPath "\" -ErrorAction SilentlyContinue
     if ($null -eq $task) { return $null }
     $action = @($task.Actions) | Select-Object -First 1
-    $owned = [string]$task.Description -like "$managedMarker*" -and
+    $description = [string]$task.Description
+    $owned = ($description -like "$managedMarker*" -or $description -like "$legacyManagedMarker*") -and
         [string]$action.Execute -ieq $powerShell -and
         [string]$action.Arguments -like "*-File `"$runner`" -ScheduleId *"
     if (-not $owned) { throw "backup_scheduler_unmanaged_task_collision" }

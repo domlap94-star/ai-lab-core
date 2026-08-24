@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,10 +8,6 @@ import '../../../core/formatters/polish_date_time.dart';
 import '../../auth/application/auth_controller.dart';
 import '../application/backup_providers.dart';
 import '../domain/backup_models.dart';
-
-const String _defaultBackupRoot =
-    r'C:\ai'
-    r'-lab-core-backups';
 
 class AdminBackupRestorePage extends ConsumerWidget {
   const AdminBackupRestorePage({super.key});
@@ -22,6 +20,7 @@ class AdminBackupRestorePage extends ConsumerWidget {
   void _refresh(WidgetRef ref) {
     ref.invalidate(backupSchedulesProvider);
     ref.invalidate(backupRunsProvider);
+    ref.invalidate(managedBackupsProvider);
     ref.invalidate(restoreCandidatesProvider);
     ref.invalidate(restoreRunsProvider);
   }
@@ -41,6 +40,7 @@ class AdminBackupRestorePage extends ConsumerWidget {
           await Future.wait(<Future<Object?>>[
             ref.read(backupSchedulesProvider.future),
             ref.read(backupRunsProvider.future),
+            ref.read(managedBackupsProvider.future),
             ref.read(restoreCandidatesProvider.future),
             ref.read(restoreRunsProvider.future),
           ]);
@@ -56,6 +56,8 @@ class AdminBackupRestorePage extends ConsumerWidget {
               const _ManualBackupSection(),
               const SizedBox(height: 16),
               const _SchedulesSection(),
+              const SizedBox(height: 16),
+              const _ManagedBackupsSection(),
               const SizedBox(height: 16),
               const _CheckpointsSection(),
               const SizedBox(height: 16),
@@ -116,11 +118,52 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
   bool _busy = false;
 
   Future<void> _run() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Manualny backup z wyborem lokalizacji jest dostępny na hoście Windows.',
+          ),
+        ),
+      );
+      return;
+    }
+    final selected = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Wybierz lokalizację backupu',
+    );
+    if (selected == null || !mounted) return;
+    final session = requireBackupSessionFromAuth(
+      ref.read(authControllerProvider),
+    );
+    late final ManualBackupPreflight preflight;
+    try {
+      preflight = await ref
+          .read(backupApiProvider)
+          .preflightManual(
+            session: session,
+            scope: _scope,
+            destination: selected,
+          );
+    } on DioException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _apiError(error, 'Wybrana lokalizacja nie przeszła kontroli.'),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Wykonać backup teraz?'),
-        content: Text('Zakres: ${_scope.label}\nCel: $_defaultBackupRoot'),
+        content: Text(
+          'Zakres: ${_scope.label}\nCel: ${preflight.destination}\nWolne miejsce: ${_bytes(preflight.freeBytes)}',
+        ),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -138,13 +181,7 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
     try {
       await ref
           .read(backupApiProvider)
-          .runNow(
-            session: requireBackupSessionFromAuth(
-              ref.read(authControllerProvider),
-            ),
-            scope: _scope,
-            destination: _defaultBackupRoot,
-          );
+          .startManualV2(session: session, scope: _scope, preflight: preflight);
       ref.invalidate(backupRunsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -246,13 +283,29 @@ class _SchedulesSection extends ConsumerWidget {
                         leading: Icon(
                           item.hostEnabled && item.syncStatus == 'synced'
                               ? Icons.schedule
-                              : item.syncStatus == 'sync_failed'
+                              : item.syncStatus == 'error' ||
+                                    item.syncStatus == 'destination_unavailable'
                               ? Icons.error_outline
                               : Icons.schedule_outlined,
                         ),
                         trailing: Wrap(
                           spacing: 4,
                           children: <Widget>[
+                            IconButton(
+                              tooltip: 'Podgląd retencji',
+                              onPressed: () =>
+                                  _previewRetention(context, ref, item),
+                              icon: const Icon(
+                                Icons.cleaning_services_outlined,
+                              ),
+                            ),
+                            if (item.syncStatus == 'error' ||
+                                item.syncStatus == 'pending')
+                              IconButton(
+                                tooltip: 'Ponów synchronizację',
+                                onPressed: () => _reconcile(ref),
+                                icon: const Icon(Icons.sync),
+                              ),
                             IconButton(
                               tooltip: 'Edytuj',
                               onPressed: () => _edit(context, ref, item: item),
@@ -284,7 +337,64 @@ class _SchedulesSection extends ConsumerWidget {
           requireBackupSessionFromAuth(ref.read(authControllerProvider)),
           item.id,
         );
+    await ref
+        .read(backupApiProvider)
+        .reconcileSchedules(
+          requireBackupSessionFromAuth(ref.read(authControllerProvider)),
+        );
     ref.invalidate(backupSchedulesProvider);
+  }
+
+  Future<void> _reconcile(WidgetRef ref) async {
+    await ref
+        .read(backupApiProvider)
+        .reconcileSchedules(
+          requireBackupSessionFromAuth(ref.read(authControllerProvider)),
+        );
+    ref.invalidate(backupSchedulesProvider);
+  }
+
+  Future<void> _previewRetention(
+    BuildContext context,
+    WidgetRef ref,
+    BackupSchedule item,
+  ) async {
+    try {
+      final preview = await ref
+          .read(backupApiProvider)
+          .retentionPreview(
+            requireBackupSessionFromAuth(ref.read(authControllerProvider)),
+            item.id,
+          );
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Podgląd retencji — bez usuwania'),
+          content: Text(
+            'Wolne: ${_bytes(preview.currentFreeBytes)}\n'
+            'Wymagana rezerwa: ${_bytes(preview.requiredFreeBytes)}\n'
+            'Proponowane usunięcia: ${preview.proposedDeletionCount}\n'
+            'Możliwe odzyskanie: ${_bytes(preview.predictedReclaimedBytes)}\n'
+            'Stan: ${preview.blockedReason ?? 'OK'}',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Zamknij'),
+            ),
+          ],
+        ),
+      );
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_apiError(error, 'Nie udało się obliczyć retencji.')),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _edit(
@@ -293,8 +403,17 @@ class _SchedulesSection extends ConsumerWidget {
     BackupSchedule? item,
   }) async {
     final name = TextEditingController(text: item?.name ?? 'Backup dzienny');
-    final destination = TextEditingController(
-      text: item?.destination ?? _defaultBackupRoot,
+    final destination = TextEditingController(text: item?.destination ?? '');
+    String destinationType = item?.destinationType ?? 'local_path';
+    bool autoDelete = item?.autoDelete ?? false;
+    final minimumFreePercent = TextEditingController(
+      text: item?.minimumFreePercent?.toString() ?? '10',
+    );
+    final minimumFreeBytes = TextEditingController(
+      text: item?.minimumFreeBytes?.toString() ?? '',
+    );
+    final minimumKeep = TextEditingController(
+      text: item?.minimumBackupsToKeep.toString() ?? '3',
     );
     BackupScope scope = item?.scope ?? BackupScope.full;
     String cadence = item?.cadence ?? 'daily';
@@ -320,6 +439,29 @@ class _SchedulesSection extends ConsumerWidget {
                 TextField(
                   controller: name,
                   decoration: const InputDecoration(labelText: 'Nazwa'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: destinationType,
+                  decoration: const InputDecoration(
+                    labelText: 'Typ miejsca docelowego',
+                  ),
+                  items: const <DropdownMenuItem<String>>[
+                    DropdownMenuItem(
+                      value: 'local_path',
+                      child: Text('Dysk lokalny'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'removable_or_mounted_path',
+                      child: Text('Dysk wymienny / zamontowany'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'network_path',
+                      child: Text('Ścieżka sieciowa / NAS'),
+                    ),
+                  ],
+                  onChanged: (value) => setDialogState(
+                    () => destinationType = value ?? destinationType,
+                  ),
                 ),
                 TextField(
                   controller: destination,
@@ -411,6 +553,36 @@ class _SchedulesSection extends ConsumerWidget {
                   onChanged: (value) => setDialogState(() => enabled = value),
                   title: const Text('Włącz harmonogram systemowy'),
                 ),
+                SwitchListTile(
+                  value: autoDelete,
+                  onChanged: (value) =>
+                      setDialogState(() => autoDelete = value),
+                  title: const Text('Automatyczne bezpieczne usuwanie'),
+                  subtitle: const Text(
+                    'Najstarsze kwalifikujące się backupy będą automatycznie usuwane zgodnie z zasadami tego planu.',
+                  ),
+                ),
+                TextField(
+                  controller: minimumFreePercent,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Minimalne wolne miejsce (%)',
+                  ),
+                ),
+                TextField(
+                  controller: minimumFreeBytes,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Minimalne wolne miejsce (bajty, opcjonalnie)',
+                  ),
+                ),
+                TextField(
+                  controller: minimumKeep,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Minimalna liczba backupów do zachowania',
+                  ),
+                ),
               ],
             ),
           ),
@@ -441,12 +613,26 @@ class _SchedulesSection extends ConsumerWidget {
               'enabled': enabled,
               'scope': scope.wireName,
               'destination': destination.text.trim(),
+              'destination_type': destinationType,
               'cadence': cadence,
               'local_time':
                   '${localTime.hour.toString().padLeft(2, '0')}:${localTime.minute.toString().padLeft(2, '0')}:00',
               'weekday': cadence == 'weekly' ? weekday : null,
               'month_day': cadence == 'monthly' ? monthDay : null,
+              'auto_delete': autoDelete,
+              'minimum_free_percent': int.tryParse(
+                minimumFreePercent.text.trim(),
+              ),
+              'minimum_free_bytes': int.tryParse(minimumFreeBytes.text.trim()),
+              'minimum_backups_to_keep':
+                  int.tryParse(minimumKeep.text.trim()) ?? 3,
+              'retention_trigger': 'after_successful_backup',
             },
+          );
+      await ref
+          .read(backupApiProvider)
+          .reconcileSchedules(
+            requireBackupSessionFromAuth(ref.read(authControllerProvider)),
           );
       ref.invalidate(backupSchedulesProvider);
     } on DioException catch (error) {
@@ -456,6 +642,96 @@ class _SchedulesSection extends ConsumerWidget {
             content: Text(
               _apiError(error, 'Nie udało się zsynchronizować harmonogramu.'),
             ),
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _ManagedBackupsSection extends ConsumerWidget {
+  const _ManagedBackupsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final backups = ref.watch(managedBackupsProvider);
+    return _Section(
+      title: 'Zarządzane backupy V2',
+      child: backups.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (_, _) => const Text('Nie udało się pobrać katalogu backupów.'),
+        data: (items) => items.isEmpty
+            ? const Text(
+                'Brak zarządzanych backupów. Historyczne backupy V1 nie są automatycznie adoptowane.',
+              )
+            : Column(
+                children: items
+                    .map(
+                      (item) => ListTile(
+                        title: Text(_date(item.createdAt)),
+                        subtitle: Text(
+                          '${item.destinationRoot}\n'
+                          '${_bytes(item.totalBytes)} • ${item.appVersion} • '
+                          '${item.integrityStatus} • ${item.lifecycle}',
+                        ),
+                        leading: Icon(
+                          item.integrityStatus == 'verified'
+                              ? Icons.verified_outlined
+                              : Icons.warning_amber_outlined,
+                        ),
+                        trailing: item.lifecycle == 'available'
+                            ? IconButton(
+                                tooltip: 'Usuń zarządzany backup',
+                                onPressed: () => _delete(context, ref, item),
+                                icon: const Icon(Icons.delete_outline),
+                              )
+                            : null,
+                      ),
+                    )
+                    .toList(),
+              ),
+      ),
+    );
+  }
+
+  Future<void> _delete(
+    BuildContext context,
+    WidgetRef ref,
+    ManagedBackup item,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Usuń zarządzany backup?'),
+        content: Text(
+          '${_date(item.createdAt)}\n${item.destinationRoot}\n${_bytes(item.totalBytes)}',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Usuń backup'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref
+          .read(backupApiProvider)
+          .deleteManagedBackup(
+            requireBackupSessionFromAuth(ref.read(authControllerProvider)),
+            item.id,
+          );
+      ref.invalidate(managedBackupsProvider);
+    } on DioException catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_apiError(error, 'Nie udało się usunąć backupu.')),
           ),
         );
       }
@@ -801,7 +1077,9 @@ String _syncLabel(BackupSchedule item) {
   if (!item.enabled && item.syncStatus == 'synced') return 'Wyłączony';
   return switch (item.syncStatus) {
     'synced' => item.hostEnabled ? 'Aktywny' : 'Wyłączony',
-    'sync_failed' => 'Błąd synchronizacji',
+    'error' => 'Błąd synchronizacji',
+    'disabled' => 'Wyłączony',
+    'destination_unavailable' => 'Miejsce docelowe niedostępne',
     _ => 'Oczekuje na synchronizację',
   };
 }
@@ -827,6 +1105,8 @@ String _apiError(DioException error, String fallback) {
     'operation_conflict' => 'Trwa inna operacja backupu lub przywracania.',
     'backup_destination_active_path' =>
       'Cel backupu nie może znajdować się w repozytorium ani aktywnych danych.',
+    'backup_retention_delete_approval_required' =>
+      'Usuwanie istniejących backupów wymaga osobnej zgody właściciela.',
     'backup_schedule_dst_unsafe_time' =>
       'Godziny 02:00–02:59 są niedostępne z powodu zmiany czasu CET/CEST.',
     'backup_supervisor_unavailable' || 'backup_scheduler_host_failure' =>

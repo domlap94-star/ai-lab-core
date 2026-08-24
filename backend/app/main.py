@@ -11,6 +11,7 @@ from app.database.init_db import init_database
 from app.core.config import settings
 from app.services.vision_dispatcher import start_vision_dispatcher
 from app.services.knowledge_base_dispatcher import start_knowledge_base_dispatcher
+from app.services.backup_plan_reconciler import start_backup_plan_reconciler
 
 
 logger = logging.getLogger("ai_lab")
@@ -52,6 +53,7 @@ async def lifespan(app: FastAPI):
 
     vision_task = start_vision_dispatcher()
     knowledge_base_task = start_knowledge_base_dispatcher()
+    backup_plan_task = start_backup_plan_reconciler()
     logger.info("Application started.")
     yield
     if vision_task is not None:
@@ -66,6 +68,11 @@ async def lifespan(app: FastAPI):
             await knowledge_base_task
         except asyncio.CancelledError:
             pass
+    backup_plan_task.cancel()
+    try:
+        await backup_plan_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Application shutdown.")
 
 

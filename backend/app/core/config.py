@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     backup_root: str = "C:\\ai-lab-core-backups"
     backup_release_version: str = "1.0.2+29"
     production_restore_enabled: bool = False
+    # Remains false until FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED.
+    backup_retention_delete_enabled: bool = False
 
     @computed_field
     @property

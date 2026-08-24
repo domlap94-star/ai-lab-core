@@ -5,7 +5,7 @@ const { EventEmitter } = require('events');
 const { normalizeSchedule, scriptArgs, validateScheduleList, reconcileSchedules } = require('./backup_scheduler');
 
 function schedule(overrides = {}) {
-  return { id: 7, enabled: true, cadence: 'daily', local_time: '03:00:00', weekday: null, month_day: null, timezone_name: 'Europe/Warsaw', ...overrides };
+  return { id: 7, plan_revision: 3, enabled: true, cadence: 'daily', local_time: '03:00:00', weekday: null, month_day: null, timezone_name: 'Europe/Warsaw', ...overrides };
 }
 
 function fakeSpawn(records) {
@@ -27,6 +27,7 @@ function fakeSpawn(records) {
   assert.throws(() => validateScheduleList(Array.from({ length: 11 }, (_, index) => schedule({ id: index + 1 }))), /list_invalid/);
   const args = scriptArgs('C:\\ai-lab-core', 'Apply', normalizeSchedule(schedule()));
   assert(args.includes('-ScheduleId') && args.includes('7'));
+  assert(args.includes('-PlanRevision') && args.includes('3'));
   assert(!args.some((item) => item.includes('destination') || item.includes('secret')));
   const records = [];
   await reconcileSchedules('C:\\ai-lab-core', [schedule()], fakeSpawn(records));

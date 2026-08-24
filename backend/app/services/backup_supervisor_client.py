@@ -43,6 +43,12 @@ class BackupSupervisorClient:
     def reconcile_schedules(self, schedules: list[dict]) -> dict:
         return self._request("POST", "/backup/schedules/reconcile", {"schedules": schedules})
 
+    def destination_preflight(self, destination: str) -> dict:
+        return self._request("POST", "/backup/destinations/preflight", {"destination": destination})
+
+    def delete_managed_backup(self, payload: dict) -> dict:
+        return self._request("POST", "/backup/managed/delete", payload)
+
     def _request(self, method: str, path: str, payload: dict | None = None) -> dict:
         body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
         request = Request(

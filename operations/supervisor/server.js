@@ -10,6 +10,7 @@ const { AnalysisQueue } = require('./analysis_queue');
 const { TemporaryChatArbiter } = require('./temporary_chat_arbiter');
 const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
 const { previewSchedules, reconcileSchedules } = require('./backup_scheduler');
+const { normalizeDestination, destinationPreflight, deleteManagedBackup } = require('./backup_storage');
 
 const qdrantSnapshotValidationCache = new Map();
 
@@ -142,18 +143,7 @@ function authorizeBackup(req) {
 }
 
 function validateBackupDestination(value) {
-  const raw = String(value || '').trim().replace(/\//g, '\\');
-  if (!/^[A-Za-z]:\\/.test(raw) || raw.split('\\').includes('..')) {
-    throw new Error('backup_destination_invalid');
-  }
-  const resolved = path.win32.resolve(raw).replace(/[\\]+$/, '');
-  const lower = resolved.toLowerCase();
-  const repo = path.win32.resolve(PROJECT_DIR).replace(/[\\]+$/, '').toLowerCase();
-  const data = path.win32.join(repo, 'data').toLowerCase();
-  if (lower === repo || lower.startsWith(`${repo}\\`) || lower === data || lower.startsWith(`${data}\\`)) {
-    throw new Error('backup_destination_active_path');
-  }
-  return resolved;
+  return normalizeDestination(value, PROJECT_DIR);
 }
 
 function safeJoinCheckpoint(checkpoint, relative) {
@@ -264,6 +254,8 @@ async function verifyCheckpoint(checkpoint) {
     compatibility,
     error_code: restoreErrorCode,
     manifest_path: manifestPath,
+    manifest_schema: manifest.schema_version,
+    manifest_sha256: await hashFile(manifestPath),
   };
 }
 
@@ -649,6 +641,16 @@ async function handle(req, res) {
         const payload = await readJsonBody(req);
         if (!Array.isArray(payload.destinations)) throw new Error('backup_destinations_invalid');
         sendJson(res, 200, { items: await discoverCheckpoints(payload.destinations) });
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/destinations/preflight') {
+        const payload = await readJsonBody(req);
+        sendJson(res, 200, destinationPreflight(payload.destination, PROJECT_DIR));
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/managed/delete') {
+        const payload = await readJsonBody(req);
+        sendJson(res, 200, deleteManagedBackup(payload, PROJECT_DIR, activeBackupOperationId));
         return;
       }
       if (req.method === 'POST' && requestUrl.pathname === '/backup/schedules/preview') {

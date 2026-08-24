@@ -42,20 +42,23 @@ transient/non-reproducible Dio unknown transport condition.
 CHUNK 17 is complete and production advanced analysis remains enabled under
 mandatory local-first/privacy/post-validation rules. CHUNK 18 design/benchmark
 is complete with customer-vector backfill NOT RECOMMENDED / NOT APPROVED / NOT
-PERFORMED; CHUNK 19 was completed early under CHUNK 15. Production DB remains
-`followup_contact_person_20260822`; customer Qdrant remains 57 points and the
+PERFORMED; CHUNK 19 was completed early under CHUNK 15. Production DB is
+`followup_backup_planner_retention_20260824`; customer Qdrant remains 57 points and the
 healthy KB collection remains at 0. `FOLLOWUP_QDRANT_BACKFILL_APPROVAL_REQUIRED`
 is unconsumed. Phase F is IN PROGRESS. CHUNK 20 is COMPLETE after its
 comprehensive audit, bounded source fixes, public-header rollout, login
 throttling, owner-approved 22-target ACL acceptance and authenticated +29 Web
-Dashboard smoke. CHUNK 21 is COMPLETE. CHUNK 22 is IN PROGRESS / BACKUP PLANNER
-SCHEMA APPROVAL REQUIRED: Android System Control incorrectly treated
-private-Supervisor unreachability as offline and still awaits its same-device
-physical recheck. The owner-expanded Backup Planner audit proved that durable
-destination/retention policy, transactional task reconciliation, managed backup
-ownership and deletion journaling require an additive schema migration. No
-migration, production schedule mutation or backup deletion occurred; work is
-stopped at `FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`.
+Dashboard smoke. CHUNK 21 is COMPLETE. CHUNK 22 is IN PROGRESS / PHYSICAL
+SYSTEM CONTROL RECHECK REQUIRED. The owner consumed the reviewed Backup Planner
+schema gate. Additive revision `followup_backup_planner_retention_20260824`
+passed isolated upgrade/downgrade/re-upgrade and is the production head.
+Revisioned outbox reconciliation, three unique V2-owned enabled tasks plus one
+disabled plan, Windows manual picker/preflight, independent plans, managed
+catalog, retention dry-run and synthetic deletion controls pass. Four schedule
+IDs/semantics, seven historical runs and all V1 backup files are preserved;
+managed/deletion ledgers remain empty. Real deletion is disabled pending
+`FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED`. The signed non-stable
+Android +30 candidate awaits same-device System Control physical acceptance.
 PRE-CHUNK23 AI Assistant reconstruction + installed-model
 qualification design/benchmark is complete and blocks CHUNK23, which remains
 NOT STARTED. All four installed generative models completed the frozen 50-case
@@ -165,10 +168,10 @@ normalized payload/installer builds, raw manual login/Dashboard, installed
 session-restored Dashboard and zero-new-WDAC-event proof all pass. Stable and
 the release channel remain unchanged. Publisher/manifest signing implementation
 remains unconsumed under `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`.
-CHUNK 22 is IN PROGRESS / BACKUP PLANNER SCHEMA APPROVAL REQUIRED and Release F
-was not started. The migration design is in
-`FOLLOWUP_BACKUP_PLANNER_RETENTION_REPORT.md`; the same-device System Control
-recheck remains pending. Evidence for CHUNK21 is in
+CHUNK 22 is IN PROGRESS / PHYSICAL SYSTEM CONTROL RECHECK REQUIRED and Release
+F was not started. The approved planner implementation is documented in
+`FOLLOWUP_BACKUP_PLANNER_RETENTION_REPORT.md`; the same-device +30 System
+Control recheck remains pending. Evidence for CHUNK21 is in
 `FOLLOWUP_CHUNK21_WINDOWS_REPRODUCIBILITY_REPORT.md`.
 
 Historical release state:

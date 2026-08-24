@@ -4,16 +4,20 @@ Date: 2026-08-24
 
 Source HEAD: `ca27b7d1e4c0a4ac2b41013db1d6ebaa3d36b1ad`
 
-Production DB head: `followup_contact_person_20260822`
+Production DB head at design gate: `followup_contact_person_20260822`
 
-Decision: `FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+Current production DB head: `followup_backup_planner_retention_20260824`
+
+Current decision: `CHUNK22_PHYSICAL_RECHECK_REQUIRED`
 
 ## Safety result
 
-The requested multi-destination planner, durable scheduler reconciliation,
-managed-backup history and auditable retention cannot be implemented safely in
-the current schema. This report is a design only. No migration was created or
-applied, no production schedule was changed, and no backup was deleted.
+The original audit proved that the requested multi-destination planner,
+durable scheduler reconciliation, managed-backup history and auditable
+retention could not be implemented safely in the former schema. The owner
+subsequently consumed `FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+for the exact additive design. The implementation and production migration are
+now complete; the original design and gate evidence below are retained.
 
 The migration must be additive. Existing schedule rows, backup/restore runs and
 `NEXT_STABIL_BACKUP_V1` manifests remain valid. There is no historical rewrite
@@ -269,15 +273,46 @@ No real production backup deletion is needed for acceptance.
 
 ## Gate and roadmap effect
 
-CHUNK22 remains `IN PROGRESS / BACKUP PLANNER SCHEMA APPROVAL REQUIRED` and its
-physical System Control recheck remains pending. CHUNK23 is BLOCKED / NOT
-STARTED. Stable remains NEXT Stabil `1.0.2+29`; Release F is NOT STARTED.
+CHUNK22 remains `IN PROGRESS / PHYSICAL SYSTEM CONTROL RECHECK REQUIRED`.
+CHUNK23 is BLOCKED / NOT STARTED. Stable remains NEXT Stabil `1.0.2+29`;
+Release F is NOT STARTED.
 
 CHUNK24 is not silently marked complete. After the approved CHUNK22 planner and
 retention implementation passes, its overlapping retention implementation will
 be removed and CHUNK24 will retain broader alert delivery/channel integration
 and future policy enhancements only.
 
-Required next token:
+## Approved implementation result — 2026-08-24
 
-`FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+- Migration `followup_backup_planner_retention_20260824`, parent
+  `followup_contact_person_20260822`, passed isolated upgrade, downgrade and
+  re-upgrade with both synthetic schedule IDs/data preserved.
+- Production migration applied successfully. Four production schedule IDs and
+  cadence/destination/enabled semantics were preserved; `auto_delete=false`,
+  minimum keep `3`, plan revision `1`, managed catalog `0`, deletion journal
+  `0`, and seven historical runs remain unchanged.
+- The transactional outbox commits plan/revision before projection. Restart
+  reconciliation, failed-event retry, newer-revision supersession and delete
+  tombstone retry pass deterministic tests. Three enabled tasks are V2-owned,
+  Ready, `domai`/Limited, and unique; the disabled fourth plan has no task.
+- Manual V2 uses a Windows native folder picker, has zero API calls on cancel,
+  and binds a five-minute HMAC preflight token to user/scope/normalized path.
+  Android/Web remain host-only and the deployed legacy endpoint is retained.
+- Managed registration requires verified manifest discovery. Retention dry-run
+  is oldest-first, respects protected/minimum-count/age/current exclusions and
+  reports `RETENTION_BLOCKED_INSUFFICIENT_SPACE` when the reserve cannot be
+  restored safely.
+- Synthetic file and directory deletion fixtures prove manifest/root/hash,
+  unmanaged-file, wrong-root, cross-plan and reparse controls plus actual-byte
+  journaling. Existing production files were not deleted or adopted.
+- Real managed-backup deletion remains fail-closed because
+  `BACKUP_RETENTION_DELETE_ENABLED=false` by default and
+  `FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` is unconsumed.
+- Backend/planner/legacy/security/System Control, Node/PowerShell, Flutter
+  analyze, focused Backup UI and full Flutter `293/293` gates pass.
+- Non-stable signed Android candidate `1.0.2+30` was built from this source for
+  the same-device recheck. ADB reported no attached physical device, so CHUNK22
+  cannot yet be marked complete.
+
+Required next action: install the +30 non-stable candidate over +29 without
+uninstall/data clear and complete the owner physical System Control sequence.

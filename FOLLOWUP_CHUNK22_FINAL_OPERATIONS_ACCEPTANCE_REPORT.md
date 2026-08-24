@@ -1,4 +1,4 @@
-# CHUNK22 final operations acceptance — schema-gated checkpoint
+# CHUNK22 final operations acceptance — planner implemented, physical pending
 
 Date: 2026-08-24
 
@@ -6,7 +6,7 @@ Source HEAD at audit: `ca27b7d1e4c0a4ac2b41013db1d6ebaa3d36b1ad`
 
 Stable: NEXT Stabil `1.0.2+29`
 
-State: `CHUNK22 IN PROGRESS / BACKUP PLANNER SCHEMA APPROVAL REQUIRED`
+State: `CHUNK22 IN PROGRESS / PHYSICAL SYSTEM CONTROL RECHECK REQUIRED`
 
 ## Follow-up state
 
@@ -80,7 +80,9 @@ mandatory. Existing V1 checkpoints are not automatically adopted.
 - backend health: PASS
 - Supervisor health: PASS
 - public gateway health: PASS
-- production DB: `followup_contact_person_20260822` (head; pending migrations 0)
+- production DB at schema gate: `followup_contact_person_20260822`; current
+  head after approved apply: `followup_backup_planner_retention_20260824`
+  (pending migrations 0)
 - customer Qdrant: green, 57 points
 - Knowledge Base Qdrant: green, 0 points
 - scheduler projection test: PASS
@@ -96,12 +98,30 @@ mandatory. Existing V1 checkpoints are not automatically adopted.
 - real-customer Temporary Chat/Vision: 0
 - stable manifest/release writes: 0
 
-## Decision
+## Approved planner implementation checkpoint
 
-`BACKUP_PLANNER_SCHEMA_APPROVAL_REQUIRED`
+The schema approval was consumed for revision
+`followup_backup_planner_retention_20260824`. Its isolated upgrade/downgrade/
+re-upgrade proof passed, then production advanced to that exact head. Existing
+schedule rows remain 4, existing backup runs remain 7, managed backups are 0,
+deletion events are 0, and no historical V1 checkpoint was rewritten/adopted.
 
-Required owner token:
+Durable outbox reconciliation is revision-aware and restart-driven. The three
+enabled V2-owned tasks are Ready with last result 0; the disabled fourth plan
+has no task. Manual V2 destination preflight/picker, independent planner
+policies, managed catalog, dry-run retention and synthetic-only deletion safety
+are implemented. Real deletion remains blocked by the unconsumed
+`FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` gate.
 
-`FOLLOWUP_BACKUP_PLANNER_SCHEMA_MIGRATION_APPROVAL_REQUIRED`
+Flutter analyze, focused Backup UI and full `293/293` pass. Backend planner,
+legacy Backup/Restore, security/auth, System Control, scheduler, storage and
+PowerShell checks pass. Backend/Supervisor/arbiter and Qdrant 57/0 remain
+healthy.
 
-CHUNK22 is not complete. Do not start CHUNK23 or Release F.
+The signed non-stable Android `1.0.2+30` candidate was built, but ADB has no
+attached physical device. CHUNK22 is therefore not complete. Exact next action:
+same-device install over +29 with data preserved, followed by Backend,
+Supervisor, NEXT Stabil, refresh, network recovery, session restoration,
+logout/login and force-close/reopen acceptance.
+
+Decision: `CHUNK22_PHYSICAL_RECHECK_REQUIRED`. Do not start CHUNK23 or Release F.

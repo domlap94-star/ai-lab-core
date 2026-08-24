@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.database.session import SessionLocal
-from app.models.backup_operation import BackupRun, BackupSchedule
+from app.models.backup_operation import BackupRun, BackupSchedule, ManagedBackup
 from app.models.user import User
 from app.schemas.admin_backup import BackupScheduleWrite
 from app.services.backup_restore_service import BackupRestoreService
@@ -19,10 +19,22 @@ def _payload(item: BackupSchedule) -> BackupScheduleWrite:
         enabled=item.enabled,
         scope=item.scope,
         destination=item.destination,
+        destination_type=item.destination_type,
         cadence=item.cadence,
         local_time=item.local_time,
         weekday=item.weekday,
         month_day=item.month_day,
+        auto_delete=item.auto_delete,
+        minimum_free_percent=item.minimum_free_percent,
+        minimum_free_bytes=item.minimum_free_bytes,
+        minimum_backups_to_keep=item.minimum_backups_to_keep,
+        keep_last_n=item.keep_last_n,
+        keep_days=item.keep_days,
+        preserve_weekly_count=item.preserve_weekly_count,
+        preserve_monthly_count=item.preserve_monthly_count,
+        retention_trigger=item.retention_trigger,
+        retention_local_time=item.retention_local_time,
+        retention_weekday=item.retention_weekday,
     )
 
 
@@ -32,6 +44,7 @@ def start_due_schedule(db: Session, schedule_id: int) -> int:
     schedule = (
         db.query(BackupSchedule)
         .filter(BackupSchedule.id == schedule_id)
+        .filter(BackupSchedule.deleted_at.is_(None))
         .with_for_update()
         .one_or_none()
     )
@@ -39,12 +52,49 @@ def start_due_schedule(db: Session, schedule_id: int) -> int:
         raise RuntimeError("backup_schedule_not_found")
     if not schedule.enabled:
         raise RuntimeError("backup_schedule_disabled")
+    if schedule.last_reconciled_revision != schedule.plan_revision:
+        raise RuntimeError("backup_schedule_not_reconciled")
     now = datetime.now(timezone.utc)
     if schedule.next_run_at > now + timedelta(seconds=60):
         raise RuntimeError("backup_schedule_not_due")
     actor = db.get(User, schedule.updated_by_user_id)
     if actor is None:
         raise RuntimeError("backup_schedule_actor_missing")
+    try:
+        host = service.destination_preflight(schedule.destination)
+    except Exception:
+        schedule.destination_status = "unavailable"
+        schedule.last_destination_check_at = now
+        schedule.sync_status = "destination_unavailable"
+        db.commit()
+        raise RuntimeError("backup_destination_unavailable")
+    schedule.destination_status = "available" if host.get("available") and host.get("writable") else "unavailable"
+    schedule.destination_identity = host.get("destination_identity")
+    schedule.destination_filesystem = host.get("destination_filesystem")
+    schedule.destination_total_bytes = host.get("total_bytes")
+    schedule.destination_free_bytes = host.get("free_bytes")
+    schedule.last_destination_check_at = now
+    if schedule.destination_status != "available":
+        schedule.sync_status = "destination_unavailable"
+        db.commit()
+        raise RuntimeError("backup_destination_unavailable")
+    predicted_bytes = (
+        db.query(ManagedBackup.total_bytes)
+        .filter(ManagedBackup.plan_id == schedule.id, ManagedBackup.lifecycle == "available")
+        .order_by(ManagedBackup.created_at.desc())
+        .limit(1)
+        .scalar()
+        or 0
+    )
+    retention = service.retention_preview(schedule, predicted_backup_bytes=int(predicted_bytes))
+    if retention["blocked_reason"]:
+        raise RuntimeError(retention["blocked_reason"])
+    if retention["proposed_deletions"]:
+        if not schedule.auto_delete:
+            raise RuntimeError("backup_retention_operator_action_required")
+        # Selection is implemented, but deletion of real managed backups stays
+        # fail-closed until its separate owner approval is consumed.
+        raise RuntimeError("backup_retention_delete_approval_required")
     run = service.start_backup(
         scope=schedule.scope,
         destination=schedule.destination,

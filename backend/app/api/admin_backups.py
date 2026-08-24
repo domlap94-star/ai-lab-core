@@ -5,14 +5,21 @@ from sqlalchemy.orm import Session
 
 from app.api.admin_users import require_admin
 from app.database.session import get_db
-from app.models.backup_operation import BackupRun, BackupSchedule, RestoreRun
+from app.models.backup_operation import BackupRun, BackupSchedule, ManagedBackup, RestoreRun
 from app.models.user import User
 from app.schemas.admin_backup import (
     BackupRunPage,
     BackupRunRead,
     BackupRunRequest,
+    BackupReconcileResult,
     BackupScheduleRead,
     BackupScheduleWrite,
+    ManagedBackupDeleteRequest,
+    ManagedBackupRead,
+    ManualBackupPreflight,
+    ManualBackupPreflightRequest,
+    ManualBackupStartRequest,
+    RetentionPreview,
     RestoreCandidate,
     RestorePreview,
     RestorePreviewRequest,
@@ -60,11 +67,8 @@ def create_schedule(
     try:
         service = BackupRestoreService(db)
         item = service.create_schedule(payload, actor)
-        service.reconcile_schedules()
         db.commit(); db.refresh(item)
-        return BackupScheduleRead.model_validate(
-            next(view for view in service.schedule_views() if view["id"] == item.id)
-        )
+        return BackupScheduleRead.model_validate(next(view for view in service.schedule_views() if view["id"] == item.id))
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
     except IntegrityError as error:
@@ -84,7 +88,6 @@ def update_schedule(
     try:
         service = BackupRestoreService(db)
         item = service.update_schedule(item, payload, actor)
-        service.reconcile_schedules()
         db.commit(); db.refresh(item)
         return BackupScheduleRead.model_validate(next(view for view in service.schedule_views() if view["id"] == item.id))
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
@@ -105,8 +108,17 @@ def delete_schedule(
     service = BackupRestoreService(db)
     try:
         service.delete_schedule(item)
-        service.reconcile_schedules()
         db.commit()
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.rollback(); raise map_error(error) from error
+
+
+@router.post("/schedules/reconcile", response_model=BackupReconcileResult)
+def reconcile_schedules(
+    _: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> BackupReconcileResult:
+    try:
+        return BackupReconcileResult.model_validate(BackupRestoreService(db).reconcile_pending())
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
 
@@ -127,6 +139,84 @@ def run_backup(
         return BackupRunRead.model_validate(run)
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
+
+
+@router.post("/manual-v2/preflight", response_model=ManualBackupPreflight)
+def manual_backup_preflight(
+    payload: ManualBackupPreflightRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> ManualBackupPreflight:
+    try:
+        token, expires, host = BackupRestoreService(db).issue_preflight_token(
+            user_id=actor.id, scope=payload.scope, destination=payload.destination
+        )
+        return ManualBackupPreflight(
+            normalized_destination=host["normalized_destination"],
+            available=bool(host["available"]), writable=bool(host["writable"]),
+            total_bytes=int(host.get("total_bytes") or 0), free_bytes=int(host.get("free_bytes") or 0),
+            estimated_required_bytes=host.get("estimated_required_bytes"), token=token, expires_at=expires,
+        )
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/manual-v2/run", response_model=BackupRunRead, status_code=status.HTTP_202_ACCEPTED)
+def run_manual_backup_v2(
+    payload: ManualBackupStartRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> BackupRunRead:
+    if not payload.confirmed:
+        raise HTTPException(status_code=422, detail={"code": "backup_confirmation_required"})
+    try:
+        service = BackupRestoreService(db)
+        destination = service.verify_preflight_token(
+            token=payload.preflight_token, user_id=actor.id, scope=payload.scope, destination=payload.destination
+        )
+        run = service.start_backup(scope=payload.scope, destination=destination, actor=actor)
+        db.commit(); db.refresh(run)
+        return BackupRunRead.model_validate(run)
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.rollback(); raise map_error(error) from error
+
+
+@router.get("/managed", response_model=list[ManagedBackupRead])
+def managed_backups(
+    _: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> list[ManagedBackupRead]:
+    return [ManagedBackupRead.model_validate(item) for item in BackupRestoreService(db).list_managed_backups()]
+
+
+@router.get("/schedules/{schedule_id}/retention-preview", response_model=RetentionPreview)
+def retention_preview(
+    schedule_id: int, predicted_backup_bytes: int = Query(0, ge=0),
+    _: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> RetentionPreview:
+    item = db.get(BackupSchedule, schedule_id)
+    if item is None or item.deleted_at is not None:
+        raise HTTPException(status_code=404, detail={"code": "backup_schedule_not_found"})
+    try:
+        return RetentionPreview.model_validate(BackupRestoreService(db).retention_preview(item, predicted_backup_bytes))
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/managed/{managed_backup_id}/delete", status_code=status.HTTP_202_ACCEPTED)
+def delete_managed_backup(
+    managed_backup_id: int, payload: ManagedBackupDeleteRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> dict:
+    if not payload.confirmed or payload.confirmation != "USUŃ BACKUP":
+        raise HTTPException(status_code=422, detail={"code": "managed_backup_confirmation_required"})
+    item = db.get(ManagedBackup, managed_backup_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail={"code": "managed_backup_not_found"})
+    try:
+        event = BackupRestoreService(db).delete_managed_backup(item, actor)
+        db.commit(); db.refresh(event)
+        return {"event_id": event.id, "status": event.status, "actual_reclaimed_bytes": event.actual_reclaimed_bytes}
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.commit()
+        raise map_error(error) from error
 
 
 @router.get("/runs", response_model=BackupRunPage)
