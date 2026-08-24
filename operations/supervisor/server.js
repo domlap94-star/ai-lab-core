@@ -11,8 +11,10 @@ const { TemporaryChatArbiter } = require('./temporary_chat_arbiter');
 const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
 const { previewSchedules, reconcileSchedules } = require('./backup_scheduler');
 const { normalizeDestination, destinationPreflight, deleteManagedBackup } = require('./backup_storage');
+const { controlledDockerArgs } = require('./system_control');
 
 const qdrantSnapshotValidationCache = new Map();
+const checkpointVerificationCache = new Map();
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.AI_LAB_SUPERVISOR_PORT || '8787');
@@ -185,6 +187,18 @@ async function verifyCheckpoint(checkpoint) {
   if (manifest.schema_version !== 'NEXT_STABIL_BACKUP_V1' || !Array.isArray(manifest.artifacts)) {
     throw new Error('backup_manifest_invalid');
   }
+  const manifestSha256 = await hashFile(manifestPath);
+  const fingerprintParts = [manifestSha256];
+  for (const artifact of manifest.artifacts) {
+    const filePath = safeJoinCheckpoint(checkpoint, artifact.file);
+    const stats = fs.statSync(filePath);
+    fingerprintParts.push(`${String(artifact.file)}|${stats.size}|${stats.mtimeMs}`);
+  }
+  const fingerprint = crypto.createHash('sha256').update(fingerprintParts.join('\n')).digest('hex');
+  const cacheKey = path.win32.normalize(checkpoint).toLowerCase();
+  const cached = checkpointVerificationCache.get(cacheKey);
+  if (cached && cached.fingerprint === fingerprint) return { ...cached.result };
+
   let totalBytes = 0;
   const components = [];
   for (const artifact of manifest.artifacts) {
@@ -236,7 +250,7 @@ async function verifyCheckpoint(checkpoint) {
   else if (fullArtifactsPresent && !qdrantRestoreVerified) {
     restoreErrorCode = String(manifest.qdrant_restore_error_code || 'qdrant_restore_verification_required');
   }
-  return {
+  const result = {
     checkpoint_path: checkpoint,
     created_at: manifest.created_at,
     scope: manifest.scope || 'full',
@@ -255,29 +269,134 @@ async function verifyCheckpoint(checkpoint) {
     error_code: restoreErrorCode,
     manifest_path: manifestPath,
     manifest_schema: manifest.schema_version,
-    manifest_sha256: await hashFile(manifestPath),
+    manifest_sha256: manifestSha256,
+  };
+  if (checkpointVerificationCache.size >= 200) {
+    checkpointVerificationCache.delete(checkpointVerificationCache.keys().next().value);
+  }
+  checkpointVerificationCache.set(cacheKey, { fingerprint, result });
+  return { ...result };
+}
+
+async function inventoryCheckpoint(checkpoint) {
+  const manifestPath = path.win32.join(checkpoint, 'backup-manifest.json');
+  if (!fs.existsSync(manifestPath)) throw new Error('backup_manifest_missing');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
+  if (manifest.schema_version !== 'NEXT_STABIL_BACKUP_V1' || !Array.isArray(manifest.artifacts)) {
+    throw new Error('backup_manifest_invalid');
+  }
+  const manifestSha256 = await hashFile(manifestPath);
+  const fingerprintParts = [manifestSha256];
+  let totalBytes = 0;
+  const components = [];
+  for (const artifact of manifest.artifacts) {
+    const filePath = safeJoinCheckpoint(checkpoint, artifact.file);
+    const stats = fs.statSync(filePath);
+    if (!stats.isFile() || Number(artifact.bytes) !== stats.size) {
+      throw new Error('backup_artifact_size_mismatch');
+    }
+    fingerprintParts.push(`${String(artifact.file)}|${stats.size}|${stats.mtimeMs}`);
+    totalBytes += stats.size;
+    components.push(path.win32.basename(filePath));
+  }
+  const fingerprint = crypto.createHash('sha256').update(fingerprintParts.join('\n')).digest('hex');
+  const cached = checkpointVerificationCache.get(path.win32.normalize(checkpoint).toLowerCase());
+  if (cached && cached.fingerprint === fingerprint) return { ...cached.result };
+  const currentManifest = JSON.parse(fs.readFileSync(path.join(PROJECT_DIR, 'release-channel', 'stable', 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
+  const backupVersion = String(manifest.app_version || manifest.release || '');
+  const versionComparison = compareVersion(backupVersion, currentManifest.version);
+  const currentDbRevision = String(process.env.NEXT_STABIL_DB_REVISION || 'followup_admin_backup_restore_ui_20260821');
+  let compatibility = 'compatible';
+  if (versionComparison === null) compatibility = 'invalid';
+  else if (versionComparison > 0) compatibility = 'newer_unsupported_checkpoint';
+  else if (String(manifest.db_revision || '') !== currentDbRevision) compatibility = 'older_supported_checkpoint';
+  const names = new Set(components);
+  return {
+    checkpoint_path: checkpoint,
+    created_at: manifest.created_at,
+    scope: manifest.scope || 'full',
+    app_version: backupVersion,
+    source_head: String(manifest.source_head || ''),
+    db_revision: String(manifest.db_revision || ''),
+    total_bytes: totalBytes,
+    verified: false,
+    artifact_count: manifest.artifacts.length,
+    components,
+    database_eligible: names.has('postgres.dump'),
+    full_eligible: false,
+    compatibility,
+    error_code: 'checkpoint_verification_required',
+    manifest_path: manifestPath,
+    manifest_schema: manifest.schema_version,
+    manifest_sha256: manifestSha256,
   };
 }
 
-async function discoverCheckpoints(destinations) {
-  const items = [];
+async function discoverCheckpoints(destinations, includeInvalid = false, verify = true) {
+  const candidates = [];
   for (const raw of destinations.slice(0, 10)) {
     const root = validateBackupDestination(raw);
     if (!fs.existsSync(root)) continue;
+    const rootReal = fs.realpathSync.native(root);
     const children = fs.readdirSync(root, { withFileTypes: true })
       .filter((item) => item.isDirectory())
       .sort((a, b) => b.name.localeCompare(a.name))
       .slice(0, 100);
     for (const child of children) {
-      const checkpoint = path.win32.join(root, child.name);
+      if (candidates.length >= 100) break;
+      candidates.push({ root, rootReal, checkpoint: path.win32.join(root, child.name) });
+    }
+    if (candidates.length >= 100) break;
+  }
+  const items = [];
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < candidates.length) {
+      const { root, rootReal, checkpoint } = candidates[nextIndex];
+      nextIndex += 1;
       try {
-        items.push(await verifyCheckpoint(checkpoint));
-      } catch (_) {
-        // Invalid directories are not exposed as restore candidates.
+        const checkpointReal = fs.realpathSync.native(checkpoint);
+        if (!checkpointReal.toLowerCase().startsWith(`${rootReal.toLowerCase()}\\`)) {
+          throw new Error('backup_checkpoint_reparse_escape');
+        }
+        if (fs.lstatSync(checkpoint).isSymbolicLink()) {
+          throw new Error('backup_checkpoint_reparse_forbidden');
+        }
+        const item = verify
+          ? await verifyCheckpoint(checkpoint)
+          : await inventoryCheckpoint(checkpoint);
+        items.push({ ...item, destination_root: root });
+      } catch (error) {
+        if (includeInvalid) {
+          items.push({
+            checkpoint_path: checkpoint,
+            destination_root: root,
+            verified: false,
+            error_code: String(error.message || 'backup_manifest_invalid').slice(0, 100),
+          });
+        }
       }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(4, candidates.length) }, () => worker()));
   return items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 100);
+}
+
+async function verifyCheckpointAtRoot(destinationRoot, checkpointPath) {
+  const root = validateBackupDestination(destinationRoot);
+  const checkpoint = path.win32.normalize(String(checkpointPath || '')).replace(/[\\]+$/, '');
+  if (!checkpoint.toLowerCase().startsWith(`${root.toLowerCase()}\\`)) {
+    throw new Error('backup_checkpoint_wrong_root');
+  }
+  const rootReal = fs.realpathSync.native(root);
+  const checkpointReal = fs.realpathSync.native(checkpoint);
+  if (!checkpointReal.toLowerCase().startsWith(`${rootReal.toLowerCase()}\\`)) {
+    throw new Error('backup_checkpoint_reparse_escape');
+  }
+  if (fs.lstatSync(checkpoint).isSymbolicLink()) {
+    throw new Error('backup_checkpoint_reparse_forbidden');
+  }
+  return { ...(await verifyCheckpoint(checkpoint)), destination_root: root };
 }
 
 function startBackupOperation(payload) {
@@ -640,7 +759,21 @@ async function handle(req, res) {
       if (req.method === 'POST' && requestUrl.pathname === '/backup/checkpoints') {
         const payload = await readJsonBody(req);
         if (!Array.isArray(payload.destinations)) throw new Error('backup_destinations_invalid');
-        sendJson(res, 200, { items: await discoverCheckpoints(payload.destinations) });
+        sendJson(res, 200, {
+          items: await discoverCheckpoints(
+            payload.destinations,
+            payload.include_invalid === true,
+            payload.verify !== false,
+          ),
+        });
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/checkpoints/verify') {
+        const payload = await readJsonBody(req);
+        sendJson(res, 200, await verifyCheckpointAtRoot(
+          payload.destination_root,
+          payload.checkpoint_path,
+        ));
         return;
       }
       if (req.method === 'POST' && requestUrl.pathname === '/backup/destinations/preflight') {
@@ -689,11 +822,7 @@ async function handle(req, res) {
     }
 
     if (req.method === 'POST' && req.url === '/start') {
-      await runDocker([
-        'compose',
-        'up',
-        '-d',
-      ]);
+      await runDocker(controlledDockerArgs('start'));
 
       sendJson(res, 202, {
         status: 'accepted',
@@ -703,23 +832,20 @@ async function handle(req, res) {
     }
 
     if (req.method === 'POST' && req.url === '/restart') {
-      await runDocker([
-        'compose',
-        'restart',
-      ]);
+      await runDocker(controlledDockerArgs('stop'));
+      const stopped = !(await statusPayload()).system_running;
+      await runDocker(controlledDockerArgs('start_workloads'));
 
       sendJson(res, 202, {
         status: 'accepted',
         action: 'restart',
+        transition_observed: stopped,
       });
       return;
     }
 
     if (req.method === 'POST' && req.url === '/stop') {
-      await runDocker([
-        'compose',
-        'stop',
-      ]);
+      await runDocker(controlledDockerArgs('stop'));
 
       sendJson(res, 202, {
         status: 'accepted',

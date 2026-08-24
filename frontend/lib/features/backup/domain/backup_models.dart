@@ -191,6 +191,59 @@ class ManagedBackup {
   );
 }
 
+class LegacyBackupCandidate {
+  const LegacyBackupCandidate({
+    required this.candidateId,
+    required this.checkpointPath,
+    required this.destinationRoot,
+    required this.totalBytes,
+    required this.verified,
+    required this.integrityStatus,
+    required this.adoptable,
+    required this.alreadyManaged,
+    this.createdAt,
+    this.scope,
+    this.appVersion,
+    this.manifestSchema,
+    this.reason,
+    this.adoptionToken,
+  });
+  final String candidateId;
+  final String checkpointPath;
+  final String destinationRoot;
+  final DateTime? createdAt;
+  final String? scope;
+  final String? appVersion;
+  final int totalBytes;
+  final String? manifestSchema;
+  final bool verified;
+  final String integrityStatus;
+  final bool adoptable;
+  final bool alreadyManaged;
+  final String? reason;
+  final String? adoptionToken;
+
+  factory LegacyBackupCandidate.fromJson(Map<String, dynamic> json) =>
+      LegacyBackupCandidate(
+        candidateId: json['candidate_id'] as String,
+        checkpointPath: json['checkpoint_path'] as String,
+        destinationRoot: json['destination_root'] as String,
+        createdAt: DateTime.tryParse(
+          json['created_at']?.toString() ?? '',
+        )?.toLocal(),
+        scope: json['scope'] as String?,
+        appVersion: json['app_version'] as String?,
+        totalBytes: json['total_bytes'] as int? ?? 0,
+        manifestSchema: json['manifest_schema'] as String?,
+        verified: json['verified'] as bool? ?? false,
+        integrityStatus: json['integrity_status'] as String,
+        adoptable: json['adoptable'] as bool? ?? false,
+        alreadyManaged: json['already_managed'] as bool? ?? false,
+        reason: json['reason'] as String?,
+        adoptionToken: json['adoption_token'] as String?,
+      );
+}
+
 class RetentionPreview {
   const RetentionPreview({
     required this.currentFreeBytes,

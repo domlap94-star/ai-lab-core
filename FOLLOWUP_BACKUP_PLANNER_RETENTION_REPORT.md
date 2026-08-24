@@ -8,7 +8,7 @@ Production DB head at design gate: `followup_contact_person_20260822`
 
 Current production DB head: `followup_backup_planner_retention_20260824`
 
-Current decision: `CHUNK22_PHYSICAL_RECHECK_REQUIRED`
+Current decision: `CHUNK22_FINAL_PHYSICAL_REMOTE_CONTROL_AND_LEGACY_MANAGEMENT_ACCEPTANCE_REQUIRED`
 
 ## Safety result
 
@@ -314,5 +314,38 @@ and future policy enhancements only.
   the same-device recheck. ADB reported no attached physical device, so CHUNK22
   cannot yet be marked complete.
 
-Required next action: install the +30 non-stable candidate over +29 without
-uninstall/data clear and complete the owner physical System Control sequence.
+Required next action: install the +31 non-stable candidate over the currently
+installed app without uninstall/data clear and complete the owner physical
+remote-control, legacy-adoption preview and checkpoint-loading sequence.
+
+## Explicit legacy V1 adoption implementation — 2026-08-24
+
+The owner expanded CHUNK22 to permit explicit verified import of existing V1
+checkpoints. This does not change the default-off retention/delete gate.
+
+- Discovery uses only known backup roots and recognized
+  `NEXT_STABIL_BACKUP_V1` manifests; no drive-wide scan exists.
+- Inventory checks manifest shape, canonical containment, reparse boundaries,
+  required artifacts and declared sizes. The selected checkpoint is then fully
+  checksum-verified immediately before adoption.
+- The operator adopts exactly one selected verified candidate per confirmed
+  request. The token is short-lived and bound to user, checkpoint, root and
+  manifest hash. Reuse is duplicate-safe and idempotent.
+- `managed_backups.plan_id` may remain null for `UNASSIGNED / LEGACY`; an
+  optional plan association is accepted only when the recorded destination is
+  the exact verified root.
+- Adoption inserts catalog metadata only. It never moves, renames, rewrites or
+  deletes checkpoint content. Unverified candidates are visible as such but are
+  not adoptable or retention-eligible.
+- Production adoption was not exercised: managed backups remain `0`, deletion
+  events remain `0`, and existing backup file mutations/deletions remain `0/0`.
+
+Checkpoint inventory was separated from selected-action verification so the UI
+does not wait for serial checksums across every historical artifact. A selected
+restore or adoption remains fail-closed behind full verification. Flutter now
+has distinct loading, empty and error states plus a bounded retry action.
+
+The final non-stable Android candidate is `1.0.2+31` (SHA-256
+`0549EA6B6CC472E815C8B7B02CFF4EDB9DF96DE13632717832A460F4D0BF1DFE`).
+ADB had no attached device, so physical legacy-preview/adoption and checkpoint
+loading acceptance remain pending. Stable remains `1.0.2+29`.

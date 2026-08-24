@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +18,9 @@ from app.schemas.admin_backup import (
     BackupScheduleWrite,
     ManagedBackupDeleteRequest,
     ManagedBackupRead,
+    LegacyBackupAdoptRequest,
+    LegacyBackupAdoptResult,
+    LegacyBackupCandidate,
     ManualBackupPreflight,
     ManualBackupPreflightRequest,
     ManualBackupStartRequest,
@@ -35,6 +40,8 @@ from app.services.backup_supervisor_client import (
     BackupSupervisorRejected,
     BackupSupervisorUnavailable,
 )
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/admin/backups", tags=["Admin Backup Restore"])
@@ -184,6 +191,47 @@ def managed_backups(
     _: User = Depends(require_admin), db: Session = Depends(get_db),
 ) -> list[ManagedBackupRead]:
     return [ManagedBackupRead.model_validate(item) for item in BackupRestoreService(db).list_managed_backups()]
+
+
+@router.get("/legacy-candidates", response_model=list[LegacyBackupCandidate])
+def legacy_backup_candidates(
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> list[LegacyBackupCandidate]:
+    try:
+        return [
+            LegacyBackupCandidate.model_validate(item)
+            for item in BackupRestoreService(db).legacy_candidates(actor)
+        ]
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/legacy-adopt", response_model=LegacyBackupAdoptResult)
+def adopt_legacy_backup(
+    payload: LegacyBackupAdoptRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> LegacyBackupAdoptResult:
+    if not payload.confirmed:
+        raise HTTPException(status_code=422, detail={"code": "legacy_adoption_confirmation_required"})
+    try:
+        managed, existing = BackupRestoreService(db).adopt_legacy_backup(
+            token=payload.adoption_token, plan_id=payload.plan_id, actor=actor
+        )
+        db.commit(); db.refresh(managed)
+        logger.info(
+            "legacy_backup_catalog_adoption user_id=%s managed_backup_id=%s existing=%s",
+            actor.id,
+            managed.id,
+            existing,
+        )
+        return LegacyBackupAdoptResult(
+            managed_backup=ManagedBackupRead.model_validate(managed),
+            already_managed=existing,
+        )
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.rollback(); raise map_error(error) from error
+    except IntegrityError as error:
+        db.rollback(); raise HTTPException(status_code=409, detail={"code": "legacy_adoption_duplicate"}) from error
 
 
 @router.get("/schedules/{schedule_id}/retention-preview", response_model=RetentionPreview)

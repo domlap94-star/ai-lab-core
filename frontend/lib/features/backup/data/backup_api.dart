@@ -62,6 +62,42 @@ class BackupApi {
         .toList(growable: false);
   }
 
+  Future<List<LegacyBackupCandidate>> legacyCandidates(
+    AuthSession session,
+  ) async {
+    final response = await _dio.get<List<dynamic>>(
+      '/api/v1/admin/backups/legacy-candidates',
+      options: _options(
+        session,
+      ).copyWith(receiveTimeout: const Duration(seconds: 45)),
+    );
+    return (response.data ?? const <dynamic>[])
+        .map(
+          (item) =>
+              LegacyBackupCandidate.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  }
+
+  Future<ManagedBackup> adoptLegacyBackup({
+    required AuthSession session,
+    required String adoptionToken,
+    int? planId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/legacy-adopt',
+      data: <String, dynamic>{
+        'adoption_token': adoptionToken,
+        'plan_id': planId,
+        'confirmed': true,
+      },
+      options: _options(session),
+    );
+    return ManagedBackup.fromJson(
+      response.data!['managed_backup'] as Map<String, dynamic>,
+    );
+  }
+
   Future<RetentionPreview> retentionPreview(
     AuthSession session,
     int scheduleId,
@@ -148,7 +184,9 @@ class BackupApi {
   Future<List<RestoreCandidate>> candidates(AuthSession session) async {
     final response = await _dio.get<List<dynamic>>(
       '/api/v1/admin/backups/restore-candidates',
-      options: _options(session),
+      options: _options(
+        session,
+      ).copyWith(receiveTimeout: const Duration(seconds: 45)),
     );
     return (response.data ?? const <dynamic>[])
         .map((item) => RestoreCandidate.fromJson(item as Map<String, dynamic>))

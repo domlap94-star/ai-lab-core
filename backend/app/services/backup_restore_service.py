@@ -33,6 +33,7 @@ SAFE_RESTORE_MODES = {"database", "full"}
 WINDOWS_ABSOLUTE = re.compile(r"^[A-Za-z]:\\")
 WINDOWS_UNC = re.compile(r"^\\\\[^\\]+\\[^\\]+\\")
 PREFLIGHT_TTL_SECONDS = 300
+ADOPTION_TTL_SECONDS = 600
 
 
 class BackupRestoreConflict(ValueError):
@@ -412,6 +413,187 @@ class BackupRestoreService:
     def list_managed_backups(self) -> list[ManagedBackup]:
         return self.db.query(ManagedBackup).order_by(ManagedBackup.created_at.desc(), ManagedBackup.id.desc()).all()
 
+    def _recognized_destinations(self) -> list[str]:
+        destinations = {self.validate_destination(settings.backup_root)}
+        destinations.update(item.destination for item in self.list_schedules())
+        return sorted(destinations)
+
+    def _inventory_items(self, *, include_invalid: bool = False) -> list[dict]:
+        payload = self.supervisor.inventory(
+            self._recognized_destinations(), include_invalid=include_invalid
+        )
+        unique: dict[str, dict] = {}
+        for item in payload.get("items", []):
+            checkpoint = str(item.get("checkpoint_path") or "")
+            if not checkpoint:
+                continue
+            key = ntpath.normcase(ntpath.normpath(checkpoint))
+            current = unique.get(key)
+            # Overlapping approved roots can discover the same checkpoint.
+            # The longest root is the most specific ownership boundary.
+            if current is None or len(str(item.get("destination_root") or "")) > len(
+                str(current.get("destination_root") or "")
+            ):
+                unique[key] = item
+        return sorted(
+            unique.values(),
+            key=lambda item: str(item.get("created_at") or ""),
+            reverse=True,
+        )
+
+    @staticmethod
+    def _inside_root(path: str, root: str) -> bool:
+        normalized_path = ntpath.normpath(path).casefold()
+        normalized_root = ntpath.normpath(root).rstrip("\\").casefold()
+        return normalized_path.startswith(normalized_root + "\\")
+
+    @staticmethod
+    def _legacy_candidate_id(checkpoint_path: str, manifest_sha256: str) -> str:
+        value = f"{ntpath.normcase(ntpath.normpath(checkpoint_path))}|{manifest_sha256.lower()}"
+        return hashlib.sha256(value.encode()).hexdigest()[:32]
+
+    def _issue_adoption_token(self, *, actor: User, item: dict) -> str:
+        payload = {
+            "purpose": "next_stabil_backup_adoption_v1",
+            "user_id": actor.id,
+            "checkpoint_path": str(item["checkpoint_path"]),
+            "destination_root": str(item["destination_root"]),
+            "manifest_sha256": str(item["manifest_sha256"]).lower(),
+            "exp": int((datetime.now(timezone.utc) + timedelta(seconds=ADOPTION_TTL_SECONDS)).timestamp()),
+        }
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+        ).rstrip(b"=").decode()
+        signature = hmac.new(
+            settings.secret_key.encode(),
+            b"next-stabil-backup-adoption-v1|" + encoded.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{encoded}.{signature}"
+
+    def _decode_adoption_token(self, token: str, actor: User) -> dict:
+        try:
+            encoded, supplied = token.split(".", 1)
+            expected = hmac.new(
+                settings.secret_key.encode(),
+                b"next-stabil-backup-adoption-v1|" + encoded.encode(),
+                hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(expected, supplied):
+                raise ValueError
+            payload = json.loads(
+                base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+            )
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise BackupRestoreValidation("legacy_adoption_token_invalid") from error
+        if payload.get("purpose") != "next_stabil_backup_adoption_v1" or payload.get("user_id") != actor.id:
+            raise BackupRestoreValidation("legacy_adoption_token_binding_invalid")
+        if not isinstance(payload.get("exp"), int) or payload["exp"] < int(datetime.now(timezone.utc).timestamp()):
+            raise BackupRestoreValidation("legacy_adoption_token_expired")
+        return payload
+
+    def legacy_candidates(self, actor: User) -> list[dict]:
+        roots = self._recognized_destinations()
+        items = self._inventory_items(include_invalid=True)
+        managed_paths = {
+            ntpath.normcase(ntpath.normpath(item.checkpoint_path))
+            for item in self.list_managed_backups()
+        }
+        result = []
+        for item in items:
+            checkpoint = str(item.get("checkpoint_path") or "")
+            root = str(item.get("destination_root") or "")
+            recognized = root in roots and self._inside_root(checkpoint, root)
+            verified = bool(item.get("verified"))
+            schema = str(item.get("manifest_schema") or "") or None
+            manifest_hash = str(item.get("manifest_sha256") or "").lower()
+            already_managed = ntpath.normcase(ntpath.normpath(checkpoint)) in managed_paths
+            adoptable = (
+                recognized and schema == "NEXT_STABIL_BACKUP_V1"
+                and bool(re.fullmatch(r"[a-f0-9]{64}", manifest_hash))
+                and not already_managed
+            )
+            if already_managed:
+                reason = "already_managed"
+            elif not recognized:
+                reason = "outside_recognized_root"
+            elif schema != "NEXT_STABIL_BACKUP_V1":
+                reason = "legacy_manifest_schema_required"
+            elif not manifest_hash:
+                reason = "manifest_hash_missing"
+            else:
+                reason = None
+            result.append({
+                "candidate_id": self._legacy_candidate_id(checkpoint, manifest_hash or "unverified"),
+                "checkpoint_path": checkpoint,
+                "destination_root": root,
+                "created_at": item.get("created_at"),
+                "scope": item.get("scope"),
+                "app_version": item.get("app_version"),
+                "total_bytes": int(item.get("total_bytes") or 0),
+                "manifest_schema": schema,
+                "verified": verified,
+                "integrity_status": "verified" if verified else "unverified",
+                "adoptable": adoptable,
+                "already_managed": already_managed,
+                "reason": reason,
+                "adoption_token": self._issue_adoption_token(actor=actor, item=item) if adoptable else None,
+            })
+        return result
+
+    def adopt_legacy_backup(self, *, token: str, plan_id: int | None, actor: User) -> tuple[ManagedBackup, bool]:
+        bound = self._decode_adoption_token(token, actor)
+        plan = None
+        if plan_id is not None:
+            plan = self.db.get(BackupSchedule, plan_id)
+            if plan is None or plan.deleted_at is not None:
+                raise BackupRestoreValidation("backup_schedule_not_found")
+        roots = self._recognized_destinations()
+        key = ntpath.normcase(ntpath.normpath(str(bound["checkpoint_path"])))
+        item = self.supervisor.verify_checkpoint(
+            str(bound["destination_root"]), str(bound["checkpoint_path"])
+        )
+        if not item.get("verified"):
+            raise BackupRestoreValidation("legacy_adoption_candidate_changed")
+        if str(item.get("manifest_schema") or "") != "NEXT_STABIL_BACKUP_V1":
+            raise BackupRestoreValidation("legacy_manifest_schema_required")
+        if str(item.get("manifest_sha256") or "").lower() != bound.get("manifest_sha256"):
+            raise BackupRestoreValidation("legacy_adoption_manifest_changed")
+        root = str(item.get("destination_root") or "")
+        if root != bound.get("destination_root") or root not in roots or not self._inside_root(str(item["checkpoint_path"]), root):
+            raise BackupRestoreValidation("legacy_adoption_root_invalid")
+        if plan is not None and ntpath.normcase(plan.destination) != ntpath.normcase(root):
+            raise BackupRestoreValidation("legacy_adoption_plan_root_mismatch")
+        existing = self.db.query(ManagedBackup).filter(
+            ManagedBackup.checkpoint_path == str(item["checkpoint_path"])
+        ).one_or_none()
+        if existing is not None:
+            return existing, True
+        matching_run = next(
+            (
+                run for run in self.db.query(BackupRun).filter(
+                    BackupRun.status == "completed", BackupRun.verified.is_(True)
+                ).all()
+                if run.checkpoint_path and ntpath.normcase(ntpath.normpath(run.checkpoint_path)) == key
+            ),
+            None,
+        )
+        managed = ManagedBackup(
+            backup_id="legacy-" + self._legacy_candidate_id(str(item["checkpoint_path"]), str(item["manifest_sha256"]))[:57],
+            plan_id=plan.id if plan else None,
+            backup_run_id=matching_run.id if matching_run else None,
+            destination_root=root, checkpoint_path=str(item["checkpoint_path"]),
+            manifest_path=str(item["manifest_path"]), manifest_schema="NEXT_STABIL_BACKUP_V1",
+            manifest_sha256=str(item["manifest_sha256"]).lower(), scope=str(item["scope"]),
+            app_version=str(item["app_version"]), source_head=str(item["source_head"]),
+            db_revision=str(item["db_revision"]), artifact_count=int(item["artifact_count"]),
+            total_bytes=int(item["total_bytes"]), integrity_status="verified",
+            protected=False, lifecycle="available",
+            created_at=datetime.fromisoformat(str(item["created_at"]).replace("Z", "+00:00")),
+        )
+        self.db.add(managed); self.db.flush()
+        return managed, False
+
     def retention_preview(
         self,
         plan: BackupSchedule,
@@ -489,19 +671,28 @@ class BackupRestoreService:
         return event
 
     def discover(self) -> list[RestoreCandidate]:
-        destinations = {self.validate_destination(settings.backup_root)}
-        destinations.update(item.destination for item in self.list_schedules())
-        payload = self.supervisor.discover(sorted(destinations))
-        return [RestoreCandidate.model_validate(item) for item in payload.get("items", [])]
+        return [
+            RestoreCandidate.model_validate(item)
+            for item in self._inventory_items()
+        ]
 
     def preview(self, checkpoint_path: str, mode: str, current_revision: str) -> dict:
         if mode not in SAFE_RESTORE_MODES:
             raise BackupRestoreValidation("restore_mode_invalid")
         candidates = {item.checkpoint_path.casefold(): item for item in self.discover()}
         key = ntpath.normpath(checkpoint_path).casefold()
-        candidate = candidates.get(key)
-        if candidate is None:
+        inventory_candidate = candidates.get(key)
+        if inventory_candidate is None:
             raise BackupRestoreValidation("restore_checkpoint_not_validated")
+        root = next(
+            (value for value in self._recognized_destinations() if self._inside_root(checkpoint_path, value)),
+            None,
+        )
+        if root is None:
+            raise BackupRestoreValidation("restore_checkpoint_not_validated")
+        candidate = RestoreCandidate.model_validate(
+            self.supervisor.verify_checkpoint(root, inventory_candidate.checkpoint_path)
+        )
         eligible = candidate.database_eligible if mode == "database" else candidate.full_eligible
         replaces = ["database"] if mode == "database" else [
             "database", "documents", "qdrant", "n8n_config", "configuration"

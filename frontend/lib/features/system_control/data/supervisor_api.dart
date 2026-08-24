@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../auth/data/auth_token_storage.dart';
 
@@ -20,6 +19,7 @@ class SupervisorStatus {
     required this.supervisor,
     required this.nextStabil,
     required this.services,
+    required this.remoteControlAvailable,
     this.reason,
   });
 
@@ -38,12 +38,15 @@ class SupervisorStatus {
           )
         : <String, RuntimeState>{};
     final dynamic supervisor = json['supervisor'];
+    final dynamic remoteControl = json['remote_control'];
 
     return SupervisorStatus(
       backend: component('backend'),
       supervisor: component('supervisor'),
       nextStabil: component('next_stabil'),
       services: services,
+      remoteControlAvailable:
+          remoteControl is Map && remoteControl['state'] == 'available',
       reason: supervisor is Map ? supervisor['reason']?.toString() : null,
     );
   }
@@ -52,29 +55,15 @@ class SupervisorStatus {
   final RuntimeState supervisor;
   final RuntimeState nextStabil;
   final Map<String, RuntimeState> services;
+  final bool remoteControlAvailable;
   final String? reason;
 }
 
 class SupervisorApi {
-  SupervisorApi(this._publicDio, this._tokenStorage)
-    : _controlDio = Dio(
-        BaseOptions(
-          baseUrl: const String.fromEnvironment(
-            'SUPERVISOR_BASE_URL',
-            defaultValue: 'http://127.0.0.1:8787',
-          ),
-          connectTimeout: const Duration(seconds: 3),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      );
+  SupervisorApi(this._publicDio, this._tokenStorage);
 
   final AuthTokenStorage _tokenStorage;
   final Dio _publicDio;
-  final Dio _controlDio;
-
-  bool get supportsHostControl {
-    return !kIsWeb && defaultTargetPlatform == TargetPlatform.windows;
-  }
 
   Future<Options> _authorizedOptions() async {
     final String? token = await _tokenStorage.readAccessToken();
@@ -103,16 +92,30 @@ class SupervisorApi {
     );
   }
 
-  Future<void> startSystem() => _control('/start');
+  Future<Map<String, dynamic>> startSystem() => _control('start');
 
-  Future<void> restartSystem() => _control('/restart');
+  Future<Map<String, dynamic>> restartSystem() => _control('restart');
 
-  Future<void> stopSystem() => _control('/stop');
+  Future<Map<String, dynamic>> stopSystem() => _control('stop');
 
-  Future<void> _control(String path) async {
-    if (!supportsHostControl) {
-      throw StateError('Sterowanie jest dostępne tylko na komputerze hosta.');
+  Future<Map<String, dynamic>> _control(String command) async {
+    final Options options = await _authorizedOptions();
+    final Response<Map<String, dynamic>> preflight = await _publicDio
+        .post<Map<String, dynamic>>(
+          '/api/v1/admin/system-status/control/preflight',
+          data: <String, dynamic>{'command': command},
+          options: options,
+        );
+    final String token = preflight.data?['token']?.toString() ?? '';
+    if (token.isEmpty) {
+      throw const FormatException('Nieprawidłowy token polecenia.');
     }
-    await _controlDio.post<void>(path, options: await _authorizedOptions());
+    final Response<Map<String, dynamic>> result = await _publicDio
+        .post<Map<String, dynamic>>(
+          '/api/v1/admin/system-status/control/execute',
+          data: <String, dynamic>{'command': command, 'token': token},
+          options: options,
+        );
+    return result.data ?? const <String, dynamic>{};
   }
 }

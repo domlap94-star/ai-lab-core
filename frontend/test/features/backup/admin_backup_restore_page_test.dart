@@ -51,6 +51,28 @@ class _UserAuthController extends AuthController {
 class _FakeBackupApi extends BackupApi {
   _FakeBackupApi() : super(Dio());
   int restoreRequests = 0;
+  int adoptionRequests = 0;
+
+  @override
+  Future<ManagedBackup> adoptLegacyBackup({
+    required AuthSession session,
+    required String adoptionToken,
+    int? planId,
+  }) async {
+    adoptionRequests += 1;
+    return ManagedBackup(
+      id: 99,
+      backupId: 'legacy-fixture',
+      destinationRoot: r'C:\backup-fixture',
+      scope: 'database',
+      appVersion: '1.0.2+25',
+      totalBytes: 10,
+      integrityStatus: 'verified',
+      protected: false,
+      lifecycle: 'available',
+      createdAt: DateTime.utc(2026, 8, 20),
+    );
+  }
 
   @override
   Future<RestorePreview> preview({
@@ -126,6 +148,7 @@ Future<_FakeBackupApi> _pump(
   required double width,
   bool admin = true,
   List<BackupSchedule> schedules = const <BackupSchedule>[],
+  List<LegacyBackupCandidate> legacy = const <LegacyBackupCandidate>[],
 }) async {
   tester.view.physicalSize = Size(width, 1800);
   tester.view.devicePixelRatio = 1;
@@ -138,10 +161,9 @@ Future<_FakeBackupApi> _pump(
         admin ? _AdminAuthController.new : _UserAuthController.new,
       ),
       backupApiProvider.overrideWithValue(api),
-      backupSchedulesProvider.overrideWith(
-        (ref) async => schedules,
-      ),
+      backupSchedulesProvider.overrideWith((ref) async => schedules),
       backupRunsProvider.overrideWith((ref) async => const <BackupRun>[]),
+      legacyBackupCandidatesProvider.overrideWith((ref) async => legacy),
       restoreCandidatesProvider.overrideWith(
         (ref) async => <RestoreCandidate>[_candidate],
       ),
@@ -177,6 +199,9 @@ Future<void> _pumpCandidate(
         (ref) async => const <BackupSchedule>[],
       ),
       backupRunsProvider.overrideWith((ref) async => const <BackupRun>[]),
+      legacyBackupCandidatesProvider.overrideWith(
+        (ref) async => const <LegacyBackupCandidate>[],
+      ),
       restoreCandidatesProvider.overrideWith(
         (ref) async => <RestoreCandidate>[candidate],
       ),
@@ -306,4 +331,35 @@ void main() {
     expect(find.textContaining('Ostatni backup:'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'legacy candidate requires explicit verify-and-add confirmation',
+    (tester) async {
+      final api = await _pump(
+        tester,
+        width: 600,
+        legacy: <LegacyBackupCandidate>[
+          LegacyBackupCandidate(
+            candidateId: 'fixture',
+            checkpointPath: r'C:\backup-fixture\checkpoint',
+            destinationRoot: r'C:\backup-fixture',
+            totalBytes: 10,
+            verified: false,
+            integrityStatus: 'unverified',
+            adoptable: true,
+            alreadyManaged: false,
+            adoptionToken: 'synthetic-adoption-token',
+            createdAt: DateTime.utc(2026, 8, 20),
+          ),
+        ],
+      );
+      await tester.ensureVisible(find.text('Zweryfikuj i dodaj'));
+      await tester.tap(find.text('Zweryfikuj i dodaj'));
+      await tester.pumpAndSettle();
+      expect(api.adoptionRequests, 0);
+      await tester.tap(find.text('Dodaj zweryfikowany backup'));
+      await tester.pumpAndSettle();
+      expect(api.adoptionRequests, 1);
+    },
+  );
 }

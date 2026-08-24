@@ -21,6 +21,7 @@ class AdminBackupRestorePage extends ConsumerWidget {
     ref.invalidate(backupSchedulesProvider);
     ref.invalidate(backupRunsProvider);
     ref.invalidate(managedBackupsProvider);
+    ref.invalidate(legacyBackupCandidatesProvider);
     ref.invalidate(restoreCandidatesProvider);
     ref.invalidate(restoreRunsProvider);
   }
@@ -41,6 +42,7 @@ class AdminBackupRestorePage extends ConsumerWidget {
             ref.read(backupSchedulesProvider.future),
             ref.read(backupRunsProvider.future),
             ref.read(managedBackupsProvider.future),
+            ref.read(legacyBackupCandidatesProvider.future),
             ref.read(restoreCandidatesProvider.future),
             ref.read(restoreRunsProvider.future),
           ]);
@@ -58,6 +60,8 @@ class AdminBackupRestorePage extends ConsumerWidget {
               const _SchedulesSection(),
               const SizedBox(height: 16),
               const _ManagedBackupsSection(),
+              const SizedBox(height: 16),
+              const _LegacyBackupsSection(),
               const SizedBox(height: 16),
               const _CheckpointsSection(),
               const SizedBox(height: 16),
@@ -679,13 +683,15 @@ class _ManagedBackupsSection extends ConsumerWidget {
                               ? Icons.verified_outlined
                               : Icons.warning_amber_outlined,
                         ),
-                        trailing: item.lifecycle == 'available'
-                            ? IconButton(
-                                tooltip: 'Usuń zarządzany backup',
-                                onPressed: () => _delete(context, ref, item),
-                                icon: const Icon(Icons.delete_outline),
-                              )
-                            : null,
+                        trailing: const Tooltip(
+                          message:
+                              'Usuwanie produkcyjnych backupów nie zostało włączone.',
+                          child: IconButton(
+                            tooltip: 'Usuwanie wyłączone',
+                            onPressed: null,
+                            icon: Icon(Icons.delete_outline),
+                          ),
+                        ),
                       ),
                     )
                     .toList(),
@@ -693,18 +699,75 @@ class _ManagedBackupsSection extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Future<void> _delete(
+class _LegacyBackupsSection extends ConsumerWidget {
+  const _LegacyBackupsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final candidates = ref.watch(legacyBackupCandidatesProvider);
+    return _Section(
+      title: 'Istniejące backupy do dodania',
+      child: candidates.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (_, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text('Nie udało się pobrać istniejących backupów.'),
+            TextButton.icon(
+              onPressed: () => ref.invalidate(legacyBackupCandidatesProvider),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Spróbuj ponownie'),
+            ),
+          ],
+        ),
+        data: (items) => items.isEmpty
+            ? const Text('Brak istniejących backupów do dodania.')
+            : Column(
+                children: items.map((item) {
+                  final created = item.createdAt == null
+                      ? 'Data nieznana'
+                      : _date(item.createdAt!);
+                  return ListTile(
+                    leading: Icon(
+                      item.verified
+                          ? Icons.verified_outlined
+                          : Icons.warning_amber_outlined,
+                    ),
+                    title: Text(created),
+                    subtitle: Text(
+                      '${item.destinationRoot}\n'
+                      '${_bytes(item.totalBytes)} • '
+                      '${item.verified ? 'ZWERYFIKOWANY' : 'WYMAGA WERYFIKACJI'}'
+                      '${item.alreadyManaged ? ' • już zarządzany' : ''}',
+                    ),
+                    trailing: item.adoptable
+                        ? FilledButton.tonal(
+                            onPressed: () => _adopt(context, ref, item),
+                            child: const Text('Zweryfikuj i dodaj'),
+                          )
+                        : null,
+                  );
+                }).toList(),
+              ),
+      ),
+    );
+  }
+
+  Future<void> _adopt(
     BuildContext context,
     WidgetRef ref,
-    ManagedBackup item,
+    LegacyBackupCandidate item,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Usuń zarządzany backup?'),
+        title: const Text('Dodać backup do katalogu?'),
         content: Text(
-          '${_date(item.createdAt)}\n${item.destinationRoot}\n${_bytes(item.totalBytes)}',
+          '${item.createdAt == null ? 'Data nieznana' : _date(item.createdAt!)}\n'
+          '${item.destinationRoot}\n${_bytes(item.totalBytes)}\n\n'
+          'Pliki nie zostaną przeniesione, zmienione ani usunięte.',
         ),
         actions: <Widget>[
           TextButton(
@@ -713,25 +776,28 @@ class _ManagedBackupsSection extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Usuń backup'),
+            child: const Text('Dodaj zweryfikowany backup'),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || item.adoptionToken == null) return;
     try {
       await ref
           .read(backupApiProvider)
-          .deleteManagedBackup(
-            requireBackupSessionFromAuth(ref.read(authControllerProvider)),
-            item.id,
+          .adoptLegacyBackup(
+            session: requireBackupSessionFromAuth(
+              ref.read(authControllerProvider),
+            ),
+            adoptionToken: item.adoptionToken!,
           );
+      ref.invalidate(legacyBackupCandidatesProvider);
       ref.invalidate(managedBackupsProvider);
     } on DioException catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_apiError(error, 'Nie udało się usunąć backupu.')),
+            content: Text(_apiError(error, 'Nie udało się dodać backupu.')),
           ),
         );
       }
@@ -748,7 +814,17 @@ class _CheckpointsSection extends ConsumerWidget {
       title: 'Dostępne checkpointy i przywracanie',
       child: candidates.when(
         loading: () => const LinearProgressIndicator(),
-        error: (_, _) => const Text('Nie udało się zweryfikować checkpointów.'),
+        error: (_, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Text('Nie udało się pobrać checkpointów.'),
+            TextButton.icon(
+              onPressed: () => ref.invalidate(restoreCandidatesProvider),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Spróbuj ponownie'),
+            ),
+          ],
+        ),
         data: (items) => items.isEmpty
             ? const Text(
                 'Brak zweryfikowanych checkpointów w zatwierdzonych katalogach.',
@@ -774,10 +850,12 @@ class _CheckpointsSection extends ConsumerWidget {
                                 'Rozmiar: ${_bytes(item.totalBytes)} • ${item.verified ? 'Zweryfikowany' : 'Niezweryfikowany'}',
                               ),
                               if (!item.fullEligible && item.errorCode != null)
-                                const Padding(
+                                Padding(
                                   padding: EdgeInsets.only(top: 6),
                                   child: Text(
-                                    'Pełne przywracanie jest niedostępne: odtworzenie Qdrant nie zostało bezpiecznie zweryfikowane.',
+                                    item.errorCode == 'verification_required'
+                                        ? 'Pełne przywracanie wymaga weryfikacji wybranego checkpointu.'
+                                        : 'Pełne przywracanie jest niedostępne: odtworzenie Qdrant nie zostało bezpiecznie zweryfikowane.',
                                   ),
                                 ),
                               const SizedBox(height: 8),

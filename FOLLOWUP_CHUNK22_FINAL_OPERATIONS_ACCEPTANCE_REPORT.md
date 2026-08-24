@@ -1,4 +1,4 @@
-# CHUNK22 final operations acceptance — planner implemented, physical pending
+# CHUNK22 final operations acceptance — remote control and legacy management implemented, physical pending
 
 Date: 2026-08-24
 
@@ -6,7 +6,7 @@ Source HEAD at audit: `ca27b7d1e4c0a4ac2b41013db1d6ebaa3d36b1ad`
 
 Stable: NEXT Stabil `1.0.2+29`
 
-State: `CHUNK22 IN PROGRESS / PHYSICAL SYSTEM CONTROL RECHECK REQUIRED`
+State: `CHUNK22 IN PROGRESS / FINAL PHYSICAL REMOTE CONTROL + LEGACY BACKUP ACCEPTANCE REQUIRED`
 
 ## Follow-up state
 
@@ -125,3 +125,58 @@ Supervisor, NEXT Stabil, refresh, network recovery, session restoration,
 logout/login and force-close/reopen acceptance.
 
 Decision: `CHUNK22_PHYSICAL_RECHECK_REQUIRED`. Do not start CHUNK23 or Release F.
+
+## Remote control and legacy-backup remediation — 2026-08-24
+
+Physical candidate +30 proved Backend, Supervisor, NEXT Stabil, Postgres,
+Qdrant, Ollama, backend container, n8n and Open WebUI ONLINE. The former false
+OFFLINE projection defect is therefore closed. Owner acceptance identified two
+remaining product gaps: control buttons were host-only and verified historical
+V1 checkpoints could not be added to the V2 catalog.
+
+The additive control path is now Android/Web -> authenticated admin backend ->
+short-lived command/session-bound single-use token -> exact loopback Supervisor
+command -> bounded post-command verification. Only `start`, `stop` and
+`restart` are accepted. Public `/control` remains 404, unauthenticated preflight
+returns 401, and direct unauthenticated Supervisor status returns 401. The
+Supervisor controls only the fixed Qdrant/Ollama/n8n/Open WebUI workload set;
+backend and Postgres remain available as the command/result control plane. A
+live authenticated RESTART returned accepted/succeeded/verified after an
+observed stop/start transition. No task definition, firewall or exposure was
+changed.
+
+Legacy management is explicit and one-at-a-time. Discovery is bounded to
+recognized backup roots and exposes opaque adoption tokens. A selected V1
+checkpoint is fully manifest/checksum verified immediately before catalog
+insertion; root, manifest hash and optional plan destination must still match.
+The insert is idempotent and creates metadata only. It does not move, rename,
+rewrite or delete the backup. Production currently remains at zero managed
+backups and zero deletion events; no production checkpoint was adopted during
+this implementation run. `BACKUP_RETENTION_DELETE_ENABLED=false` and
+`FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` remains unconsumed.
+
+The apparent indefinite checkpoint spinner was caused by serial full checksum
+verification of every historical checkpoint during inventory. Inventory now
+uses bounded manifest/path/declared-size/reparse checks and deduplicates
+canonical paths; a selected restore/adoption still invokes the full verifier.
+Read-only production inventory resolved 19 unique valid checkpoints in 0.136 s;
+legacy preview exposed 19 adoptable and 8 invalid/unverified unique directories
+without making invalid items restore candidates. Flutter distinguishes loading,
+loaded-empty and bounded error states and offers retry.
+
+Acceptance gates passed: Supervisor boundary test, backend authorization/token/
+replay tests, isolated legacy adoption and duplicate/mismatch tests, Backup
+Planner/legacy restore/security/auth/Qdrant guards, Flutter analyze, focused UI
+tests and full Flutter `295/295`. DB head remains
+`followup_backup_planner_retention_20260824`, Qdrant remains 57/0, and production
+backup file mutations/deletions are 0/0.
+
+Non-stable candidate
+`NEXT-Stabil-1.0.2+31-chunk22-final-candidate.apk` was built with application ID
+`pl.ailab.app`, version `1.0.2+31`, SHA-256
+`0549EA6B6CC472E815C8B7B02CFF4EDB9DF96DE13632717832A460F4D0BF1DFE`,
+the established signer SHA-256
+`5e223da2da7c893d089d7333e99aaeee8d98c9cdf72be80609020967368fe018`,
+release cleartext disabled and no debuggable flag. It is not published. ADB
+reported no attached device, so install-over, mobile button/adoption UI and
+same-device session acceptance remain pending. CHUNK22 is not marked complete.

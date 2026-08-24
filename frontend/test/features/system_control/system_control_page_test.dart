@@ -35,19 +35,20 @@ void main() {
       'supervisor': <String, dynamic>{'state': 'unknown'},
       'next_stabil': <String, dynamic>{'state': 'unknown'},
       'services': <String, dynamic>{},
+      'remote_control': <String, dynamic>{'state': 'unavailable'},
     });
     expect(status.backend, RuntimeState.online);
     expect(status.supervisor, RuntimeState.unknown);
     expect(status.nextStabil, RuntimeState.unknown);
   });
 
-  test('host controls are disabled on Android', () {
+  test('remote controls use the authenticated public API on Android', () {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     final api = SupervisorApi(Dio(), _storage());
-    expect(api.supportsHostControl, isFalse);
+    expect(api, isNotNull);
   });
 
-  testWidgets('Android renders projected state and disables host controls', (
+  testWidgets('Android renders projected state and enables valid controls', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
@@ -69,11 +70,15 @@ void main() {
     expect(find.text('Supervisor'), findsOneWidget);
     expect(find.text('NEXT Stabil'), findsOneWidget);
     expect(find.text('online'), findsNWidgets(3));
-    expect(find.textContaining('tylko na komputerze hosta'), findsOneWidget);
+    expect(find.textContaining('tylko na komputerze hosta'), findsNothing);
     final start = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Uruchom system'),
     );
     expect(start.onPressed, isNull);
+    final restart = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Restartuj system'),
+    );
+    expect(restart.onPressed, isNotNull);
     expect(find.text('offline'), findsNothing);
     debugDefaultTargetPlatformOverride = null;
   });
@@ -98,6 +103,39 @@ void main() {
 
     expect(find.text('nieznany / nieosiągalny'), findsNWidgets(2));
     expect(find.text('offline'), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('restart uses public preflight and execute endpoints', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final adapter = _StatusAdapter();
+    final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'));
+    dio.httpClientAdapter = adapter;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          dioProvider.overrideWithValue(dio),
+          authControllerProvider.overrideWith(_AdminAuthController.new),
+        ],
+        child: const MaterialApp(home: SystemControlPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Restartuj system'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Potwierdź'));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(
+      adapter.paths,
+      containsAllInOrder(<String>[
+        '/api/v1/admin/system-status/control/preflight',
+        '/api/v1/admin/system-status/control/execute',
+      ]),
+    );
+    expect(find.textContaining('stan zweryfikowany'), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 }
@@ -126,6 +164,7 @@ class _AdminAuthController extends AuthController {
 class _StatusAdapter implements HttpClientAdapter {
   _StatusAdapter({this.unknown = false});
   final bool unknown;
+  final List<String> paths = <String>[];
 
   @override
   void close({bool force = false}) {}
@@ -136,13 +175,39 @@ class _StatusAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    paths.add(options.path);
+    if (options.path.endsWith('/control/preflight')) {
+      return ResponseBody.fromString(
+        jsonEncode(<String, dynamic>{
+          'token': List<String>.filled(64, 'x').join(),
+        }),
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['application/json'],
+        },
+      );
+    }
+    if (options.path.endsWith('/control/execute')) {
+      return ResponseBody.fromString(
+        jsonEncode(<String, dynamic>{
+          'state': 'succeeded',
+          'verification': 'verified',
+        }),
+        200,
+        headers: <String, List<String>>{
+          Headers.contentTypeHeader: <String>['application/json'],
+        },
+      );
+    }
     final state = unknown ? 'unknown' : 'online';
     final body = jsonEncode(<String, dynamic>{
       'backend': <String, dynamic>{'state': 'online'},
       'supervisor': <String, dynamic>{'state': state},
       'next_stabil': <String, dynamic>{'state': state},
       'services': <String, dynamic>{},
-      'remote_control': <String, dynamic>{'state': 'private_host_only'},
+      'remote_control': <String, dynamic>{
+        'state': unknown ? 'unavailable' : 'available',
+      },
     });
     return ResponseBody.fromString(
       body,

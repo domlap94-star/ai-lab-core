@@ -41,10 +41,10 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh({bool preserveMessage = false}) async {
     setState(() {
       _loading = true;
-      _message = null;
+      if (!preserveMessage) _message = null;
     });
 
     try {
@@ -88,7 +88,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
 
   Future<void> _execute(
     String title,
-    Future<void> Function() action, {
+    Future<Map<String, dynamic>> Function() action, {
     required bool destructive,
   }) async {
     final bool? confirmed = await showDialog<bool>(
@@ -129,19 +129,21 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
     });
 
     try {
-      await action();
+      final Map<String, dynamic> result = await action();
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        _message = 'Polecenie zostało przyjęte.';
+        _message = result['state'] == 'succeeded'
+            ? 'Polecenie wykonane i stan zweryfikowany.'
+            : 'Polecenie przyjęte, ale nie potwierdzono stanu w wymaganym czasie.';
       });
 
       await Future<void>.delayed(const Duration(seconds: 2));
 
-      await _refresh();
+      await _refresh(preserveMessage: true);
     } on DioException {
       if (!mounted) {
         return;
@@ -181,6 +183,9 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
     }
 
     final SupervisorStatus? current = _status;
+    final bool controlsAvailable = current?.remoteControlAvailable ?? false;
+    final bool isOnline = current?.nextStabil == RuntimeState.online;
+    final bool isOffline = current?.nextStabil == RuntimeState.offline;
 
     return Scaffold(
       appBar: AppBar(
@@ -241,17 +246,16 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                 spacing: 12,
                 runSpacing: 12,
                 children: <Widget>[
-                  if (!_api.supportsHostControl)
+                  if (!controlsAvailable)
                     const Padding(
                       padding: EdgeInsets.only(bottom: 12),
                       child: Text(
-                        'Sterowanie start/stop/restart jest dostępne tylko '
-                        'na komputerze hosta. Z tego urządzenia można '
-                        'bezpiecznie odczytać stan.',
+                        'Sterowanie jest chwilowo niedostępne. Odśwież stan '
+                        'przed wykonaniem polecenia.',
                       ),
                     ),
                   FilledButton.icon(
-                    onPressed: _loading || !_api.supportsHostControl
+                    onPressed: _loading || !controlsAvailable || !isOffline
                         ? null
                         : () {
                             _execute(
@@ -264,7 +268,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                     label: const Text('Uruchom system'),
                   ),
                   FilledButton.tonalIcon(
-                    onPressed: _loading || !_api.supportsHostControl
+                    onPressed: _loading || !controlsAvailable || !isOnline
                         ? null
                         : () {
                             _execute(
@@ -277,7 +281,7 @@ class _SystemControlPageState extends ConsumerState<SystemControlPage> {
                     label: const Text('Restartuj system'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: _loading || !_api.supportsHostControl
+                    onPressed: _loading || !controlsAvailable || !isOnline
                         ? null
                         : () {
                             _execute(

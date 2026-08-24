@@ -77,7 +77,8 @@ class RuntimeSystemStatusService:
             },
             "services": services,
             "remote_control": {
-                "state": "private_host_only",
+                "state": "available",
+                "commands": ["start", "stop", "restart"],
             },
         }
 
@@ -89,7 +90,7 @@ class RuntimeSystemStatusService:
             "supervisor": {"state": "unknown", "reason": reason},
             "next_stabil": {"state": "unknown", "reason": reason},
             "services": {},
-            "remote_control": {"state": "private_host_only"},
+            "remote_control": {"state": "unavailable", "commands": []},
         }
 
 

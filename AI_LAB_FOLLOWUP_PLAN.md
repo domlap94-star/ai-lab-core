@@ -1828,7 +1828,8 @@ persistence i updater. Bez urządzenia wynik pozostaje UNVERIFIED.
 Human gate: dostęp operatora do urządzenia; brak zmian danych poza
 kontrolowanymi fixtures.
 
-**[~] IN PROGRESS / PHYSICAL SYSTEM CONTROL RECHECK REQUIRED.** Physical +29 acceptance found
+**[~] IN PROGRESS / REMOTE CONTROL + LEGACY BACKUP MANAGEMENT REMEDIATION;
+FINAL PHYSICAL ACCEPTANCE REQUIRED.** Physical +29 acceptance found
 that Android directly used the private Supervisor URL and collapsed an
 unreachable response into `offline`, even while the public backend was online.
 The bounded repair uses an authenticated, read-only public-backend projection
@@ -1851,8 +1852,28 @@ retention dry-run and synthetic deletion safety now pass. Existing schedule
 IDs/behavior and historical V1 files remain unchanged; real deletion is still
 fail-closed under unconsumed
 `FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED`. A signed non-stable
-Android `1.0.2+30` candidate is ready, but ADB has no attached physical device,
-so the same-device System Control recheck is the remaining CHUNK22 blocker.
+Android `1.0.2+30` proved that Backend, Supervisor, NEXT Stabil and the listed
+runtime services are truthfully ONLINE, closing the false-OFFLINE defect. Owner
+acceptance then added bounded authenticated remote start/stop/restart and
+explicit verified V1 backup management to CHUNK22.
+
+The remediation now routes exact `start|stop|restart` commands through the
+authenticated admin backend using a short-lived session/command-bound,
+single-use token. The backend calls only the loopback Supervisor, verifies the
+post-command state and never exposes `/control` publicly. A bounded live
+RESTART passed while backend/Postgres stayed available. Legacy discovery is
+restricted to recognized roots; one explicitly selected V1 checkpoint at a
+time is fully manifest/checksum verified immediately before idempotent catalog
+adoption. Adoption writes metadata only and leaves files unchanged. Production
+adoption and deletion both remained zero; the deletion gate is unconsumed.
+
+Checkpoint inventory no longer performs every full checksum serially while the
+page loads. It returns a bounded integrity inventory, while restore/adoption of
+the selected checkpoint retains full verification. Flutter exposes distinct
+loading/empty/error states and retry. Backend, Supervisor and Flutter tests
+pass, including full Flutter `295/295`. Non-stable signed candidate
+`1.0.2+31` is staged for final physical acceptance; ADB had no attached device,
+so CHUNK22 remains IN PROGRESS. Stable stays `1.0.2+29`.
 
 The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing

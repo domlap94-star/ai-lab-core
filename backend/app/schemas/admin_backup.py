@@ -173,6 +173,34 @@ class ManagedBackupDeleteRequest(BaseModel):
     confirmation: str = Field(max_length=32)
 
 
+class LegacyBackupCandidate(BaseModel):
+    candidate_id: str
+    checkpoint_path: str
+    destination_root: str
+    created_at: datetime | None = None
+    scope: str | None = None
+    app_version: str | None = None
+    total_bytes: int = 0
+    manifest_schema: str | None = None
+    verified: bool
+    integrity_status: Literal["verified", "unverified"]
+    adoptable: bool
+    already_managed: bool
+    reason: str | None = None
+    adoption_token: str | None = None
+
+
+class LegacyBackupAdoptRequest(BaseModel):
+    adoption_token: str = Field(min_length=32, max_length=4096)
+    plan_id: int | None = Field(None, ge=1)
+    confirmed: bool
+
+
+class LegacyBackupAdoptResult(BaseModel):
+    managed_backup: ManagedBackupRead
+    already_managed: bool
+
+
 class BackupRunRead(BaseModel):
     id: int
     schedule_id: int | None

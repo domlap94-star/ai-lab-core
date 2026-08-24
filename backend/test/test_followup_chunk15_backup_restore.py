@@ -57,6 +57,15 @@ class FakeSupervisor:
             "compatibility": "compatible", "error_code": None,
         }]}
 
+    def inventory(self, destinations, *, include_invalid=False):
+        return self.discover(destinations)
+
+    def verify_checkpoint(self, destination_root, checkpoint_path):
+        return next(
+            item for item in self.discover([destination_root])["items"]
+            if item["checkpoint_path"].casefold() == checkpoint_path.casefold()
+        )
+
     def preview_schedules(self, schedules):
         return {"items": [{
             "task_name": f"NEXT Stabil - Backup - {item['id']}",

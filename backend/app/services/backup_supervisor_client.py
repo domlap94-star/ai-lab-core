@@ -34,8 +34,31 @@ class BackupSupervisorClient:
     def backup_status(self, operation_id: str) -> dict:
         return self._request("GET", f"/backup/operations/{operation_id}")
 
-    def discover(self, destinations: list[str]) -> dict:
-        return self._request("POST", "/backup/checkpoints", {"destinations": destinations})
+    def discover(self, destinations: list[str], *, include_invalid: bool = False) -> dict:
+        return self._request(
+            "POST", "/backup/checkpoints",
+            {"destinations": destinations, "include_invalid": include_invalid},
+        )
+
+    def inventory(self, destinations: list[str], *, include_invalid: bool = False) -> dict:
+        return self._request(
+            "POST", "/backup/checkpoints",
+            {
+                "destinations": destinations,
+                "include_invalid": include_invalid,
+                "verify": False,
+            },
+        )
+
+    def verify_checkpoint(self, destination_root: str, checkpoint_path: str) -> dict:
+        return self._request(
+            "POST", "/backup/checkpoints/verify",
+            {
+                "destination_root": destination_root,
+                "checkpoint_path": checkpoint_path,
+            },
+            timeout=300,
+        )
 
     def preview_schedules(self, schedules: list[dict]) -> dict:
         return self._request("POST", "/backup/schedules/preview", {"schedules": schedules})
@@ -49,7 +72,9 @@ class BackupSupervisorClient:
     def delete_managed_backup(self, payload: dict) -> dict:
         return self._request("POST", "/backup/managed/delete", payload)
 
-    def _request(self, method: str, path: str, payload: dict | None = None) -> dict:
+    def _request(
+        self, method: str, path: str, payload: dict | None = None, *, timeout: int = 30
+    ) -> dict:
         body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
         request = Request(
             f"{self.base_url}{path}", method=method, data=body,
@@ -59,7 +84,7 @@ class BackupSupervisorClient:
             },
         )
         try:
-            with urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as error:
             try:
