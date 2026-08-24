@@ -1,4 +1,4 @@
-# CHUNK22 final operations acceptance — remote control and legacy management implemented, physical pending
+# CHUNK22 final operations acceptance — COMPLETE
 
 Date: 2026-08-24
 
@@ -6,14 +6,13 @@ Source HEAD at audit: `ca27b7d1e4c0a4ac2b41013db1d6ebaa3d36b1ad`
 
 Stable: NEXT Stabil `1.0.2+29`
 
-State: `CHUNK22 IN PROGRESS / FINAL PHYSICAL REMOTE CONTROL + LEGACY BACKUP ACCEPTANCE REQUIRED`
+State: `CHUNK22 COMPLETE / OWNER MANUAL +32 PHYSICAL ACCEPTANCE PASS`
 
 ## Follow-up state
 
 - CHUNK20: COMPLETE
 - CHUNK21: COMPLETE
-- CHUNK22: active; physical System Control recheck and owner-expanded backup
-  operations acceptance remain incomplete
+- CHUNK22: COMPLETE; owner manual +32 physical acceptance passed
 - PRE-CHUNK23 AI: F0 END-TO-END QUALIFIED / architecture ready for owner
   implementation decision
 - CHUNK23: BLOCKED / NOT STARTED
@@ -244,7 +243,41 @@ The signed, non-stable candidate
 `5AC7EDA17B16231891D1A9FEFDD380A8364BA0F43049DAE8D7D41E1AD8F986DA`,
 signer SHA-256
 `5e223da2da7c893d089d7333e99aaeee8d98c9cdf72be80609020967368fe018`,
-cleartext disabled and no debuggable flag. It is not published. ADB reports no
-attached physical device, so CHUNK22 remains open only for install-over and the
-specified +32 physical Android acceptance. Stable remains `1.0.2+29` and
+cleartext disabled and no debuggable flag. It is not published. At that
+checkpoint ADB reported no attached physical device; the subsequent owner
+manual result is recorded below. Stable remains `1.0.2+29` and
 `FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` remains unconsumed.
+
+## Owner manual +32 physical acceptance — PASS
+
+Evidence class: `OWNER MANUAL PHYSICAL ACCEPTANCE`.
+
+On 2026-08-24 the owner completed physical acceptance of the non-stable Android
+candidate NEXT Stabil `1.0.2+32` (versionCode 32) and explicitly reported the
+overall result as PASS. Automated ADB evidence was unavailable and is not
+required because the owner directly exercised and accepted the actual device.
+No repeat physical test was performed.
+
+The owner-observed PASS covers truthful Backend, Supervisor and NEXT Stabil
+status; absence of the false-OFFLINE defect; correct Start/Restart/Stop states
+and Administrator remote-control availability; Android access to host backup
+administration and host destination selection; cross-platform planner
+administration; responsive V1 discovery and asynchronous per-item
+verification/adoption; distinguishable bounded failures; and usable
+checkpoint/history loading without a multi-gigabyte page block.
+
+CHUNK22 is complete. Completed scope includes Android/System Control,
+authenticated bounded remote control, Administrator capability parity,
+transactional scheduler reconciliation, independent multi-destination plans,
+cross-platform host selection, manual backup without a fixed default, managed
+catalog, explicit V1 adoption, asynchronous verification jobs, checkpoint
+loading performance, retention dry-run/free-space planning and synthetic-only
+deletion safety.
+
+The candidate remains non-stable and was not published. Stable remains NEXT
+Stabil `1.0.2+29`; versionCodes 30, 31 and 32 are consumed. Production backup
+deletion remains disabled (`BACKUP_RETENTION_DELETE_ENABLED=false`), production
+backup deletions remain 0, and
+`FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` remains unconsumed. The
+next owner-directed work is PRE-CHUNK23 Unified Assistant implementation in a
+separate bounded execution; CHUNK23 remains BLOCKED / NOT STARTED.

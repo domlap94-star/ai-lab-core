@@ -8,7 +8,7 @@ Production DB head at design gate: `followup_contact_person_20260822`
 
 Current production DB head: `followup_backup_planner_retention_20260824`
 
-Current decision: `CHUNK22_FINAL_PHYSICAL_REMOTE_CONTROL_AND_LEGACY_MANAGEMENT_ACCEPTANCE_REQUIRED`
+Current decision: `CHUNK22_COMPLETE_OWNER_MANUAL_PLUS32_PHYSICAL_ACCEPTANCE_PASS`
 
 ## Safety result
 
@@ -383,6 +383,22 @@ blocking the managed endpoint (8.3 ms p95). Cached re-verification took 2.013
 seconds. Focused backend/Supervisor tests, isolated adoption and interruption
 recovery, Flutter analyze, focused UI tests and full Flutter 296/296 pass.
 
-Final +32 physical Android acceptance remains required; the candidate identity
-and hash are recorded in the CHUNK22 operations report. Automatic production
-deletion remains disabled and its owner gate is unconsumed.
+At the implementation checkpoint, final +32 physical Android acceptance still
+remained required; the candidate identity and hash are recorded in the CHUNK22
+operations report. The final owner result is recorded below.
+
+## Final owner physical acceptance — 2026-08-24
+
+The owner manually exercised the non-stable Android `1.0.2+32` candidate and
+reported overall physical acceptance PASS. Evidence class is
+`OWNER MANUAL PHYSICAL ACCEPTANCE`; ADB was unavailable and no repeat test was
+required. The accepted behavior covers cross-platform host destination
+selection, manual backup administration, responsive legacy discovery,
+asynchronous per-item verification/adoption, bounded failure states and usable
+checkpoint/history sections.
+
+CHUNK22 is complete. Automatic production deletion remains disabled,
+production backup deletions remain 0, and the retention-delete owner gate is
+unconsumed. CHUNK24 retains only broader alert delivery/channels, backup
+stale/failure and disk-low alerting, other operational alerts and future
+retention-policy enhancements; CHUNK24 is not complete.

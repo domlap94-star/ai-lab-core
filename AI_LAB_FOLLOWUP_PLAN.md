@@ -1828,8 +1828,8 @@ persistence i updater. Bez urządzenia wynik pozostaje UNVERIFIED.
 Human gate: dostęp operatora do urządzenia; brak zmian danych poza
 kontrolowanymi fixtures.
 
-**[~] IN PROGRESS / CROSS-PLATFORM BACKUP ADMIN + ASYNC LEGACY ADOPTION
-REMEDIATION.** Physical +29 acceptance found
+**[✓] FOLLOW-UP CHUNK22 — PHYSICAL ANDROID + FINAL OPERATIONS ACCEPTANCE —
+COMPLETE — 2026-08-24.** Physical +29 acceptance found
 that Android directly used the private Supervisor URL and collapsed an
 unreachable response into `offline`, even while the public backend was online.
 The bounded repair uses an authenticated, read-only public-backend projection
@@ -1882,11 +1882,22 @@ Administrator capability parity. CHUNK22 now requires a backend-mediated host
 storage selector for Windows/Web/Android, asynchronous per-item legacy
 verification/adoption with bounded diagnostics, and final physical acceptance.
 
+Owner manual physical acceptance of the non-stable Android `1.0.2+32`
+candidate passed on 2026-08-24. Evidence class is
+`OWNER MANUAL PHYSICAL ACCEPTANCE`; ADB was unavailable and no repeat test is
+required. The PASS covers truthful System Control and bounded remote controls,
+cross-platform host backup administration, host destination selection,
+responsive legacy discovery, asynchronous per-item verification/adoption,
+bounded failures, and usable checkpoint/history loading. CHUNK22 is complete.
+The candidate was not published; stable remains `1.0.2+29`, and versionCodes
+30/31/32 are consumed. Production deletion remains disabled and
+`FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` remains unconsumed.
+
 The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing
 AI physical test and is handled by the owner-inserted pre-CHUNK23 item below.
 
-## [~] PRE-CHUNK23 — AI ASSISTANT RECONSTRUCTION + LOCAL MODEL QUALIFICATION
+## [~] PRE-CHUNK23 — UNIFIED ASSISTANT IMPLEMENTATION — NEXT / AUTHORIZED TO PREPARE
 
 **Priority: P1 / BLOCKS CHUNK23**
 
@@ -2006,9 +2017,9 @@ first attempt. Under the unchanged conservative scorer, frozen F0 is 96.43
 overall, 97.00% factual/evidence, 95.56 technical documentation, 93.85
 cross-domain and 82.00% estimate/refusal, with
 50/50 automatic coverage and zero hard, wrong-source or privacy failures.
-Gemma3 12B is not required and was not downloaded. CHUNK22 physical System
-Control recheck remains pending; CHUNK23 remains BLOCKED / NOT STARTED pending
-the owner implementation decision. Evidence:
+Gemma3 12B is not required and was not downloaded. CHUNK22 is complete. The
+owner-directed next work is the qualified Unified Assistant implementation in
+a separate bounded execution; CHUNK23 remains BLOCKED / NOT STARTED. Evidence:
 `FOLLOWUP_F0_SCOPE_SEMANTICS_FINAL_ACCEPTANCE.md`.
 
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
@@ -2022,8 +2033,9 @@ read verification i aktualizacji po rotation.
 Human gate: osobna zgoda operacyjna na escrow/rotation; wartości nigdy nie
 trafiają do raportu ani repo.
 
-**BLOCKED / NOT STARTED** until CHUNK22 physical System Control recheck and the
-PRE-CHUNK23 model/routing owner decision are complete.
+**BLOCKED / NOT STARTED.** Sequence: CHUNK22 COMPLETE -> Unified Assistant
+implementation -> Unified Assistant source/physical acceptance -> PRE-CHUNK23
+COMPLETE -> CHUNK23.
 
 ## FOLLOW-UP CHUNK 24 — BACKUP RETENTION + ALERTING
 
@@ -2370,7 +2382,7 @@ diagnostic-only / never stable. The original +27 low-level exception was not
 retained, so the incident remains classified only as a transient,
 non-reproducible Dio unknown transport condition.
 
-**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — IN PROGRESS / +32 PHYSICAL CROSS-PLATFORM BACKUP ACCEPTANCE REQUIRED.** System Control status and control-button state physically pass on +31. Cross-platform host-storage selection and asynchronous legacy verification pass source, isolated, and read-only runtime acceptance; the final +32 Android candidate still requires same-device physical acceptance. Owner
+**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — COMPLETE.** Owner manual physical acceptance of the non-stable +32 Android candidate passed on 2026-08-24. PRE-CHUNK23 F0 remains END-TO-END QUALIFIED, and Unified Assistant implementation is NEXT / AUTHORIZED TO PREPARE in a separate bounded execution. CHUNK23 remains BLOCKED / NOT STARTED. Owner
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
 = Phase F / Security + Operations. Update-signing trust remains unconsumed under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.
