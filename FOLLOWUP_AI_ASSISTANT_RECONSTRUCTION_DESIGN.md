@@ -151,6 +151,25 @@ remaining architecture gaps are (1) the local final-reasoning/source ceiling
 and (2) reconciliation of the external result contract with the local
 post-validator without weakening privacy or provenance.
 
+### Temporary Chat result-contract audit (2026-08-24)
+
+The rejection audit confirms that V1 conflates model-authored recommendation
+and uncertainty metadata with local disposition, but V1 is also too weak for a
+safe blanket relaxation: nested claim, tool, visual, estimate and contradiction
+provenance is not fully normalized. A strict additive handle-based V2 prototype
+therefore keeps source authority local, creates claim IDs locally and rejects
+unknown/out-of-scope handles, missing material provenance, incomplete estimates,
+privacy violations and hidden contradictions.
+
+V2 unit controls passed with 30/30 valid variants accepted and 75/75 invalid or
+privacy variants rejected. External interoperability did not pass: only 2/15
+exact rerun results emitted V2, 12 returned the legacy shape and one failed
+Supervisor result binding. One of the two V2 outputs also missed the frozen 90%
+factual gate. V2 is consequently not integrated into the live post-validator.
+The next safe step is to make the external worker reliably emit the bounded V2
+schema and repeat the same acceptance corpus; heuristic V1 provenance repair is
+forbidden. Evidence: `FOLLOWUP_TEMP_CHAT_POST_VALIDATION_AUDIT.md`.
+
 F0 remains the preferred control. Neither downloaded model is wired into it.
 `gemma3:12b` at 4096 remains justified only as a bounded final-reasoner
 benchmark behind a new owner download decision. Full evidence is in

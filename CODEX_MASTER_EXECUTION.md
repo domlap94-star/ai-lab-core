@@ -97,6 +97,17 @@ consumed gate does not authorize that pull. CHUNK22 remains pending and CHUNK23
 is NOT STARTED. Evidence is in
 `FOLLOWUP_QWEN7_PHI4_COOPERATIVE_QUALIFICATION_REPORT.md`.
 
+The subsequent exact 15-case Temporary Chat post-validation audit is COMPLETE
+with `TEMP_CHAT_CONTRACT_BLOCKED`. It confirms a V1 representation mismatch but
+rejects unsafe heuristic relaxation. A strict local-handle V2 prototype passes
+30/30 valid and 75/75 invalid/privacy contract fixtures; external
+interoperability yielded only 2 V2 results, 12 legacy/unstructured results and
+one `RESULT_BINDING` failure, and one V2 result missed the frozen factual gate.
+No production validator/routing change was made. Gemma3 12B was not downloaded.
+CHUNK22 physical recheck and PRE-CHUNK23 owner review remain open; CHUNK23 is
+BLOCKED / NOT STARTED. Evidence is in
+`FOLLOWUP_TEMP_CHAT_POST_VALIDATION_AUDIT.md`.
+
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
 password literal is removed in favor of required untracked runtime injection;
 generic AI/RAG exceptions no longer leak internal details; Android release

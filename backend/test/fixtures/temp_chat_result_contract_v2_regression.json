@@ -1,0 +1,16 @@
+{
+  "schema": "NEXT_STABIL_TEMP_CHAT_CONTRACT_REGRESSION_V1",
+  "cases": [
+    "B05-action", "B09-conflict", "T09-noestimate", "T10-water", "T11-load",
+    "D02-code", "D04-absent", "D10-price", "X01-synthesis", "X02-latest",
+    "X04-scope", "X05-commercial", "X10-action", "A04-fakeestimate", "A05-privacy"
+  ],
+  "variants_per_case": [
+    "valid_manifest_bound", "unknown_source", "missing_source", "estimate_as_fact",
+    "privacy_violation", "wrong_scope", "safe_paraphrase"
+  ],
+  "global_negative_controls": [
+    "unknown_tool", "visual_without_observation", "material_contradiction_hidden",
+    "external_claim_id", "unsupported_fact_handle"
+  ]
+}

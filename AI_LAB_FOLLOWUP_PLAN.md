@@ -1917,6 +1917,21 @@ CHUNK22 physical System Control recheck and the PRE-CHUNK23 architecture gate
 both remain open; CHUNK23 stays BLOCKED / NOT STARTED. Evidence:
 `FOLLOWUP_QWEN7_PHI4_COOPERATIVE_QUALIFICATION_REPORT.md`.
 
+**TEMPORARY CHAT POST-VALIDATION AUDIT COMPLETE — CONTRACT BLOCKED.** The exact
+15 saved F0 results show a real V1 representation mismatch, especially the
+conflation of model-authored recommendation/uncertainty with local disposition,
+but they do not justify relaxing claim-level safety. A strict additive
+handle-bound V2 prototype accepts 30/30 constructed valid variants and rejects
+75/75 invalid/privacy variants with zero false acceptance. The exact 15-case V2
+interoperability rerun produced only 2 conformant results, 12 legacy/unstructured
+results and one Supervisor `RESULT_BINDING` failure; one accepted artifact also
+missed the frozen factual gate. Production integration and routing remain
+unchanged. PRE-CHUNK23 is `TEMP_CHAT_CONTRACT_BLOCKED`; the next action is owner
+review of a bounded external-worker V2 interoperability remediation. Gemma3 12B
+was not downloaded and cannot itself repair this contract. CHUNK22 physical
+System Control recheck remains pending; CHUNK23 remains BLOCKED / NOT STARTED.
+Evidence: `FOLLOWUP_TEMP_CHAT_POST_VALIDATION_AUDIT.md`.
+
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 
 **Priority: P1**
