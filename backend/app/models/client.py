@@ -204,4 +204,22 @@ class Client(BusinessBase):
 
     @property
     def addresses(self):
-        return [item for item in self.address_records if item.deleted_at is None]
+        # Historical candidate merges could persist a country-only relation.
+        # Such a row is not a usable address and cannot satisfy ClientAddressRead.
+        # Keep the database evidence intact while omitting the invalid relation
+        # from every read projection.
+        return [
+            item
+            for item in self.address_records
+            if item.deleted_at is None
+            and any(
+                isinstance(value, str) and bool(value.strip())
+                for value in (
+                    item.street,
+                    item.building_number,
+                    item.unit_number,
+                    item.postal_code,
+                    item.city,
+                )
+            )
+        ]

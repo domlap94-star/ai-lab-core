@@ -219,6 +219,23 @@ class CandidateMergeIsolatedTests(unittest.TestCase):
         self.assertEqual(result.relation_counts["addresses_added"], 1)
         self.assertFalse(target.addresses[0].is_primary)
 
+    def test_country_only_candidate_does_not_create_empty_address(self) -> None:
+        target = self._client()
+        candidate = self._candidate()
+        service = CandidateMergeService(self.db)
+        preview = service.preview(candidate_id=candidate.id, target_client_id=target.id)
+        address = next(
+            item for item in preview.field_proposals if item.field == "address"
+        )
+        self.assertEqual(address.proposed_action, "keep_existing")
+        result = service.merge(
+            candidate_id=candidate.id,
+            actor_user_id=self.actor_id,
+            request=self._request(preview, target.id),
+        )
+        self.assertEqual(result.relation_counts["addresses_added"], 0)
+        self.assertEqual(target.address_records, [])
+
     def test_document_relink_preserves_document_identity(self) -> None:
         target = self._client()
         candidate = self._candidate()

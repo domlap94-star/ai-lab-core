@@ -2382,7 +2382,18 @@ diagnostic-only / never stable. The original +27 low-level exception was not
 retained, so the incident remains classified only as a transient,
 non-reproducible Dio unknown transport condition.
 
-**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — COMPLETE.** Owner manual physical acceptance of the non-stable +32 Android candidate passed on 2026-08-24. PRE-CHUNK23 F0 remains END-TO-END QUALIFIED, and Unified Assistant implementation is NEXT / AUTHORIZED TO PREPARE in a separate bounded execution. CHUNK23 remains BLOCKED / NOT STARTED. Owner
+**P0 POST-CHUNK22 CLIENTS HTTP 500 REGRESSION — RESOLVED — 2026-08-24.** Six
+historical country-only address relations created by the older candidate-merge
+path caused `ClientPage` Pydantic serialization to reject otherwise successful
+Client SELECTs. The hotfix omits relations with no substantive address fields
+from read projections and prevents candidate merge from creating new country-
+only addresses. No row was rewritten. Production backend/public gateway Client
+list/search/detail, Global Search, Dashboard and Backup read smokes return 200;
+DB/pool/job evidence excludes CHUNK22 pool starvation. CHUNK22 remains COMPLETE.
+PRE-CHUNK23 Unified Assistant returns to NEXT / AUTHORIZED TO PREPARE. Evidence:
+`FOLLOWUP_P0_CLIENTS_HTTP500_HOTFIX_REPORT.md`.
+
+**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — COMPLETE.** Owner manual physical acceptance of the non-stable +32 Android candidate passed on 2026-08-24. The post-CHUNK22 Clients HTTP 500 P0 is RESOLVED. PRE-CHUNK23 F0 remains END-TO-END QUALIFIED, and Unified Assistant implementation is NEXT / AUTHORIZED TO PREPARE in a separate bounded execution. CHUNK23 remains BLOCKED / NOT STARTED. Owner
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
 = Phase F / Security + Operations. Update-signing trust remains unconsumed under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.

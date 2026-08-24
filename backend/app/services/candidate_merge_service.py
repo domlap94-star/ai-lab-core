@@ -617,7 +617,6 @@ class CandidateMergeService:
             value.unit_number,
             value.postal_code,
             value.city,
-            value.country_code,
         ]
         return cls._clean(" ".join(str(item or "") for item in parts))
 

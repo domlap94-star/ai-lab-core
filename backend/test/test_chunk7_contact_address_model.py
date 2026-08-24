@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database.session import engine
 from app.models.client import Client
+from app.models.client_address import ClientAddress
 from app.schemas.client import ClientAddressInput, ClientCreate, ClientRead, ClientUpdate
 from app.services.client_service import ClientService
 
@@ -107,8 +108,22 @@ def test_provenance_is_reference_only() -> None:
         assert "raw_payload" not in provenance_fields
 
 
+def test_legacy_country_only_address_is_omitted_from_read_projection() -> None:
+    client = Client(client_type="company", name="Legacy empty-address fixture")
+    client.address_records.append(
+        ClientAddress(
+            label="Adres kandydata",
+            country_code="PL",
+            origin="other",
+            source_type="candidate_merge",
+        )
+    )
+    assert client.addresses == []
+
+
 if __name__ == "__main__":
     test_multiple_addresses_primary_switch_and_soft_removal()
     test_duplicate_addresses_rejected()
     test_provenance_is_reference_only()
+    test_legacy_country_only_address_is_omitted_from_read_projection()
     print("CHUNK 7 contact/address tests: PASS")

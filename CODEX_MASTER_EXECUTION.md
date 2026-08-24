@@ -24,6 +24,16 @@ Przed rozpoczęciem każdego nowego zadania rozwojowego po 1.0.2+21 należy:
 5. zatrzymać się na każdym jawnym approval gate.
 
 Current execution state:
+**P0 POST-CHUNK22 CLIENTS HTTP 500 — RESOLVED 2026-08-24.** Six historical
+country-only address relations produced by the older candidate-merge path
+failed `ClientPage` serialization. Read projection now omits relations without
+substantive address content and candidate merge no longer creates them. No
+business row or schema changed. Authenticated backend/public Clients list,
+search/detail, Global Search, Dashboard and Backup smokes return 200. CHUNK22
+remains COMPLETE; PRE-CHUNK23 Unified Assistant is NEXT / AUTHORIZED TO PREPARE;
+CHUNK23 remains BLOCKED / NOT STARTED. Evidence:
+`FOLLOWUP_P0_CLIENTS_HTTP500_HOTFIX_REPORT.md`.
+
 **RELEASE E COMPLETE / HOTFIXED — NEXT Stabil `1.0.2+29` PUBLISHED
 2026-08-22.** Phase E is COMPLETE / RELEASED. The +27 Android startup/login
 incident reopened release acceptance and caused an emergency stable-manifest

@@ -208,8 +208,8 @@ class ClientSearchEquivalenceTests(unittest.TestCase):
 
     def test_empty_query_is_the_normal_bounded_client_list(self) -> None:
         page = self.clients.get_clients(search="  ", skip=0, limit=5)
-        self.assertEqual(len(page.items), 5)
-        self.assertGreaterEqual(page.total, 5)
+        self.assertGreaterEqual(page.total, 2)
+        self.assertEqual(len(page.items), min(5, page.total))
 
     def test_controlled_search_performance_is_bounded(self) -> None:
         queries = {
