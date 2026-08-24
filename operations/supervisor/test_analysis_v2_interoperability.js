@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { AnalysisQueue, verifyV2Output } = require('./analysis_queue');
-const { CONTRACT_V2, validateV2Result } = require('../vision-worker/analysis_contract');
+const { CONTRACT_V2, validatePackage, validateV2Result } = require('../vision-worker/analysis_contract');
 const {
   parseV2, parseV2WithRetry, promptForV2, retryPromptV2, writeResult,
 } = require('../vision-worker/analysis-job');
@@ -61,6 +61,29 @@ assert.throws(() => parseV2WithRetry('legacy prose', 'still invalid', m), /V2_MA
 assert.throws(() => parseV2(JSON.stringify({ ...result(), schema: 'NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1' }), m), /V2_SCHEMA/);
 assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', fact_handles: ['F9'], tool_handles: [], visual_handles: [] }] }, m), /V2_UNKNOWN_FACT/);
 assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', claim_id: 'external', fact_handles: ['F1'], tool_handles: [], visual_handles: [] }] }, m), /V2_EXTERNAL_CLAIM_ID/);
+
+const scoped = packageFor(m.analysis_id);
+scoped.sources.push({ source_ref: 'S2', source_sha256: 'd'.repeat(64), technical_excerpt: 'Fact two.', page: 1 });
+scoped.claims.push(
+  { kind: 'FACT', fact_handle: 'F2', source_handle: 'S2', statement: 'Fact two.' },
+  { kind: 'TOOL_RESULT', tool_handle: 'T2', source_handles: ['S2'], statement: '20 mm' },
+  { kind: 'VISUAL_OBSERVATION', visual_handle: 'V2', source_handles: ['S2'], statement: 'Other scope.' },
+);
+scoped.target_scope = { scope_handle: 'TARGET_01', allowed_source_handles: ['S1'], global_source_handles: [] };
+const scopedManifest = { ...m, package: scoped };
+validatePackage(scoped);
+assert.deepStrictEqual(validateV2Result(result(), scopedManifest), result());
+assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', fact_handles: ['F2'], tool_handles: [], visual_handles: [] }] }, scopedManifest), /V2_UNKNOWN_FACT/);
+assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', fact_handles: [], tool_handles: ['T2'], visual_handles: [] }] }, scopedManifest), /V2_UNKNOWN_TOOL/);
+assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', fact_handles: [], tool_handles: [], visual_handles: ['V2'] }] }, scopedManifest), /V2_UNKNOWN_VISUAL/);
+
+const estimable = { schema: CONTRACT_V2, claims: [{ class: 'ESTIMATE', estimate_status: 'ESTIMABLE', value_or_range: '8-12 mm', confidence: 'MEDIUM', basis_fact_handles: ['F1'], basis_tool_handles: [], assumptions: [], missing_inputs: [] }], contradictions: [] };
+const notEstimable = { schema: CONTRACT_V2, claims: [{ class: 'ESTIMATE', estimate_status: 'NOT_ESTIMABLE', reason: 'Brak danych.', basis_fact_handles: ['F1'], basis_tool_handles: [], missing_inputs: ['pomiar'] }], contradictions: [] };
+validateV2Result(estimable, scopedManifest);
+validateV2Result(notEstimable, scopedManifest);
+assert.throws(() => validateV2Result({ ...notEstimable, claims: [{ ...notEstimable.claims[0], confidence: 'LOW' }] }, scopedManifest), /V2_CLAIM_SCHEMA/);
+assert.throws(() => validateV2Result({ ...notEstimable, claims: [{ ...notEstimable.claims[0], value_or_range: '10 mm' }] }, scopedManifest), /V2_CLAIM_SCHEMA/);
+assert.throws(() => validatePackage({ ...scoped, target_scope: { scope_handle: 'TARGET_01', allowed_source_handles: ['S2', 'S2'], global_source_handles: [] } }), /V2_TARGET_SCOPE/);
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'analysis-v2-interoperability-'));
 try {

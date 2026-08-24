@@ -25,7 +25,9 @@ from run_multi_model_pipeline_qualification import deterministic_tool_results, d
 from run_temp_chat_pipeline_qualification import GATED_CASES, analysis_type
 
 
-REQUESTED_OUTPUT = """Zwróć dokładnie NEXT_STABIL_TEMP_CHAT_RESULT_V2: {schema,claims,contradictions}. Nie zwracaj answer, claim_id ani decyzji accept/review/reject. Używaj wyłącznie handle z package.claims. FACT: {class,fact_handles,tool_handles,visual_handles}; nie przepisuj tekstu. MISSING: {class,item,why_relevant,estimable}. HYPOTHESIS: {class,statement,support_fact_handles,contradiction_fact_handles,confirm_or_refute}. ESTIMATE: {class,value_or_range,confidence,basis_fact_handles,basis_tool_handles,assumptions,missing_inputs}; jeśli wartości nie da się oszacować, użyj confidence=NOT_ESTIMABLE i wskaż braki. Materialną sprzeczność zwróć jako {description,fact_handles}. Braków nie zgaduj. Lokalny deterministyczny walidator sam wybiera dyspozycję."""
+REQUESTED_OUTPUT = """Zwróć dokładnie NEXT_STABIL_TEMP_CHAT_RESULT_V2: {schema,claims,contradictions}. Nie zwracaj answer, claim_id ani decyzji accept/review/reject. target_scope jest niezmienny; używaj tylko uchwytów target/global. FACT wybiera fact/tool/visual handles. MISSING opisuje brak. HYPOTHESIS wymaga podstawy i sposobu weryfikacji. ESTIMATE ze statusem ESTIMABLE wymaga value_or_range, HIGH/MEDIUM/LOW, podstawy, założeń i braków. ESTIMATE ze statusem NOT_ESTIMABLE wymaga reason, podstawy i missing_inputs oraz nie może zawierać wartości, confidence ani założeń. Braków i źródeł nie zgaduj. Lokalny deterministyczny walidator sam wybiera dyspozycję."""
+FIXTURE = Path(__file__).parent / "fixtures" / "temp_chat_result_contract_v2_regression.json"
+TARGET_SCOPES = json.loads(FIXTURE.read_text(encoding="utf-8")).get("target_scopes", {})
 
 
 def atomize(value: str) -> list[str]:
@@ -35,10 +37,7 @@ def atomize(value: str) -> list[str]:
 def request_for(case) -> tuple[AnalysisRequest, dict[str, str]]:
     refs, aliases, manifest = [], {}, []
     fact_index = 0
-    scoped_evidence = case.evidence
-    if case.case_id == "X04-scope":
-        scoped_evidence = {key: value for key, value in case.evidence.items() if key in case.expected_sources}
-    for source_index, (internal_ref, excerpt) in enumerate(scoped_evidence.items(), 1):
+    for source_index, (internal_ref, excerpt) in enumerate(case.evidence.items(), 1):
         source = f"S{source_index}"
         aliases[source] = internal_ref
         refs.append(AnalysisSourceRef(source_ref=source, checksum_sha256=hashlib.sha256(excerpt.encode()).hexdigest(), excerpt=excerpt, extraction_confidence=100))
@@ -53,13 +52,25 @@ def request_for(case) -> tuple[AnalysisRequest, dict[str, str]]:
         source = next((alias for alias, internal in aliases.items() if internal in tool.get("source_refs", [])), "S1")
         manifest.append({"kind": "TOOL_RESULT", "tool_handle": f"T{index}", "source_handle": source,
                          "statement": f"{tool['value']} {tool['unit']}", "value": tool["value"], "unit": tool["unit"]})
-    source_checksum = hashlib.sha256(json.dumps(scoped_evidence, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    target_scope = None
+    if case.case_id in TARGET_SCOPES:
+        definition = TARGET_SCOPES[case.case_id]
+        inverse = {internal: handle for handle, internal in aliases.items()}
+        target_scope = {
+            "scope_handle": definition["scope_handle"],
+            "allowed_source_handles": [inverse[item] for item in definition["allowed_sources"]],
+            "global_source_handles": [inverse[item] for item in definition["global_sources"]],
+        }
+    source_checksum = hashlib.sha256(json.dumps(case.evidence, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    structured = {"contract_version": TemporaryChatResultContractV2.SCHEMA,
+                  "claims": manifest, "requested_output": REQUESTED_OUTPUT,
+                  "validation_requirements": ["strict handle binding", "local claim IDs", "privacy minimization"]}
+    if target_scope:
+        structured["target_scope"] = target_scope
     request = AnalysisRequest(
         analysis_id=uuid4(), analysis_type=analysis_type(case.category), source_domain="technical", source_refs=refs,
         problem_statement=case.question,
-        structured_inputs={"contract_version": TemporaryChatResultContractV2.SCHEMA,
-                           "claims": manifest, "requested_output": REQUESTED_OUTPUT,
-                           "validation_requirements": ["strict handle binding", "local claim IDs", "privacy minimization"]},
+        structured_inputs=structured,
         evidence=list(aliases), sensitivity="customer_sanitizable" if case.case_id == "A05-privacy" else "public_reference",
         allowed_methods=["local_llm", "temporary_chat"], provenance=AnalysisProvenance(source_checksum=source_checksum),
     )
@@ -97,15 +108,19 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     existing = list(map(json.loads, output.read_text(encoding="utf-8").splitlines())) if output.exists() else []
     completed = {row["case_id"]: row for row in existing if row.get("contract_status")}
-    selected = {case.case_id: case for case in cases() if case.case_id in GATED_CASES}
-    limit = int(os.environ.get("TEMP_CHAT_CONTRACT_V2_LIMIT", "15"))
-    if set(selected) != set(GATED_CASES) or not 1 <= limit <= 15:
+    all_selected = {case.case_id: case for case in cases() if case.case_id in GATED_CASES}
+    requested = [item.strip() for item in os.environ.get("TEMP_CHAT_CONTRACT_V2_CASES", ",".join(GATED_CASES)).split(",") if item.strip()]
+    limit = int(os.environ.get("TEMP_CHAT_CONTRACT_V2_LIMIT", str(len(requested))))
+    if (set(all_selected) != set(GATED_CASES) or not requested
+            or len(requested) != len(set(requested)) or set(requested) - set(GATED_CASES)
+            or not 1 <= limit <= 15):
         raise RuntimeError("frozen_v2_case_or_limit_mismatch")
+    selected = {case_id: all_selected[case_id] for case_id in requested[:limit]}
     db = SessionLocal()
     try:
         orchestrator = AdvancedAnalysisOrchestrator(db)
         validator = TemporaryChatResultContractV2()
-        for index, case_id in enumerate(GATED_CASES[:limit], 1):
+        for index, case_id in enumerate(requested[:limit], 1):
             if case_id in completed:
                 continue
             case = selected[case_id]
@@ -134,7 +149,7 @@ def main() -> None:
                 parsed = AdvancedAnalysisResult(
                     schema_version="NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
                     analysis_id=request.analysis_id, package_sha256=job.sanitized_package_hash,
-                    result=artifact["parsed_v2"], source_refs=[item.source_ref for item in request.source_refs],
+                    result=artifact["parsed_v2"], source_refs=TemporaryChatResultContractV2.allowed_source_refs(request),
                     assumptions=[], uncertainties=[], constraints_checked=[], normalized_units={},
                     formula_used=None, calculation_steps=[], verification_recommendation="accept",
                 )
@@ -158,7 +173,7 @@ def main() -> None:
             with output.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(row, ensure_ascii=False) + "\n")
             completed[case_id] = row
-            print(f"TEMP_CHAT_V2 {index}/15 {case_id} {row.get('contract_status', row.get('error', 'UNKNOWN'))}", flush=True)
+            print(f"TEMP_CHAT_V2 {index}/{len(selected)} {case_id} {row.get('contract_status', row.get('error', 'UNKNOWN'))}", flush=True)
             if row.get("error") and any(code in row["error"] for code in ("AUTH_REQUIRED", "UI_CHANGED")):
                 break
     finally:

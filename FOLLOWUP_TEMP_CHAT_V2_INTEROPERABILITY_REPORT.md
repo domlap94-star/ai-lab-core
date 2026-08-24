@@ -149,6 +149,21 @@ The numeric gates pass, but the unresolved X04 scope-package defect means the
 full qualification rule does not. The appropriate state is
 `TEMP_CHAT_V2_INTEROPERABILITY_PASS / F0 NOT QUALIFIED`.
 
+## Subsequent scope and estimation acceptance
+
+The bounded follow-up repaired the semantic package without weakening V2.
+`TARGET_01` now maps locally and deterministically to allowed opaque source
+handles, with separately explicit global handles and inherited tool/visual
+provenance. X04 then used only the target-bound source with 100% claim
+provenance and no PII or guessing. An explicit `ESTIMABLE` versus
+`NOT_ESTIMABLE` state removed D10's confidence/refusal ambiguity; D10 passed
+without a numerical estimate or hard failure. Under the unchanged conservative
+frozen scorer, the reconstructed F0 result is 96.43 overall, 97.00%
+factual/evidence, 50/50 automatic coverage and zero hard,
+wrong-source or privacy failures. The superseding conclusion is `F0 END-TO-END
+QUALIFIED`; details are preserved in
+`FOLLOWUP_F0_SCOPE_SEMANTICS_FINAL_ACCEPTANCE.md`.
+
 ## Production boundary and safety
 
 Production model routing was not changed. Stable remains `1.0.2+29`. No model

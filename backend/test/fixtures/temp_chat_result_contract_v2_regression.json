@@ -12,5 +12,12 @@
   "global_negative_controls": [
     "unknown_tool", "visual_without_observation", "material_contradiction_hidden",
     "external_claim_id", "unsupported_fact_handle"
-  ]
+  ],
+  "target_scopes": {
+    "X04-scope": {
+      "scope_handle": "TARGET_01",
+      "allowed_sources": ["client:A"],
+      "global_sources": []
+    }
+  }
 }

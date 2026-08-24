@@ -12,7 +12,8 @@ function object(value, code) {
 
 function exactKeys(value, allowed, code) {
   object(value, code);
-  if (Object.keys(value).some((key) => !allowed.has(key))) throw new Error(code);
+  const keys = Object.keys(value);
+  if (keys.length !== allowed.size || keys.some((key) => !allowed.has(key))) throw new Error(code);
 }
 
 function contractVersion(pkg) {
@@ -29,18 +30,39 @@ function handles(value, allowed, code, required = false) {
   if (value.some((item) => !allowed.has(item))) throw new Error(code);
 }
 
+function scopedSources(pkg) {
+  const all = new Set((pkg.sources || []).map((item) => item.source_ref));
+  if (!pkg.target_scope) return all;
+  const scope = pkg.target_scope;
+  exactKeys(scope, new Set(['scope_handle', 'allowed_source_handles', 'global_source_handles']), 'V2_TARGET_SCOPE');
+  if (!/^TARGET_0[1-8]$/.test(scope.scope_handle)) throw new Error('V2_TARGET_SCOPE');
+  stringList(scope.allowed_source_handles, 8, 'V2_TARGET_SCOPE');
+  stringList(scope.global_source_handles, 8, 'V2_TARGET_SCOPE');
+  if (!scope.allowed_source_handles.length
+      || new Set(scope.allowed_source_handles).size !== scope.allowed_source_handles.length
+      || new Set(scope.global_source_handles).size !== scope.global_source_handles.length
+      || scope.allowed_source_handles.some((item) => scope.global_source_handles.includes(item))
+      || [...scope.allowed_source_handles, ...scope.global_source_handles].some((item) => !all.has(item))) {
+    throw new Error('V2_TARGET_SCOPE');
+  }
+  return new Set([...scope.allowed_source_handles, ...scope.global_source_handles]);
+}
+
+function itemSources(item) {
+  if (Array.isArray(item.source_handles)) return new Set(item.source_handles.filter((value) => typeof value === 'string'));
+  return typeof item.source_handle === 'string' ? new Set([item.source_handle]) : new Set();
+}
+
 function manifestHandles(pkg) {
   const facts = new Set(); const tools = new Set(); const visuals = new Set();
-  const sources = new Set((pkg.sources || [])
-    .filter((item) => item && typeof item === 'object'
-      && (typeof item.source_handle === 'string' || typeof item.source_ref === 'string'))
-    .map((item) => item.source_handle || item.source_ref));
+  const sources = scopedSources(pkg);
   for (const item of pkg.claims || []) {
     if (!item || typeof item !== 'object') continue;
     if (item.kind === 'FACT' && typeof item.fact_handle === 'string'
         && sources.has(item.source_handle)) facts.add(item.fact_handle);
+    const provenance = itemSources(item);
     if (item.kind === 'TOOL_RESULT' && typeof item.tool_handle === 'string'
-        && sources.has(item.source_handle)) tools.add(item.tool_handle);
+        && provenance.size > 0 && [...provenance].every((handle) => sources.has(handle))) tools.add(item.tool_handle);
     if (item.kind === 'VISUAL_OBSERVATION' && typeof item.visual_handle === 'string'
         && Array.isArray(item.source_handles) && item.source_handles.length > 0
         && item.source_handles.every((handle) => sources.has(handle))) visuals.add(item.visual_handle);
@@ -64,14 +86,23 @@ function validateV2Result(value, manifest) {
       handles(claim.visual_handles || [], allowed.visuals, 'V2_UNKNOWN_VISUAL');
       if (!(claim.fact_handles.length || claim.tool_handles.length || claim.visual_handles.length)) throw new Error('V2_MISSING_PROVENANCE');
     } else if (claim.class === 'ESTIMATE') {
-      exactKeys(claim, new Set(['class', 'value_or_range', 'confidence', 'basis_fact_handles', 'basis_tool_handles', 'assumptions', 'missing_inputs']), 'V2_CLAIM_SCHEMA');
-      if (typeof claim.value_or_range !== 'string' || !claim.value_or_range
-          || !['HIGH', 'MEDIUM', 'LOW', 'NOT_ESTIMABLE'].includes(claim.confidence)) throw new Error('V2_ESTIMATE');
+      const status = claim.estimate_status || (claim.confidence === 'NOT_ESTIMABLE' ? 'NOT_ESTIMABLE' : 'ESTIMABLE');
+      const legacy = !Object.prototype.hasOwnProperty.call(claim, 'estimate_status');
+      const expected = status === 'NOT_ESTIMABLE' && !legacy
+        ? new Set(['class', 'estimate_status', 'reason', 'basis_fact_handles', 'basis_tool_handles', 'missing_inputs'])
+        : new Set(['class', ...(legacy ? [] : ['estimate_status']), 'value_or_range', 'confidence', 'basis_fact_handles', 'basis_tool_handles', 'assumptions', 'missing_inputs']);
+      exactKeys(claim, expected, 'V2_CLAIM_SCHEMA');
       handles(claim.basis_fact_handles || [], allowed.facts, 'V2_UNKNOWN_FACT');
       handles(claim.basis_tool_handles || [], allowed.tools, 'V2_UNKNOWN_TOOL');
       if (!(claim.basis_fact_handles.length || claim.basis_tool_handles.length)) throw new Error('V2_ESTIMATE');
-      stringList(claim.assumptions, 32, 'V2_ESTIMATE');
       stringList(claim.missing_inputs, 32, 'V2_ESTIMATE');
+      if (status === 'NOT_ESTIMABLE' && !legacy) {
+        if (typeof claim.reason !== 'string' || !claim.reason || !claim.missing_inputs.length) throw new Error('V2_ESTIMATE');
+      } else {
+        if (status !== 'ESTIMABLE' || typeof claim.value_or_range !== 'string' || !claim.value_or_range
+            || !['HIGH', 'MEDIUM', 'LOW'].includes(claim.confidence)) throw new Error('V2_ESTIMATE');
+        stringList(claim.assumptions, 32, 'V2_ESTIMATE');
+      }
     } else if (claim.class === 'HYPOTHESIS') {
       exactKeys(claim, new Set(['class', 'statement', 'support_fact_handles', 'contradiction_fact_handles', 'confirm_or_refute']), 'V2_CLAIM_SCHEMA');
       if (typeof claim.statement !== 'string' || !claim.statement
@@ -104,7 +135,8 @@ function schemaTemplate() {
       { class: 'FACT', fact_handles: ['F1'], tool_handles: [], visual_handles: [] },
       { class: 'MISSING', item: 'brakująca informacja', why_relevant: 'znaczenie', estimable: false },
       { class: 'HYPOTHESIS', statement: 'hipoteza', support_fact_handles: ['F1'], contradiction_fact_handles: [], confirm_or_refute: 'sposób weryfikacji' },
-      { class: 'ESTIMATE', value_or_range: 'wartość lub zakres', confidence: 'LOW', basis_fact_handles: ['F1'], basis_tool_handles: [], assumptions: [], missing_inputs: [] },
+      { class: 'ESTIMATE', estimate_status: 'ESTIMABLE', value_or_range: 'wartość lub zakres', confidence: 'LOW', basis_fact_handles: ['F1'], basis_tool_handles: [], assumptions: [], missing_inputs: [] },
+      { class: 'ESTIMATE', estimate_status: 'NOT_ESTIMABLE', reason: 'dlaczego nie można oszacować', basis_fact_handles: ['F1'], basis_tool_handles: [], missing_inputs: ['brakujący parametr'] },
     ],
     contradictions: [],
   };
@@ -112,5 +144,5 @@ function schemaTemplate() {
 
 module.exports = {
   CONTRACT_V1, CONTRACT_V2, ARTIFACT_V2, contractVersion,
-  validateV2Result, canonicalHash, schemaTemplate,
+  scopedSources, manifestHandles, validateV2Result, canonicalHash, schemaTemplate,
 };

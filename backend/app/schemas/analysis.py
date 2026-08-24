@@ -140,6 +140,24 @@ class SanitizedSource(BaseModel):
     page: int | None = Field(None, ge=1)
 
 
+class AnalysisTargetScope(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scope_handle: str = Field(pattern=r"^TARGET_0[1-8]$")
+    allowed_source_handles: list[str] = Field(min_length=1, max_length=8)
+    global_source_handles: list[str] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_handles(self):
+        allowed = self.allowed_source_handles
+        global_handles = self.global_source_handles
+        if (len(allowed) != len(set(allowed))
+                or len(global_handles) != len(set(global_handles))
+                or set(allowed) & set(global_handles)
+                or any(not re.fullmatch(r"S[1-8]", item) for item in allowed + global_handles)):
+            raise ValueError("analysis_target_scope_invalid")
+        return self
+
+
 class AdvancedAnalysisPackage(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: Literal["NEXT_STABIL_ADVANCED_ANALYSIS_V1"] = ADVANCED_PACKAGE_SCHEMA
@@ -149,6 +167,7 @@ class AdvancedAnalysisPackage(BaseModel):
         "NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1",
         "NEXT_STABIL_TEMP_CHAT_RESULT_V2",
     ] = TEMP_CHAT_RESULT_CONTRACT_V1
+    target_scope: AnalysisTargetScope | None = None
     problem: str = Field(min_length=1, max_length=4000)
     sources: list[SanitizedSource] = Field(min_length=1, max_length=8)
     tables: list[list[list[str | float | int | None]]] = Field(default_factory=list, max_length=4)
@@ -158,7 +177,7 @@ class AdvancedAnalysisPackage(BaseModel):
     units: dict[str, str] = Field(default_factory=dict)
     constraints: list[str] = Field(default_factory=list, max_length=64)
     standards: list[dict[str, str | int | float | None]] = Field(default_factory=list, max_length=16)
-    claims: list[dict[str, str | int | float | None]] = Field(default_factory=list, max_length=64)
+    claims: list[dict[str, Any]] = Field(default_factory=list, max_length=64)
     requested_output: str = Field(min_length=1, max_length=1000)
     validation_requirements: list[str] = Field(default_factory=list, max_length=32)
 
@@ -168,6 +187,11 @@ class AdvancedAnalysisPackage(BaseModel):
             raise ValueError("analysis_table_cell_limit")
         if sum(len(source.technical_excerpt) for source in self.sources) > 48000:
             raise ValueError("analysis_excerpt_total_limit")
+        if self.target_scope:
+            source_refs = {source.source_ref for source in self.sources}
+            scoped_refs = set(self.target_scope.allowed_source_handles + self.target_scope.global_source_handles)
+            if not scoped_refs.issubset(source_refs):
+                raise ValueError("analysis_target_scope_unknown_source")
         return self
 
 

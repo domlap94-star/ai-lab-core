@@ -19,9 +19,11 @@ def latest(path: Path) -> dict[str, dict]:
     return rows
 
 
-def summarize(local_path: Path, advanced_path: Path) -> dict:
+def summarize(local_path: Path, advanced_paths: list[Path]) -> dict:
     local_rows = normalized_rows(load_latest(local_path))
-    advanced = latest(advanced_path)
+    advanced: dict[str, dict] = {}
+    for path in advanced_paths:
+        advanced.update(latest(path))
     frozen = {case.case_id: case for case in cases()}
     accepted_local: list[dict] = []
     for row in local_rows:
@@ -65,7 +67,7 @@ def summarize(local_path: Path, advanced_path: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--local", required=True, type=Path)
-    parser.add_argument("--advanced", required=True, type=Path)
+    parser.add_argument("--advanced", required=True, type=Path, nargs="+")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     result = summarize(args.local, args.advanced)

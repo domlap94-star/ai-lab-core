@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any, Literal
 
 from app.schemas.analysis import AdvancedAnalysisResult, AnalysisRequest
@@ -32,6 +33,8 @@ class TemporaryChatResultContractV2:
         if payload.get("schema") != self.SCHEMA:
             return ResultContractValidation(False, "accepted_advanced", "analysis_result_contract_not_applicable")
         manifest = self._manifest(request)
+        if not manifest["scope_valid"]:
+            return self._reject("analysis_result_target_scope_invalid", "target_scope")
         if not manifest["facts"]:
             return self._reject("analysis_result_fact_manifest_missing", "fact_manifest_missing")
         if set(result.source_refs) - manifest["sources"]:
@@ -76,6 +79,7 @@ class TemporaryChatResultContractV2:
 
         artifact = {
             "schema": self.SCHEMA,
+            "target_scope_handle": manifest["target_scope_handle"],
             "answer": self.render_answer(normalized, normalized_contradictions),
             "claims": normalized,
             "contradictions": normalized_contradictions,
@@ -117,9 +121,22 @@ class TemporaryChatResultContractV2:
                 "visual_observation_refs": sorted(visuals), "source_refs": sorted(sources)}
 
     def _normalize_estimate(self, claim: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any] | ResultContractValidation:
-        allowed = {"class", "value_or_range", "confidence", "basis_fact_handles", "basis_tool_handles", "assumptions", "missing_inputs"}
-        if set(claim) - allowed:
-            return self._reject("analysis_result_claim_schema_invalid", "claim_schema")
+        estimable = {"class", "estimate_status", "value_or_range", "confidence", "basis_fact_handles", "basis_tool_handles", "assumptions", "missing_inputs"}
+        not_estimable = {"class", "estimate_status", "reason", "basis_fact_handles", "basis_tool_handles", "missing_inputs"}
+        legacy = {"class", "value_or_range", "confidence", "basis_fact_handles", "basis_tool_handles", "assumptions", "missing_inputs"}
+        status = claim.get("estimate_status")
+        if status is None:
+            if set(claim) - legacy:
+                return self._reject("analysis_result_claim_schema_invalid", "claim_schema")
+            status = "NOT_ESTIMABLE" if claim.get("confidence") == "NOT_ESTIMABLE" else "ESTIMABLE"
+        elif status == "ESTIMABLE":
+            if set(claim) != estimable:
+                return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
+        elif status == "NOT_ESTIMABLE":
+            if set(claim) != not_estimable:
+                return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
+        else:
+            return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
         facts = self._handles(claim.get("basis_fact_handles"))
         tools = self._handles(claim.get("basis_tool_handles"))
         if facts - set(manifest["facts"]):
@@ -128,12 +145,23 @@ class TemporaryChatResultContractV2:
             return self._reject("analysis_result_unknown_tool_handle", "unknown_tool")
         if not (facts or tools):
             return self._reject("analysis_result_estimate_basis_missing", "estimate_basis")
-        if not claim.get("value_or_range") or claim.get("confidence") not in self.CONFIDENCE:
-            return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
-        if not isinstance(claim.get("assumptions"), list) or not isinstance(claim.get("missing_inputs"), list):
+        if not isinstance(claim.get("missing_inputs"), list) or any(not isinstance(item, str) for item in claim["missing_inputs"]):
             return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
         sources = self._sources_for(facts, tools, manifest)
-        return {"class": "ESTIMATE", "text": str(claim["value_or_range"]), "confidence": claim["confidence"],
+        if status == "NOT_ESTIMABLE":
+            if (not isinstance(claim.get("reason"), str) or not claim["reason"].strip()
+                    or not claim["missing_inputs"]):
+                return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
+            return {"class": "ESTIMATE", "estimate_status": status, "text": claim["reason"].strip(),
+                    "confidence": "NOT_ESTIMABLE", "fact_handles": sorted(facts),
+                    "tool_result_refs": sorted(tools), "source_refs": sorted(sources),
+                    "assumptions": [], "missing_inputs": claim["missing_inputs"]}
+        if (not isinstance(claim.get("value_or_range"), str) or not claim["value_or_range"].strip()
+                or claim.get("confidence") not in {"HIGH", "MEDIUM", "LOW"}
+                or not isinstance(claim.get("assumptions"), list)
+                or any(not isinstance(item, str) for item in claim["assumptions"])):
+            return self._reject("analysis_result_estimate_contract_invalid", "estimate_contract")
+        return {"class": "ESTIMATE", "estimate_status": status, "text": str(claim["value_or_range"]), "confidence": claim["confidence"],
                 "fact_handles": sorted(facts), "tool_result_refs": sorted(tools), "source_refs": sorted(sources),
                 "assumptions": claim["assumptions"], "missing_inputs": claim["missing_inputs"]}
 
@@ -162,9 +190,34 @@ class TemporaryChatResultContractV2:
         return {"class": "MISSING", "text": claim["item"].strip(), "why_relevant": claim["why_relevant"].strip(),
                 "estimable": claim["estimable"], "source_refs": []}
 
-    @staticmethod
-    def _manifest(request: AnalysisRequest) -> dict[str, Any]:
-        sources = {item.source_ref for item in request.source_refs}
+    @classmethod
+    def _manifest(cls, request: AnalysisRequest) -> dict[str, Any]:
+        all_sources = {item.source_ref for item in request.source_refs}
+        scope = request.structured_inputs.get("target_scope")
+        scope_valid = True
+        target_scope_handle = None
+        sources = set(all_sources)
+        if scope is not None:
+            scope_valid = isinstance(scope, dict) and set(scope) == {
+                "scope_handle", "allowed_source_handles", "global_source_handles",
+            }
+            if scope_valid:
+                target_scope_handle = scope.get("scope_handle")
+                allowed = scope.get("allowed_source_handles")
+                global_sources = scope.get("global_source_handles")
+                scope_valid = (
+                    isinstance(target_scope_handle, str)
+                    and re.fullmatch(r"TARGET_0[1-8]", target_scope_handle) is not None
+                    and isinstance(allowed, list) and bool(allowed)
+                    and isinstance(global_sources, list)
+                    and all(isinstance(item, str) for item in allowed + global_sources)
+                    and len(allowed) == len(set(allowed))
+                    and len(global_sources) == len(set(global_sources))
+                    and not (set(allowed) & set(global_sources))
+                    and (set(allowed) | set(global_sources)).issubset(all_sources)
+                )
+                if scope_valid:
+                    sources = set(allowed) | set(global_sources)
         facts: dict[str, dict[str, str]] = {}
         tools: dict[str, dict[str, Any]] = {}
         visuals: dict[str, dict[str, Any]] = {}
@@ -176,14 +229,27 @@ class TemporaryChatResultContractV2:
                     "statement": str(item.get("statement") or ""), "source_ref": str(item["source_handle"]),
                     "contradiction_group": item.get("contradiction_group"),
                 }
-            elif (item.get("kind") == "TOOL_RESULT" and item.get("tool_handle")
-                  and item.get("source_handle") in sources):
-                tools[str(item["tool_handle"])] = item
+            elif item.get("kind") == "TOOL_RESULT" and item.get("tool_handle"):
+                tool_sources = cls._item_source_handles(item)
+                if tool_sources and tool_sources.issubset(sources):
+                    tools[str(item["tool_handle"])] = {**item, "source_handles": sorted(tool_sources)}
             elif item.get("kind") == "VISUAL_OBSERVATION" and item.get("visual_handle"):
                 visual_sources = set(item.get("source_handles") or [])
                 if visual_sources and visual_sources.issubset(sources):
                     visuals[str(item["visual_handle"])] = item
-        return {"sources": sources, "facts": facts, "tools": tools, "visuals": visuals}
+        return {"sources": sources, "facts": facts, "tools": tools, "visuals": visuals,
+                "scope_valid": scope_valid, "target_scope_handle": target_scope_handle}
+
+    @staticmethod
+    def _item_source_handles(item: dict[str, Any]) -> set[str]:
+        if isinstance(item.get("source_handles"), list):
+            return {str(value) for value in item["source_handles"] if isinstance(value, str)}
+        return {str(item["source_handle"])} if isinstance(item.get("source_handle"), str) else set()
+
+    @classmethod
+    def allowed_source_refs(cls, request: AnalysisRequest) -> list[str]:
+        manifest = cls._manifest(request)
+        return sorted(manifest["sources"]) if manifest["scope_valid"] else []
 
     @staticmethod
     def _handles(value: Any) -> set[str]:
@@ -196,8 +262,7 @@ class TemporaryChatResultContractV2:
         sources = {manifest["facts"][handle]["source_ref"] for handle in facts}
         for handle in tools:
             item = manifest["tools"][handle]
-            if item.get("source_handle"):
-                sources.add(str(item["source_handle"]))
+            sources.update(item.get("source_handles") or [])
         return sources
 
     @classmethod

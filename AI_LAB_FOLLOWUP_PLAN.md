@@ -1949,6 +1949,23 @@ acceptance. Gemma3 12B remains unauthorized and was not downloaded. CHUNK22
 physical recheck remains pending; CHUNK23 remains BLOCKED / NOT STARTED.
 Evidence: `FOLLOWUP_TEMP_CHAT_V2_INTEROPERABILITY_REPORT.md`.
 
+**F0 END-TO-END QUALIFIED — ARCHITECTURE READY FOR OWNER IMPLEMENTATION
+DECISION.** The remaining semantic package defects are closed. A locally
+generated opaque `TARGET_01` handle now binds the target to allowed source
+handles without exposing customer identity; global/reference evidence is
+explicit and tool/visual provenance inherits scope. X04 passed with only its
+target source. V2 estimates now separate `ESTIMABLE` and `NOT_ESTIMABLE`; D10
+passed as a structural refusal with no numerical value or LOW-confidence
+ambiguity. Nine bounded synthetic/public-safe calls all emitted/bound V2 on the
+first attempt. Under the unchanged conservative scorer, frozen F0 is 96.43
+overall, 97.00% factual/evidence, 95.56 technical documentation, 93.85
+cross-domain and 82.00% estimate/refusal, with
+50/50 automatic coverage and zero hard, wrong-source or privacy failures.
+Gemma3 12B is not required and was not downloaded. CHUNK22 physical System
+Control recheck remains pending; CHUNK23 remains BLOCKED / NOT STARTED pending
+the owner implementation decision. Evidence:
+`FOLLOWUP_F0_SCOPE_SEMANTICS_FINAL_ACCEPTANCE.md`.
+
 ## FOLLOW-UP CHUNK 23 — ENV SECRET ESCROW
 
 **Priority: P1**

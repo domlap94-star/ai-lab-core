@@ -195,6 +195,24 @@ benchmark behind a new owner download decision. Full evidence is in
 `FOLLOWUP_MULTI_MODEL_PIPELINE_QUALIFICATION_REPORT.md` and
 `FOLLOWUP_QWEN7_PHI4_COOPERATIVE_QUALIFICATION_REPORT.md`.
 
+### Final F0 semantic qualification (2026-08-24)
+
+The evidence artifact now has an optional opaque single-target scope:
+`TARGET_01 -> allowed_source_handles`, plus an explicit global/reference
+allowlist. The mapping is created locally; no customer identity is exported.
+Facts, tool results and visual observations must resolve entirely inside that
+target/global source set. Unknown or mixed-scope provenance fails closed.
+
+Estimate claims now distinguish `ESTIMABLE` from `NOT_ESTIMABLE` structurally.
+The latter requires reason, basis and missing inputs and forbids a numeric
+estimate, confidence and assumptions. X04 and D10 both pass the frozen semantic
+acceptance on their first V2 attempt. Reconstructed F0 is 96.43 overall and
+97.00% factual/evidence under the unchanged frozen scorer, with zero hard,
+wrong-source or privacy failures and
+50/50 automatic coverage. F0 is therefore end-to-end qualified and Gemma3 12B
+is not required. Production Assistant implementation remains a separate owner
+decision; no routing or UI change is authorized by this qualification.
+
 ## Migration plan
 
 1. Freeze new behavior in the three user-facing modes.

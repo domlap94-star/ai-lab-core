@@ -122,6 +122,18 @@ recheck and owner review of the bounded scope-manifest fix remain open, and
 CHUNK23 is BLOCKED / NOT STARTED. Gemma3 12B was not downloaded. Evidence is
 in `FOLLOWUP_TEMP_CHAT_V2_INTEROPERABILITY_REPORT.md`.
 
+The subsequent bounded semantic repair is COMPLETE and PASSING. An opaque
+single-target scope now maps locally to allowed/global source handles without
+PII and applies transitively to tool/visual provenance. V2 estimates explicitly
+separate `ESTIMABLE` from `NOT_ESTIMABLE`. X04 and D10 pass on their first V2
+attempt, and the unchanged frozen scorer yields 96.43 overall and 97.00%
+factual/evidence with 50/50 automatic coverage and zero hard, wrong-source or
+privacy failures. PRE-CHUNK23 is `F0 END-TO-END QUALIFIED / ARCHITECTURE READY
+FOR OWNER IMPLEMENTATION DECISION`; Gemma3 12B is not required and was not
+downloaded. CHUNK22 physical System Control recheck remains pending and CHUNK23
+remains BLOCKED / NOT STARTED. Evidence:
+`FOLLOWUP_F0_SCOPE_SEMANTICS_FINAL_ACCEPTANCE.md`.
+
 **FOLLOW-UP CHUNK 20 — SECURITY HARDENING V2 — COMPLETE.** No P0 was found. The tracked Postgres
 password literal is removed in favor of required untracked runtime injection;
 generic AI/RAG exceptions no longer leak internal details; Android release

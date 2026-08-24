@@ -216,7 +216,7 @@ class AdvancedAnalysisOrchestrator:
                 analysis_id=request.analysis_id,
                 package_sha256=job.sanitized_package_hash or "",
                 result=raw["parsed_v2"],
-                source_refs=[item.source_ref for item in request.source_refs],
+                source_refs=TemporaryChatResultContractV2.allowed_source_refs(request),
                 assumptions=[], uncertainties=[], constraints_checked=[],
                 normalized_units={}, formula_used=None, calculation_steps=[],
                 verification_recommendation="accept",
