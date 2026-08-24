@@ -54,6 +54,61 @@ function destinationPreflight(value, projectDir) {
   };
 }
 
+function destinationMetadata(value, projectDir) {
+  const destination = normalizeDestination(value, projectDir);
+  if (!fs.existsSync(destination) || !fs.statSync(destination).isDirectory()) {
+    return {
+      normalized_destination: destination,
+      available: false,
+      writable: false,
+      total_bytes: 0,
+      free_bytes: 0,
+      path_type: destination.startsWith('\\\\') ? 'network_path' : 'local_path',
+    };
+  }
+  const real = fs.realpathSync.native(destination);
+  if (fs.lstatSync(destination).isSymbolicLink()) throw new Error('backup_destination_reparse_forbidden');
+  let writable = true;
+  try { fs.accessSync(real, fs.constants.R_OK | fs.constants.W_OK); } catch (_) { writable = false; }
+  const stats = fs.statfsSync(real);
+  return {
+    normalized_destination: destination,
+    available: true,
+    writable,
+    total_bytes: Number(stats.blocks) * Number(stats.bsize),
+    free_bytes: Number(stats.bavail) * Number(stats.bsize),
+    path_type: destination.startsWith('\\\\') ? 'network_path' : 'local_path',
+  };
+}
+
+function browseDestination(value, relativePath, projectDir) {
+  const root = normalizeDestination(value, projectDir);
+  const relative = String(relativePath || '').trim().replace(/\//g, '\\');
+  if (path.win32.isAbsolute(relative) || relative.split('\\').includes('..')) {
+    throw new Error('backup_destination_relative_path_invalid');
+  }
+  const rootReal = fs.realpathSync.native(root);
+  const target = path.win32.resolve(rootReal, relative || '.');
+  if (target.toLowerCase() !== rootReal.toLowerCase()
+      && !target.toLowerCase().startsWith(`${rootReal.toLowerCase()}\\`)) {
+    throw new Error('backup_destination_browse_escape');
+  }
+  const targetReal = fs.realpathSync.native(target);
+  if (targetReal.toLowerCase() !== rootReal.toLowerCase()
+      && !targetReal.toLowerCase().startsWith(`${rootReal.toLowerCase()}\\`)) {
+    throw new Error('backup_destination_reparse_escape');
+  }
+  if (fs.lstatSync(target).isSymbolicLink()) throw new Error('backup_destination_reparse_forbidden');
+  const directories = fs.readdirSync(target, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
+    .slice(0, 100)
+    .map((entry) => ({
+      name: entry.name,
+      relative_path: path.win32.join(relative, entry.name),
+    }));
+  return { relative_path: relative, directories };
+}
+
 function listedFiles(root) {
   const output = [];
   function walk(directory) {
@@ -115,4 +170,12 @@ function deleteManagedBackup(payload, projectDir, activeBackupOperationId = null
   return { status: 'deleted', actual_reclaimed_bytes: actualBytes };
 }
 
-module.exports = { normalizeDestination, destinationPreflight, deleteManagedBackup, listedFiles, sha256File };
+module.exports = {
+  normalizeDestination,
+  destinationPreflight,
+  destinationMetadata,
+  browseDestination,
+  deleteManagedBackup,
+  listedFiles,
+  sha256File,
+};

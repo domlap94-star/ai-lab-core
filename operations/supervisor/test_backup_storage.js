@@ -6,7 +6,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { destinationPreflight, deleteManagedBackup, sha256File } = require('./backup_storage');
+const {
+  destinationPreflight,
+  destinationMetadata,
+  browseDestination,
+  deleteManagedBackup,
+  sha256File,
+} = require('./backup_storage');
 
 function artifact(root, name, marker) {
   const checkpoint = path.join(root, name);
@@ -29,6 +35,12 @@ fs.mkdirSync(project); fs.mkdirSync(backups);
 try {
   const preflight = destinationPreflight(backups, project);
   assert(preflight.available && preflight.writable && preflight.free_bytes > 0);
+  const metadata = destinationMetadata(backups, project);
+  assert(metadata.available && metadata.writable && metadata.total_bytes > 0);
+  fs.mkdirSync(path.join(backups, 'child'));
+  const browsing = browseDestination(backups, '', project);
+  assert(browsing.directories.some((item) => item.name === 'child'));
+  assert.throws(() => browseDestination(backups, '..', project), /relative_path_invalid/);
 
   const wrong = artifact(root, 'wrong-root-backup', 'wrong');
   assert.throws(() => deleteManagedBackup({ checkpoint_path: wrong.checkpoint, destination_root: backups, manifest_path: wrong.manifestPath, manifest_sha256: wrong.manifestHash }, project), /wrong_root/);
@@ -45,6 +57,7 @@ try {
   const junction = path.join(backups, 'junction-fixture');
   const junctionResult = spawnSync('cmd.exe', ['/d', '/c', 'mklink', '/J', junction, escapeTarget.checkpoint], { windowsHide: true });
   if (junctionResult.status === 0) {
+    assert.throws(() => browseDestination(backups, 'junction-fixture', project), /reparse/);
     assert.throws(() => deleteManagedBackup({ checkpoint_path: junction, destination_root: backups, manifest_path: path.join(junction, 'backup-manifest.json'), manifest_sha256: escapeTarget.manifestHash }, project), /reparse/);
   }
 

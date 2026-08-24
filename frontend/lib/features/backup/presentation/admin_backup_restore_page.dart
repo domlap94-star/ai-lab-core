@@ -1,6 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,6 +19,7 @@ class AdminBackupRestorePage extends ConsumerWidget {
     ref.invalidate(backupSchedulesProvider);
     ref.invalidate(backupRunsProvider);
     ref.invalidate(managedBackupsProvider);
+    ref.invalidate(hostStorageLocationsProvider);
     ref.invalidate(legacyBackupCandidatesProvider);
     ref.invalidate(restoreCandidatesProvider);
     ref.invalidate(restoreRunsProvider);
@@ -122,20 +121,11 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
   bool _busy = false;
 
   Future<void> _run() async {
-    if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Manualny backup z wyborem lokalizacji jest dostępny na hoście Windows.',
-          ),
-        ),
-      );
-      return;
-    }
-    final selected = await FilePicker.getDirectoryPath(
-      dialogTitle: 'Wybierz lokalizację backupu',
+    final selection = await showDialog<_HostDestinationSelection>(
+      context: context,
+      builder: (_) => const _HostStorageSelectorDialog(),
     );
-    if (selected == null || !mounted) return;
+    if (selection == null || !mounted) return;
     final session = requireBackupSessionFromAuth(
       ref.read(authControllerProvider),
     );
@@ -143,10 +133,11 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
     try {
       preflight = await ref
           .read(backupApiProvider)
-          .preflightManual(
+          .preflightManualV3(
             session: session,
             scope: _scope,
-            destination: selected,
+            location: selection.location,
+            relativePath: selection.relativePath,
           );
     } on DioException catch (error) {
       if (mounted) {
@@ -166,7 +157,12 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
       builder: (context) => AlertDialog(
         title: const Text('Wykonać backup teraz?'),
         content: Text(
-          'Zakres: ${_scope.label}\nCel: ${preflight.destination}\nWolne miejsce: ${_bytes(preflight.freeBytes)}',
+          'Zakres: ${_scope.label}\n'
+          'Cel na hoście: ${preflight.destinationDisplay ?? preflight.destination}\n'
+          'Wolne miejsce: ${_bytes(preflight.freeBytes)}\n'
+          'Szacowany backup: ${preflight.estimatedRequiredBytes == null ? 'brak danych' : _bytes(preflight.estimatedRequiredBytes!)}\n'
+          'Przewidywane wolne miejsce: ${preflight.predictedFreeBytes == null ? 'brak danych' : _bytes(preflight.predictedFreeBytes!)}\n'
+          'Wpływ retencji: ${_retentionImpactLabel(preflight.retentionImpact)}',
         ),
         actions: <Widget>[
           TextButton(
@@ -185,7 +181,7 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
     try {
       await ref
           .read(backupApiProvider)
-          .startManualV2(session: session, scope: _scope, preflight: preflight);
+          .startManualV3(session: session, scope: _scope, preflight: preflight);
       ref.invalidate(backupRunsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -249,6 +245,241 @@ class _ManualBackupSectionState extends ConsumerState<_ManualBackupSection> {
       ],
     ),
   );
+}
+
+class _HostDestinationSelection {
+  const _HostDestinationSelection(this.location, this.relativePath);
+  final HostStorageLocation location;
+  final String relativePath;
+}
+
+class _HostStorageSelectorDialog extends ConsumerStatefulWidget {
+  const _HostStorageSelectorDialog();
+  @override
+  ConsumerState<_HostStorageSelectorDialog> createState() =>
+      _HostStorageSelectorDialogState();
+}
+
+class _HostStorageSelectorDialogState
+    extends ConsumerState<_HostStorageSelectorDialog> {
+  HostStorageLocation? _location;
+  String _relativePath = '';
+  HostStorageBrowseResult? _browse;
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _browsePath(String path) async {
+    final location = _location;
+    if (location == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await ref
+          .read(backupApiProvider)
+          .browseStorage(
+            session: requireBackupSessionFromAuth(
+              ref.read(authControllerProvider),
+            ),
+            location: location,
+            relativePath: path,
+          );
+      if (mounted) {
+        setState(() {
+          _relativePath = result.relativePath;
+          _browse = result;
+        });
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = _apiError(
+            error,
+            'Nie udało się otworzyć katalogu na hoście.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _register() async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Dodaj lokalizację hosta lub NAS'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: r'Ścieżka hosta, np. D:\Backup lub \\NAS\Backup',
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Sprawdź i dodaj'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || value.isEmpty || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final item = await ref
+          .read(backupApiProvider)
+          .registerStorageLocation(
+            session: requireBackupSessionFromAuth(
+              ref.read(authControllerProvider),
+            ),
+            hostPath: value,
+          );
+      if (mounted) {
+        setState(() => _location = item);
+        await _browsePath('');
+      }
+    } on DioException catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = _apiError(
+            error,
+            'Lokalizacja hosta nie przeszła kontroli bezpieczeństwa.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final locations = ref.watch(hostStorageLocationsProvider);
+    return AlertDialog(
+      title: const Text('Wybierz lokalizację na hoście'),
+      actionsOverflowDirection: VerticalDirection.down,
+      content: SizedBox(
+        width: 560,
+        child: locations.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (_, _) =>
+              const Text('Nie udało się pobrać lokalizacji hosta.'),
+          data: (items) {
+            _location ??= items.firstOrNull;
+            if (_location != null && _browse == null && !_busy) {
+              Future<void>.microtask(() => _browsePath(''));
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                DropdownButtonFormField<HostStorageLocation>(
+                  key: const Key('host-storage-location'),
+                  isExpanded: true,
+                  initialValue: _location,
+                  decoration: const InputDecoration(labelText: 'Lokalizacja'),
+                  items: items
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Text(
+                            '${item.label} • ${_bytes(item.freeBytes)} wolne',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: _busy
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _location = value;
+                            _relativePath = '';
+                            _browse = null;
+                          });
+                        },
+                ),
+                TextButton.icon(
+                  onPressed: _busy ? null : _register,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Dodaj lokalizację hosta/NAS'),
+                ),
+                if (_busy) const LinearProgressIndicator(),
+                if (_browse != null) ...<Widget>[
+                  Text('Katalog: ${_browse!.displayPath}'),
+                  if (_relativePath.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              final parts = _relativePath.split(r'\');
+                              _browsePath(
+                                parts.length <= 1
+                                    ? ''
+                                    : parts
+                                          .sublist(0, parts.length - 1)
+                                          .join(r'\'),
+                              );
+                            },
+                      icon: const Icon(Icons.arrow_upward),
+                      label: const Text('Poziom wyżej'),
+                    ),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: _browse!.directories
+                          .map(
+                            (item) => ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.folder_outlined),
+                              title: Text(item.name),
+                              onTap: _busy
+                                  ? null
+                                  : () => _browsePath(item.relativePath),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ],
+                if (_error != null)
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Anuluj'),
+        ),
+        FilledButton(
+          key: const Key('confirm-host-storage'),
+          onPressed: !_busy && _location?.writable == true
+              ? () => Navigator.pop(
+                  context,
+                  _HostDestinationSelection(_location!, _relativePath),
+                )
+              : null,
+          child: const Text('Wybierz ten katalog'),
+        ),
+      ],
+    );
+  }
 }
 
 class _SchedulesSection extends ConsumerWidget {
@@ -469,7 +700,52 @@ class _SchedulesSection extends ConsumerWidget {
                 ),
                 TextField(
                   controller: destination,
-                  decoration: const InputDecoration(labelText: 'Cel backupu'),
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: 'Cel backupu na hoście',
+                    suffixIcon: IconButton(
+                      key: const Key('select-plan-host-destination'),
+                      tooltip: 'Wybierz lokalizację hosta/NAS',
+                      icon: const Icon(Icons.folder_open_outlined),
+                      onPressed: () async {
+                        final selected =
+                            await showDialog<_HostDestinationSelection>(
+                              context: context,
+                              builder: (_) =>
+                                  const _HostStorageSelectorDialog(),
+                            );
+                        if (selected == null || !context.mounted) return;
+                        try {
+                          final checked = await ref
+                              .read(backupApiProvider)
+                              .preflightManualV3(
+                                session: requireBackupSessionFromAuth(
+                                  ref.read(authControllerProvider),
+                                ),
+                                scope: scope,
+                                location: selected.location,
+                                relativePath: selected.relativePath,
+                              );
+                          destination.text = checked.destination;
+                          destinationType = selected.location.pathType;
+                          setDialogState(() {});
+                        } on DioException catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  _apiError(
+                                    error,
+                                    'Wybrana lokalizacja nie przeszła kontroli.',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
                 ),
                 DropdownButtonFormField<BackupScope>(
                   isExpanded: true,
@@ -722,44 +998,80 @@ class _LegacyBackupsSection extends ConsumerWidget {
             ),
           ],
         ),
-        data: (items) => items.isEmpty
-            ? const Text('Brak istniejących backupów do dodania.')
-            : Column(
-                children: items.map((item) {
-                  final created = item.createdAt == null
-                      ? 'Data nieznana'
-                      : _date(item.createdAt!);
-                  return ListTile(
-                    leading: Icon(
-                      item.verified
-                          ? Icons.verified_outlined
-                          : Icons.warning_amber_outlined,
-                    ),
-                    title: Text(created),
-                    subtitle: Text(
-                      '${item.destinationRoot}\n'
-                      '${_bytes(item.totalBytes)} • '
-                      '${item.verified ? 'ZWERYFIKOWANY' : 'WYMAGA WERYFIKACJI'}'
-                      '${item.alreadyManaged ? ' • już zarządzany' : ''}',
-                    ),
-                    trailing: item.adoptable
-                        ? FilledButton.tonal(
-                            onPressed: () => _adopt(context, ref, item),
-                            child: const Text('Zweryfikuj i dodaj'),
-                          )
-                        : null,
-                  );
-                }).toList(),
-              ),
+        data: (items) {
+          final active = items
+              .where((item) => !item.alreadyManaged && item.adoptable)
+              .toList();
+          final invalid = items
+              .where((item) => item.classification == 'INVALID')
+              .toList();
+          final managed = items.where((item) => item.alreadyManaged).toList();
+          if (active.isEmpty && invalid.isEmpty && managed.isEmpty) {
+            return const Text('Brak istniejących backupów do dodania.');
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (active.isNotEmpty) ...<Widget>[
+                const Text('Gotowe do dodania / wymagają weryfikacji'),
+                ...active.map((item) => _LegacyCandidateTile(item: item)),
+              ],
+              if (invalid.isNotEmpty)
+                ExpansionTile(
+                  title: Text(
+                    'Nieprawidłowe / niekompletne (${invalid.length})',
+                  ),
+                  children: invalid
+                      .map(
+                        (item) => ListTile(
+                          leading: const Icon(Icons.error_outline),
+                          title: Text(_legacyCandidateTitle(item)),
+                          subtitle: Text(
+                            _legacyErrorLabel(
+                              item.diagnosticCode ?? item.reason,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              if (managed.isNotEmpty)
+                ExpansionTile(
+                  title: Text('Już zarządzane (${managed.length})'),
+                  children: managed
+                      .map(
+                        (item) => ListTile(
+                          leading: const Icon(Icons.verified_outlined),
+                          title: Text(_legacyCandidateTitle(item)),
+                          subtitle: const Text(
+                            'Backup znajduje się w katalogu V2.',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
+}
 
-  Future<void> _adopt(
-    BuildContext context,
-    WidgetRef ref,
-    LegacyBackupCandidate item,
-  ) async {
+class _LegacyCandidateTile extends ConsumerStatefulWidget {
+  const _LegacyCandidateTile({required this.item});
+  final LegacyBackupCandidate item;
+  @override
+  ConsumerState<_LegacyCandidateTile> createState() =>
+      _LegacyCandidateTileState();
+}
+
+class _LegacyCandidateTileState extends ConsumerState<_LegacyCandidateTile> {
+  LegacyVerificationJob? _job;
+  bool _starting = false;
+
+  Future<void> _adopt() async {
+    final item = widget.item;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -782,26 +1094,108 @@ class _LegacyBackupsSection extends ConsumerWidget {
       ),
     );
     if (confirmed != true || item.adoptionToken == null) return;
+    setState(() => _starting = true);
     try {
-      await ref
+      final job = await ref
           .read(backupApiProvider)
-          .adoptLegacyBackup(
+          .startLegacyVerification(
             session: requireBackupSessionFromAuth(
               ref.read(authControllerProvider),
             ),
             adoptionToken: item.adoptionToken!,
           );
-      ref.invalidate(legacyBackupCandidatesProvider);
-      ref.invalidate(managedBackupsProvider);
+      if (!mounted) return;
+      setState(() => _job = job);
+      await _poll();
     } on DioException catch (error) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_apiError(error, 'Nie udało się dodać backupu.')),
+            content: Text(
+              _apiError(error, 'Nie udało się rozpocząć weryfikacji.'),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  Future<void> _poll() async {
+    while (mounted && _job != null && !_job!.terminal) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted || _job == null) return;
+      try {
+        final next = await ref
+            .read(backupApiProvider)
+            .legacyVerificationStatus(
+              session: requireBackupSessionFromAuth(
+                ref.read(authControllerProvider),
+              ),
+              jobToken: _job!.jobToken,
+            );
+        if (!mounted) return;
+        setState(() => _job = next);
+        if (next.state == 'SUCCEEDED') {
+          ref.invalidate(legacyBackupCandidatesProvider);
+          ref.invalidate(managedBackupsProvider);
+        }
+      } on DioException catch (error) {
+        if (!mounted) return;
+        setState(
+          () => _job = LegacyVerificationJob(
+            jobToken: _job!.jobToken,
+            jobId: _job!.jobId,
+            state: 'FAILED',
+            filesChecked: _job!.filesChecked,
+            filesTotal: _job!.filesTotal,
+            bytesChecked: _job!.bytesChecked,
+            bytesTotal: _job!.bytesTotal,
+            errorCode: _apiErrorCode(error) ?? 'legacy_verification_failed',
+            retryable: true,
           ),
         );
       }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final job = _job;
+    return Card.outlined(
+      child: ListTile(
+        leading: job != null && !job.terminal
+            ? const SizedBox.square(
+                dimension: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                item.verified
+                    ? Icons.verified_outlined
+                    : Icons.warning_amber_outlined,
+              ),
+        title: Text(_legacyCandidateTitle(item)),
+        subtitle: Text(
+          [
+            '${_bytes(item.totalBytes)} • ${item.verified ? 'ZWERYFIKOWANY' : 'WYMAGA WERYFIKACJI'}',
+            if (job != null) _legacyJobProgress(job),
+            if (job?.errorCode != null) _legacyErrorLabel(job!.errorCode),
+          ].join('\n'),
+        ),
+        trailing: job != null && !job.terminal
+            ? null
+            : FilledButton.tonal(
+                onPressed: _starting ? null : _adopt,
+                child: Text(
+                  job?.state == 'FAILED' && job?.retryable == true
+                      ? 'Spróbuj ponownie'
+                      : 'Zweryfikuj i dodaj',
+                ),
+              ),
+      ),
+    );
   }
 }
 
@@ -1169,12 +1563,69 @@ String _backupResultLabel(String? value) => switch (value) {
   'queued' => 'W kolejce',
   _ => value ?? 'brak',
 };
-String _apiError(DioException error, String fallback) {
+String _retentionImpactLabel(String value) => switch (value) {
+  'reserve_preserved' => 'rezerwa zostanie zachowana',
+  'reserve_would_be_violated' => 'backup może naruszyć wymaganą rezerwę',
+  'retention_dry_run_required' => 'wymagany podgląd retencji',
+  'estimate_unavailable' => 'brak oszacowania rozmiaru',
+  _ => 'nie dotyczy',
+};
+String _legacyCandidateTitle(LegacyBackupCandidate item) =>
+    item.createdAt == null
+    ? switch (item.diagnosticCode ?? item.reason) {
+        'legacy_manifest_schema_required' => 'Niekompletny backup',
+        'backup_manifest_missing' => 'Brak manifestu backupu',
+        _ => 'Backup bez rozpoznanej daty',
+      }
+    : _date(item.createdAt!);
+String _legacyJobProgress(LegacyVerificationJob job) {
+  final files = job.filesTotal == null
+      ? '${job.filesChecked} plików'
+      : '${job.filesChecked}/${job.filesTotal} plików';
+  final bytes = job.bytesTotal == null || job.bytesTotal == 0
+      ? ''
+      : ' • ${_bytes(job.bytesChecked)}/${_bytes(job.bytesTotal!)}';
+  final state = switch (job.state) {
+    'QUEUED' => 'W kolejce',
+    'VERIFYING_MANIFEST' => 'Sprawdzanie manifestu',
+    'VERIFYING_FILES' => 'Sprawdzanie plików',
+    'VERIFYING_CHECKSUMS' => 'Sprawdzanie sum kontrolnych',
+    'READY_TO_ADOPT' || 'ADOPTING' => 'Dodawanie do katalogu',
+    'SUCCEEDED' => 'Dodano do zarządzanych backupów',
+    'CANCELLED' => 'Anulowano',
+    'FAILED' => 'Weryfikacja nie powiodła się',
+    _ => job.state,
+  };
+  return '$state • $files$bytes';
+}
+
+String _legacyErrorLabel(String? code) => switch (code) {
+  'backup_manifest_missing' ||
+  'legacy_manifest_schema_required' => 'Nie znaleziono prawidłowego manifestu.',
+  'legacy_adoption_candidate_changed' ||
+  'legacy_adoption_manifest_changed' ||
+  'stale_backup_candidate' =>
+    'Backup zmienił się od czasu wykrycia. Uruchom weryfikację ponownie.',
+  'checkpoint_hash_mismatch' || 'checkpoint_verification_failed' =>
+    'Nie udało się zweryfikować sum kontrolnych.',
+  'backup_destination_unavailable' ||
+  'checkpoint_unavailable' => 'Dysk lub lokalizacja jest obecnie niedostępna.',
+  'backup_already_managed' => 'Backup jest już zarządzany.',
+  'legacy_adoption_root_invalid' ||
+  'checkpoint_outside_root' => 'Backup nie należy do dozwolonej lokalizacji.',
+  'checkpoint_required_artifact_missing' => 'Brak wymaganych plików backupu.',
+  'legacy_verification_interrupted' =>
+    'Weryfikacja została przerwana. Można spróbować ponownie.',
+  _ => 'Nie udało się zweryfikować backupu. Kod: ${code ?? 'nieznany'}',
+};
+String? _apiErrorCode(DioException error) {
   final data = error.response?.data;
   final detail = data is Map<String, dynamic> ? data['detail'] : null;
-  final code = detail is Map<String, dynamic>
-      ? detail['code']?.toString()
-      : null;
+  return detail is Map<String, dynamic> ? detail['code']?.toString() : null;
+}
+
+String _apiError(DioException error, String fallback) {
+  final code = _apiErrorCode(error);
   return switch (code) {
     'production_restore_approval_required' =>
       'Przywracanie produkcyjne wymaga osobnej zgody właściciela.',
@@ -1189,6 +1640,15 @@ String _apiError(DioException error, String fallback) {
       'Godziny 02:00–02:59 są niedostępne z powodu zmiany czasu CET/CEST.',
     'backup_supervisor_unavailable' || 'backup_scheduler_host_failure' =>
       'Nie udało się zsynchronizować Windows Task Scheduler.',
+    'backup_destination_browse_escape' ||
+    'backup_destination_relative_path_invalid' =>
+      'Wybrany katalog wykracza poza zatwierdzoną lokalizację hosta.',
+    'legacy_adoption_candidate_changed' ||
+    'legacy_adoption_manifest_changed' ||
+    'checkpoint_verification_failed' ||
+    'backup_destination_unavailable' ||
+    'legacy_adoption_root_invalid' ||
+    'legacy_verification_interrupted' => _legacyErrorLabel(code),
     _ => fallback,
   };
 }

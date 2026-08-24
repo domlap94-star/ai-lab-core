@@ -349,3 +349,40 @@ The final non-stable Android candidate is `1.0.2+31` (SHA-256
 `0549EA6B6CC472E815C8B7B02CFF4EDB9DF96DE13632717832A460F4D0BF1DFE`).
 ADB had no attached device, so physical legacy-preview/adoption and checkpoint
 loading acceptance remain pending. Stable remains `1.0.2+29`.
+
+## Cross-platform host selection and asynchronous legacy jobs — 2026-08-24
+
+The +31 physical findings showed that synchronous V1 checksum verification
+could occupy an API/database request until SQLAlchemy pool timeout, yielding a
+generic adoption error and prolonged UI loading. Initial discovery now reads
+only bounded manifest/path/size/catalog metadata; full checksums run as a
+Supervisor-owned asynchronous job. The job exposes QUEUED,
+VERIFYING_MANIFEST, VERIFYING_FILES, VERIFYING_CHECKSUMS, READY_TO_ADOPT,
+ADOPTING, SUCCEEDED, FAILED and CANCELLED states with bounded file/byte
+progress. A Supervisor restart produces a retryable interrupted result rather
+than a permanent VERIFYING state.
+
+Adoption still rechecks immutable manifest/path/critical-artifact evidence and
+remains idempotent. Verification cache keys include the candidate/root and
+manifest identity. This execution did not insert a production catalog row,
+move or rewrite a checkpoint, or delete a file. The production catalog already
+contains 11 rows from the owner's prior +31 attempts; deletion events remain 0
+and real deletion stays disabled.
+
+Manual backup V3 is platform-neutral. Its admin-only host selector exposes
+opaque registered-location capabilities and capacity/write metadata, resolves
+relative directories under the registered root, rejects traversal/device/
+active-data/reparse escape cases, and supports host local, mounted and UNC
+paths without storing credentials. Windows, Web and Android all preflight the
+host destination and receive a path-bound short-lived token; client-device
+storage is never used as the backup target.
+
+Read-only production proof classified 27 legacy candidates and verified the
+largest 7,986,915,249-byte candidate asynchronously in 34.228 seconds without
+blocking the managed endpoint (8.3 ms p95). Cached re-verification took 2.013
+seconds. Focused backend/Supervisor tests, isolated adoption and interruption
+recovery, Flutter analyze, focused UI tests and full Flutter 296/296 pass.
+
+Final +32 physical Android acceptance remains required; the candidate identity
+and hash are recorded in the CHUNK22 operations report. Automatic production
+deletion remains disabled and its owner gate is unconsumed.

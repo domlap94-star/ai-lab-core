@@ -128,6 +128,11 @@ class ManualBackupPreflight {
     required this.token,
     required this.expiresAt,
     this.estimatedRequiredBytes,
+    this.storageLocationId,
+    this.destinationDisplay,
+    this.predictedFreeBytes,
+    this.reserveRequiredBytes = 0,
+    this.retentionImpact = 'not_applicable',
   });
   final String destination;
   final bool available;
@@ -135,6 +140,11 @@ class ManualBackupPreflight {
   final int totalBytes;
   final int freeBytes;
   final int? estimatedRequiredBytes;
+  final String? storageLocationId;
+  final String? destinationDisplay;
+  final int? predictedFreeBytes;
+  final int reserveRequiredBytes;
+  final String retentionImpact;
   final String token;
   final DateTime expiresAt;
   factory ManualBackupPreflight.fromJson(Map<String, dynamic> json) =>
@@ -145,6 +155,12 @@ class ManualBackupPreflight {
         totalBytes: json['total_bytes'] as int? ?? 0,
         freeBytes: json['free_bytes'] as int? ?? 0,
         estimatedRequiredBytes: json['estimated_required_bytes'] as int?,
+        storageLocationId: json['storage_location_id'] as String?,
+        destinationDisplay: json['destination_display'] as String?,
+        predictedFreeBytes: json['predicted_free_bytes'] as int?,
+        reserveRequiredBytes: json['reserve_required_bytes'] as int? ?? 0,
+        retentionImpact:
+            json['retention_impact'] as String? ?? 'not_applicable',
         token: json['token'] as String,
         expiresAt: DateTime.parse(json['expires_at'] as String),
       );
@@ -207,6 +223,9 @@ class LegacyBackupCandidate {
     this.manifestSchema,
     this.reason,
     this.adoptionToken,
+    this.classification = 'NEEDS_VERIFICATION',
+    this.retryable = false,
+    this.diagnosticCode,
   });
   final String candidateId;
   final String checkpointPath;
@@ -222,6 +241,9 @@ class LegacyBackupCandidate {
   final bool alreadyManaged;
   final String? reason;
   final String? adoptionToken;
+  final String classification;
+  final bool retryable;
+  final String? diagnosticCode;
 
   factory LegacyBackupCandidate.fromJson(Map<String, dynamic> json) =>
       LegacyBackupCandidate(
@@ -241,6 +263,125 @@ class LegacyBackupCandidate {
         alreadyManaged: json['already_managed'] as bool? ?? false,
         reason: json['reason'] as String?,
         adoptionToken: json['adoption_token'] as String?,
+        classification:
+            json['classification'] as String? ?? 'NEEDS_VERIFICATION',
+        retryable: json['retryable'] as bool? ?? false,
+        diagnosticCode: json['diagnostic_code'] as String?,
+      );
+}
+
+class HostStorageLocation {
+  const HostStorageLocation({
+    required this.id,
+    required this.label,
+    required this.pathType,
+    required this.available,
+    required this.writable,
+    required this.totalBytes,
+    required this.freeBytes,
+    required this.token,
+    required this.expiresAt,
+  });
+  final String id;
+  final String label;
+  final String pathType;
+  final bool available;
+  final bool writable;
+  final int totalBytes;
+  final int freeBytes;
+  final String token;
+  final DateTime expiresAt;
+  factory HostStorageLocation.fromJson(Map<String, dynamic> json) =>
+      HostStorageLocation(
+        id: json['location_id'] as String,
+        label: json['display_label'] as String,
+        pathType: json['path_type'] as String,
+        available: json['available'] as bool? ?? false,
+        writable: json['writable'] as bool? ?? false,
+        totalBytes: json['total_bytes'] as int? ?? 0,
+        freeBytes: json['free_bytes'] as int? ?? 0,
+        token: json['location_token'] as String,
+        expiresAt: DateTime.parse(json['expires_at'] as String),
+      );
+}
+
+class HostStorageDirectory {
+  const HostStorageDirectory({required this.name, required this.relativePath});
+  final String name;
+  final String relativePath;
+  factory HostStorageDirectory.fromJson(Map<String, dynamic> json) =>
+      HostStorageDirectory(
+        name: json['name'] as String,
+        relativePath: json['relative_path'] as String,
+      );
+}
+
+class HostStorageBrowseResult {
+  const HostStorageBrowseResult({
+    required this.locationId,
+    required this.relativePath,
+    required this.displayPath,
+    required this.directories,
+  });
+  final String locationId;
+  final String relativePath;
+  final String displayPath;
+  final List<HostStorageDirectory> directories;
+  factory HostStorageBrowseResult.fromJson(Map<String, dynamic> json) =>
+      HostStorageBrowseResult(
+        locationId: json['location_id'] as String,
+        relativePath: json['relative_path'] as String? ?? '',
+        displayPath: json['display_path'] as String,
+        directories: (json['directories'] as List<dynamic>? ?? const [])
+            .map(
+              (item) =>
+                  HostStorageDirectory.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(growable: false),
+      );
+}
+
+class LegacyVerificationJob {
+  const LegacyVerificationJob({
+    required this.jobToken,
+    required this.jobId,
+    required this.state,
+    required this.filesChecked,
+    required this.bytesChecked,
+    this.filesTotal,
+    this.bytesTotal,
+    this.errorCode,
+    this.retryable = false,
+    this.managedBackup,
+  });
+  final String jobToken;
+  final String jobId;
+  final String state;
+  final int filesChecked;
+  final int? filesTotal;
+  final int bytesChecked;
+  final int? bytesTotal;
+  final String? errorCode;
+  final bool retryable;
+  final ManagedBackup? managedBackup;
+  bool get terminal =>
+      const {'SUCCEEDED', 'FAILED', 'CANCELLED'}.contains(state);
+  factory LegacyVerificationJob.fromJson(Map<String, dynamic> json) =>
+      LegacyVerificationJob(
+        jobToken: json['job_token'] as String,
+        jobId: json['job_id'] as String,
+        state: json['state'] as String,
+        filesChecked: json['files_checked'] as int? ?? 0,
+        filesTotal: json['files_total'] as int?,
+        bytesChecked: json['bytes_checked'] as int? ?? 0,
+        bytesTotal: json['bytes_total'] as int?,
+        errorCode: json['error_code'] as String?,
+        retryable: json['retryable'] as bool? ?? false,
+        managedBackup: json['managed_backup'] == null
+            ? null
+            : ManagedBackup.fromJson(
+                json['managed_backup'] as Map<String, dynamic>,
+              ),
       );
 }
 

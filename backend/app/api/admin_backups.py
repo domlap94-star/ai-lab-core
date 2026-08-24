@@ -16,14 +16,23 @@ from app.schemas.admin_backup import (
     BackupReconcileResult,
     BackupScheduleRead,
     BackupScheduleWrite,
+    HostStorageBrowseRequest,
+    HostStorageBrowseResult,
+    HostStorageLocation,
+    HostStorageRegisterRequest,
     ManagedBackupDeleteRequest,
     ManagedBackupRead,
     LegacyBackupAdoptRequest,
     LegacyBackupAdoptResult,
     LegacyBackupCandidate,
+    LegacyVerificationJob,
+    LegacyVerificationStartRequest,
+    LegacyVerificationStatusRequest,
     ManualBackupPreflight,
     ManualBackupPreflightRequest,
     ManualBackupStartRequest,
+    ManualBackupV3PreflightRequest,
+    ManualBackupV3StartRequest,
     RetentionPreview,
     RestoreCandidate,
     RestorePreview,
@@ -186,6 +195,107 @@ def run_manual_backup_v2(
         db.rollback(); raise map_error(error) from error
 
 
+@router.get("/storage-locations", response_model=list[HostStorageLocation])
+def host_storage_locations(
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> list[HostStorageLocation]:
+    try:
+        return [
+            HostStorageLocation.model_validate(item)
+            for item in BackupRestoreService(db).host_storage_locations(actor)
+        ]
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/storage-locations/register", response_model=HostStorageLocation)
+def register_host_storage(
+    payload: HostStorageRegisterRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> HostStorageLocation:
+    try:
+        return HostStorageLocation.model_validate(
+            BackupRestoreService(db).register_host_storage(
+                actor=actor, host_path=payload.host_path
+            )
+        )
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/storage-locations/browse", response_model=HostStorageBrowseResult)
+def browse_host_storage(
+    payload: HostStorageBrowseRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> HostStorageBrowseResult:
+    try:
+        return HostStorageBrowseResult.model_validate(
+            BackupRestoreService(db).browse_host_storage(
+                actor=actor,
+                location_token=payload.location_token,
+                relative_path=payload.relative_path,
+            )
+        )
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/manual-v3/preflight", response_model=ManualBackupPreflight)
+def manual_backup_v3_preflight(
+    payload: ManualBackupV3PreflightRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> ManualBackupPreflight:
+    try:
+        token, expires, host = BackupRestoreService(db).issue_v3_preflight(
+            actor=actor,
+            scope=payload.scope,
+            location_token=payload.location_token,
+            relative_path=payload.relative_path,
+        )
+        return ManualBackupPreflight(
+            normalized_destination=host["normalized_destination"],
+            destination_display=host["normalized_destination"],
+            storage_location_id=BackupRestoreService._location_id(
+                host["normalized_destination"]
+            ),
+            available=bool(host["available"]),
+            writable=bool(host["writable"]),
+            total_bytes=int(host.get("total_bytes") or 0),
+            free_bytes=int(host.get("free_bytes") or 0),
+            estimated_required_bytes=host.get("estimated_required_bytes"),
+            predicted_free_bytes=host.get("predicted_free_bytes"),
+            reserve_required_bytes=int(host.get("reserve_required_bytes") or 0),
+            retention_impact=str(host.get("retention_impact") or "not_applicable"),
+            token=token,
+            expires_at=expires,
+        )
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/manual-v3/run", response_model=BackupRunRead, status_code=status.HTTP_202_ACCEPTED)
+def run_manual_backup_v3(
+    payload: ManualBackupV3StartRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> BackupRunRead:
+    if not payload.confirmed:
+        raise HTTPException(status_code=422, detail={"code": "backup_confirmation_required"})
+    try:
+        service = BackupRestoreService(db)
+        destination = service.verify_preflight_token_v3(
+            token=payload.preflight_token,
+            user_id=actor.id,
+            scope=payload.scope,
+        )
+        run = service.start_backup(
+            scope=payload.scope, destination=destination, actor=actor
+        )
+        db.commit(); db.refresh(run)
+        return BackupRunRead.model_validate(run)
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.rollback(); raise map_error(error) from error
+
+
 @router.get("/managed", response_model=list[ManagedBackupRead])
 def managed_backups(
     _: User = Depends(require_admin), db: Session = Depends(get_db),
@@ -232,6 +342,65 @@ def adopt_legacy_backup(
         db.rollback(); raise map_error(error) from error
     except IntegrityError as error:
         db.rollback(); raise HTTPException(status_code=409, detail={"code": "legacy_adoption_duplicate"}) from error
+
+
+@router.post(
+    "/legacy-verifications",
+    response_model=LegacyVerificationJob,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_legacy_verification(
+    payload: LegacyVerificationStartRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> LegacyVerificationJob:
+    if not payload.confirmed:
+        raise HTTPException(status_code=422, detail={"code": "legacy_adoption_confirmation_required"})
+    try:
+        return LegacyVerificationJob.model_validate(
+            BackupRestoreService(db).start_legacy_verification(
+                token=payload.adoption_token,
+                plan_id=payload.plan_id,
+                actor=actor,
+            )
+        )
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
+@router.post("/legacy-verifications/status", response_model=LegacyVerificationJob)
+def legacy_verification_status(
+    payload: LegacyVerificationStatusRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> LegacyVerificationJob:
+    try:
+        result = BackupRestoreService(db).legacy_verification_status(
+            job_token=payload.job_token, actor=actor
+        )
+        if result.get("state") == "SUCCEEDED":
+            db.commit()
+            managed = result.get("managed_backup")
+            if managed is not None:
+                db.refresh(managed)
+        return LegacyVerificationJob.model_validate(result)
+    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        db.rollback(); raise map_error(error) from error
+    except IntegrityError as error:
+        db.rollback(); raise HTTPException(status_code=409, detail={"code": "legacy_adoption_duplicate"}) from error
+
+
+@router.post("/legacy-verifications/cancel", response_model=LegacyVerificationJob)
+def cancel_legacy_verification(
+    payload: LegacyVerificationStatusRequest,
+    actor: User = Depends(require_admin), db: Session = Depends(get_db),
+) -> LegacyVerificationJob:
+    try:
+        return LegacyVerificationJob.model_validate(
+            BackupRestoreService(db).cancel_legacy_verification(
+                job_token=payload.job_token, actor=actor
+            )
+        )
+    except (BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
 
 
 @router.get("/schedules/{schedule_id}/retention-preview", response_model=RetentionPreview)

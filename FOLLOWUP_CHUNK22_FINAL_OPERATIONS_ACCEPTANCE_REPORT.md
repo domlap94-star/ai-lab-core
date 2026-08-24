@@ -180,3 +180,71 @@ the established signer SHA-256
 release cleartext disabled and no debuggable flag. It is not published. ADB
 reported no attached device, so install-over, mobile button/adoption UI and
 same-device session acceptance remain pending. CHUNK22 is not marked complete.
+
+## Cross-platform backup administration and asynchronous verification — 2026-08-24
+
+Physical +31 acceptance closed the System Control status defect: Backend,
+Supervisor and NEXT Stabil display ONLINE, Start is disabled, and Restart/Stop
+are enabled. It also exposed the remaining CHUNK22 defects: host backup was
+presented as Windows-only, selected legacy verification held an HTTP/database
+request open for multi-gigabyte checksum work, failures collapsed to a generic
+message, and one verification state could block unrelated Backup sections.
+
+The repaired product rule is Administrator capability parity. Windows, Web and
+Android now use the same authenticated backend-mediated host-storage selector.
+It returns opaque location capabilities and bounded metadata, permits browsing
+only beneath validated registered roots, supports local/mounted and UNC roots,
+and never exposes file contents or NAS credentials. Manual backup V3 uses the
+same preflight on every platform and binds its short-lived token to the admin,
+scope, location and normalized resolved path. No backup was started in this
+acceptance run.
+
+Legacy discovery is metadata-only. The observed 27 candidates classified as
+11 already managed, 8 needing verification and 8 invalid; unknown dates were
+caused by missing/invalid manifests or non-checkpoint directories, not hidden
+valid dates. Full verification is now an asynchronous Supervisor job with
+per-item states/progress, cancellation, safe restart interruption and retry.
+Managed backups, legacy discovery, jobs, checkpoints and history have separate
+UI states, so one checksum job cannot create a page-wide spinner. Invalid and
+already-managed entries are separated and bounded error codes replace the
+generic adoption failure.
+
+The largest retained candidate was 7,986,915,249 bytes (about 7.44 GiB). Its
+first uncached checksum proof reached READY_TO_ADOPT in 34.228 seconds while
+the managed endpoint remained responsive (8.3 ms p95); a cached verification
+completed in 2.013 seconds. No catalog adoption or file mutation was performed
+by this runtime proof. Current production managed rows remain 11, reflecting
+the owner's earlier +31 attempts; deletion events remain 0.
+
+Repeated bounded endpoint timings were: managed 6.0/14.0 ms p50/p95, legacy
+27.7/31.8 ms, checkpoints 25.7/27.2 ms, history 6.7/7.3 ms and storage
+11.6/12.0 ms. Initial rendering performs no multi-gigabyte checksum.
+
+Capability source/widget acceptance matrix:
+
+| Administrator capability | Windows | Web | Android |
+| --- | --- | --- | --- |
+| Manual backup | PASS | PASS | PASS |
+| Select host destination | PASS | PASS | PASS |
+| Plan CRUD | PASS | PASS | PASS |
+| Retention configuration/dry-run | PASS | PASS | PASS |
+| Legacy discovery/verification/adoption | PASS | PASS | PASS |
+| System status and bounded control | PASS | PASS | PASS |
+
+Backend security/auth, isolated adoption/recovery, Supervisor storage/job,
+Backup Planner, Flutter analyze, 15 focused Backup/System Control tests, and
+the full Flutter 296/296 suite pass. Production DB head remains
+`followup_backup_planner_retention_20260824`; Qdrant remains green at 57/0.
+Production backup deletions, adoption-time file mutations, business writes,
+AI changes and n8n changes are 0.
+
+The signed, non-stable candidate
+`NEXT-Stabil-1.0.2+32-chunk22-cross-platform-candidate.apk` has application ID
+`pl.ailab.app`, version `1.0.2+32`, SHA-256
+`5AC7EDA17B16231891D1A9FEFDD380A8364BA0F43049DAE8D7D41E1AD8F986DA`,
+signer SHA-256
+`5e223da2da7c893d089d7333e99aaeee8d98c9cdf72be80609020967368fe018`,
+cleartext disabled and no debuggable flag. It is not published. ADB reports no
+attached physical device, so CHUNK22 remains open only for install-over and the
+specified +32 physical Android acceptance. Stable remains `1.0.2+29` and
+`FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED` remains unconsumed.

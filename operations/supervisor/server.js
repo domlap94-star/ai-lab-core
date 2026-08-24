@@ -10,8 +10,15 @@ const { AnalysisQueue } = require('./analysis_queue');
 const { TemporaryChatArbiter } = require('./temporary_chat_arbiter');
 const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
 const { previewSchedules, reconcileSchedules } = require('./backup_scheduler');
-const { normalizeDestination, destinationPreflight, deleteManagedBackup } = require('./backup_storage');
+const {
+  normalizeDestination,
+  destinationPreflight,
+  destinationMetadata,
+  browseDestination,
+  deleteManagedBackup,
+} = require('./backup_storage');
 const { controlledDockerArgs } = require('./system_control');
+const { LegacyVerificationJobs } = require('./legacy_verification_jobs');
 
 const qdrantSnapshotValidationCache = new Map();
 const checkpointVerificationCache = new Map();
@@ -160,12 +167,15 @@ function safeJoinCheckpoint(checkpoint, relative) {
   return target;
 }
 
-function hashFile(filePath) {
+function hashFile(filePath, onBytes = null) {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash('sha256');
     const stream = fs.createReadStream(filePath);
     stream.on('error', reject);
-    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('data', (chunk) => {
+      hash.update(chunk);
+      if (onBytes) onBytes(chunk.length);
+    });
     stream.on('end', () => resolve(hash.digest('hex')));
   });
 }
@@ -180,7 +190,8 @@ function compareVersion(left, right) {
   return 0;
 }
 
-async function verifyCheckpoint(checkpoint) {
+async function verifyCheckpoint(checkpoint, onProgress = null) {
+  if (onProgress) onProgress({ state: 'VERIFYING_MANIFEST' });
   const manifestPath = path.win32.join(checkpoint, 'backup-manifest.json');
   if (!fs.existsSync(manifestPath)) throw new Error('backup_manifest_missing');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8').replace(/^\uFEFF/, ''));
@@ -189,25 +200,54 @@ async function verifyCheckpoint(checkpoint) {
   }
   const manifestSha256 = await hashFile(manifestPath);
   const fingerprintParts = [manifestSha256];
+  let bytesTotal = 0;
+  if (onProgress) onProgress({ state: 'VERIFYING_FILES', files_total: manifest.artifacts.length });
   for (const artifact of manifest.artifacts) {
     const filePath = safeJoinCheckpoint(checkpoint, artifact.file);
     const stats = fs.statSync(filePath);
+    if (!stats.isFile() || Number(artifact.bytes) !== stats.size) {
+      throw new Error('backup_artifact_size_mismatch');
+    }
+    bytesTotal += stats.size;
     fingerprintParts.push(`${String(artifact.file)}|${stats.size}|${stats.mtimeMs}`);
   }
   const fingerprint = crypto.createHash('sha256').update(fingerprintParts.join('\n')).digest('hex');
   const cacheKey = path.win32.normalize(checkpoint).toLowerCase();
   const cached = checkpointVerificationCache.get(cacheKey);
-  if (cached && cached.fingerprint === fingerprint) return { ...cached.result };
+  if (cached && cached.fingerprint === fingerprint) {
+    if (onProgress) onProgress({
+      state: 'VERIFYING_CHECKSUMS',
+      files_checked: manifest.artifacts.length,
+      files_total: manifest.artifacts.length,
+      bytes_checked: bytesTotal,
+      bytes_total: bytesTotal,
+    });
+    return { ...cached.result };
+  }
 
   let totalBytes = 0;
   const components = [];
+  let filesChecked = 0;
+  let bytesChecked = 0;
+  if (onProgress) onProgress({
+    state: 'VERIFYING_CHECKSUMS',
+    files_checked: 0,
+    files_total: manifest.artifacts.length,
+    bytes_checked: 0,
+    bytes_total: bytesTotal,
+  });
   for (const artifact of manifest.artifacts) {
     const filePath = safeJoinCheckpoint(checkpoint, artifact.file);
     const stats = fs.statSync(filePath);
     if (!stats.isFile() || Number(artifact.bytes) !== stats.size) throw new Error('backup_artifact_size_mismatch');
-    if ((await hashFile(filePath)).toLowerCase() !== String(artifact.sha256 || '').toLowerCase()) {
+    if ((await hashFile(filePath, (count) => {
+      bytesChecked += count;
+      if (onProgress) onProgress({ bytes_checked: bytesChecked });
+    })).toLowerCase() !== String(artifact.sha256 || '').toLowerCase()) {
       throw new Error('backup_artifact_hash_mismatch');
     }
+    filesChecked += 1;
+    if (onProgress) onProgress({ files_checked: filesChecked, bytes_checked: bytesChecked });
     totalBytes += stats.size;
     components.push(path.win32.basename(filePath));
   }
@@ -382,7 +422,7 @@ async function discoverCheckpoints(destinations, includeInvalid = false, verify 
   return items.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 100);
 }
 
-async function verifyCheckpointAtRoot(destinationRoot, checkpointPath) {
+async function verifyCheckpointAtRoot(destinationRoot, checkpointPath, onProgress = null) {
   const root = validateBackupDestination(destinationRoot);
   const checkpoint = path.win32.normalize(String(checkpointPath || '')).replace(/[\\]+$/, '');
   if (!checkpoint.toLowerCase().startsWith(`${root.toLowerCase()}\\`)) {
@@ -396,8 +436,12 @@ async function verifyCheckpointAtRoot(destinationRoot, checkpointPath) {
   if (fs.lstatSync(checkpoint).isSymbolicLink()) {
     throw new Error('backup_checkpoint_reparse_forbidden');
   }
-  return { ...(await verifyCheckpoint(checkpoint)), destination_root: root };
+  return { ...(await verifyCheckpoint(checkpoint, onProgress)), destination_root: root };
 }
+
+const legacyVerificationJobs = new LegacyVerificationJobs({
+  verify: verifyCheckpointAtRoot,
+});
 
 function startBackupOperation(payload) {
   if (activeBackupOperationId) throw new Error('backup_already_running');
@@ -776,9 +820,49 @@ async function handle(req, res) {
         ));
         return;
       }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/legacy-verifications') {
+        sendJson(res, 202, legacyVerificationJobs.create(await readJsonBody(req)));
+        return;
+      }
+      const legacyJobMatch = /^\/backup\/legacy-verifications\/([a-f0-9-]{36})(\/cancel)?$/i.exec(requestUrl.pathname);
+      if (legacyJobMatch && req.method === 'GET' && !legacyJobMatch[2]) {
+        const status = legacyVerificationJobs.get(legacyJobMatch[1]);
+        sendJson(res, status ? 200 : 404, status || { code: 'legacy_verification_job_not_found' });
+        return;
+      }
+      if (legacyJobMatch && req.method === 'POST' && legacyJobMatch[2]) {
+        const status = legacyVerificationJobs.cancel(legacyJobMatch[1]);
+        sendJson(res, status ? 202 : 404, status || { code: 'legacy_verification_job_not_found' });
+        return;
+      }
+      const legacyResultMatch = /^\/backup\/legacy-verifications\/([a-f0-9-]{36})\/result$/i.exec(requestUrl.pathname);
+      if (legacyResultMatch && req.method === 'GET') {
+        const result = legacyVerificationJobs.result(legacyResultMatch[1]);
+        sendJson(res, result ? 200 : 409, result || { code: 'legacy_verification_not_ready' });
+        return;
+      }
       if (req.method === 'POST' && requestUrl.pathname === '/backup/destinations/preflight') {
         const payload = await readJsonBody(req);
         sendJson(res, 200, destinationPreflight(payload.destination, PROJECT_DIR));
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/storage/inspect') {
+        const payload = await readJsonBody(req);
+        const destinations = Array.isArray(payload.destinations)
+          ? payload.destinations.slice(0, 50)
+          : [payload.destination];
+        sendJson(res, 200, {
+          items: destinations.map((destination) => destinationMetadata(destination, PROJECT_DIR)),
+        });
+        return;
+      }
+      if (req.method === 'POST' && requestUrl.pathname === '/backup/storage/browse') {
+        const payload = await readJsonBody(req);
+        sendJson(res, 200, browseDestination(
+          payload.destination_root,
+          payload.relative_path,
+          PROJECT_DIR,
+        ));
         return;
       }
       if (req.method === 'POST' && requestUrl.pathname === '/backup/managed/delete') {

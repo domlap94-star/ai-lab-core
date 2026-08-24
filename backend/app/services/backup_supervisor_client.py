@@ -60,6 +60,40 @@ class BackupSupervisorClient:
             timeout=300,
         )
 
+    def start_legacy_verification(
+        self, *, job_id: str, destination_root: str, checkpoint_path: str
+    ) -> dict:
+        return self._request(
+            "POST",
+            "/backup/legacy-verifications",
+            {
+                "job_id": job_id,
+                "destination_root": destination_root,
+                "checkpoint_path": checkpoint_path,
+            },
+        )
+
+    def legacy_verification_status(self, job_id: str) -> dict:
+        return self._request("GET", f"/backup/legacy-verifications/{job_id}")
+
+    def cancel_legacy_verification(self, job_id: str) -> dict:
+        return self._request("POST", f"/backup/legacy-verifications/{job_id}/cancel", {})
+
+    def inspect_storage(self, destinations: list[str]) -> dict:
+        return self._request(
+            "POST", "/backup/storage/inspect", {"destinations": destinations}
+        )
+
+    def browse_storage(self, destination_root: str, relative_path: str) -> dict:
+        return self._request(
+            "POST",
+            "/backup/storage/browse",
+            {
+                "destination_root": destination_root,
+                "relative_path": relative_path,
+            },
+        )
+
     def preview_schedules(self, schedules: list[dict]) -> dict:
         return self._request("POST", "/backup/schedules/preview", {"schedules": schedules})
 

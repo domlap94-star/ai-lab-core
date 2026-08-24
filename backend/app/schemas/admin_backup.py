@@ -106,14 +106,64 @@ class ManualBackupPreflight(BaseModel):
     total_bytes: int
     free_bytes: int
     estimated_required_bytes: int | None = None
+    predicted_free_bytes: int | None = None
+    reserve_required_bytes: int = 0
+    retention_impact: str = "not_applicable"
     token: str
     expires_at: datetime
+    storage_location_id: str | None = None
+    destination_display: str | None = None
 
 
 class ManualBackupStartRequest(BaseModel):
     scope: BackupScope
     destination: str = Field(min_length=3, max_length=500)
     preflight_token: str = Field(min_length=32, max_length=2048)
+    confirmed: bool
+
+
+class HostStorageLocation(BaseModel):
+    location_id: str
+    display_label: str
+    path_type: DestinationType
+    available: bool
+    writable: bool
+    total_bytes: int
+    free_bytes: int
+    location_token: str
+    expires_at: datetime
+
+
+class HostStorageRegisterRequest(BaseModel):
+    host_path: str = Field(min_length=3, max_length=500)
+
+
+class HostStorageBrowseRequest(BaseModel):
+    location_token: str = Field(min_length=32, max_length=4096)
+    relative_path: str = Field(default="", max_length=500)
+
+
+class HostStorageDirectory(BaseModel):
+    name: str
+    relative_path: str
+
+
+class HostStorageBrowseResult(BaseModel):
+    location_id: str
+    relative_path: str
+    display_path: str
+    directories: list[HostStorageDirectory]
+
+
+class ManualBackupV3PreflightRequest(BaseModel):
+    scope: BackupScope
+    location_token: str = Field(min_length=32, max_length=4096)
+    relative_path: str = Field(default="", max_length=500)
+
+
+class ManualBackupV3StartRequest(BaseModel):
+    scope: BackupScope
+    preflight_token: str = Field(min_length=32, max_length=4096)
     confirmed: bool
 
 
@@ -188,6 +238,16 @@ class LegacyBackupCandidate(BaseModel):
     already_managed: bool
     reason: str | None = None
     adoption_token: str | None = None
+    classification: Literal[
+        "ALREADY_MANAGED",
+        "VERIFIED_ADOPTABLE",
+        "NEEDS_VERIFICATION",
+        "INVALID",
+        "UNAVAILABLE",
+        "VERIFICATION_FAILED",
+    ]
+    retryable: bool = False
+    diagnostic_code: str | None = None
 
 
 class LegacyBackupAdoptRequest(BaseModel):
@@ -199,6 +259,39 @@ class LegacyBackupAdoptRequest(BaseModel):
 class LegacyBackupAdoptResult(BaseModel):
     managed_backup: ManagedBackupRead
     already_managed: bool
+
+
+class LegacyVerificationStartRequest(BaseModel):
+    adoption_token: str = Field(min_length=32, max_length=4096)
+    plan_id: int | None = Field(None, ge=1)
+    confirmed: bool
+
+
+class LegacyVerificationJob(BaseModel):
+    job_id: str
+    job_token: str
+    state: Literal[
+        "QUEUED",
+        "VERIFYING_MANIFEST",
+        "VERIFYING_FILES",
+        "VERIFYING_CHECKSUMS",
+        "READY_TO_ADOPT",
+        "ADOPTING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED",
+    ]
+    files_checked: int = 0
+    files_total: int | None = None
+    bytes_checked: int = 0
+    bytes_total: int | None = None
+    error_code: str | None = None
+    retryable: bool = False
+    managed_backup: ManagedBackupRead | None = None
+
+
+class LegacyVerificationStatusRequest(BaseModel):
+    job_token: str = Field(min_length=32, max_length=8192)
 
 
 class BackupRunRead(BaseModel):

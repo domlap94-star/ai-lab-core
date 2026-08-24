@@ -1828,8 +1828,8 @@ persistence i updater. Bez urządzenia wynik pozostaje UNVERIFIED.
 Human gate: dostęp operatora do urządzenia; brak zmian danych poza
 kontrolowanymi fixtures.
 
-**[~] IN PROGRESS / REMOTE CONTROL + LEGACY BACKUP MANAGEMENT REMEDIATION;
-FINAL PHYSICAL ACCEPTANCE REQUIRED.** Physical +29 acceptance found
+**[~] IN PROGRESS / CROSS-PLATFORM BACKUP ADMIN + ASYNC LEGACY ADOPTION
+REMEDIATION.** Physical +29 acceptance found
 that Android directly used the private Supervisor URL and collapsed an
 unreachable response into `offline`, even while the public backend was online.
 The bounded repair uses an authenticated, read-only public-backend projection
@@ -1874,6 +1874,13 @@ loading/empty/error states and retry. Backend, Supervisor and Flutter tests
 pass, including full Flutter `295/295`. Non-stable signed candidate
 `1.0.2+31` is staged for final physical acceptance; ADB had no attached device,
 so CHUNK22 remains IN PROGRESS. Stable stays `1.0.2+29`.
+
+Physical +31 acceptance subsequently confirmed truthful ONLINE status and the
+correct Start/Restart/Stop button states. It also proved that synchronous V1
+verification/adoption and Windows-only manual destination selection do not meet
+Administrator capability parity. CHUNK22 now requires a backend-mediated host
+storage selector for Windows/Web/Android, asynchronous per-item legacy
+verification/adoption with bounded diagnostics, and final physical acceptance.
 
 The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing
@@ -2363,7 +2370,7 @@ diagnostic-only / never stable. The original +27 low-level exception was not
 retained, so the incident remains classified only as a transient,
 non-reproducible Dio unknown transport condition.
 
-**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — IN PROGRESS / PHYSICAL RECHECK PENDING.** Owner
+**PHASE F — IN PROGRESS. CHUNK 20 — COMPLETE; CHUNK 21 — COMPLETE; CHUNK 22 — IN PROGRESS / +32 PHYSICAL CROSS-PLATFORM BACKUP ACCEPTANCE REQUIRED.** System Control status and control-button state physically pass on +31. Cross-platform host-storage selection and asynchronous legacy verification pass source, isolated, and read-only runtime acceptance; the final +32 Android candidate still requires same-device physical acceptance. Owner
 release naming remains canonical: Release E = Phase E / AI + Search; Release F
 = Phase F / Security + Operations. Update-signing trust remains unconsumed under
 `FOLLOWUP_UPDATE_SIGNING_TRUST_APPROVAL_REQUIRED`; Release F was not performed.

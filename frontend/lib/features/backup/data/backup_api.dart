@@ -98,6 +98,77 @@ class BackupApi {
     );
   }
 
+  Future<LegacyVerificationJob> startLegacyVerification({
+    required AuthSession session,
+    required String adoptionToken,
+    int? planId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/legacy-verifications',
+      data: <String, dynamic>{
+        'adoption_token': adoptionToken,
+        'plan_id': planId,
+        'confirmed': true,
+      },
+      options: _options(session),
+    );
+    return LegacyVerificationJob.fromJson(response.data!);
+  }
+
+  Future<LegacyVerificationJob> legacyVerificationStatus({
+    required AuthSession session,
+    required String jobToken,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/legacy-verifications/status',
+      data: <String, dynamic>{'job_token': jobToken},
+      options: _options(session),
+    );
+    return LegacyVerificationJob.fromJson(response.data!);
+  }
+
+  Future<List<HostStorageLocation>> storageLocations(
+    AuthSession session,
+  ) async {
+    final response = await _dio.get<List<dynamic>>(
+      '/api/v1/admin/backups/storage-locations',
+      options: _options(session),
+    );
+    return (response.data ?? const <dynamic>[])
+        .map(
+          (item) => HostStorageLocation.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  }
+
+  Future<HostStorageLocation> registerStorageLocation({
+    required AuthSession session,
+    required String hostPath,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/storage-locations/register',
+      data: <String, dynamic>{'host_path': hostPath},
+      options: _options(session),
+    );
+    return HostStorageLocation.fromJson(response.data!);
+  }
+
+  Future<HostStorageBrowseResult> browseStorage({
+    required AuthSession session,
+    required HostStorageLocation location,
+    required String relativePath,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/storage-locations/browse',
+      data: <String, dynamic>{
+        'location_token': location.token,
+        'relative_path': relativePath,
+      },
+      options: _options(session),
+    );
+    return HostStorageBrowseResult.fromJson(response.data!);
+  }
+
   Future<RetentionPreview> retentionPreview(
     AuthSession session,
     int scheduleId,
@@ -162,6 +233,41 @@ class BackupApi {
       data: <String, dynamic>{
         'scope': scope.wireName,
         'destination': preflight.destination,
+        'preflight_token': preflight.token,
+        'confirmed': true,
+      },
+      options: _options(session),
+    );
+    return BackupRun.fromJson(response.data!);
+  }
+
+  Future<ManualBackupPreflight> preflightManualV3({
+    required AuthSession session,
+    required BackupScope scope,
+    required HostStorageLocation location,
+    required String relativePath,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/manual-v3/preflight',
+      data: <String, dynamic>{
+        'scope': scope.wireName,
+        'location_token': location.token,
+        'relative_path': relativePath,
+      },
+      options: _options(session),
+    );
+    return ManualBackupPreflight.fromJson(response.data!);
+  }
+
+  Future<BackupRun> startManualV3({
+    required AuthSession session,
+    required BackupScope scope,
+    required ManualBackupPreflight preflight,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/admin/backups/manual-v3/run',
+      data: <String, dynamic>{
+        'scope': scope.wireName,
         'preflight_token': preflight.token,
         'confirmed': true,
       },

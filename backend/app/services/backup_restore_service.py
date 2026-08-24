@@ -8,6 +8,7 @@ import hmac
 import json
 import ntpath
 import re
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, or_, text
@@ -24,7 +25,10 @@ from app.models.backup_operation import (
 )
 from app.models.user import User
 from app.schemas.admin_backup import BackupScheduleWrite, RestoreCandidate
-from app.services.backup_supervisor_client import BackupSupervisorClient
+from app.services.backup_supervisor_client import (
+    BackupSupervisorClient,
+    BackupSupervisorRejected,
+)
 
 
 OPERATION_LOCK_KEY = 0x4E455854424B5253
@@ -34,6 +38,8 @@ WINDOWS_ABSOLUTE = re.compile(r"^[A-Za-z]:\\")
 WINDOWS_UNC = re.compile(r"^\\\\[^\\]+\\[^\\]+\\")
 PREFLIGHT_TTL_SECONDS = 300
 ADOPTION_TTL_SECONDS = 600
+STORAGE_LOCATION_TTL_SECONDS = 900
+LEGACY_JOB_TTL_SECONDS = 86400
 
 
 class BackupRestoreConflict(ValueError):
@@ -313,18 +319,49 @@ class BackupRestoreService:
     def _preflight_signature(payload: bytes) -> str:
         return hmac.new(settings.secret_key.encode(), b"next-stabil-manual-backup-v2|" + payload, hashlib.sha256).hexdigest()
 
-    def issue_preflight_token(self, *, user_id: int, scope: str, destination: str) -> tuple[str, datetime, dict]:
+    def issue_preflight_token(
+        self,
+        *,
+        user_id: int,
+        scope: str,
+        destination: str,
+        storage_location_id: str | None = None,
+    ) -> tuple[str, datetime, dict]:
         if scope not in SAFE_SCOPES:
             raise BackupRestoreValidation("backup_scope_invalid")
         host = self.destination_preflight(destination)
         if not host.get("available") or not host.get("writable"):
             raise BackupRestoreValidation("backup_destination_unavailable")
         expires = datetime.now(timezone.utc) + timedelta(seconds=PREFLIGHT_TTL_SECONDS)
-        body = json.dumps({"u": user_id, "s": scope, "p": host["normalized_destination"], "e": int(expires.timestamp())}, separators=(",", ":"), sort_keys=True).encode()
+        payload = {
+            "u": user_id,
+            "s": scope,
+            "p": host["normalized_destination"],
+            "e": int(expires.timestamp()),
+        }
+        if storage_location_id is not None:
+            payload["l"] = storage_location_id
+        body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
         token = base64.urlsafe_b64encode(body).decode().rstrip("=") + "." + self._preflight_signature(body)
         return token, expires, host
 
     def verify_preflight_token(self, *, token: str, user_id: int, scope: str, destination: str) -> str:
+        payload = self._decode_preflight_token(token)
+        normalized = self.validate_destination(destination)
+        expected = {"e": payload.get("e"), "p": normalized, "s": scope, "u": user_id}
+        if "l" in payload:
+            expected["l"] = payload["l"]
+        if payload != expected:
+            raise BackupRestoreValidation("backup_preflight_token_binding_invalid")
+        return normalized
+
+    def verify_preflight_token_v3(self, *, token: str, user_id: int, scope: str) -> str:
+        payload = self._decode_preflight_token(token)
+        if payload.get("u") != user_id or payload.get("s") != scope or not payload.get("l"):
+            raise BackupRestoreValidation("backup_preflight_token_binding_invalid")
+        return self.validate_destination(str(payload.get("p") or ""))
+
+    def _decode_preflight_token(self, token: str) -> dict:
         try:
             encoded, signature = token.split(".", 1)
             body = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
@@ -333,12 +370,9 @@ class BackupRestoreService:
             payload = json.loads(body)
         except Exception as error:
             raise BackupRestoreValidation("backup_preflight_token_invalid") from error
-        normalized = self.validate_destination(destination)
-        if payload != {"e": payload.get("e"), "p": normalized, "s": scope, "u": user_id}:
-            raise BackupRestoreValidation("backup_preflight_token_binding_invalid")
         if int(payload["e"]) < int(datetime.now(timezone.utc).timestamp()):
             raise BackupRestoreValidation("backup_preflight_token_expired")
-        return normalized
+        return payload
 
     def start_backup(self, *, scope: str, destination: str, actor: User, trigger: str = "manual", schedule_id: int | None = None) -> BackupRun:
         if scope not in SAFE_SCOPES:
@@ -418,6 +452,222 @@ class BackupRestoreService:
         destinations.update(item.destination for item in self.list_schedules())
         return sorted(destinations)
 
+    @staticmethod
+    def _location_id(root: str) -> str:
+        normalized = ntpath.normcase(ntpath.normpath(root)).encode()
+        return "LOC_" + hmac.new(
+            settings.secret_key.encode(),
+            b"next-stabil-host-storage-id-v1|" + normalized,
+            hashlib.sha256,
+        ).hexdigest()[:20].upper()
+
+    @staticmethod
+    def _encode_token(purpose: str, payload: dict) -> str:
+        body = {"purpose": purpose, **payload}
+        encoded = base64.urlsafe_b64encode(
+            json.dumps(body, separators=(",", ":"), sort_keys=True).encode()
+        ).rstrip(b"=").decode()
+        signature = hmac.new(
+            settings.secret_key.encode(),
+            f"next-stabil-{purpose}|".encode() + encoded.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{encoded}.{signature}"
+
+    @staticmethod
+    def _decode_token(token: str, purpose: str, user_id: int) -> dict:
+        try:
+            encoded, supplied = token.split(".", 1)
+            expected = hmac.new(
+                settings.secret_key.encode(),
+                f"next-stabil-{purpose}|".encode() + encoded.encode(),
+                hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(expected, supplied):
+                raise ValueError
+            payload = json.loads(
+                base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+            )
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise BackupRestoreValidation(f"{purpose}_token_invalid") from error
+        if payload.get("purpose") != purpose or payload.get("user_id") != user_id:
+            raise BackupRestoreValidation(f"{purpose}_token_binding_invalid")
+        if not isinstance(payload.get("exp"), int) or payload["exp"] <= int(
+            datetime.now(timezone.utc).timestamp()
+        ):
+            raise BackupRestoreValidation(f"{purpose}_token_expired")
+        return payload
+
+    def _location_response(self, *, actor: User, item: dict, label: str) -> dict:
+        root = self.validate_destination(str(item["normalized_destination"]))
+        location_id = self._location_id(root)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            seconds=STORAGE_LOCATION_TTL_SECONDS
+        )
+        token = self._encode_token(
+            "host_storage_v1",
+            {
+                "user_id": actor.id,
+                "location_id": location_id,
+                "root": root,
+                "exp": int(expires_at.timestamp()),
+            },
+        )
+        return {
+            "location_id": location_id,
+            "display_label": label,
+            "path_type": str(item.get("path_type") or "local_path"),
+            "available": bool(item.get("available")),
+            "writable": bool(item.get("writable")),
+            "total_bytes": int(item.get("total_bytes") or 0),
+            "free_bytes": int(item.get("free_bytes") or 0),
+            "location_token": token,
+            "expires_at": expires_at,
+        }
+
+    def host_storage_locations(self, actor: User) -> list[dict]:
+        roots: dict[str, str] = {
+            self.validate_destination(settings.backup_root): "Domyślna lokalizacja backupów"
+        }
+        for item in self.list_schedules():
+            roots.setdefault(
+                self.validate_destination(item.destination),
+                f"Plan: {item.name}",
+            )
+        labels = {ntpath.normcase(ntpath.normpath(key)): value for key, value in roots.items()}
+        inspected = self.supervisor.inspect_storage(list(roots))
+        return [
+            self._location_response(
+                actor=actor,
+                item=item,
+                label=labels[
+                    ntpath.normcase(
+                        ntpath.normpath(str(item["normalized_destination"]))
+                    )
+                ],
+            )
+            for item in inspected.get("items", [])
+        ]
+
+    def register_host_storage(self, *, actor: User, host_path: str) -> dict:
+        root = self.validate_destination(host_path)
+        inspected = self.supervisor.inspect_storage([root]).get("items", [])
+        if len(inspected) != 1:
+            raise BackupRestoreValidation("backup_destination_unavailable")
+        item = inspected[0]
+        if not item.get("available") or not item.get("writable"):
+            raise BackupRestoreValidation("backup_destination_unavailable")
+        drive, _ = ntpath.splitdrive(root)
+        label = f"Lokalizacja hosta {drive or 'NAS'}"
+        return self._location_response(actor=actor, item=item, label=label)
+
+    def _resolve_location(
+        self, *, actor: User, location_token: str, relative_path: str = ""
+    ) -> tuple[str, str]:
+        payload = self._decode_token(location_token, "host_storage_v1", actor.id)
+        root = self.validate_destination(str(payload.get("root") or ""))
+        if payload.get("location_id") != self._location_id(root):
+            raise BackupRestoreValidation("host_storage_v1_token_binding_invalid")
+        relative = relative_path.strip().replace("/", "\\")
+        if ntpath.isabs(relative) or any(part == ".." for part in relative.split("\\")):
+            raise BackupRestoreValidation("backup_destination_relative_path_invalid")
+        target = ntpath.normpath(ntpath.join(root, relative)) if relative else root
+        if target.casefold() != root.casefold() and not self._inside_root(target, root):
+            raise BackupRestoreValidation("backup_destination_browse_escape")
+        return str(payload["location_id"]), target
+
+    def browse_host_storage(
+        self, *, actor: User, location_token: str, relative_path: str
+    ) -> dict:
+        location_id, target = self._resolve_location(
+            actor=actor, location_token=location_token, relative_path=relative_path
+        )
+        payload = self._decode_token(location_token, "host_storage_v1", actor.id)
+        root = str(payload["root"])
+        relative = ntpath.relpath(target, root)
+        result = self.supervisor.browse_storage(
+            root, "" if relative == "." else relative
+        )
+        return {
+            **result,
+            "location_id": location_id,
+            "display_path": "Lokalizacja hosta"
+            + (f"\\{result.get('relative_path')}" if result.get("relative_path") else ""),
+        }
+
+    def issue_v3_preflight(
+        self,
+        *,
+        actor: User,
+        scope: str,
+        location_token: str,
+        relative_path: str,
+    ) -> tuple[str, datetime, dict]:
+        location_id, destination = self._resolve_location(
+            actor=actor,
+            location_token=location_token,
+            relative_path=relative_path,
+        )
+        token, expires, host = self.issue_preflight_token(
+            user_id=actor.id,
+            scope=scope,
+            destination=destination,
+            storage_location_id=location_id,
+        )
+        recent = (
+            self.db.query(BackupRun)
+            .filter(
+                BackupRun.scope == scope,
+                BackupRun.status == "completed",
+                BackupRun.verified.is_(True),
+                BackupRun.total_bytes > 0,
+            )
+            .order_by(BackupRun.finished_at.desc(), BackupRun.id.desc())
+            .first()
+        )
+        estimate = int(recent.total_bytes) if recent is not None else None
+        free_bytes = int(host.get("free_bytes") or 0)
+        predicted_free = max(0, free_bytes - estimate) if estimate is not None else None
+        matching_plan = next(
+            (
+                item
+                for item in self.list_schedules()
+                if ntpath.normcase(ntpath.normpath(item.destination))
+                == ntpath.normcase(ntpath.normpath(destination))
+            ),
+            None,
+        )
+        reserve = 0
+        impact = "not_applicable"
+        if matching_plan is not None:
+            reserve = max(
+                int(matching_plan.minimum_free_bytes or 0),
+                int(
+                    int(host.get("total_bytes") or 0)
+                    * int(matching_plan.minimum_free_percent or 0)
+                    / 100
+                ),
+            )
+            if predicted_free is None:
+                impact = "estimate_unavailable"
+            elif predicted_free < reserve:
+                impact = (
+                    "retention_dry_run_required"
+                    if matching_plan.auto_delete
+                    else "reserve_would_be_violated"
+                )
+            else:
+                impact = "reserve_preserved"
+        host.update(
+            {
+                "estimated_required_bytes": estimate,
+                "predicted_free_bytes": predicted_free,
+                "reserve_required_bytes": reserve,
+                "retention_impact": impact,
+            }
+        )
+        return token, expires, host
+
     def _inventory_items(self, *, include_invalid: bool = False) -> list[dict]:
         payload = self.supervisor.inventory(
             self._recognized_destinations(), include_invalid=include_invalid
@@ -494,6 +744,9 @@ class BackupRestoreService:
 
     def legacy_candidates(self, actor: User) -> list[dict]:
         roots = self._recognized_destinations()
+        normalized_roots = {
+            ntpath.normcase(ntpath.normpath(value)) for value in roots
+        }
         items = self._inventory_items(include_invalid=True)
         managed_paths = {
             ntpath.normcase(ntpath.normpath(item.checkpoint_path))
@@ -503,26 +756,43 @@ class BackupRestoreService:
         for item in items:
             checkpoint = str(item.get("checkpoint_path") or "")
             root = str(item.get("destination_root") or "")
-            recognized = root in roots and self._inside_root(checkpoint, root)
+            recognized = (
+                ntpath.normcase(ntpath.normpath(root)) in normalized_roots
+                and self._inside_root(checkpoint, root)
+            )
             verified = bool(item.get("verified"))
             schema = str(item.get("manifest_schema") or "") or None
             manifest_hash = str(item.get("manifest_sha256") or "").lower()
             already_managed = ntpath.normcase(ntpath.normpath(checkpoint)) in managed_paths
-            adoptable = (
+            structurally_adoptable = (
                 recognized and schema == "NEXT_STABIL_BACKUP_V1"
                 and bool(re.fullmatch(r"[a-f0-9]{64}", manifest_hash))
                 and not already_managed
             )
             if already_managed:
                 reason = "already_managed"
+                classification = "ALREADY_MANAGED"
             elif not recognized:
                 reason = "outside_recognized_root"
+                classification = "INVALID"
             elif schema != "NEXT_STABIL_BACKUP_V1":
-                reason = "legacy_manifest_schema_required"
+                reason = str(
+                    item.get("error_code") or "legacy_manifest_schema_required"
+                )
+                classification = "INVALID"
             elif not manifest_hash:
                 reason = "manifest_hash_missing"
+                classification = "INVALID"
+            elif verified:
+                reason = None
+                classification = "VERIFIED_ADOPTABLE"
             else:
                 reason = None
+                classification = "NEEDS_VERIFICATION"
+            adoptable = structurally_adoptable and classification in {
+                "VERIFIED_ADOPTABLE",
+                "NEEDS_VERIFICATION",
+            }
             result.append({
                 "candidate_id": self._legacy_candidate_id(checkpoint, manifest_hash or "unverified"),
                 "checkpoint_path": checkpoint,
@@ -538,8 +808,134 @@ class BackupRestoreService:
                 "already_managed": already_managed,
                 "reason": reason,
                 "adoption_token": self._issue_adoption_token(actor=actor, item=item) if adoptable else None,
+                "classification": classification,
+                "retryable": classification in {"UNAVAILABLE", "VERIFICATION_FAILED"},
+                "diagnostic_code": reason,
             })
         return result
+
+    def start_legacy_verification(
+        self,
+        *,
+        token: str,
+        plan_id: int | None,
+        actor: User,
+    ) -> dict:
+        bound = self._decode_adoption_token(token, actor)
+        root = str(bound.get("destination_root") or "")
+        checkpoint = str(bound.get("checkpoint_path") or "")
+        if root not in self._recognized_destinations() or not self._inside_root(
+            checkpoint, root
+        ):
+            raise BackupRestoreValidation("legacy_adoption_root_invalid")
+        if plan_id is not None:
+            plan = self.db.get(BackupSchedule, plan_id)
+            if plan is None or plan.deleted_at is not None:
+                raise BackupRestoreValidation("backup_schedule_not_found")
+            if ntpath.normcase(plan.destination) != ntpath.normcase(root):
+                raise BackupRestoreValidation("legacy_adoption_plan_root_mismatch")
+        existing = self.db.query(ManagedBackup).filter(
+            ManagedBackup.checkpoint_path == checkpoint
+        ).one_or_none()
+        job_id = str(uuid4())
+        job_token = self._encode_token(
+            "legacy_verification_v1",
+            {
+                "user_id": actor.id,
+                "job_id": job_id,
+                "adoption_token": token,
+                "plan_id": plan_id,
+                "exp": int(
+                    (
+                        datetime.now(timezone.utc)
+                        + timedelta(seconds=LEGACY_JOB_TTL_SECONDS)
+                    ).timestamp()
+                ),
+            },
+        )
+        if existing is not None:
+            return {
+                "job_id": job_id,
+                "job_token": job_token,
+                "state": "SUCCEEDED",
+                "managed_backup": existing,
+            }
+        status = self.supervisor.start_legacy_verification(
+            job_id=job_id,
+            destination_root=root,
+            checkpoint_path=checkpoint,
+        )
+        actual_job_id = str(status.get("job_id") or job_id)
+        if actual_job_id != job_id:
+            job_token = self._encode_token(
+                "legacy_verification_v1",
+                {
+                    "user_id": actor.id,
+                    "job_id": actual_job_id,
+                    "adoption_token": token,
+                    "plan_id": plan_id,
+                    "exp": int(
+                        (
+                            datetime.now(timezone.utc)
+                            + timedelta(seconds=LEGACY_JOB_TTL_SECONDS)
+                        ).timestamp()
+                    ),
+                },
+            )
+        return {**status, "job_token": job_token, "managed_backup": None}
+
+    def legacy_verification_status(self, *, job_token: str, actor: User) -> dict:
+        bound = self._decode_token(
+            job_token, "legacy_verification_v1", actor.id
+        )
+        job_id = str(bound.get("job_id") or "")
+        if not re.fullmatch(r"[a-f0-9-]{36}", job_id, re.IGNORECASE):
+            raise BackupRestoreValidation("legacy_verification_job_binding_invalid")
+        adoption = self._decode_adoption_token(str(bound["adoption_token"]), actor)
+        existing = self.db.query(ManagedBackup).filter(
+            ManagedBackup.checkpoint_path == str(adoption["checkpoint_path"])
+        ).one_or_none()
+        if existing is not None:
+            return {
+                "job_id": job_id,
+                "job_token": job_token,
+                "state": "SUCCEEDED",
+                "managed_backup": existing,
+            }
+        try:
+            status = self.supervisor.legacy_verification_status(job_id)
+        except BackupSupervisorRejected as error:
+            if error.code != "legacy_verification_job_not_found":
+                raise
+            return {
+                "job_id": job_id,
+                "job_token": job_token,
+                "state": "FAILED",
+                "error_code": "legacy_verification_interrupted",
+                "retryable": True,
+                "managed_backup": None,
+            }
+        if status.get("state") != "READY_TO_ADOPT":
+            return {**status, "job_token": job_token, "managed_backup": None}
+        managed, _ = self.adopt_legacy_backup(
+            token=str(bound["adoption_token"]),
+            plan_id=bound.get("plan_id"),
+            actor=actor,
+        )
+        return {
+            **status,
+            "job_token": job_token,
+            "state": "SUCCEEDED",
+            "managed_backup": managed,
+        }
+
+    def cancel_legacy_verification(self, *, job_token: str, actor: User) -> dict:
+        bound = self._decode_token(job_token, "legacy_verification_v1", actor.id)
+        job_id = str(bound.get("job_id") or "")
+        if not re.fullmatch(r"[a-f0-9-]{36}", job_id, re.IGNORECASE):
+            raise BackupRestoreValidation("legacy_verification_job_binding_invalid")
+        status = self.supervisor.cancel_legacy_verification(job_id)
+        return {**status, "job_token": job_token, "managed_backup": None}
 
     def adopt_legacy_backup(self, *, token: str, plan_id: int | None, actor: User) -> tuple[ManagedBackup, bool]:
         bound = self._decode_adoption_token(token, actor)

@@ -52,6 +52,7 @@ class _FakeBackupApi extends BackupApi {
   _FakeBackupApi() : super(Dio());
   int restoreRequests = 0;
   int adoptionRequests = 0;
+  int manualBackups = 0;
 
   @override
   Future<ManagedBackup> adoptLegacyBackup({
@@ -71,6 +72,74 @@ class _FakeBackupApi extends BackupApi {
       protected: false,
       lifecycle: 'available',
       createdAt: DateTime.utc(2026, 8, 20),
+    );
+  }
+
+  @override
+  Future<LegacyVerificationJob> startLegacyVerification({
+    required AuthSession session,
+    required String adoptionToken,
+    int? planId,
+  }) async {
+    adoptionRequests += 1;
+    return LegacyVerificationJob(
+      jobToken: 'job-token',
+      jobId: '00000000-0000-0000-0000-000000000001',
+      state: 'SUCCEEDED',
+      filesChecked: 1,
+      filesTotal: 1,
+      bytesChecked: 10,
+      bytesTotal: 10,
+    );
+  }
+
+  @override
+  Future<HostStorageBrowseResult> browseStorage({
+    required AuthSession session,
+    required HostStorageLocation location,
+    required String relativePath,
+  }) async => HostStorageBrowseResult(
+    locationId: location.id,
+    relativePath: relativePath,
+    displayPath: 'Lokalizacja hosta',
+    directories: const <HostStorageDirectory>[],
+  );
+
+  @override
+  Future<ManualBackupPreflight> preflightManualV3({
+    required AuthSession session,
+    required BackupScope scope,
+    required HostStorageLocation location,
+    required String relativePath,
+  }) async => ManualBackupPreflight(
+    destination: r'D:\NEXT-Backups',
+    destinationDisplay: 'Dysk backupowy',
+    storageLocationId: location.id,
+    available: true,
+    writable: true,
+    totalBytes: 100000,
+    freeBytes: 80000,
+    token: 'preflight-token',
+    expiresAt: DateTime.utc(2026, 8, 24, 12),
+  );
+
+  @override
+  Future<BackupRun> startManualV3({
+    required AuthSession session,
+    required BackupScope scope,
+    required ManualBackupPreflight preflight,
+  }) async {
+    manualBackups += 1;
+    return BackupRun(
+      id: 1,
+      scope: scope,
+      trigger: 'manual',
+      status: 'running',
+      stage: 'validating',
+      destination: preflight.destination,
+      startedAt: DateTime.utc(2026, 8, 24),
+      verified: false,
+      totalBytes: 0,
     );
   }
 
@@ -163,6 +232,24 @@ Future<_FakeBackupApi> _pump(
       backupApiProvider.overrideWithValue(api),
       backupSchedulesProvider.overrideWith((ref) async => schedules),
       backupRunsProvider.overrideWith((ref) async => const <BackupRun>[]),
+      managedBackupsProvider.overrideWith(
+        (ref) async => const <ManagedBackup>[],
+      ),
+      hostStorageLocationsProvider.overrideWith(
+        (ref) async => <HostStorageLocation>[
+          HostStorageLocation(
+            id: 'LOC_TEST',
+            label: 'Dysk backupowy',
+            pathType: 'local_path',
+            available: true,
+            writable: true,
+            totalBytes: 100000,
+            freeBytes: 80000,
+            token: 'location-token',
+            expiresAt: DateTime.utc(2026, 8, 24, 12),
+          ),
+        ],
+      ),
       legacyBackupCandidatesProvider.overrideWith((ref) async => legacy),
       restoreCandidatesProvider.overrideWith(
         (ref) async => <RestoreCandidate>[_candidate],
@@ -199,6 +286,12 @@ Future<void> _pumpCandidate(
         (ref) async => const <BackupSchedule>[],
       ),
       backupRunsProvider.overrideWith((ref) async => const <BackupRun>[]),
+      managedBackupsProvider.overrideWith(
+        (ref) async => const <ManagedBackup>[],
+      ),
+      hostStorageLocationsProvider.overrideWith(
+        (ref) async => const <HostStorageLocation>[],
+      ),
       legacyBackupCandidatesProvider.overrideWith(
         (ref) async => const <LegacyBackupCandidate>[],
       ),
@@ -272,6 +365,23 @@ void main() {
     await _pump(tester, width: 390, admin: false);
     expect(find.text('Brak uprawnień administratora.'), findsOneWidget);
     expect(find.byKey(const Key('backup-restore-page')), findsNothing);
+  });
+
+  testWidgets('manual backup uses host selector on narrow clients', (
+    tester,
+  ) async {
+    final api = await _pump(tester, width: 390);
+    await tester.ensureVisible(find.byKey(const Key('run-backup-now')));
+    await tester.tap(find.byKey(const Key('run-backup-now')));
+    await tester.pumpAndSettle();
+    expect(find.text('Wybierz lokalizację na hoście'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('confirm-host-storage')));
+    await tester.pumpAndSettle();
+    expect(find.text('Wykonać backup teraz?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Wykonaj backup'));
+    await tester.pumpAndSettle();
+    expect(api.manualBackups, 1);
+    expect(find.textContaining('dostępny na hoście Windows'), findsNothing);
   });
 
   testWidgets('Qdrant blocker disables only Full restore', (tester) async {

@@ -96,11 +96,29 @@ def main() -> None:
         for path in (
             "/api/v1/admin/users",
             "/api/v1/admin/backups/schedules",
+            "/api/v1/admin/backups/storage-locations",
+            "/api/v1/admin/backups/legacy-candidates",
             "/api/v1/admin/knowledge-base",
             "/api/v1/admin/trash",
             "/api/v1/admin/change-history",
         ):
             response = http.get(path)
+            require(response.status_code == 403, f"normal user reached {path}")
+        for path, payload in (
+            (
+                "/api/v1/admin/backups/storage-locations/register",
+                {"host_path": "D:\\Backup"},
+            ),
+            (
+                "/api/v1/admin/backups/legacy-verifications",
+                {
+                    "adoption_token": "x" * 64,
+                    "plan_id": None,
+                    "confirmed": True,
+                },
+            ),
+        ):
+            response = http.post(path, json=payload)
             require(response.status_code == 403, f"normal user reached {path}")
 
         marker = "Bearer synthetic-secret C:\\private\\customer.txt"

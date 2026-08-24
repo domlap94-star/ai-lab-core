@@ -35,6 +35,12 @@ final managedBackupsProvider = FutureProvider.autoDispose<List<ManagedBackup>>(
   (ref) =>
       ref.watch(backupApiProvider).managedBackups(requireBackupSession(ref)),
 );
+final hostStorageLocationsProvider =
+    FutureProvider.autoDispose<List<HostStorageLocation>>(
+      (ref) => ref
+          .watch(backupApiProvider)
+          .storageLocations(requireBackupSession(ref)),
+    );
 final legacyBackupCandidatesProvider =
     FutureProvider.autoDispose<List<LegacyBackupCandidate>>(
       (ref) => ref
