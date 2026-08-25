@@ -1,4 +1,7 @@
 from types import SimpleNamespace
+from datetime import UTC, datetime, timedelta
+
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -19,10 +22,10 @@ def test_deterministic_router_selects_scoped_multi_domain_tools():
     )
     calls = UnifiedAssistantService._route(request, 7)
     names = [name for name, _ in calls]
-    assert names[:4] == [
-        "get_client", "get_document_summary", "get_document_pages",
-        "get_visual_analysis",
+    assert names[:3] == [
+        "get_document_summary", "get_document_pages", "get_visual_analysis",
     ]
+    assert "get_client" not in names  # selected technical evidence does not need identity/PII
     assert "get_email_metadata" in names
     assert all(args.get("client_id", 7) == 7 for _, args in calls)
 
@@ -171,6 +174,81 @@ def test_request_contract_forbids_unknown_fields_and_bounds_history():
         pass
     else:
         raise AssertionError("legacy mode must not enter the unified contract")
+
+
+@pytest.mark.parametrize("value,expected", [
+    ('Przeanalizuj "technical-report-001.pdf" i podaj przyczyny.', "technical-report-001.pdf"),
+    ("Przeanalizuj technical-report-001.pdf przypisany do klienta.", "technical-report-001.pdf"),
+    ("Sprawdź pomiary_gruntu.xlsx.", "pomiary_gruntu.xlsx"),
+])
+def test_explicit_document_reference_is_detected_without_magic_keyword(value, expected):
+    assert UnifiedAssistantService._filename_reference(value) == expected
+
+
+def test_explicit_document_resolution_is_exact_ambiguous_and_client_scoped():
+    current = SimpleNamespace(id=11, filename="stored-11.pdf", original_filename="technical-report-001.pdf")
+    other = SimpleNamespace(id=12, filename="stored-12.pdf", original_filename="other.pdf")
+    state, row = UnifiedAssistantService._match_document_rows("TECHNICAL-REPORT-001.PDF", [current, other])
+    assert state == "EXACT_MATCH"
+    assert row.id == 11
+    duplicate = SimpleNamespace(id=13, filename="copy.pdf", original_filename="technical-report-001.pdf")
+    assert UnifiedAssistantService._match_document_rows("technical-report-001.pdf", [current, duplicate])[0] == "AMBIGUOUS"
+    assert UnifiedAssistantService._match_document_rows("foreign.pdf", [current])[0] == "NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_not_found_required_document_returns_before_any_model_or_external_call():
+    class Query:
+        def filter(self, *args): return self
+        def all(self): return []
+    class Db:
+        def query(self, *args): return Query()
+    class NoModel:
+        async def generate(self, **kwargs):
+            raise AssertionError("model must not run for retrieval failure")
+    response = await UnifiedAssistantService(Db(), llm_client=NoModel()).ask(
+        request=UnifiedAssistantRequest(
+            question="Przeanalizuj nonexistent.pdf.", client_id=7, attempt_id="attempt-001"
+        ),
+        user_id=1,
+    )
+    assert response.status == "review_required"
+    assert response.current_stage == "document_resolution"
+    assert response.model is None
+    assert "nonexistent.pdf" not in (response.error_message or "")
+
+
+def test_required_document_must_be_used_by_a_material_claim():
+    source = SimpleNamespace(source_type="document", source_id=91)
+    payload = {
+        "used_sources": ["S01"],
+        "claims": [{"source_refs": ["S01"]}],
+    }
+    assert UnifiedAssistantService._payload_uses_document(payload, {"S01": source}, 91)
+    assert not UnifiedAssistantService._payload_uses_document(payload, {"S01": source}, 92)
+
+
+def test_retry_attempt_gets_a_new_request_id_and_cannot_bind_stale_result():
+    collected = SimpleNamespace(sources=[], tool_payloads=[], tools=[], client_id=None, visual_available=False)
+    first = UnifiedAssistantRequest(question="Pytanie syntetyczne", attempt_id="attempt-one")
+    retry = UnifiedAssistantRequest(question="Pytanie syntetyczne", attempt_id="attempt-two")
+    assert UnifiedAssistantService._request_id(first, collected) != UnifiedAssistantService._request_id(retry, collected)
+
+
+def test_advanced_hard_timeout_cancels_supervisor_and_finishes_fail_closed():
+    cancelled = []
+    supervisor = SimpleNamespace(cancel_job=lambda job_id: cancelled.append(job_id))
+    db = SimpleNamespace(flush=lambda: None)
+    service = UnifiedAssistantService(db, llm_client=SimpleNamespace(), supervisor=supervisor)
+    job = SimpleNamespace(
+        status="advanced_processing", started_at=datetime.now(UTC) - timedelta(seconds=181),
+        created_at=datetime.now(UTC), external_job_id="external-1", decision=None,
+        error_code=None, finished_at=None,
+    )
+    assert service._expire_advanced(job)
+    assert job.status == "failed"
+    assert job.error_code == "analysis_timeout"
+    assert cancelled == ["external-1"]
 
 
 def test_source_inspector_redacts_routine_contact_identifiers():

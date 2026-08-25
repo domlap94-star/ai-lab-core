@@ -58,3 +58,12 @@ class OllamaClient:
             response.raise_for_status()
 
             return response.json()
+
+    async def unload(self, model: str) -> None:
+        """Release one exact model without changing the installed inventory."""
+        async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+            response = await client.post(
+                f"{self.base_url}/api/generate",
+                json={"model": model, "prompt": "", "stream": False, "keep_alive": 0},
+            )
+            response.raise_for_status()

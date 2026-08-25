@@ -39,14 +39,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('unified-source-S01')), findsOneWidget);
   });
+
+  testWidgets('Cancel propagates to backend job and restores composer', (
+    tester,
+  ) async {
+    final api = _PendingApi();
+    await _pump(tester, api: api);
+    await tester.enterText(
+      find.byKey(const Key('unified-ai-question')),
+      'Trudny przypadek syntetyczny',
+    );
+    await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
+    await tester.tap(find.byKey(const Key('unified-ai-send')));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Anuluj'));
+    await tester.tap(find.text('Anuluj'));
+    await tester.pumpAndSettle();
+    expect(api.cancelledRequestId, 'pending-request');
+    expect(find.byKey(const Key('unified-ai-send')), findsOneWidget);
+  });
 }
 
-Future<void> _pump(WidgetTester tester) async {
+Future<void> _pump(WidgetTester tester, {UnifiedAssistantApi? api}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(_Auth.new),
-        unifiedAssistantApiProvider.overrideWithValue(_Api()),
+        unifiedAssistantApiProvider.overrideWithValue(api ?? _Api()),
       ],
       child: const MaterialApp(home: UnifiedAssistantPage()),
     ),
@@ -74,6 +93,7 @@ class _Api extends UnifiedAssistantApi {
     int? documentId,
     int? mailSourceId,
     int? inspectionId,
+    String? attemptId,
     CancelToken? cancelToken,
   }) async => const UnifiedAssistantAnswer(
     requestId: 'request',
@@ -104,4 +124,40 @@ class _Api extends UnifiedAssistantApi {
       ),
     ],
   );
+}
+
+class _PendingApi extends UnifiedAssistantApi {
+  _PendingApi() : super(Dio());
+  String? cancelledRequestId;
+
+  @override
+  Future<UnifiedAssistantAnswer> ask({
+    required AuthSession session,
+    required String question,
+    required List<Map<String, String>> conversation,
+    int? clientId,
+    int? candidateId,
+    int? documentId,
+    int? mailSourceId,
+    int? inspectionId,
+    String? attemptId,
+    CancelToken? cancelToken,
+  }) async => const UnifiedAssistantAnswer(
+    requestId: 'pending-request', answer: '', status: 'advanced_processing',
+    progress: 'advanced_analysis', targetScope: 'TARGET_01', claims: [],
+    sources: [], usedTools: [], externalAnalysisUsed: true, canCancel: true,
+  );
+
+  @override
+  Future<UnifiedAssistantAnswer> cancel({
+    required AuthSession session,
+    required String requestId,
+  }) async {
+    cancelledRequestId = requestId;
+    return const UnifiedAssistantAnswer(
+      requestId: 'pending-request', answer: '', status: 'cancelled',
+      progress: 'complete', targetScope: 'TARGET_01', claims: [], sources: [],
+      usedTools: [], externalAnalysisUsed: true,
+    );
+  }
 }

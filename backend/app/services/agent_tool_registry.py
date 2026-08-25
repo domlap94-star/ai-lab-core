@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Literal, Type
@@ -48,6 +49,10 @@ class TimelineArgs(ClientIdArgs):
 
 class DocumentSearchArgs(SearchArgs):
     client_id: int | None = Field(default=None, gt=0)
+
+
+class DocumentPagesArgs(IdArgs):
+    query: str = Field(default="", max_length=500)
 
 
 class EntitySearchArgs(SearchArgs):
@@ -145,7 +150,7 @@ class AgentToolRegistry:
             AgentToolDefinition("get_client_timeline", "Pobierz ostatnie zdarzenia klienta.", TimelineArgs, self._get_timeline),
             AgentToolDefinition("search_documents", "Znajdź dokumenty.", DocumentSearchArgs, self._search_documents, timeout_seconds=10, max_results=20),
             AgentToolDefinition("get_document_summary", "Pobierz podsumowanie dokumentu.", IdArgs, self._get_document),
-            AgentToolDefinition("get_document_pages", "Pobierz tekst maksymalnie 8 stron.", IdArgs, self._get_pages, max_results=8),
+            AgentToolDefinition("get_document_pages", "Pobierz tekst maksymalnie 8 trafnych stron.", DocumentPagesArgs, self._get_pages, max_results=8),
             AgentToolDefinition("get_visual_analysis", "Odczytaj istniejącą analizę Vision.", IdArgs, self._get_visual, max_results=8),
             AgentToolDefinition("search_inspections", "Znajdź wizje lokalne.", EntitySearchArgs, self._search_inspections),
             AgentToolDefinition("get_inspection", "Pobierz wizję lokalną.", IdArgs, self._get_inspection),
@@ -261,11 +266,20 @@ class AgentToolRegistry:
         data = {"id": x.id, "filename": name, "content_type": x.content_type, "created_at": x.created_at.isoformat(), "page_count": len(x.pages), "vision_status": x.vision_status, "text_snippet": text}
         return AgentToolResult(data, [self._source("document", x.id, name, f"/documents/{x.id}", text, x.created_at)], {"documents": 1}, [])
 
-    def _get_pages(self, args: IdArgs) -> AgentToolResult:
+    def _get_pages(self, args: DocumentPagesArgs) -> AgentToolResult:
         x = self._document(args.id)
-        pages = self.document_repo.get_pages(x.id)[:8]
+        all_pages = self.document_repo.get_pages(x.id)
+        terms = {
+            token.casefold() for token in re.findall(r"[\wąćęłńóśźż-]{3,}", args.query or "", re.UNICODE)
+            if token.casefold() not in {"tego", "klienta", "przeanalizuj", "przedstaw", "plik", "pdf"}
+        }
+        def relevance(page):
+            text = (page.extracted_text or page.ocr_text or "").casefold()
+            return sum(1 for term in terms if term in text)
+        ranked = sorted(all_pages, key=lambda page: (-relevance(page), page.page_number))
+        pages = ranked[:8]
         rows = [{"page": p.page_number, "text": " ".join((p.extracted_text or p.ocr_text or "").split())[:800], "vision_status": p.vision_status} for p in pages]
-        sources = [self._source("document", x.id, f"{x.original_filename or x.filename} — strona {p.page_number}", f"/documents/{x.id}", rows[i]["text"], p.updated_at) for i, p in enumerate(pages)]
+        sources = [self._source("document", x.id, f"{x.original_filename or x.filename} — strona {p.page_number}", f"/documents/{x.id}?page={p.page_number}", rows[i]["text"], p.updated_at) for i, p in enumerate(pages)]
         return AgentToolResult({"pages": rows}, sources, {"document_pages": len(rows)}, [])
 
     def _get_visual(self, args: IdArgs) -> AgentToolResult:

@@ -24,6 +24,7 @@ class UnifiedAssistantRequest(BaseModel):
     document_id: int | None = Field(default=None, gt=0)
     mail_source_id: int | None = Field(default=None, gt=0)
     inspection_id: int | None = Field(default=None, gt=0)
+    attempt_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     conversation: list[UnifiedConversationMessage] = Field(default_factory=list, max_length=8)
 
     @field_validator("question")
@@ -71,7 +72,7 @@ class UnifiedAssistantResponse(BaseModel):
     answer: str
     status: Literal[
         "accepted_local", "advanced_queued", "advanced_processing",
-        "accepted_advanced", "review_required", "failed",
+        "accepted_advanced", "review_required", "failed", "timed_out", "cancelled",
     ]
     progress: Literal[
         "collecting", "analyzing", "advanced_analysis", "validating", "complete"
@@ -83,3 +84,7 @@ class UnifiedAssistantResponse(BaseModel):
     model: str | None = None
     external_analysis_used: bool = False
     error_message: str | None = None
+    current_stage: str | None = None
+    last_progress_at: str | None = None
+    can_cancel: bool = False
+    delayed: bool = False

@@ -3,17 +3,21 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import asyncio
+import unicodedata
 import uuid
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from app.ai.clients.ollama_client import OllamaClient
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
+from app.models.document_page import DocumentPage
 from app.models.inspection import Inspection
 from app.models.knowledge_base import AnalysisJob
 from app.schemas.agent import AgentSource
@@ -37,6 +41,9 @@ MODEL = "qwen3.5:9b"
 TARGET = "TARGET_01"
 MAX_SOURCES = 8
 MAX_EVIDENCE_CHARS = 12_000
+DOCUMENT_EXTENSIONS = ("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "jpg", "jpeg", "png")
+ADVANCED_QUEUE_HARD_SECONDS = 60
+ADVANCED_EXTERNAL_HARD_SECONDS = 180
 
 
 MODEL_SCHEMA: dict[str, Any] = {
@@ -73,6 +80,13 @@ class _Collected:
     visual_available: bool
 
 
+@dataclass(frozen=True)
+class _DocumentResolution:
+    state: str
+    reference: str | None = None
+    document_id: int | None = None
+
+
 class UnifiedAssistantContextError(RuntimeError):
     pass
 
@@ -90,25 +104,38 @@ class UnifiedAssistantService:
         self.supervisor = supervisor
 
     async def ask(self, *, request: UnifiedAssistantRequest, user_id: int) -> UnifiedAssistantResponse:
-        collected = self._collect(request)
-        request_id = self._request_id(request, collected)
+        resolution = self._resolve_required_document(request)
+        if resolution is not None and resolution.state not in {"EXACT_MATCH", "UNIQUE_MATCH"}:
+            return self._document_resolution_response(request, resolution)
+        effective_request = request.model_copy(update={"document_id": resolution.document_id}) if resolution else request
+        collected = self._collect(effective_request)
+        request_id = self._request_id(effective_request, collected)
         existing = self.db.get(AnalysisJob, request_id)
         if existing is not None:
-            analysis_request, _ = self._advanced_request(request, collected, user_id, request_id)
+            analysis_request, _ = self._advanced_request(effective_request, collected, user_id, request_id)
+            if self._expire_advanced(existing):
+                return self._advanced_response(existing, collected)
             if existing.status in {"advanced_queued", "advanced_processing", "awaiting_auth", "awaiting_ui_fix", "advanced_validating"}:
                 orchestrator = AdvancedAnalysisOrchestrator(self.db, supervisor=self.supervisor)
                 orchestrator.apply_external(job=existing, request=analysis_request)
             if existing.status == "accepted_advanced":
                 completed = self._read_advanced_response(existing, analysis_request, collected)
                 if completed is not None:
+                    if resolution and not self._response_uses_document(completed, resolution.document_id):
+                        existing.status = "review_required"
+                        existing.decision = "review_required"
+                        existing.error_code = "task_completion_fail"
+                        existing.finished_at = datetime.now(UTC)
+                        self.db.flush()
+                        return self._advanced_response(existing, collected)
                     return completed
             return self._advanced_response(existing, collected)
 
-        prompt, source_map, tool_source_map = self._prompt(request, collected)
+        prompt, source_map, tool_source_map = self._prompt(effective_request, collected)
         raw_local: dict[str, Any] = {}
         try:
             bounded_schema = self._bounded_model_schema(set(source_map), set(tool_source_map))
-            raw_local = await self._generate_local(prompt, bounded_schema)
+            raw_local = await asyncio.wait_for(self._generate_local(prompt, bounded_schema), timeout=120)
             parsed = self._resolve_tool_provenance(
                 self._normalize_model_result(raw_local), tool_source_map
             )
@@ -124,7 +151,7 @@ class UnifiedAssistantService:
         }:
             correction = self._format_correction_prompt(prompt, validation, raw_local)
             try:
-                retried = await self._generate_local(correction, bounded_schema)
+                retried = await asyncio.wait_for(self._generate_local(correction, bounded_schema), timeout=120)
                 parsed = self._resolve_tool_provenance(
                     self._normalize_model_result(retried), tool_source_map
                 )
@@ -132,9 +159,22 @@ class UnifiedAssistantService:
             except Exception as error:
                 if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(error, (OSError, TimeoutError, ConnectionError)):
                     raise UnifiedAssistantModelUnavailable from error
-        advanced_reason = validation or self._advanced_reason(request, parsed, collected)
+        if validation is None and resolution and not self._payload_uses_document(parsed, source_map, resolution.document_id):
+            correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
+            try:
+                retried = await asyncio.wait_for(self._generate_local(correction, bounded_schema), timeout=120)
+                parsed = self._resolve_tool_provenance(
+                    self._normalize_model_result(retried), tool_source_map
+                )
+                validation = self._validate(parsed, source_map, collected.visual_available, tool_source_map)
+            except Exception as error:
+                if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(error, (OSError, TimeoutError, ConnectionError)):
+                    raise UnifiedAssistantModelUnavailable from error
+            if validation is None and not self._payload_uses_document(parsed, source_map, resolution.document_id):
+                return self._task_completion_failure_response(request_id, collected)
+        advanced_reason = validation or self._advanced_reason(effective_request, parsed, collected)
         if advanced_reason is not None:
-            analysis_request, entities = self._advanced_request(request, collected, user_id, request_id)
+            analysis_request, entities = self._advanced_request(effective_request, collected, user_id, request_id)
             local = LocalAnalysisResult(
                 analysis_id=analysis_request.analysis_id, processor_id="unified_assistant_f0",
                 processor_version="v1", model_identity=MODEL, result=parsed,
@@ -150,8 +190,201 @@ class UnifiedAssistantService:
                 request=analysis_request, local=local, source_entities=entities,
                 actor_user_id=user_id,
             )
+            await self._unload_for_external_wait()
             return self._advanced_response(job, collected)
         return self._local_response(request_id, parsed, source_map, collected)
+
+    async def cancel(self, *, request_id: str, user_id: int) -> UnifiedAssistantResponse:
+        job = self.db.get(AnalysisJob, request_id)
+        if job is None or job.created_by_user_id != user_id:
+            raise UnifiedAssistantContextError("analysis_job_not_found")
+        if job.status in {"accepted_local", "accepted_advanced", "review_required", "failed", "cancelled"}:
+            return self._advanced_response(job, _Collected([], [], [], None, False))
+        if job.external_job_id:
+            try:
+                AdvancedAnalysisOrchestrator(self.db, supervisor=self.supervisor).supervisor.cancel_job(job.external_job_id)
+            except Exception:
+                pass
+        job.status = "cancelled"
+        job.decision = "cancelled"
+        job.error_code = None
+        job.finished_at = datetime.now(UTC)
+        self.db.flush()
+        return self._advanced_response(job, _Collected([], [], [], None, False))
+
+    async def _unload_for_external_wait(self) -> None:
+        try:
+            await self.llm.unload(MODEL)
+        except Exception:
+            # Resource recovery is best-effort; it cannot weaken analysis safety.
+            return
+
+    @staticmethod
+    def _normalized_filename(value: str) -> str:
+        return " ".join(
+            unicodedata.normalize("NFKC", Path(value).name).casefold().split()
+        )
+
+    @staticmethod
+    def _filename_reference(question: str) -> str | None:
+        extension = "|".join(DOCUMENT_EXTENSIONS)
+        quoted = re.search(
+            rf"[\"']([^\"'\r\n]{{1,180}}\.(?:{extension}))[\"']",
+            question,
+            re.IGNORECASE,
+        )
+        if quoted:
+            return Path(quoted.group(1)).name
+        unquoted = re.search(
+            rf"(?<![\w.])([\wąćęłńóśźż()\[\]_-]+\.(?:{extension}))(?!\w)",
+            question,
+            re.IGNORECASE,
+        )
+        return Path(unquoted.group(1)).name if unquoted else None
+
+    def _resolve_required_document(
+        self, request: UnifiedAssistantRequest
+    ) -> _DocumentResolution | None:
+        if request.document_id is not None:
+            return None
+        reference = self._filename_reference(request.question)
+        if reference is None:
+            return None
+        if request.client_id is None:
+            return _DocumentResolution("INVALID", reference)
+        rows = self.db.query(Document).filter(
+            Document.client_id == request.client_id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).all()
+        normalized_question = self._normalized_filename(request.question)
+        named_rows = [
+            row for row in rows
+            if self._normalized_filename(row.original_filename or row.filename) in normalized_question
+        ]
+        if len(named_rows) > 1:
+            return _DocumentResolution("AMBIGUOUS", reference)
+        if len(named_rows) == 1:
+            document = named_rows[0]
+            if not self._document_has_content(document):
+                return _DocumentResolution("UNAVAILABLE", reference, document.id)
+            return _DocumentResolution("EXACT_MATCH", reference, document.id)
+        state, document = self._match_document_rows(reference, rows)
+        if document is None:
+            return _DocumentResolution(state, reference)
+        if not self._document_has_content(document):
+            return _DocumentResolution("UNAVAILABLE", reference, document.id)
+        return _DocumentResolution(state, reference, document.id)
+
+    def _document_has_content(self, document: Document) -> bool:
+        if (document.extracted_text or "").strip():
+            return True
+        pages = self.db.query(DocumentPage.extracted_text, DocumentPage.ocr_text).filter(
+            DocumentPage.document_id == document.id
+        ).all()
+        return any((extracted or "").strip() or (ocr or "").strip() for extracted, ocr in pages)
+
+    @classmethod
+    def _match_document_rows(cls, reference: str, rows: list[Document]):
+        wanted = cls._normalized_filename(reference)
+        exact = [
+            row for row in rows
+            if wanted in {
+                cls._normalized_filename(row.filename),
+                cls._normalized_filename(row.original_filename or row.filename),
+            }
+        ]
+        if len(exact) > 1:
+            return "AMBIGUOUS", None
+        matches = exact or [
+            row for row in rows
+            if wanted in cls._normalized_filename(row.original_filename or row.filename)
+            or cls._normalized_filename(row.original_filename or row.filename) in wanted
+        ]
+        if not matches:
+            return "NOT_FOUND", None
+        if len(matches) > 1:
+            return "AMBIGUOUS", None
+        return ("EXACT_MATCH" if exact else "UNIQUE_MATCH"), matches[0]
+
+    @staticmethod
+    def _document_resolution_response(
+        request: UnifiedAssistantRequest, resolution: _DocumentResolution
+    ) -> UnifiedAssistantResponse:
+        messages = {
+            "AMBIGUOUS": "Znalazłem kilka dokumentów pasujących do tej nazwy. Wybierz właściwy plik.",
+            "NOT_FOUND": "Nie znalazłem wskazanego pliku w dokumentach tego klienta.",
+            "UNAVAILABLE": "Wskazany plik istnieje, ale jego treść nie jest jeszcze dostępna do analizy.",
+            "INVALID": "Aby przeanalizować wskazany plik, otwórz Asystenta z kontekstu właściwego klienta.",
+        }
+        digest = hashlib.sha256(
+            json.dumps({"request": request.model_dump(mode="json"), "resolution": resolution.state}, sort_keys=True).encode()
+        ).hexdigest()
+        return UnifiedAssistantResponse(
+            request_id=str(uuid.UUID(digest[:32])), answer="",
+            status="review_required", progress="complete", target_scope=TARGET,
+            claims=[], sources=[], used_tools=[], model=None,
+            error_message=messages[resolution.state], current_stage="document_resolution",
+            can_cancel=False,
+        )
+
+    @staticmethod
+    def _task_completion_failure_response(
+        request_id: str, collected: _Collected
+    ) -> UnifiedAssistantResponse:
+        return UnifiedAssistantResponse(
+            request_id=request_id, answer="", status="review_required", progress="complete",
+            target_scope=TARGET, claims=[], sources=[], used_tools=collected.tools, model=MODEL,
+            error_message="Nie udało się bezpiecznie powiązać odpowiedzi ze wskazanym dokumentem. Spróbuj ponownie.",
+            current_stage="task_completion_validation", can_cancel=False,
+        )
+
+    @staticmethod
+    def _payload_uses_document(
+        payload: dict[str, Any], source_map: dict[str, AgentSource], document_id: int | None
+    ) -> bool:
+        handles = {
+            handle for handle, source in source_map.items()
+            if source.source_type == "document" and source.source_id == document_id
+        }
+        used = set(map(str, payload.get("used_sources") or []))
+        claim_refs = {
+            str(ref) for claim in payload.get("claims") or []
+            for ref in (claim.get("source_refs") or []) if isinstance(claim, dict)
+        }
+        return bool(handles & used & claim_refs)
+
+    @staticmethod
+    def _response_uses_document(
+        response: UnifiedAssistantResponse, document_id: int | None
+    ) -> bool:
+        return any(
+            source.source_type == "document" and source.source_id == document_id
+            and source.supports_claim_ids
+            for source in response.sources
+        )
+
+    def _expire_advanced(self, job: AnalysisJob) -> bool:
+        if job.status not in {"advanced_queued", "advanced_processing", "awaiting_auth", "awaiting_ui_fix", "advanced_validating"}:
+            return False
+        started = job.started_at or job.created_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        age = (datetime.now(UTC) - started).total_seconds()
+        hard = ADVANCED_QUEUE_HARD_SECONDS if job.status == "advanced_queued" else ADVANCED_EXTERNAL_HARD_SECONDS
+        if age <= hard:
+            return False
+        if job.external_job_id:
+            try:
+                AdvancedAnalysisOrchestrator(self.db, supervisor=self.supervisor).supervisor.cancel_job(job.external_job_id)
+            except Exception:
+                pass
+        job.status = "failed"
+        job.decision = "timed_out"
+        job.error_code = "analysis_timeout"
+        job.finished_at = datetime.now(UTC)
+        self.db.flush()
+        return True
 
     async def _generate_local(
         self, prompt: str, schema: dict[str, Any] | None = None
@@ -380,12 +613,15 @@ class UnifiedAssistantService:
         q = request.question.casefold()
         query = " ".join(re.findall(r"[\wąćęłńóśźż-]+", request.question, re.UNICODE))[:200]
         calls: list[tuple[str, dict[str, Any]]] = []
-        if client_id is not None:
+        if client_id is not None and request.document_id is None:
             calls.append(("get_client", {"id": client_id}))
             if any(word in q for word in ("kontakt", "osob", "telefon", "email")):
                 calls.append(("get_client_contacts", {"client_id": client_id}))
         if request.document_id is not None:
-            calls.extend([("get_document_summary", {"id": request.document_id}), ("get_document_pages", {"id": request.document_id})])
+            calls.extend([
+                ("get_document_summary", {"id": request.document_id}),
+                ("get_document_pages", {"id": request.document_id, "query": query}),
+            ])
             if any(word in q for word in ("zdję", "obra", "skan", "pęk", "rys", "widocz")):
                 calls.append(("get_visual_analysis", {"id": request.document_id}))
         if request.inspection_id is not None:
@@ -449,6 +685,8 @@ class UnifiedAssistantService:
             "Nie twórz ESTIMATE dla pytania jakościowego bez wielkości do oszacowania. MISSING może cytować źródło, które potwierdza brak. "
             "HYPOTHESIS musi wskazywać dowody w source_refs i w tekście podać co ją potwierdzi lub obali. MISSING ma dotyczyć pytania. Minimalizuj PII. "
             f"Dozwolone source_refs: {sorted(source_map)}. TARGET_SCOPE={TARGET}.\n"
+            f"REQUIRED_DOCUMENT_SOURCE_REFS={sorted(handle for handle, source in source_map.items() if request.document_id is not None and source.source_type == 'document' and source.source_id == request.document_id)}. "
+            "Jeżeli lista nie jest pusta, odpowiedź analizująca dokument musi użyć co najmniej jednego z tych źródeł w materialnym claim i used_sources.\n"
             f"QUESTION={request.question}\nHISTORY={json.dumps(history, ensure_ascii=False)}\n"
             f"VALIDATED_EVIDENCE={json.dumps(evidence, ensure_ascii=False)}\n"
             f"VALIDATED_TOOL_RESULTS={json.dumps(tool_manifest, ensure_ascii=False, default=str)[:MAX_EVIDENCE_CHARS]}\n"
@@ -635,8 +873,10 @@ class UnifiedAssistantService:
             handle = f"S{index}"
             excerpt = " ".join((source.snippet or source.title).split())[:2000] or source.title
             checksum = hashlib.sha256(excerpt.encode()).hexdigest()
-            refs.append(AnalysisSourceRef(source_ref=handle, checksum_sha256=checksum, excerpt=excerpt))
-            entities[handle] = (source.source_type, str(source.source_id or 0), None)
+            page_match = re.search(r"[?&]page=(\d+)", source.route or "")
+            page = int(page_match.group(1)) if page_match else None
+            refs.append(AnalysisSourceRef(source_ref=handle, checksum_sha256=checksum, excerpt=excerpt, page=page))
+            entities[handle] = (source.source_type, str(source.source_id or 0), page)
             claim_rows.append({"kind": "FACT", "fact_handle": f"F{index:02d}", "statement": excerpt, "source_handle": handle})
         if not refs:
             excerpt = "Brak danych źródłowych klienta; wymagane jest bezpieczne rozstrzygnięcie braku danych."
@@ -671,17 +911,35 @@ class UnifiedAssistantService:
         unavailable = job.error_code in {
             "analysis_runtime_disabled", "analysis_supervisor_unavailable"
         }
-        status = job.status if job.status in {"advanced_queued", "advanced_processing", "accepted_advanced", "review_required", "failed"} else "advanced_queued"
+        status = job.status if job.status in {"advanced_queued", "advanced_processing", "accepted_advanced", "review_required", "failed", "cancelled"} else "advanced_queued"
+        if job.error_code == "analysis_timeout":
+            status = "timed_out"
         if unavailable:
             status = "review_required"
         progress = "advanced_analysis" if status in {"advanced_queued", "advanced_processing"} else ("complete" if status == "accepted_advanced" else "validating")
-        message = None if status not in {"review_required", "failed"} else (
+        message = None if status not in {"review_required", "failed", "timed_out", "cancelled"} else (
+            "Analiza została anulowana."
+            if status == "cancelled" else
+            "Analiza rozszerzona nie zakończyła się w wymaganym czasie. Możesz spróbować ponownie."
+            if status == "timed_out" else
             "Analiza rozszerzona jest chwilowo niedostępna. Doprecyzuj pytanie lub spróbuj ponownie później."
             if unavailable else "Wynik wymaga bezpiecznej weryfikacji. Spróbuj doprecyzować pytanie."
         )
+        started = job.started_at or job.created_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        age = (datetime.now(UTC) - started).total_seconds()
+        stage = {
+            "advanced_queued": "QUEUED", "advanced_processing": "EXTERNAL_PROCESSING",
+            "accepted_advanced": "ACCEPTED_ADVANCED", "review_required": "REVIEW_REQUIRED",
+            "failed": "FAILED", "timed_out": "TIMED_OUT", "cancelled": "CANCELLED",
+        }.get(status, "VALIDATING")
         return UnifiedAssistantResponse(request_id=job.id, answer="" if status != "accepted_advanced" else "Analiza rozszerzona została zwalidowana.",
             status=status, progress=progress, target_scope=TARGET, claims=[], sources=[], used_tools=collected.tools,
-            model=MODEL, external_analysis_used=True, error_message=message)
+            model=MODEL, external_analysis_used=True, error_message=message,
+            current_stage=stage, last_progress_at=job.updated_at.isoformat() if job.updated_at else None,
+            can_cancel=status in {"advanced_queued", "advanced_processing"},
+            delayed=(status == "advanced_queued" and age > 30) or (status == "advanced_processing" and age > 60))
 
     @staticmethod
     def _read_advanced_response(job: AnalysisJob, request: AnalysisRequest, collected: _Collected) -> UnifiedAssistantResponse | None:

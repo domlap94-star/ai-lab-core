@@ -14,6 +14,7 @@ class UnifiedAssistantApi {
     int? documentId,
     int? mailSourceId,
     int? inspectionId,
+    String? attemptId,
     CancelToken? cancelToken,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
@@ -26,17 +27,34 @@ class UnifiedAssistantApi {
         'document_id': ?documentId,
         'mail_source_id': ?mailSourceId,
         'inspection_id': ?inspectionId,
+        'attempt_id': ?attemptId,
       },
       options: Options(
         headers: <String, Object>{
           'Authorization': '${session.tokenType} ${session.accessToken}',
         },
-        receiveTimeout: const Duration(minutes: 6),
+        receiveTimeout: const Duration(seconds: 130),
       ),
       cancelToken: cancelToken,
     );
     if (response.data == null) {
       throw const FormatException('Asystent AI zwrócił pustą odpowiedź.');
+    }
+    return UnifiedAssistantAnswer.fromJson(response.data!);
+  }
+
+  Future<UnifiedAssistantAnswer> cancel({
+    required AuthSession session,
+    required String requestId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/api/v1/ai/assistant/$requestId/cancel',
+      options: Options(headers: <String, Object>{
+        'Authorization': '${session.tokenType} ${session.accessToken}',
+      }),
+    );
+    if (response.data == null) {
+      throw const FormatException('Nie potwierdzono anulowania analizy.');
     }
     return UnifiedAssistantAnswer.fromJson(response.data!);
   }

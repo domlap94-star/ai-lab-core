@@ -90,6 +90,10 @@ class UnifiedAssistantAnswer {
     required this.externalAnalysisUsed,
     this.model,
     this.errorMessage,
+    this.currentStage,
+    this.lastProgressAt,
+    this.canCancel = false,
+    this.delayed = false,
   });
   factory UnifiedAssistantAnswer.fromJson(Map<String, dynamic> json) =>
       UnifiedAssistantAnswer(
@@ -117,6 +121,10 @@ class UnifiedAssistantAnswer {
         externalAnalysisUsed: json['external_analysis_used'] as bool? ?? false,
         model: json['model'] as String?,
         errorMessage: json['error_message'] as String?,
+        currentStage: json['current_stage'] as String?,
+        lastProgressAt: json['last_progress_at'] as String?,
+        canCancel: json['can_cancel'] as bool? ?? false,
+        delayed: json['delayed'] as bool? ?? false,
       );
   bool get isPending =>
       status == 'advanced_queued' || status == 'advanced_processing';
@@ -131,4 +139,8 @@ class UnifiedAssistantAnswer {
   final bool externalAnalysisUsed;
   final String? model;
   final String? errorMessage;
+  final String? currentStage;
+  final String? lastProgressAt;
+  final bool canCancel;
+  final bool delayed;
 }

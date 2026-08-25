@@ -43,6 +43,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   final controller = TextEditingController();
   final conversation = <Map<String, String>>[];
   CancelToken? cancelToken;
+  String? activeRequestId;
   UnifiedAssistantAnswer? result;
   String? error;
   String progress = '';
@@ -157,7 +158,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
                               key: const Key('unified-ai-progress'),
                             ),
                             OutlinedButton(
-                              onPressed: cancel,
+                              onPressed: () => unawaited(cancel()),
                               child: const Text('Anuluj'),
                             ),
                           ],
@@ -293,16 +294,19 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     final session = (await ref.read(authControllerProvider.future)).session;
     if (session == null || !mounted) return;
     final token = CancelToken();
+    final attemptId = 'android-${DateTime.now().microsecondsSinceEpoch}';
     cancelToken?.cancel('superseded');
     cancelToken = token;
     setState(() {
       loading = true;
       error = null;
+      result = null;
+      activeRequestId = null;
       progress = 'Zbieram dane';
     });
     try {
       UnifiedAssistantAnswer next;
-      var pollCount = 0;
+      DateTime? advancedStartedAt;
       do {
         if (!mounted || token.isCancelled) return;
         setState(
@@ -325,21 +329,27 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
               documentId: widget.initialDocumentId,
               mailSourceId: widget.initialMailSourceId,
               inspectionId: widget.initialInspectionId,
+              attemptId: attemptId,
               cancelToken: token,
             );
         if (!mounted || token.isCancelled) return;
         setState(() {
           result = next;
-          progress = next.status == 'advanced_processing'
-              ? 'Weryfikuję wynik'
-              : 'Analiza rozszerzona';
+          activeRequestId = next.requestId;
+          progress = next.delayed
+              ? 'Analiza trwa dłużej niż zwykle.'
+              : next.status == 'advanced_processing'
+                  ? 'Analiza rozszerzona'
+                  : 'Weryfikuję wynik';
         });
         if (next.isPending) {
-          pollCount += 1;
-          if (pollCount >= 40) {
+          final started = advancedStartedAt ??= DateTime.now();
+          if (DateTime.now().difference(started) >=
+              const Duration(seconds: 185)) {
+            await cancel();
             throw TimeoutException('advanced_analysis_timeout');
           }
-          await Future<void>.delayed(const Duration(seconds: 3));
+          await pollDelay(token);
         }
       } while (next.isPending);
       if (next.status == 'accepted_local' ||
@@ -362,6 +372,11 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
           fallback: 'Nie udało się uzyskać odpowiedzi AI.',
         ),
       );
+    } on TimeoutException {
+      if (mounted) {
+        setState(() => error =
+            'Analiza rozszerzona nie zakończyła się w wymaganym czasie. Możesz spróbować ponownie.');
+      }
     } catch (_) {
       if (mounted) {
         setState(() => error = 'Nie udało się uzyskać odpowiedzi AI.');
@@ -373,9 +388,42 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     }
   }
 
-  void cancel() {
+  Future<void> cancel() async {
+    final requestId = activeRequestId;
+    if (requestId != null) {
+      final session = (await ref.read(authControllerProvider.future)).session;
+      if (session != null) {
+        try {
+          await ref.read(unifiedAssistantApiProvider).cancel(
+            session: session,
+            requestId: requestId,
+          );
+        } catch (_) {
+          // The local request is still cancelled; the backend timeout remains fail-closed.
+        }
+      }
+    }
     cancelToken?.cancel('Anulowano przez użytkownika');
     cancelToken = null;
-    if (mounted) setState(() => loading = false);
+    activeRequestId = null;
+    if (mounted) {
+      setState(() {
+        loading = false;
+        progress = '';
+      });
+    }
+  }
+
+  Future<void> pollDelay(CancelToken token) async {
+    final completer = Completer<void>();
+    late final Timer timer;
+    timer = Timer(const Duration(seconds: 3), () {
+      if (!completer.isCompleted) completer.complete();
+    });
+    unawaited(token.whenCancel.then((_) {
+      timer.cancel();
+      if (!completer.isCompleted) completer.complete();
+    }));
+    await completer.future;
   }
 }

@@ -145,6 +145,20 @@ Roadmap result:
 
 `CHUNK23 = BLOCKED / NOT STARTED`
 
+## 2026-08-25 Android +33 connectivity postscript
+
+Owner physical acceptance of +33 is invalidated by an application transport
+failure: the same phone reaches public `/health` in its browser, while the APK
+cannot restore/check a session or log in. The exact APK contains the canonical
+HTTPS API URL and has no transport-relevant source/manifest delta from the
+working +32 candidate, so a missing endpoint define is not claimed without
+evidence. Release/profile Android builds now fail closed when the explicit API
+URL is absent or unsafe. Non-stable +34 adds bounded, token-free in-app
+configuration and Dio `/health`/auth diagnostics and is staged with verified
+identity. Unified Assistant physical acceptance remains blocked until the owner
+proves +34 connectivity; see
+`FOLLOWUP_P0_ANDROID_CONNECTIVITY_HOTFIX_REPORT.md`.
+
 ## 2026-08-25 Windows WDAC postscript
 
 The owner subsequently observed Bad Image status `0xc0e90002` for the exact
@@ -161,3 +175,46 @@ occurred. The canonical +29 installer then restored stable in a mandatory
 `finally` rollback and stable also launched without new blocks. Raw and staged
 execution remain forbidden acceptance paths. PRE-CHUNK23 returns to Android
 +33 physical acceptance required.
+
+## 2026-08-25 named-document and lifecycle P0 remediation
+
+Owner +34 evidence closes the Android transport P0: application `/health` was
+200, the old token returned an ordinary 401, and fresh login passed. Physical
+Assistant acceptance then exposed a separate named-document/lifecycle P0.
+
+The production router required document-related keyword stems when no
+`document_id` was supplied. A natural filename reference could therefore reach
+Qwen without the PDF. The local request also had a six-minute client receive
+window and five-minute Qwen residency. No durable `AnalysisJob` exists for the
+physical request, so advanced worker/binding timestamps are `NOT OBSERVED` and
+are not reconstructed. The primary observed stall is classified `LOCAL_MODEL`;
+keyword routing, stale UI progress, missing task-completion validation, PII
+over-collection, and cancel that stopped only Flutter polling are secondary.
+
+Source now resolves supported quoted/unquoted filenames inside the exact Client
+scope before any model call, distinguishes ambiguous/not-found/unavailable,
+and never escalates retrieval failure. Resolved documents receive relevance-
+ranked page/OCR evidence with page-specific provenance. The usefulness gate
+requires the requested document to support a material claim. A technical
+document target no longer fetches the Client identity card solely due to scope.
+
+Advanced jobs now expose bounded stage metadata, enforce a 60-second queue and
+180-second external hard limit, propagate authenticated cancel to the private
+Supervisor, use fresh `attempt_id` values for retries, reject late/stale
+binding, and explicitly unload Qwen before external wait. V2 source/privacy
+rules are unchanged and fail closed.
+
+Focused backend/V2 tests pass 31/31; Supervisor timeout/cancel, recovery,
+idempotency and V2 interoperability pass; Flutter analyze passes and the full
+suite passes 303/303. Saved-output frozen replay preserves 0 hard failures,
+0 wrong sources and 0 privacy failures without a new external call. Physical
+named-PDF and cancel retest remains required. PRE-CHUNK23 stays implemented /
+physical acceptance required, and CHUNK23 remains blocked.
+
+The exact final source is staged for owner physical retest as non-stable
+Android `1.0.2+36` at
+`C:\ai-lab-core\staging\android\NEXT-Stabil-1.0.2+36-unified-assistant-retrieval-hotfix-candidate.apk`,
+SHA-256
+`3C9229AE5191FD8156EDD7198151A382A5C59862BFA8B7C05DBF93E8D7AABE36`.
+VersionCode 35 was consumed by a pre-final build and left untouched; it is
+superseded and must not be used for acceptance. +36 is not published.

@@ -66,6 +66,20 @@ async def ask_unified_assistant(
         raise HTTPException(status_code=503, detail="Nie udało się odczytać danych CRM. Spróbuj ponownie.") from error
 
 
+@router.post("/assistant/{request_id}/cancel", response_model=UnifiedAssistantResponse)
+async def cancel_unified_assistant(
+    request_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UnifiedAssistantResponse:
+    try:
+        return await UnifiedAssistantService(db).cancel(
+            request_id=request_id, user_id=current_user.id
+        )
+    except UnifiedAssistantContextError as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej analizy.") from error
+
+
 @router.post("/agent/ask", response_model=AgentAskResponse)
 async def ask_agent(
     request: AgentAskRequest,

@@ -2430,7 +2430,49 @@ ASSISTANT IMPLEMENTED / ANDROID PHYSICAL ACCEPTANCE REQUIRED. CHUNK23 remains
 BLOCKED / NOT STARTED, and no release was performed. Evidence:
 `FOLLOWUP_P0_WINDOWS_WDAC_HOTFIX_REPORT.md`.
 
+**P0 ANDROID +33 BACKEND CONNECTIVITY REGRESSION — IN PROGRESS — 2026-08-25.**
+The same physical phone reaches the public `/health` endpoint in its browser,
+but +33 reports startup-session and login transport failure. Artifact audit
+rules out an Android permission/network-security source change and proves that
+the canonical HTTPS API URL is compiled into +33; the exact +33 build command
+was not durably recorded and its low-level Dio cause is not observable. Android
+release/profile configuration now fails closed in Gradle and `ApiConfig`, and a
+non-stable safe in-app `/health`/auth classifier is restored behind a compile
+flag. Signed, non-public +34 is built through the canonical script at the
+SHA-verified owner path under `staging/android`. Source, focused/full Flutter,
+negative build-gate and artifact identity checks pass. PRE-CHUNK23 remains
+UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE BLOCKED pending owner +34
+connectivity proof. CHUNK23 remains BLOCKED / NOT STARTED. Evidence:
+`FOLLOWUP_P0_ANDROID_CONNECTIVITY_HOTFIX_REPORT.md`.
+
 **RELEASE F REQUIRED UI MICRO-FIX — IGNORE MAIL ADDRESS/DOMAIN.** Before
 Release F, restore consistent Administrator Ignore actions in Candidate
 Details, Global Mail and Client Emails, with exact sender/domain add and undo.
 This micro-fix was not implemented during Unified Assistant work.
+
+**P0 ANDROID CONNECTIVITY — RESOLVED — 2026-08-25.** Owner physical +34
+evidence proves the explicit canonical API and in-app `/health` return HTTP
+200; the retained session returned HTTP 401 and fresh login passed. The +33
+generic transport message was a misclassification of an expired token.
+
+**P0 UNIFIED ASSISTANT DOCUMENT RETRIEVAL + ADVANCED ANALYSIS LIFECYCLE —
+SOURCE PASS / PHYSICAL RETEST REQUIRED — 2026-08-25.** Exact Client-scoped
+filename resolution and content sufficiency now precede Qwen. Ambiguous,
+not-found and unavailable documents terminate without model/external work;
+relevant page/OCR evidence retains page provenance and the usefulness gate
+requires the requested PDF in material claim sources. Advanced jobs now have
+bounded queue/external deadlines, real backend/Supervisor cancellation, fresh
+retry identity, late-result protection, and Qwen unload before external wait.
+The physical request left no durable AnalysisJob, so its unobserved advanced
+timeline is not invented; primary stall classification is `LOCAL_MODEL` with
+document routing and stale UI progress as secondary defects. Non-stable Android
+physical retest is required. PRE-CHUNK23 stays `UNIFIED ASSISTANT IMPLEMENTED /
+PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 stays BLOCKED / NOT STARTED. Stable
+remains `1.0.2+29`.
+
+The final source physical-retest artifact is non-stable Android `1.0.2+36`,
+SHA-256
+`3C9229AE5191FD8156EDD7198151A382A5C59862BFA8B7C05DBF93E8D7AABE36`,
+under `staging/android`. VersionCode 35 was consumed before the final
+new-request stale-result reset and is superseded. Neither artifact was
+published. PRE-CHUNK23 remains incomplete pending owner physical retest.
