@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "public_origin": "https://domai.tail1927bd.ts.net",
+  "public_https_port": 443,
+  "public_gateway": {
+    "origin": "http://127.0.0.1:8789",
+    "health_path": "/gateway-health"
+  },
+  "public_control": "FORBIDDEN",
+  "forbidden_public_paths": [
+    "/control",
+    "/control/"
+  ],
+  "private_services": {
+    "backend": "http://127.0.0.1:8000",
+    "supervisor": "http://127.0.0.1:8787",
+    "private_gateway": "http://127.0.0.1:8788"
+  },
+  "tailnet_private_serve": {
+    "https_port": 8443,
+    "target": "http://127.0.0.1:8788",
+    "reconciled_by_this_manifest": false
+  }
+}

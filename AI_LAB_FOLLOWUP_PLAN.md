@@ -2531,3 +2531,21 @@ RETRIEVAL/LIFECYCLE` remain PHYSICAL RETEST REQUIRED. PRE-CHUNK23 remains
 `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 remains
 BLOCKED / NOT STARTED. Stable remains `1.0.2+29`. Evidence:
 `FOLLOWUP_P0_UNIFIED_ASSISTANT_CONTRACT_SYNC_REPORT.md`.
+
+**P0 HISTORICAL PUBLIC TAILSCALE INGRESS REGRESSION — SOURCE/RUNTIME RESOLVED /
+OWNER PHYSICAL RETEST REQUIRED — 2026-08-25.** Owner phone evidence showed a
+public DNS failure and Android +37 socket transport failure. Git proves the
+accepted public Funnel boundary but contained no durable Serve/Funnel
+reconciliation. At audit time the local backend/public gateway were healthy,
+Tailscale still held the exact `443 -> 127.0.0.1:8789` Funnel plus private
+tailnet-only `8443 -> 127.0.0.1:8788` Serve state, public DNS had recovered,
+and no-proxy public HTTPS returned health 200, gateway-health 200, public
+control 404 and unauthenticated API 401. No mapping mutation was justified or
+performed. A manifest, read-only drift checker, fail-closed exact reconciler,
+registration helper and source regression now guard the approved boundary.
+Live automatic elevated task registration and Tailscale service-restart proof
+remain separate privilege-bound operational gates; no privilege workaround was
+used. PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
+REQUIRED`, CHUNK23 remains BLOCKED / NOT STARTED, and stable remains
+`1.0.2+29`. Evidence:
+`FOLLOWUP_P0_PUBLIC_TAILSCALE_INGRESS_REGRESSION_REPORT.md`.
