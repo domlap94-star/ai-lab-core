@@ -8,11 +8,29 @@ class ApiConfig {
     defaultValue: '',
   );
 
+  static const bool diagnosticsEnabled = bool.fromEnvironment(
+    'ANDROID_AUTH_DIAGNOSTICS',
+    defaultValue: false,
+  );
+
   static String get baseUrl {
     final String defined = _normalizeBaseUrl(_definedBaseUrl);
 
     if (defined.isNotEmpty) {
+      if ((kReleaseMode || kProfileMode) && !isSafeReleaseBaseUrl(defined)) {
+        throw StateError(
+          'ANDROID_RELEASE_API_CONFIGURATION_INVALID: API_BASE_URL must use '
+          'HTTPS and must not target a development host.',
+        );
+      }
       return defined;
+    }
+
+    if (kReleaseMode || kProfileMode) {
+      throw StateError(
+        'ANDROID_RELEASE_API_CONFIGURATION_MISSING: API_BASE_URL is required '
+        'for release/profile artifacts.',
+      );
     }
 
     if (kIsWeb) {
@@ -47,6 +65,31 @@ class ApiConfig {
     }
 
     return '${defaultTargetPlatform.name} default';
+  }
+
+  static String get buildMode {
+    if (kReleaseMode) return 'release';
+    if (kProfileMode) return 'profile';
+    return 'debug';
+  }
+
+  static bool isSafeReleaseBaseUrl(String value) {
+    final String normalized = _normalizeBaseUrl(value);
+    final Uri? uri = Uri.tryParse(normalized);
+    if (uri == null ||
+        uri.scheme.toLowerCase() != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.query.isNotEmpty ||
+        uri.fragment.isNotEmpty) {
+      return false;
+    }
+    return !const <String>{
+      '10.0.2.2',
+      '127.0.0.1',
+      'localhost',
+      '::1',
+    }.contains(uri.host.toLowerCase());
   }
 
   static String _normalizeBaseUrl(String value) {

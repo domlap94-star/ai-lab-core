@@ -19,6 +19,12 @@ Without `API_BASE_URL`:
 
 Android debug explicitly allows cleartext HTTP for the emulator.
 
+These defaults are development-only. Android release/profile builds fail during
+Gradle configuration unless `API_BASE_URL` is explicitly supplied as a safe
+HTTPS URL. `localhost`, `127.0.0.1`, `::1`, and `10.0.2.2` are rejected. A
+direct `flutter build apk` without the audited dart defines is therefore not an
+acceptance artifact.
+
 Release Android has INTERNET permission but does not explicitly enable
 cleartext traffic. Remote production builds should therefore use HTTPS.
 
@@ -50,7 +56,10 @@ Individual builds:
 .\scripts\build-release.ps1 `
     -ApiBaseUrl "https://YOUR-AI-LAB-HOST" `
     -SupervisorBaseUrl "https://YOUR-PRIVATE-AI-LAB-HOST" `
-    -Platform android
+    -Platform android `
+    -Version "1.0.2" `
+    -BuildNumber 34 `
+    -AndroidCandidateLabel "candidate"
 
 .\scripts\build-release.ps1 `
     -ApiBaseUrl "https://YOUR-AI-LAB-HOST" `
@@ -62,7 +71,9 @@ Outputs:
 
 - Windows: versioned installer and manifests below the explicit isolated
   `WindowsStagingRoot`
-- Android APK: `build/app/outputs/flutter-apk/app-release.apk`
+- Android compiler output: `build/app/outputs/flutter-apk/app-release.apk`
+- Android owner-facing, SHA-verified candidate copy:
+  `..\staging\android\NEXT-Stabil-<version>+<build>-<label>.apk`
 - Web: `build/web`
 
 ## Windows WDAC acceptance boundary
@@ -102,3 +113,11 @@ Client device
 -> backend services remain private
 
 Do not expose PostgreSQL, Qdrant, Ollama or n8n directly to the Internet.
+
+## Android acceptance diagnostics
+
+For a bounded, non-stable Android transport diagnostic, add
+`-AndroidAuthDiagnostics` to an Android-only canonical build. The login surface
+then shows only the effective API URL, configuration source, build mode and
+bounded `/health`/auth classifications. It never renders credentials, tokens,
+headers or response bodies. Do not enable this flag for a stable publication.

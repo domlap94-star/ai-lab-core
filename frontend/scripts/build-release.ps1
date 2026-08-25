@@ -17,6 +17,11 @@ param(
 
     [int]$BuildNumber = 1,
 
+    [switch]$AndroidAuthDiagnostics,
+
+    [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')]
+    [string]$AndroidCandidateLabel = "candidate",
+
     [string]$AcceptedNativeRoot = "",
 
     [string]$WindowsStagingRoot = "",
@@ -48,6 +53,9 @@ foreach ($url in @($ApiBaseUrl, $SupervisorBaseUrl)) {
 
 $apiUri = [System.Uri]$ApiBaseUrl
 $developmentApiHosts = @("127.0.0.1", "localhost", "10.0.2.2")
+if ($apiUri.Scheme -ne "https") {
+    throw "Release API URL must use HTTPS"
+}
 if ($apiUri.Host.ToLowerInvariant() -in $developmentApiHosts) {
     throw "Release API URL must not use a development host: $($apiUri.Host)"
 }
@@ -76,6 +84,14 @@ $commonArguments = @(
     "--dart-define=API_BASE_URL=$ApiBaseUrl",
     "--dart-define=SUPERVISOR_BASE_URL=$SupervisorBaseUrl"
 )
+
+if ($AndroidAuthDiagnostics) {
+    if ($Platform -ne "android") {
+        throw "Android auth diagnostics may only be enabled for an Android-only build"
+    }
+    $commonArguments += "--dart-define=ANDROID_AUTH_DIAGNOSTICS=true"
+    Write-Host "AUTH DIAGNOSTICS: ENABLED (safe metadata only)"
+}
 
 if ($Platform -in @("all", "windows")) {
     Write-Host ""
@@ -108,6 +124,24 @@ if ($Platform -in @("all", "android")) {
     if ($LASTEXITCODE -ne 0) {
         throw "Android APK build failed"
     }
+
+    $builtApk = Join-Path (Get-Location) "build\app\outputs\flutter-apk\app-release.apk"
+    if (-not (Test-Path -LiteralPath $builtApk -PathType Leaf)) {
+        throw "Android build output is missing: $builtApk"
+    }
+    $ownerStaging = Join-Path (Split-Path -Parent (Get-Location)) "staging\android"
+    New-Item -ItemType Directory -Force -Path $ownerStaging | Out-Null
+    $ownerApk = Join-Path $ownerStaging (
+        "NEXT-Stabil-{0}+{1}-{2}.apk" -f $Version, $BuildNumber, $AndroidCandidateLabel
+    )
+    Copy-Item -LiteralPath $builtApk -Destination $ownerApk -Force
+    $sourceSha = (Get-FileHash -LiteralPath $builtApk -Algorithm SHA256).Hash
+    $copiedSha = (Get-FileHash -LiteralPath $ownerApk -Algorithm SHA256).Hash
+    if ($sourceSha -ne $copiedSha) {
+        throw "Android owner-facing staging copy SHA-256 mismatch"
+    }
+    Write-Host ("OWNER APK       : {0}" -f $ownerApk)
+    Write-Host ("OWNER APK SHA   : {0}" -f $copiedSha)
 }
 
 if ($Platform -in @("all", "web")) {
@@ -136,6 +170,7 @@ if ($Platform -in @("all", "windows")) {
 if ($Platform -in @("all", "android")) {
     Write-Host "Android:"
     Write-Host "build\app\outputs\flutter-apk\app-release.apk"
+    Write-Host "Owner-facing copy: staging\android"
 }
 
 if ($Platform -in @("all", "web")) {

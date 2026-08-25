@@ -1,12 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/config/api_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/session_expiration_coordinator.dart';
 import '../data/auth_token_storage.dart';
 import '../domain/auth_session.dart';
 import '../domain/current_user.dart';
 import 'auth_providers.dart';
+import 'auth_diagnostics.dart';
 import 'auth_repository.dart';
 import 'auth_state.dart';
 
@@ -40,6 +42,9 @@ class AuthController extends AsyncNotifier<AuthState> {
     final AuthSession? session = await _tokenStorage.readSession();
 
     if (session == null || !session.isAuthenticated) {
+      if (ApiConfig.diagnosticsEnabled) {
+        ref.read(authDiagnosticControllerProvider.notifier).recordNoSession();
+      }
       return const AuthState.unauthenticated();
     }
 
@@ -52,8 +57,18 @@ class AuthController extends AsyncNotifier<AuthState> {
       }
 
       _sessionExpirationCoordinator.markSessionActive(session.accessToken);
+      if (ApiConfig.diagnosticsEnabled) {
+        ref
+            .read(authDiagnosticControllerProvider.notifier)
+            .recordSessionSuccess();
+      }
       return AuthState(session: session, user: user);
     } on DioException catch (error) {
+      if (ApiConfig.diagnosticsEnabled) {
+        ref
+            .read(authDiagnosticControllerProvider.notifier)
+            .recordSessionFailure(error);
+      }
       if (error.response?.statusCode != 401) {
         return const AuthState.unauthenticated(
           notice:
@@ -65,7 +80,12 @@ class AuthController extends AsyncNotifier<AuthState> {
       return const AuthState.unauthenticated(
         notice: 'Sesja wygasła. Zaloguj się ponownie.',
       );
-    } on FormatException {
+    } on FormatException catch (error) {
+      if (ApiConfig.diagnosticsEnabled) {
+        ref
+            .read(authDiagnosticControllerProvider.notifier)
+            .recordSessionFailure(error);
+      }
       return const AuthState.unauthenticated(
         notice:
             'Nie udało się sprawdzić sesji. Sprawdź połączenie i spróbuj ponownie.',
@@ -77,15 +97,27 @@ class AuthController extends AsyncNotifier<AuthState> {
     required String username,
     required String password,
   }) async {
-    final AuthSession session = await _repository.login(
-      username: username,
-      password: password,
-    );
+    final AuthSession session;
+    try {
+      session = await _repository.login(username: username, password: password);
+    } catch (error) {
+      if (ApiConfig.diagnosticsEnabled) {
+        ref
+            .read(authDiagnosticControllerProvider.notifier)
+            .recordLoginFailure(error, '/api/v1/auth/login');
+      }
+      rethrow;
+    }
 
     final CurrentUser user;
     try {
       user = await _repository.fetchCurrentUser(session);
     } on DioException catch (error) {
+      if (ApiConfig.diagnosticsEnabled) {
+        ref
+            .read(authDiagnosticControllerProvider.notifier)
+            .recordLoginFailure(error, '/api/v1/auth/me');
+      }
       if (error.response?.statusCode == 401) {
         throw const AuthException(
           'Nie udało się potwierdzić sesji. Zaloguj się ponownie.',
@@ -110,6 +142,9 @@ class AuthController extends AsyncNotifier<AuthState> {
       );
     }
     _sessionExpirationCoordinator.markSessionActive(session.accessToken);
+    if (ApiConfig.diagnosticsEnabled) {
+      ref.read(authDiagnosticControllerProvider.notifier).recordLoginSuccess();
+    }
     state = AsyncData<AuthState>(AuthState(session: session, user: user));
   }
 

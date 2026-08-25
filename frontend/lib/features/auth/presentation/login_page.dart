@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app_version/application/app_version_provider.dart';
 import '../../app_version/domain/app_version_info.dart';
+import '../../../core/config/api_config.dart';
 import '../application/auth_controller.dart';
+import '../application/auth_diagnostics.dart';
 import '../application/auth_state.dart';
 import 'reset_password_page.dart';
 
@@ -81,6 +83,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final AsyncValue<AuthState> authState = ref.watch(authControllerProvider);
 
     final AsyncValue<AppVersionInfo> appVersion = ref.watch(appVersionProvider);
+    final AuthDiagnosticState? diagnostics = ApiConfig.diagnosticsEnabled
+        ? ref.watch(authDiagnosticControllerProvider)
+        : null;
     final bool isLoading = authState.isLoading || _isSubmitting;
     final String? sessionNotice = authState.value?.notice;
 
@@ -248,6 +253,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                             ),
                           ),
+                          if (diagnostics != null) ...<Widget>[
+                            const SizedBox(height: 16),
+                            _AuthDiagnosticCard(diagnostics: diagnostics),
+                          ],
                           const SizedBox(height: 16),
                           Text(
                             appVersion.when(
@@ -322,5 +331,60 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     return 'Nie udało się zalogować. Spróbuj ponownie.';
+  }
+}
+
+class _AuthDiagnosticCard extends ConsumerWidget {
+  const _AuthDiagnosticCard({required this.diagnostics});
+
+  final AuthDiagnosticState diagnostics;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final ThemeData theme = Theme.of(context);
+    final List<String> lines = <String>[
+      'DIAGNOSTIC_BUILD=ANDROID_AUTH',
+      'BUILD_MODE=${diagnostics.buildMode}',
+      'API_BASE_URL=${diagnostics.effectiveApiBaseUrl}',
+      'API_SOURCE=${diagnostics.apiSource}',
+      ...?diagnostics.health?.safeLines,
+      ...?diagnostics.session?.safeLines,
+      ...?diagnostics.login?.safeLines,
+    ];
+    return Container(
+      key: const Key('android-auth-diagnostics'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text('Diagnostyka połączenia', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: diagnostics.healthRunning
+                ? null
+                : () => ref
+                      .read(authDiagnosticControllerProvider.notifier)
+                      .probeHealth(),
+            icon: diagnostics.healthRunning
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.health_and_safety_outlined),
+            label: const Text('Sprawdź połączenie aplikacji'),
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            lines.join('\n'),
+            style: theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+          ),
+        ],
+      ),
+    );
   }
 }
