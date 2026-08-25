@@ -318,3 +318,20 @@ Saved F0 remains 88.03 overall / 94.50% factual-evidence, wrong source 0 and
 privacy failures 0. Android source did not change, so +37 remains reusable.
 PRE-CHUNK23 remains physical-acceptance required and CHUNK23 remains blocked.
 Detailed evidence: `FOLLOWUP_P0_UNIFIED_ASSISTANT_KB_GROUNDING_REPORT.md`.
+
+## 2026-08-25 KB local stability and timeout contract P0
+
+Exact named-KB overview is now a validated deterministic extract over ranked
+original page evidence; it requires no Qwen or external job. A bounded one-time
+representation correction remains for the model fallback. Evidence-grounded
+local analysis has one 105-second budget and returns HTTP 200
+`timed_out/local_analysis_timeout`; Android waits 160 seconds and no longer
+labels receive timeout as network loss. Local Cancel detaches immediately.
+Same-Client descriptive document selection is deterministic and keeps address
+matching local.
+
+Final proof is 10/10 service repetitions plus two live calls at 0.84/0.79 s.
+Flutter changed, so +37 is superseded by non-stable +38 (SHA-256
+`02DF6A8F72C664CDE36FF8A860133CFC200B1BC5BBCE38D33027D40AF9DF84E1`).
+Owner physical retest remains required; CHUNK23 remains blocked. Evidence:
+`FOLLOWUP_P0_KB_LOCAL_STABILITY_AND_TIMEOUT_CONTRACT_REPORT.md`.

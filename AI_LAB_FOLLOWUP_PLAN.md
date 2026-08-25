@@ -2600,3 +2600,17 @@ versionCode 38 was not consumed. PRE-CHUNK23 remains `UNIFIED ASSISTANT
 IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 remains BLOCKED / NOT
 STARTED; stable remains `1.0.2+29`. Evidence:
 `FOLLOWUP_P0_UNIFIED_ASSISTANT_KB_GROUNDING_REPORT.md`.
+
+**P0 KB LOCAL VALIDATION + LOCAL TIMEOUT CONTRACT — SOURCE/RUNTIME PASS /
+OWNER PHYSICAL RETEST REQUIRED — 2026-08-25.** Exact named-KB overview is a
+deterministic, page-grounded local fast path; the fallback has one bounded
+representation correction. Local evidence work has one 105-second hard budget,
+Android transport waits 160 seconds, and timeout is terminal
+`timed_out/local_analysis_timeout`, not false network failure. Local Cancel is
+immediate and stale-safe. Descriptive Client document matching is scoped,
+unique/ambiguous/not-found, and keeps address tokens out of model evidence.
+Backend is reloaded; backend suites, Flutter analyze and Flutter 305/305 pass.
++37 is superseded by non-stable +38 in canonical staging. PRE-CHUNK23 remains
+physical acceptance required; CHUNK23 remains BLOCKED / NOT STARTED; stable
+remains `1.0.2+29`. Evidence:
+`FOLLOWUP_P0_KB_LOCAL_STABILITY_AND_TIMEOUT_CONTRACT_REPORT.md`.

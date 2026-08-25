@@ -269,7 +269,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(
-      find.text('Brak połączenia z serwerem. Sprawdź sieć i spróbuj ponownie.'),
+      find.text('Nie udało się połączyć z serwerem w wymaganym czasie.'),
       findsOneWidget,
     );
     expect(find.textContaining('DioException'), findsNothing);

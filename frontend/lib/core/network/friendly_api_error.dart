@@ -10,13 +10,19 @@ String friendlyApiError(
   if (error is! DioException) return fallback;
 
   if (<DioExceptionType>{
-    DioExceptionType.connectionTimeout,
-    DioExceptionType.sendTimeout,
-    DioExceptionType.receiveTimeout,
     DioExceptionType.connectionError,
     DioExceptionType.unknown,
   }.contains(error.type)) {
     return _networkMessage;
+  }
+  if (error.type == DioExceptionType.connectionTimeout) {
+    return 'Nie udało się połączyć z serwerem w wymaganym czasie.';
+  }
+  if (error.type == DioExceptionType.sendTimeout) {
+    return 'Nie udało się wysłać żądania w wymaganym czasie.';
+  }
+  if (error.type == DioExceptionType.receiveTimeout) {
+    return 'Serwer nie zakończył operacji w wymaganym czasie.';
   }
 
   final int? statusCode = error.response?.statusCode;
@@ -24,12 +30,13 @@ String friendlyApiError(
     401 => 'Sesja wygasła. Zaloguj się ponownie.',
     403 => 'Nie masz uprawnień do wykonania tej operacji.',
     404 => 'Nie znaleziono żądanego elementu.',
-    409 => _safeDetail(error.response?.data) ??
-        'Operacja jest w konflikcie z aktualnym stanem danych.',
-    422 => _safeDetail(error.response?.data) ??
-        'Sprawdź poprawność wprowadzonych danych.',
-    int code when code >= 500 =>
-      'Wystąpił błąd serwera. Spróbuj ponownie.',
+    409 =>
+      _safeDetail(error.response?.data) ??
+          'Operacja jest w konflikcie z aktualnym stanem danych.',
+    422 =>
+      _safeDetail(error.response?.data) ??
+          'Sprawdź poprawność wprowadzonych danych.',
+    int code when code >= 500 => 'Wystąpił błąd serwera. Spróbuj ponownie.',
     _ => fallback,
   };
 }

@@ -33,7 +33,9 @@ class UnifiedAssistantApi {
         headers: <String, Object>{
           'Authorization': '${session.tokenType} ${session.accessToken}',
         },
-        receiveTimeout: const Duration(seconds: 130),
+        // The backend ends local reasoning at 105 s and may still need bounded
+        // model cleanup before serializing the terminal timeout response.
+        receiveTimeout: const Duration(seconds: 160),
       ),
       cancelToken: cancelToken,
     );
@@ -49,9 +51,11 @@ class UnifiedAssistantApi {
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/v1/ai/assistant/$requestId/cancel',
-      options: Options(headers: <String, Object>{
-        'Authorization': '${session.tokenType} ${session.accessToken}',
-      }),
+      options: Options(
+        headers: <String, Object>{
+          'Authorization': '${session.tokenType} ${session.accessToken}',
+        },
+      ),
     );
     if (response.data == null) {
       throw const FormatException('Nie potwierdzono anulowania analizy.');

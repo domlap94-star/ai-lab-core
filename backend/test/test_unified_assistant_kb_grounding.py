@@ -129,26 +129,92 @@ async def test_explicit_kb_item_is_used_in_claim_and_sources(monkeypatch):
 
     class Model:
         async def generate(self, **kwargs):
-            assert kwargs["options"]["num_predict"] == 320
-            assert kwargs["format"]["properties"]["claims"]["maxItems"] == 3
-            return {"response": json.dumps({
-                "answer": "Materiał opisuje syntetyczną zasadę techniczną.",
-                "claims": [{"class": "FACT", "text": "Opisano syntetyczną zasadę.",
-                            "source_ref": "S01"}],
-            })}
+            raise AssertionError("explicit KB overview should be deterministic and model-free")
 
     monkeypatch.setattr(unified_module, "KnowledgeBaseRetrievalService", Retrieval)
-    response = await UnifiedAssistantService(Db(), llm_client=Model()).ask(
-        request=UnifiedAssistantRequest(
-            question="Co mówi źródło 'Fundamentowanie' z bazy wiedzy?"
-        ), user_id=1,
+    responses = [
+        await UnifiedAssistantService(Db(), llm_client=Model()).ask(
+            request=UnifiedAssistantRequest(
+                question="Co mówi źródło 'Fundamentowanie' z bazy wiedzy?"
+            ), user_id=1,
+        )
+        for _ in range(10)
+    ]
+    assert all(response.status == "accepted_local" for response in responses)
+    assert all(response.sources[0].source_type == "knowledge_base" for response in responses)
+    assert all(response.sources[0].source_id == 7 for response in responses)
+    assert all("page=3" in (response.sources[0].route or "") for response in responses)
+    assert all(response.sources[0].supports_claim_ids == ["C01"] for response in responses)
+    assert all(not response.external_analysis_used for response in responses)
+    assert all(response.model is None for response in responses)
+    assert all(response.current_stage == "knowledge_base_extract" for response in responses)
+
+
+@pytest.mark.asyncio
+async def test_kb_overview_gets_one_representation_only_correction(monkeypatch):
+    item = SimpleNamespace(
+        id=7, title="Fundamentowanie", status="current", processing_status="processed",
+        extracted_text="Treść", pages=[SimpleNamespace(text="Treść")],
     )
+    class Query:
+        def filter(self, *args): return self
+        def all(self): return [item]
+    class Db:
+        def query(self, *args): return Query()
+        def get(self, *args): return None
+    class Retrieval:
+        def __init__(self, db): pass
+        def search(self, *args, **kwargs):
+            return [{"knowledge_base_item_id": 7, "title": "Fundamentowanie", "page": 3,
+                     "excerpt": "Syntetyczny fragment.", "status": "current",
+                     "retrieval_method": "lexical"}]
+    class Model:
+        calls = 0
+        async def generate(self, **kwargs):
+            self.calls += 1
+            claim = {"class": "HYPOTHESIS", "text": "Hipoteza bez warunku.", "source_ref": "S01"}
+            if self.calls == 2:
+                claim["text"] = "Hipotezę należy potwierdzić pomiarem lub obalić badaniem."
+            return {"response": json.dumps({"answer": "Syntetyczna odpowiedź.", "claims": [claim]})}
+    monkeypatch.setattr(unified_module, "KnowledgeBaseRetrievalService", Retrieval)
+    model = Model()
+    service = UnifiedAssistantService(Db(), llm_client=model)
+    monkeypatch.setattr(service, "_deterministic_kb_overview_payload", lambda *args: {
+        "answer": "", "claims": [], "used_sources": [], "tool_plan": [], "estimate": None,
+    })
+    response = await service.ask(request=UnifiedAssistantRequest(
+        question="Co mówi źródło 'Fundamentowanie' z bazy wiedzy?"
+    ), user_id=1)
+    assert model.calls == 2
     assert response.status == "accepted_local"
-    assert response.sources[0].source_type == "knowledge_base"
     assert response.sources[0].source_id == 7
-    assert "page=3" in (response.sources[0].route or "")
-    assert response.sources[0].supports_claim_ids == ["C01"]
-    assert not response.external_analysis_used
+
+
+def test_deterministic_kb_overview_is_repeatable_and_source_bound():
+    source_map = {
+        "S01": AgentSource(source_type="knowledge_base", source_id=7, title="KB", snippet="A"),
+        "S02": AgentSource(source_type="knowledge_base", source_id=7, title="KB", snippet="B"),
+    }
+    evidence = [
+        {"source_ref": "S01", "excerpt": "Pierwszy syntetyczny fakt techniczny."},
+        {"source_ref": "S02", "excerpt": "Drugi syntetyczny fakt techniczny."},
+    ]
+    results = [
+        UnifiedAssistantService._deterministic_kb_overview_payload(evidence, source_map)
+        for _ in range(10)
+    ]
+    assert all(result == results[0] for result in results)
+    assert all(UnifiedAssistantService._validate(result, source_map, False) is None for result in results)
+    assert all(UnifiedAssistantService._payload_uses_kb(result, source_map, 7) for result in results)
+
+
+def test_local_timeout_is_terminal_non_network_response():
+    response = UnifiedAssistantService._local_timeout_response(
+        "request", SimpleNamespace(tools=["document_search"])
+    )
+    assert response.status == "timed_out"
+    assert response.current_stage == "local_analysis_timeout"
+    assert "lokalna" in (response.error_message or "").lower()
 
 
 @pytest.mark.asyncio

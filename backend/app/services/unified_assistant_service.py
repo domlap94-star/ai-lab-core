@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import asyncio
+import time
 import unicodedata
 import uuid
 from copy import deepcopy
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.clients.ollama_client import OllamaClient
 from app.models.client_candidate import ClientCandidate
+from app.models.client import Client
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.inspection import Inspection
@@ -57,6 +59,8 @@ DOCUMENT_EXTENSIONS = ("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "jpg",
 ADVANCED_QUEUE_HARD_SECONDS = 60
 ADVANCED_EXTERNAL_HARD_SECONDS = 180
 GENERAL_LOCAL_HARD_SECONDS = 75
+EVIDENCE_LOCAL_HARD_SECONDS = 105
+KB_OVERVIEW_LOCAL_HARD_SECONDS = 105
 QUERY_MODE_SYSTEM_META = "SYSTEM_META"
 QUERY_MODE_GENERAL_KNOWLEDGE = "GENERAL_KNOWLEDGE"
 QUERY_MODE_EVIDENCE_GROUNDED = "EVIDENCE_GROUNDED"
@@ -222,12 +226,13 @@ class UnifiedAssistantService:
         )
         local_num_predict = 480
         raw_local: dict[str, Any] = {}
+        local_deadline = time.monotonic() + EVIDENCE_LOCAL_HARD_SECONDS
         try:
             bounded_schema = self._bounded_model_schema(
                 set(source_map), set(tool_source_map), compact=kb_only
             )
-            raw_local = await asyncio.wait_for(
-                self._generate_local(prompt, bounded_schema, num_predict=local_num_predict), timeout=120
+            raw_local = await self._generate_before_deadline(
+                prompt, bounded_schema, local_deadline, num_predict=local_num_predict
             )
             parsed = self._resolve_tool_provenance(
                 self._normalize_model_result(raw_local), tool_source_map
@@ -235,6 +240,12 @@ class UnifiedAssistantService:
             parsed = self._strip_known_output_handles(
                 parsed, set(source_map) | set(tool_source_map)
             )
+        except asyncio.TimeoutError:
+            await self._unload_for_external_wait()
+            return self._local_timeout_response(request_id, collected)
+        except asyncio.CancelledError:
+            await self._unload_for_external_wait()
+            raise
         except Exception as error:
             if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(error, (OSError, TimeoutError, ConnectionError)):
                 raise UnifiedAssistantModelUnavailable from error
@@ -251,8 +262,8 @@ class UnifiedAssistantService:
         }:
             correction = self._format_correction_prompt(prompt, validation, raw_local)
             try:
-                retried = await asyncio.wait_for(
-                    self._generate_local(correction, bounded_schema, num_predict=local_num_predict), timeout=120
+                retried = await self._generate_before_deadline(
+                    correction, bounded_schema, local_deadline, num_predict=local_num_predict
                 )
                 parsed = self._resolve_tool_provenance(
                     self._normalize_model_result(retried), tool_source_map
@@ -264,14 +275,20 @@ class UnifiedAssistantService:
                     parsed, source_map, collected.visual_available, tool_source_map,
                     allow_general_knowledge=query_mode == QUERY_MODE_GENERAL_KNOWLEDGE,
                 )
+            except asyncio.TimeoutError:
+                await self._unload_for_external_wait()
+                return self._local_timeout_response(request_id, collected)
+            except asyncio.CancelledError:
+                await self._unload_for_external_wait()
+                raise
             except Exception as error:
                 if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(error, (OSError, TimeoutError, ConnectionError)):
                     raise UnifiedAssistantModelUnavailable from error
         if validation is None and resolution and not self._payload_uses_document(parsed, source_map, resolution.document_id):
             correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
             try:
-                retried = await asyncio.wait_for(
-                    self._generate_local(correction, bounded_schema, num_predict=local_num_predict), timeout=120
+                retried = await self._generate_before_deadline(
+                    correction, bounded_schema, local_deadline, num_predict=local_num_predict
                 )
                 parsed = self._resolve_tool_provenance(
                     self._normalize_model_result(retried), tool_source_map
@@ -283,6 +300,12 @@ class UnifiedAssistantService:
                     parsed, source_map, collected.visual_available, tool_source_map,
                     allow_general_knowledge=query_mode == QUERY_MODE_GENERAL_KNOWLEDGE,
                 )
+            except asyncio.TimeoutError:
+                await self._unload_for_external_wait()
+                return self._local_timeout_response(request_id, collected)
+            except asyncio.CancelledError:
+                await self._unload_for_external_wait()
+                raise
             except Exception as error:
                 if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(error, (OSError, TimeoutError, ConnectionError)):
                     raise UnifiedAssistantModelUnavailable from error
@@ -293,8 +316,8 @@ class UnifiedAssistantService:
         ):
             correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
             try:
-                retried = await asyncio.wait_for(
-                    self._generate_local(correction, bounded_schema, num_predict=local_num_predict), timeout=120
+                retried = await self._generate_before_deadline(
+                    correction, bounded_schema, local_deadline, num_predict=local_num_predict
                 )
                 parsed = self._resolve_tool_provenance(
                     self._normalize_model_result(retried), tool_source_map
@@ -306,6 +329,12 @@ class UnifiedAssistantService:
                     parsed, source_map, collected.visual_available, tool_source_map,
                     allow_general_knowledge=False,
                 )
+            except asyncio.TimeoutError:
+                await self._unload_for_external_wait()
+                return self._local_timeout_response(request_id, collected)
+            except asyncio.CancelledError:
+                await self._unload_for_external_wait()
+                raise
             except Exception as error:
                 if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(
                     error, (OSError, TimeoutError, ConnectionError)
@@ -569,14 +598,24 @@ class UnifiedAssistantService:
         }
         evidence = [{
             "source_ref": handle, "title": source.title,
-            "excerpt": " ".join((source.snippet or "").split())[:700],
+            "excerpt": " ".join((source.snippet or "").split())[:420],
         } for handle, source in source_map.items()]
+        extractive = self._deterministic_kb_overview_payload(evidence, source_map)
+        if (
+            self._kb_overview_validation_reason(
+                extractive, source_map, resolution.item_id
+            ) is None
+        ):
+            response = self._local_response(request_id, extractive, source_map, collected)
+            return response.model_copy(update={
+                "model": None, "current_stage": "knowledge_base_extract",
+            })
         allowed = sorted(source_map)
         schema = {
             "type": "object",
             "properties": {
-                "answer": {"type": "string", "maxLength": 900},
-                "claims": {"type": "array", "maxItems": 3, "items": {
+                "answer": {"type": "string", "maxLength": 600},
+                "claims": {"type": "array", "maxItems": 2, "items": {
                     "type": "object", "properties": {
                         "class": {"type": "string", "enum": ["FACT", "HYPOTHESIS"]},
                         "text": {"type": "string", "maxLength": 300},
@@ -589,23 +628,107 @@ class UnifiedAssistantService:
         prompt = (
             "Jesteś lokalnym Asystentem NEXT Stabil. Zwięźle omów wyłącznie wskazany, "
             "bieżący materiał bazy wiedzy na podstawie dozwolonych fragmentów. Nie dodawaj "
-            "wiedzy ogólnej ani danych klienta. Zwróć maksymalnie 3 materialne twierdzenia. "
+            "wiedzy ogólnej ani danych klienta. Zwróć maksymalnie 2 materialne twierdzenia. "
             "FACT oznacza treść bezpośrednio obecną w materiale. HYPOTHESIS wymaga w tekście "
             "informacji, co ją potwierdzi lub obali. Każde twierdzenie musi podać dokładny "
             "source_ref. Nie ujawniaj uchwytów w answer ani text. Zwróć wyłącznie JSON.\n"
             f"QUESTION={request.question}\nEVIDENCE={json.dumps(evidence, ensure_ascii=False)}"
         )
+        deadline = time.monotonic() + KB_OVERVIEW_LOCAL_HARD_SECONDS
+        raw: dict[str, Any] = {}
         try:
-            raw = await asyncio.wait_for(self.llm.generate(
-                model=MODEL, prompt=prompt, stream=False, format=schema,
-                options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 320},
-                think=False, keep_alive="5m",
-            ), timeout=120)
+            raw = await self._kb_generate_before_deadline(
+                prompt, schema, deadline
+            )
             result = json.loads(str(raw.get("response") or "{}"))
+        except asyncio.TimeoutError:
+            await self._unload_for_external_wait()
+            return self._local_timeout_response(request_id, collected)
         except asyncio.CancelledError:
+            await self._unload_for_external_wait()
             raise
         except Exception:
             return self._kb_external_blocked_response(request_id, collected)
+        payload = self._normalize_kb_overview_result(result, source_map)
+        validation = self._kb_overview_validation_reason(
+            payload, source_map, resolution.item_id
+        )
+        if validation in {
+            "invalid_schema", "source_binding", "missing_provenance",
+            "hypothesis_contract", "user_output_internal_leak", "task_completion_fail",
+        }:
+            correction = (
+                prompt
+                + "\nPoprzedni wynik nie spełnił wyłącznie kontraktu reprezentacji: "
+                + validation
+                + ". Popraw JSON i wiązanie twierdzeń WYŁĄCZNIE do tych samych dozwolonych "
+                  "fragmentów. Nie dodawaj ani nie zmieniaj faktów i nie używaj wiedzy ogólnej. "
+                  "Każde twierdzenie ma użyć jednego z dozwolonych source_ref."
+            )
+            try:
+                corrected_raw = await self._kb_generate_before_deadline(
+                    correction, schema, deadline
+                )
+                corrected = json.loads(str(corrected_raw.get("response") or "{}"))
+                payload = self._normalize_kb_overview_result(corrected, source_map)
+                validation = self._kb_overview_validation_reason(
+                    payload, source_map, resolution.item_id
+                )
+            except asyncio.TimeoutError:
+                await self._unload_for_external_wait()
+                return self._local_timeout_response(request_id, collected)
+            except asyncio.CancelledError:
+                await self._unload_for_external_wait()
+                raise
+            except Exception:
+                return self._kb_external_blocked_response(request_id, collected)
+        if validation is not None:
+            return self._kb_external_blocked_response(request_id, collected)
+        return self._local_response(request_id, payload, source_map, collected)
+
+    @staticmethod
+    def _deterministic_kb_overview_payload(
+        evidence: list[dict[str, Any]], source_map: dict[str, AgentSource]
+    ) -> dict[str, Any]:
+        claims: list[dict[str, Any]] = []
+        for row in evidence:
+            handle = str(row.get("source_ref") or "")
+            text = UnifiedAssistantService._safe_source_excerpt(
+                str(row.get("excerpt") or "")
+            ).strip()
+            if handle not in source_map or not text or INTERNAL_OUTPUT_PATTERN.search(text):
+                continue
+            claims.append({
+                "class": "FACT", "text": text[:300],
+                "source_refs": [handle], "tool_refs": [],
+            })
+            if len(claims) == 2:
+                break
+        answer = " ".join(claim["text"] for claim in claims)
+        return {
+            "answer": answer,
+            "claims": claims,
+            "used_sources": [claim["source_refs"][0] for claim in claims],
+            "tool_plan": ["knowledge_base"],
+            "estimate": None,
+        }
+
+    async def _kb_generate_before_deadline(
+        self, prompt: str, schema: dict[str, Any], deadline: float
+    ) -> dict[str, Any]:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise asyncio.TimeoutError
+        return await asyncio.wait_for(self.llm.generate(
+                model=MODEL, prompt=prompt, stream=False, format=schema,
+                options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 200},
+                think=False, keep_alive="5m",
+            ), timeout=remaining)
+
+    @staticmethod
+    def _normalize_kb_overview_result(
+        result: dict[str, Any], source_map: dict[str, AgentSource]
+    ) -> dict[str, Any]:
         claims = result.get("claims") if isinstance(result.get("claims"), list) else []
         payload = {
             "answer": str(result.get("answer") or "").strip(),
@@ -619,13 +742,40 @@ class UnifiedAssistantService:
             }),
             "tool_plan": ["knowledge_base"], "estimate": None,
         }
-        payload = self._strip_known_output_handles(payload, set(source_map))
-        if (
-            self._validate(payload, source_map, False) is not None
-            or not self._payload_uses_kb(payload, source_map, resolution.item_id)
-        ):
-            return self._kb_external_blocked_response(request_id, collected)
-        return self._local_response(request_id, payload, source_map, collected)
+        return UnifiedAssistantService._strip_known_output_handles(payload, set(source_map))
+
+    @staticmethod
+    def _kb_overview_validation_reason(
+        payload: dict[str, Any], source_map: dict[str, AgentSource], item_id: int | None
+    ) -> str | None:
+        validation = UnifiedAssistantService._validate(payload, source_map, False)
+        if validation is not None:
+            return validation
+        if not UnifiedAssistantService._payload_uses_kb(payload, source_map, item_id):
+            return "task_completion_fail"
+        return None
+
+    async def _generate_before_deadline(
+        self, prompt: str, schema: dict[str, Any], deadline: float, *, num_predict: int
+    ) -> dict[str, Any]:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise asyncio.TimeoutError
+        return await asyncio.wait_for(
+            self._generate_local(prompt, schema, num_predict=num_predict), timeout=remaining
+        )
+
+    @staticmethod
+    def _local_timeout_response(
+        request_id: str, collected: _Collected
+    ) -> UnifiedAssistantResponse:
+        return UnifiedAssistantResponse(
+            request_id=request_id, answer="", status="timed_out", progress="complete",
+            target_scope=TARGET, claims=[], sources=[], used_tools=collected.tools, model=MODEL,
+            error_message=(
+                "Analiza lokalna trwała zbyt długo i została zakończona. Możesz spróbować ponownie."
+            ), current_stage="local_analysis_timeout", can_cancel=False, delayed=True,
+        )
 
     @staticmethod
     def _safe_output_failure_response(request_id: str, collected: _Collected) -> UnifiedAssistantResponse:
@@ -776,7 +926,7 @@ class UnifiedAssistantService:
             )
         reference = self._filename_reference(request.question)
         if reference is None:
-            return None
+            return self._resolve_described_document(request)
         if request.client_id is None:
             return _DocumentResolution("INVALID", reference)
         rows = self.db.query(Document).filter(
@@ -810,6 +960,64 @@ class UnifiedAssistantService:
         }:
             return _DocumentResolution(content.state, reference, document.id)
         return _DocumentResolution(state, reference, document.id)
+
+    def _resolve_described_document(
+        self, request: UnifiedAssistantRequest
+    ) -> _DocumentResolution | None:
+        folded = self._fold_intent(request.question)
+        describes_document = any(token in folded for token in (
+            "dokument", "pdf", "raport", "opinia", "badanie", "geotechn", "grunt",
+        )) and any(token in folded for token in (
+            "znajdz", "wyszukaj", "przeanalizuj", "zbadaj", "jest", "zawiera",
+        ))
+        if not describes_document:
+            return None
+        if request.client_id is None:
+            return _DocumentResolution("INVALID", "opis dokumentu")
+        rows = self.db.query(Document).filter(
+            Document.client_id == request.client_id,
+            Document.trashed_at.is_(None),
+            Document.purged_at.is_(None),
+        ).all()
+        query_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", folded)
+            if len(token) >= 3 and token not in {
+                "tego", "ten", "jest", "ktory", "ktorego", "klienta", "dokumentach",
+                "znajdz", "wyszukaj", "przeanalizuj", "zawiera", "plik", "pdf",
+            }
+        }
+        if any(token in folded for token in ("grunt", "geotechn", "badanie podloza")):
+            query_tokens.update({"grunt", "geotechn", "badanie", "podloz", "opinia"})
+        if "adres" in folded:
+            client = self.db.get(Client, request.client_id)
+            if client is not None:
+                local_address = " ".join(filter(None, (
+                    client.street, client.building_number, client.postal_code, client.city,
+                )))
+                query_tokens.update(
+                    token for token in re.findall(r"[a-z0-9]+", self._fold_intent(local_address))
+                    if len(token) >= 2
+                )
+        scored: list[tuple[int, Document]] = []
+        for row in rows:
+            name = self._fold_intent(row.original_filename or row.filename)
+            name_tokens = set(re.findall(r"[a-z0-9]+", name))
+            score = len(query_tokens & name_tokens)
+            if score >= 2:
+                scored.append((score, row))
+        if not scored:
+            return _DocumentResolution("NOT_FOUND", "opis dokumentu")
+        best_score = max(score for score, _ in scored)
+        best = [row for score, row in scored if score == best_score]
+        if len(best) != 1:
+            return _DocumentResolution("AMBIGUOUS", "opis dokumentu")
+        document = best[0]
+        content = self.document_content.access(document, query=request.question)
+        if content.state not in {
+            FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+        }:
+            return _DocumentResolution(content.state, "opis dokumentu", document.id)
+        return _DocumentResolution("UNIQUE_MATCH", "opis dokumentu", document.id)
 
     def _document_has_content(self, document: Document) -> bool:
         return self.document_content.access(document).state in {

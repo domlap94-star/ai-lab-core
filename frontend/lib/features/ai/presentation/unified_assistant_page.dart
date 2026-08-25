@@ -374,10 +374,12 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     } on DioException catch (exception) {
       if (!mounted || CancelToken.isCancel(exception)) return;
       setState(
-        () => error = friendlyApiError(
-          exception,
-          fallback: 'Nie udało się uzyskać odpowiedzi AI.',
-        ),
+        () => error = exception.type == DioExceptionType.receiveTimeout
+            ? 'Analiza lokalna trwała zbyt długo i została zakończona. Możesz spróbować ponownie.'
+            : friendlyApiError(
+                exception,
+                fallback: 'Nie udało się uzyskać odpowiedzi AI.',
+              ),
       );
     } on TimeoutException {
       if (mounted) {
@@ -433,18 +435,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
 
   Future<void> cancel() async {
     final requestId = activeRequestId;
-    if (requestId != null) {
-      final session = (await ref.read(authControllerProvider.future)).session;
-      if (session != null) {
-        try {
-          await ref
-              .read(unifiedAssistantApiProvider)
-              .cancel(session: session, requestId: requestId);
-        } catch (_) {
-          // The local request is still cancelled; the backend timeout remains fail-closed.
-        }
-      }
-    }
     cancelToken?.cancel('Anulowano przez użytkownika');
     cancelToken = null;
     activeRequestId = null;
@@ -453,6 +443,21 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         loading = false;
         progress = '';
       });
+    }
+    if (requestId != null) {
+      unawaited(_cancelDurable(requestId));
+    }
+  }
+
+  Future<void> _cancelDurable(String requestId) async {
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null) return;
+    try {
+      await ref
+          .read(unifiedAssistantApiProvider)
+          .cancel(session: session, requestId: requestId);
+    } catch (_) {
+      // HTTP cancellation already detached the local request and blocks stale binding.
     }
   }
 

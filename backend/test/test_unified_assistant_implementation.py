@@ -472,6 +472,52 @@ def test_selected_document_accepts_ephemeral_read_only_content(monkeypatch):
     assert resolution.document_id == 91
 
 
+def test_described_document_resolution_is_client_scoped_and_address_stays_local(monkeypatch):
+    soil = SimpleNamespace(
+        id=91, client_id=7, original_filename="opinia-geotechniczna-lesna-12.pdf",
+        filename="stored-91.pdf",
+    )
+    unrelated = SimpleNamespace(
+        id=92, client_id=7, original_filename="faktura.pdf", filename="stored-92.pdf",
+    )
+    class Query:
+        def filter(self, *args): return self
+        def all(self): return [soil, unrelated]
+    class Db:
+        def query(self, *args): return Query()
+        def get(self, model, item_id):
+            return SimpleNamespace(street="Leśna", building_number="12", postal_code=None, city=None)
+    service = UnifiedAssistantService(Db(), llm_client=SimpleNamespace())
+    monkeypatch.setattr(service.document_content, "access", lambda *args, **kwargs: UnifiedDocumentContent(
+        state=FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE, character_count=120
+    ))
+    resolution = service._resolve_required_document(UnifiedAssistantRequest(
+        question="Znajdź PDF badania gruntu, którego nazwa zawiera adres klienta, i przeanalizuj go.",
+        client_id=7,
+    ))
+    assert resolution is not None
+    assert resolution.state == "UNIQUE_MATCH"
+    assert resolution.document_id == 91
+    assert "Leśna" not in (resolution.reference or "")
+
+
+def test_described_document_resolution_fails_closed_on_ambiguous_same_client(monkeypatch):
+    rows = [
+        SimpleNamespace(id=91, client_id=7, original_filename="badanie-gruntu-a.pdf", filename="a.pdf"),
+        SimpleNamespace(id=92, client_id=7, original_filename="badanie-gruntu-b.pdf", filename="b.pdf"),
+    ]
+    class Query:
+        def filter(self, *args): return self
+        def all(self): return rows
+    db = SimpleNamespace(query=lambda *args: Query(), get=lambda *args: None)
+    service = UnifiedAssistantService(db, llm_client=SimpleNamespace())
+    resolution = service._resolve_required_document(UnifiedAssistantRequest(
+        question="Znajdź i przeanalizuj badanie gruntu PDF.", client_id=7
+    ))
+    assert resolution is not None
+    assert resolution.state == "AMBIGUOUS"
+
+
 @pytest.mark.asyncio
 async def test_not_found_required_document_returns_before_any_model_or_external_call():
     class Query:
