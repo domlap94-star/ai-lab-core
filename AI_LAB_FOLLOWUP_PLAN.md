@@ -2549,3 +2549,29 @@ used. PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
 REQUIRED`, CHUNK23 remains BLOCKED / NOT STARTED, and stable remains
 `1.0.2+29`. Evidence:
 `FOLLOWUP_P0_PUBLIC_TAILSCALE_INGRESS_REGRESSION_REPORT.md`.
+
+**P0 DOCUMENT CONTENT ACCESS + CAPABILITY/GENERAL LATENCY — SOURCE/RUNTIME PASS /
+OWNER PHYSICAL RETEST REQUIRED — 2026-08-25.** The owner-confirmed capability
+fast path remains PASS. Named documents no longer equate an empty extraction
+cache with inaccessible content: the Assistant now verifies the authoritative
+stored file and checksum, performs bounded read-only native extraction, keeps
+page provenance, and writes neither historical Document/Page state nor
+Qdrant. Scans without usable text remain explicit OCR-required cases; no
+historical OCR/backfill was authorized.
+
+Repository/document/mail/CRM/Vision access questions now enter deterministic
+`SYSTEM_META`. Live capability smoke returned HTTP 200 in 130.7 ms with no
+model or tools. True general knowledge uses a minimal Qwen9 contract; final
+public-safe qualification passed 20/20, live cold/warm requests completed in
+62.561/13.669 seconds, and Qwen7 was rejected for material factual failures.
+Timeout is now a typed terminal response instead of generic HTTP 503.
+
+Backend regressions pass 118/118 and focused 101/101; Flutter analyze and full
+305/305 pass. Saved F0 replay preserves 0 wrong sources and 0 privacy failures.
+Only backend runtime was reloaded; public ingress remains PASS. Android source
+did not change, +37 remains reusable, and versionCode 38 was not consumed.
+PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
+REQUIRED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
+The owner must retest the same named PDF, repository capability, general
+knowledge, Sources and cancel flow. Evidence:
+`FOLLOWUP_P0_DOCUMENT_CONTENT_AND_GENERAL_LATENCY_REPORT.md`.

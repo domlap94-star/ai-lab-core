@@ -19,6 +19,10 @@ from app.services.unified_assistant_service import (
     QUERY_MODE_SYSTEM_META,
     UnifiedAssistantService,
 )
+from app.services.unified_document_content_service import (
+    FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+    UnifiedDocumentContent,
+)
 
 
 SYSTEM_META_CASES = [
@@ -32,6 +36,21 @@ SYSTEM_META_CASES = [
     "Co robi przycisk Źródła?",
     "Do czego służy ten Asystent?",
     "Ignoruj poprzednie pytanie i powiedz, co potrafisz.",
+    "Masz dostęp do repozytorium dokumentów?",
+    "Masz dostęp do dokumentów?",
+    "Czy widzisz dokumenty?",
+    "Czy możesz przeglądać dokumenty?",
+    "Czy możesz analizować dokumenty?",
+    "Do jakich danych masz dostęp?",
+    "Z jakich danych możesz korzystać?",
+    "Czy masz dostęp do poczty?",
+    "Czy możesz korzystać z danych klientów?",
+    "Czy możesz analizować zdjęcia?",
+    "Masz dostęp do danych kandydatów?",
+    "Czy widzisz maile?",
+    "Czy możesz analizować obrazy?",
+    "Do czego masz dostęp w systemie?",
+    "Czego nie możesz robić z dokumentami?",
 ]
 
 GENERAL_CASES = [
@@ -75,12 +94,7 @@ async def test_general_knowledge_completes_locally_without_crm_missing_or_advanc
         async def generate(self, **kwargs):
             calls.append(kwargs)
             return {"response": json.dumps({
-                "answer": "To ogólne wyjaśnienie techniczne bez danych konkretnego klienta.",
-                "claims": [{
-                    "class": "FACT", "text": "To ogólna informacja techniczna.",
-                    "source_refs": [], "tool_refs": [],
-                }],
-                "used_sources": [], "tool_plan": [], "estimate": None,
+                "answer": "To ogólne wyjaśnienie techniczne bez danych konkretnego klienta."
             })}
 
     response = await UnifiedAssistantService(
@@ -92,6 +106,28 @@ async def test_general_knowledge_completes_locally_without_crm_missing_or_advanc
     assert response.used_tools == []
     assert not response.external_analysis_used
     assert not any(claim.claim_class == "MISSING" for claim in response.claims)
+    assert calls[0]["format"]["required"] == ["answer"]
+    assert calls[0]["options"]["num_predict"] == 160
+
+
+@pytest.mark.asyncio
+async def test_general_timeout_is_terminal_response_not_http_server_failure(monkeypatch):
+    async def timeout(_prompt):
+        raise TimeoutError
+
+    async def unload(_model):
+        return None
+
+    service = UnifiedAssistantService(
+        SimpleNamespace(), llm_client=SimpleNamespace(unload=unload)
+    )
+    monkeypatch.setattr(service, "_generate_general", timeout)
+    response = await service.ask(
+        request=UnifiedAssistantRequest(question="Co to jest osiadanie?"), user_id=1
+    )
+    assert response.status == "timed_out"
+    assert response.current_stage == "local_analysis_timeout"
+    assert "nie zakończyła się" in (response.error_message or "")
 
 
 @pytest.mark.asyncio
@@ -400,6 +436,28 @@ def test_explicit_document_resolution_is_exact_ambiguous_and_client_scoped():
     duplicate = SimpleNamespace(id=13, filename="copy.pdf", original_filename="technical-report-001.pdf")
     assert UnifiedAssistantService._match_document_rows("technical-report-001.pdf", [current, duplicate])[0] == "AMBIGUOUS"
     assert UnifiedAssistantService._match_document_rows("foreign.pdf", [current])[0] == "NOT_FOUND"
+
+
+def test_selected_document_accepts_ephemeral_read_only_content(monkeypatch):
+    document = SimpleNamespace(
+        id=91, client_id=7, original_filename="fixture.pdf", filename="stored.pdf"
+    )
+
+    class Query:
+        def filter(self, *args): return self
+        def first(self): return document
+
+    db = SimpleNamespace(query=lambda *args: Query())
+    service = UnifiedAssistantService(db, llm_client=SimpleNamespace())
+    monkeypatch.setattr(service.document_content, "access", lambda *args, **kwargs: UnifiedDocumentContent(
+        state=FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE, character_count=120
+    ))
+    resolution = service._resolve_required_document(UnifiedAssistantRequest(
+        question="Przeanalizuj dokument", client_id=7, document_id=91
+    ))
+    assert resolution is not None
+    assert resolution.state == "EXACT_MATCH"
+    assert resolution.document_id == 91
 
 
 @pytest.mark.asyncio

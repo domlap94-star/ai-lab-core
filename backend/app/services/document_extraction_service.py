@@ -28,12 +28,19 @@ ExtractionStatus = Literal[
 
 
 @dataclass(frozen=True)
+class ExtractedDocumentPage:
+    page_number: int
+    text: str
+
+
+@dataclass(frozen=True)
 class DocumentExtractionResult:
     status: ExtractionStatus
     text: str | None
     extractor: str | None
     character_count: int
     error: str | None = None
+    pages: tuple[ExtractedDocumentPage, ...] = ()
 
 
 class DocumentExtractionService:
@@ -218,16 +225,16 @@ class DocumentExtractionService:
         try:
             reader = PdfReader(str(path))
 
-            pages: list[str] = []
+            pages: list[ExtractedDocumentPage] = []
 
-            for page in reader.pages:
-                text = page.extract_text() or ""
+            for page_number, page in enumerate(reader.pages, start=1):
+                text = self._normalize_text(page.extract_text() or "")
 
-                if text.strip():
-                    pages.append(text)
+                if text:
+                    pages.append(ExtractedDocumentPage(page_number, text))
 
             extracted_text = self._normalize_text(
-                "\n\n".join(pages)
+                "\n\n".join(page.text for page in pages)
             )
 
             if (
@@ -245,6 +252,7 @@ class DocumentExtractionService:
                     character_count=len(
                         extracted_text
                     ),
+                    pages=tuple(pages),
                 )
 
             return DocumentExtractionResult(
@@ -254,6 +262,7 @@ class DocumentExtractionService:
                 character_count=len(
                     extracted_text
                 ),
+                pages=tuple(pages),
             )
 
         except Exception as error:

@@ -269,3 +269,29 @@ Documents smoke returns HTTP 200. No application source or APK changed, so +37
 remains the candidate and versionCode 38 was not consumed. Physical
 general, Client, named-PDF, Sources and cancel retest remains required. See
 `FOLLOWUP_P0_UNIFIED_ASSISTANT_CONTRACT_SYNC_REPORT.md`.
+
+## 2026-08-25 document-content and general-latency P0 remediation
+
+Owner physical +37 then proved the deterministic capability fast path but
+exposed two narrower defects: a correctly resolved stored PDF was rejected
+when its extraction cache was empty, and a repository-access capability
+question missed `SYSTEM_META`, loaded Qwen and timed out.
+
+Source now provides fail-closed, read-only authoritative-file extraction with
+stored-checksum verification, page provenance and bounded relevance ranking.
+It does not mutate historical document/page state or Qdrant. Scans remain an
+explicit OCR-required state rather than triggering a hidden backfill. The
+capability classifier covers access questions about documents, mail, CRM and
+Vision without loading a model.
+
+True general knowledge uses a minimal source-free contract. Qwen9 remains the
+selected model: its optimized 20-case run passed, with cold p50/p95
+64.739/64.965 seconds and warm p50/p95 12.863/16.309 seconds. Qwen7 was rejected
+for material factual failures. Live post-reload capability returned in 130.7
+ms without Qwen; cold/warm general requests completed in 62.561/13.669 seconds.
+
+Backend regression is 118/118 plus 101/101 focused; Flutter analyze and full
+305/305 pass. Saved F0 replay retains 0 wrong sources and 0 privacy failures.
+No Android source changed, so +37 remains reusable and physical retest is still
+required. Detailed evidence:
+`FOLLOWUP_P0_DOCUMENT_CONTENT_AND_GENERAL_LATENCY_REPORT.md`.

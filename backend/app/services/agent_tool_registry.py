@@ -16,6 +16,7 @@ from app.services.business_analytics_service import BusinessAnalyticsService
 from app.services.client_email_service import ClientEmailService
 from app.services.client_service import ClientService
 from app.services.document_read_service import DocumentReadService
+from app.services.unified_document_content_service import UnifiedDocumentContentService
 from app.services.global_search_service import GlobalSearchService
 from app.services.inspection_service import InspectionService
 from app.services.project_service import ProjectService
@@ -99,11 +100,19 @@ class AgentToolResult:
 class AgentToolRegistry:
     """Closed registry over existing read services. No arbitrary callable is exposed."""
 
-    def __init__(self, db: Session, *, client_id: int | None = None, inspection_id: int | None = None):
+    def __init__(
+        self,
+        db: Session,
+        *,
+        client_id: int | None = None,
+        inspection_id: int | None = None,
+        document_content_service: UnifiedDocumentContentService | None = None,
+    ):
         self.db, self.client_id, self.inspection_id = db, client_id, inspection_id
         self.clients = ClientService(db)
         self.documents = DocumentReadService(db)
         self.document_repo = DocumentRepository(db)
+        self.document_content = document_content_service or UnifiedDocumentContentService(db)
         self.inspections = InspectionService(db)
         self.projects = ProjectService(db)
         self.timeline = TimelineService(db)
@@ -261,26 +270,37 @@ class AgentToolRegistry:
 
     def _get_document(self, args: IdArgs) -> AgentToolResult:
         x = self._document(args.id)
-        text = " ".join((x.extracted_text or "").split())[:1200]
+        content = self.document_content.access(x)
+        text = " ".join(page.text for page in content.pages)[:1200]
         name = x.original_filename or x.filename
-        data = {"id": x.id, "filename": name, "content_type": x.content_type, "created_at": x.created_at.isoformat(), "page_count": len(x.pages), "vision_status": x.vision_status, "text_snippet": text}
-        return AgentToolResult(data, [self._source("document", x.id, name, f"/documents/{x.id}", text, x.created_at)], {"documents": 1}, [])
+        data = {
+            "id": x.id, "filename": name, "content_type": x.content_type,
+            "created_at": x.created_at.isoformat(), "page_count": len(x.pages),
+            "vision_status": x.vision_status, "text_snippet": text,
+            "content_state": content.state, "content_origin": content.extractor,
+        }
+        limitations = [] if text else [content.error_code or content.state]
+        return AgentToolResult(data, [self._source("document", x.id, name, f"/documents/{x.id}", text, x.created_at)], {"documents": 1}, limitations)
 
     def _get_pages(self, args: DocumentPagesArgs) -> AgentToolResult:
         x = self._document(args.id)
-        all_pages = self.document_repo.get_pages(x.id)
-        terms = {
-            token.casefold() for token in re.findall(r"[\wąćęłńóśźż-]{3,}", args.query or "", re.UNICODE)
-            if token.casefold() not in {"tego", "klienta", "przeanalizuj", "przedstaw", "plik", "pdf"}
-        }
-        def relevance(page):
-            text = (page.extracted_text or page.ocr_text or "").casefold()
-            return sum(1 for term in terms if term in text)
-        ranked = sorted(all_pages, key=lambda page: (-relevance(page), page.page_number))
-        pages = ranked[:8]
-        rows = [{"page": p.page_number, "text": " ".join((p.extracted_text or p.ocr_text or "").split())[:800], "vision_status": p.vision_status} for p in pages]
-        sources = [self._source("document", x.id, f"{x.original_filename or x.filename} — strona {p.page_number}", f"/documents/{x.id}?page={p.page_number}", rows[i]["text"], p.updated_at) for i, p in enumerate(pages)]
-        return AgentToolResult({"pages": rows}, sources, {"document_pages": len(rows)}, [])
+        content = self.document_content.access(x, query=args.query or "")
+        rows = [{
+            "page": page.page_number, "text": page.text,
+            "vision_status": "not_evaluated", "content_origin": page.origin,
+        } for page in content.pages]
+        name = x.original_filename or x.filename
+        sources = [self._source(
+            "document", x.id,
+            f"{name} — strona {page.page_number}" if page.page_number is not None else f"{name} — odczyt oryginału",
+            f"/documents/{x.id}?page={page.page_number}" if page.page_number is not None else f"/documents/{x.id}",
+            page.text, x.created_at,
+        ) for page in content.pages]
+        limitations = [] if rows else [content.error_code or content.state]
+        return AgentToolResult(
+            {"pages": rows, "content_state": content.state, "content_origin": content.extractor},
+            sources, {"document_pages": len(rows)}, limitations,
+        )
 
     def _get_visual(self, args: IdArgs) -> AgentToolResult:
         x = self._document(args.id)

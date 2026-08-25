@@ -35,6 +35,17 @@ from app.services.analysis_result_contract import TemporaryChatResultContractV2
 from app.core.config import settings
 from app.services.agent_tool_registry import AgentToolRegistry, ScopeViolation, ToolDenied
 from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.unified_document_content_service import (
+    FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+    FILE_FOUND_NATIVE_TEXT_AVAILABLE,
+    FILE_FOUND_PROCESSING_PENDING,
+    FILE_FOUND_REQUIRES_OCR,
+    FILE_FOUND_UNSUPPORTED,
+    FILE_NOT_FOUND,
+    FILE_READ_FAILED,
+    INTEGRITY_MISMATCH,
+    UnifiedDocumentContentService,
+)
 
 
 MODEL = "qwen3.5:9b"
@@ -44,6 +55,7 @@ MAX_EVIDENCE_CHARS = 12_000
 DOCUMENT_EXTENSIONS = ("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "jpg", "jpeg", "png")
 ADVANCED_QUEUE_HARD_SECONDS = 60
 ADVANCED_EXTERNAL_HARD_SECONDS = 180
+GENERAL_LOCAL_HARD_SECONDS = 75
 QUERY_MODE_SYSTEM_META = "SYSTEM_META"
 QUERY_MODE_GENERAL_KNOWLEDGE = "GENERAL_KNOWLEDGE"
 QUERY_MODE_EVIDENCE_GROUNDED = "EVIDENCE_GROUNDED"
@@ -87,6 +99,13 @@ MODEL_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
+GENERAL_MODEL_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"answer": {"type": "string"}},
+    "required": ["answer"],
+    "additionalProperties": False,
+}
+
 
 @dataclass(frozen=True)
 class _Collected:
@@ -119,6 +138,7 @@ class UnifiedAssistantService:
         self.db = db
         self.llm = llm_client or OllamaClient()
         self.supervisor = supervisor
+        self.document_content = UnifiedDocumentContentService(db)
 
     async def ask(self, *, request: UnifiedAssistantRequest, user_id: int) -> UnifiedAssistantResponse:
         effective_request = self._apply_conversation_reset(request)
@@ -126,12 +146,14 @@ class UnifiedAssistantService:
         empty = _Collected([], [], [], effective_request.client_id, False)
         if query_mode == QUERY_MODE_SYSTEM_META:
             return self._system_meta_response(self._request_id(effective_request, empty))
+        if query_mode == QUERY_MODE_GENERAL_KNOWLEDGE:
+            return await self._answer_general(effective_request, empty)
 
         resolution = self._resolve_required_document(effective_request)
         if resolution is not None and resolution.state not in {"EXACT_MATCH", "UNIQUE_MATCH"}:
             return self._document_resolution_response(effective_request, resolution)
         effective_request = effective_request.model_copy(update={"document_id": resolution.document_id}) if resolution else effective_request
-        collected = empty if query_mode == QUERY_MODE_GENERAL_KNOWLEDGE else self._collect(effective_request)
+        collected = self._collect(effective_request)
         request_id = self._request_id(effective_request, collected)
         existing = self.db.get(AnalysisJob, request_id)
         if existing is not None:
@@ -281,7 +303,23 @@ class UnifiedAssistantService:
             r"\bco\s+robi\s+przycisk\s+zrodla\b",
             r"\bdo\s+czego\s+sluzy\s+(?:ten\s+)?asystent\b",
         )
-        if any(re.search(pattern, question) for pattern in system_patterns):
+        capability_subject = re.search(
+            r"\b(?:dokument|repozytori|poczt|mail|dan|klient|kandydat|zdjec|obraz|wizj|zrodl|system|asystent)",
+            question,
+        )
+        capability_relation = re.search(
+            r"\b(?:masz|mam)\s+dostep\b|\bczy\s+(?:widzisz|mozesz|potrafisz)\b|"
+            r"\bdo\s+jakich\s+danych\b|\bz\s+jakich\s+danych\b|\bdo\s+czego\s+masz\s+dostep\b|"
+            r"\bczego\s+nie\s+mozesz\b",
+            question,
+        )
+        specific_evidence_action = bool(cls._filename_reference(request.question)) or bool(re.search(
+            r"\b(?:przeanalizuj|podsumuj|co\s+mowi|znajdz|wyszukaj)\s+(?:ten|ta|to|wskazan|konkretn)",
+            question,
+        ))
+        if any(re.search(pattern, question) for pattern in system_patterns) or (
+            capability_subject and capability_relation and not specific_evidence_action
+        ):
             return QUERY_MODE_SYSTEM_META
         has_selected_target = any((
             request.client_id, request.candidate_id, request.document_id,
@@ -311,9 +349,11 @@ class UnifiedAssistantService:
     @staticmethod
     def _system_meta_response(request_id: str) -> UnifiedAssistantResponse:
         answer = (
+            "Mam dostęp wyłącznie do danych zapisanych i powiązanych w NEXT Stabil, w zakresie uprawnień bieżącego użytkownika — nie do dowolnych plików hosta. "
             "Pomagam analizować dane klientów i kandydatów, dokumentację, pocztę, aktywność, "
             "wizyty i projekty. Mogę wykonywać kontrolowane obliczenia, wskazywać brakujące dane, "
             "tworzyć bezpieczne estymacje i hipotezy oraz łączyć tekst z walidowaną analizą obrazu. "
+            "Dokument mogę analizować, gdy jego treść jest zapisana w systemie albo możliwa do bezpiecznego odczytu z autorytatywnego pliku; skany mogą wymagać analizy obrazu. "
             "Przy trudniejszych zadaniach mogę użyć kontrolowanej analizy rozszerzonej, a pod odpowiedzią pokazuję rzeczywiście użyte Źródła."
         )
         claim = UnifiedClaim(
@@ -339,6 +379,74 @@ class UnifiedAssistantService:
             target_scope=TARGET, claims=[], sources=[], used_tools=collected.tools, model=MODEL,
             error_message="Nie udało się przygotować bezpiecznej odpowiedzi. Spróbuj sformułować pytanie inaczej.",
             current_stage="user_output_validation", can_cancel=False,
+        )
+
+    async def _answer_general(
+        self, request: UnifiedAssistantRequest, collected: _Collected
+    ) -> UnifiedAssistantResponse:
+        request_id = self._request_id(request, collected)
+        history = [{"role": item.role, "content": item.content} for item in request.conversation[-4:]]
+        prompt = (
+            "Jesteś lokalnym Asystentem NEXT Stabil. Odpowiedz krótko i konkretnie po polsku "
+            "na pytanie z wiedzy ogólnej. Nie wymyślaj danych klienta, nie twierdź, że użyłeś "
+            "danych systemowych i nie opisuj braku kontekstu klienta jako brakującej informacji. "
+            "W pytaniach technicznych bez innego wskazania przyjmij kontekst budownictwa i inżynierii, nie medycyny ani IT. "
+            "Jeśli odpowiedź zależy od konkretnego przypadku, zaznacz to zwykłym językiem. "
+            "Nie ujawniaj nazw pól, uchwytów ani terminów implementacyjnych. "
+            f"Pytanie: {request.question}\n"
+            f"Kontekst rozmowy: {json.dumps(history, ensure_ascii=False)}\n"
+            "Zwróć tylko JSON z polem answer."
+        )
+        try:
+            result = await asyncio.wait_for(
+                self._generate_general(prompt), timeout=GENERAL_LOCAL_HARD_SECONDS
+            )
+        except asyncio.TimeoutError:
+            await self._unload_for_external_wait()
+            return UnifiedAssistantResponse(
+                request_id=request_id, answer="", status="timed_out", progress="complete",
+                target_scope=TARGET, claims=[], sources=[], used_tools=[], model=MODEL,
+                error_message=(
+                    "Odpowiedź lokalna nie zakończyła się w wymaganym czasie. Możesz spróbować ponownie."
+                ),
+                current_stage="local_analysis_timeout", can_cancel=False, delayed=True,
+            )
+        except asyncio.CancelledError:
+            await self._unload_for_external_wait()
+            raise
+        except Exception as error:
+            if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(
+                error, (OSError, TimeoutError, ConnectionError)
+            ):
+                raise UnifiedAssistantModelUnavailable from error
+            return self._safe_output_failure_response(request_id, collected)
+        answer = str(result.get("answer") or "").strip()
+        if answer and INTERNAL_OUTPUT_PATTERN.search(answer):
+            correction = (
+                prompt
+                + "\nPoprzednia odpowiedź zawierała wewnętrzne terminy implementacyjne. "
+                "Przekaż tę samą treść zwykłym językiem użytkownika. Zwróć tylko JSON z polem answer."
+            )
+            try:
+                result = await asyncio.wait_for(self._generate_general(correction), timeout=60)
+            except asyncio.TimeoutError:
+                await self._unload_for_external_wait()
+                return self._safe_output_failure_response(request_id, collected)
+            except asyncio.CancelledError:
+                await self._unload_for_external_wait()
+                raise
+            answer = str(result.get("answer") or "").strip()
+        if not answer or INTERNAL_OUTPUT_PATTERN.search(answer):
+            return self._safe_output_failure_response(request_id, collected)
+        return UnifiedAssistantResponse(
+            request_id=request_id, answer=answer, status="accepted_local", progress="complete",
+            target_scope=TARGET,
+            claims=[UnifiedClaim(
+                claim_id="C01", claim_class="FACT", text=answer,
+                source_refs=[], tool_refs=[],
+            )],
+            sources=[], used_tools=[], model=MODEL,
+            current_stage=QUERY_MODE_GENERAL_KNOWLEDGE, can_cancel=False,
         )
 
     async def cancel(self, *, request_id: str, user_id: int) -> UnifiedAssistantResponse:
@@ -393,7 +501,24 @@ class UnifiedAssistantService:
         self, request: UnifiedAssistantRequest
     ) -> _DocumentResolution | None:
         if request.document_id is not None:
-            return None
+            document = self.db.query(Document).filter(
+                Document.id == request.document_id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
+            ).first()
+            if document is None:
+                return _DocumentResolution("NOT_FOUND", document_id=request.document_id)
+            if request.client_id is not None and document.client_id not in {None, request.client_id}:
+                return _DocumentResolution("INVALID", document_id=request.document_id)
+            content = self.document_content.access(document, query=request.question)
+            if content.state not in {
+                FILE_FOUND_NATIVE_TEXT_AVAILABLE,
+                FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+            }:
+                return _DocumentResolution(content.state, document_id=document.id)
+            return _DocumentResolution(
+                "EXACT_MATCH", document.original_filename or document.filename, document.id
+            )
         reference = self._filename_reference(request.question)
         if reference is None:
             return None
@@ -413,23 +538,29 @@ class UnifiedAssistantService:
             return _DocumentResolution("AMBIGUOUS", reference)
         if len(named_rows) == 1:
             document = named_rows[0]
-            if not self._document_has_content(document):
-                return _DocumentResolution("UNAVAILABLE", reference, document.id)
+            content = self.document_content.access(document, query=request.question)
+            if content.state not in {
+                FILE_FOUND_NATIVE_TEXT_AVAILABLE,
+                FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+            }:
+                return _DocumentResolution(content.state, reference, document.id)
             return _DocumentResolution("EXACT_MATCH", reference, document.id)
         state, document = self._match_document_rows(reference, rows)
         if document is None:
             return _DocumentResolution(state, reference)
-        if not self._document_has_content(document):
-            return _DocumentResolution("UNAVAILABLE", reference, document.id)
+        content = self.document_content.access(document, query=request.question)
+        if content.state not in {
+            FILE_FOUND_NATIVE_TEXT_AVAILABLE,
+            FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+        }:
+            return _DocumentResolution(content.state, reference, document.id)
         return _DocumentResolution(state, reference, document.id)
 
     def _document_has_content(self, document: Document) -> bool:
-        if (document.extracted_text or "").strip():
-            return True
-        pages = self.db.query(DocumentPage.extracted_text, DocumentPage.ocr_text).filter(
-            DocumentPage.document_id == document.id
-        ).all()
-        return any((extracted or "").strip() or (ocr or "").strip() for extracted, ocr in pages)
+        return self.document_content.access(document).state in {
+            FILE_FOUND_NATIVE_TEXT_AVAILABLE,
+            FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+        }
 
     @classmethod
     def _match_document_rows(cls, reference: str, rows: list[Document]):
@@ -461,7 +592,12 @@ class UnifiedAssistantService:
         messages = {
             "AMBIGUOUS": "Znalazłem kilka dokumentów pasujących do tej nazwy. Wybierz właściwy plik.",
             "NOT_FOUND": "Nie znalazłem wskazanego pliku w dokumentach tego klienta.",
-            "UNAVAILABLE": "Wskazany plik istnieje, ale jego treść nie jest jeszcze dostępna do analizy.",
+            FILE_FOUND_REQUIRES_OCR: "Wskazany plik jest skanem i wymaga dozwolonej analizy obrazu lub OCR.",
+            FILE_FOUND_PROCESSING_PENDING: "Wskazany plik jest zapisany, ale jego przetwarzanie jeszcze trwa.",
+            FILE_FOUND_UNSUPPORTED: "Format wskazanego pliku nie jest obsługiwany do analizy treści.",
+            FILE_NOT_FOUND: "Plik wskazanego dokumentu nie jest dostępny w autorytatywnym magazynie.",
+            FILE_READ_FAILED: "Nie udało się bezpiecznie odczytać wskazanego pliku.",
+            INTEGRITY_MISMATCH: "Integralność wskazanego pliku nie zgadza się z zapisem systemowym. Analiza została zatrzymana.",
             "INVALID": "Aby przeanalizować wskazany plik, otwórz Asystenta z kontekstu właściwego klienta.",
         }
         digest = hashlib.sha256(
@@ -471,7 +607,7 @@ class UnifiedAssistantService:
             request_id=str(uuid.UUID(digest[:32])), answer="",
             status="review_required", progress="complete", target_scope=TARGET,
             claims=[], sources=[], used_tools=[], model=None,
-            error_message=messages[resolution.state], current_stage="document_resolution",
+            error_message=messages.get(resolution.state, "Treść wskazanego dokumentu nie jest dostępna do bezpiecznej analizy."), current_stage="document_resolution",
             can_cancel=False,
         )
 
@@ -544,6 +680,18 @@ class UnifiedAssistantService:
             options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 480},
             think=False,
             keep_alive="5m",
+        )
+        return json.loads(str(raw.get("response") or "{}"))
+
+    async def _generate_general(self, prompt: str) -> dict[str, Any]:
+        raw = await self.llm.generate(
+            model=MODEL,
+            prompt=prompt,
+            stream=False,
+            format=GENERAL_MODEL_SCHEMA,
+            options={"temperature": 0.1, "num_ctx": 2048, "num_predict": 160},
+            think=False,
+            keep_alive="3m",
         )
         return json.loads(str(raw.get("response") or "{}"))
 
@@ -734,7 +882,11 @@ class UnifiedAssistantService:
                 raise UnifiedAssistantContextError("inspection_scope_invalid")
             client_id = row.client_id
         if request.document_id is not None:
-            row = self.db.query(Document).filter(Document.id == request.document_id, Document.deleted_at.is_(None)).first()
+            row = self.db.query(Document).filter(
+                Document.id == request.document_id,
+                Document.trashed_at.is_(None),
+                Document.purged_at.is_(None),
+            ).first()
             if row is None or (client_id is not None and row.client_id not in {None, client_id}):
                 raise UnifiedAssistantContextError("document_scope_invalid")
             client_id = client_id or row.client_id
@@ -749,7 +901,12 @@ class UnifiedAssistantService:
             client_id = client_id or linked
             candidate_source = AgentSource(source_type="candidate", source_id=row.id, title=f"Kandydat #{row.id}", route=f"/client-candidates/{row.id}", snippet=" ".join(filter(None, [row.name, row.notes]))[:600])
 
-        registry = AgentToolRegistry(self.db, client_id=client_id, inspection_id=request.inspection_id)
+        registry = AgentToolRegistry(
+            self.db,
+            client_id=client_id,
+            inspection_id=request.inspection_id,
+            document_content_service=self.document_content,
+        )
         calls = self._route(request, client_id)
         sources: list[AgentSource] = [candidate_source] if candidate_source else []
         payloads: list[dict[str, Any]] = []
