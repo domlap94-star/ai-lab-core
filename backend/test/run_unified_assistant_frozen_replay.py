@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -138,6 +139,14 @@ async def run(
             except (json.JSONDecodeError, TypeError, ValueError):
                 raw_response = {}
                 response = {}
+        evidence_aliases = {
+            source_ref.rsplit(":", 1)[-1]
+            for source_ref in case.evidence
+            if ":" in source_ref and re.fullmatch(r"[A-Z]\d{1,3}", source_ref.rsplit(":", 1)[-1])
+        }
+        response = service._strip_known_output_handles(
+            response, set(source_map) | set(tool_source_map) | evidence_aliases
+        )
         validation = UnifiedAssistantService._validate(
             response, source_map, collected.visual_available, tool_source_map
         )
@@ -153,6 +162,9 @@ async def run(
                 )
             except (json.JSONDecodeError, TypeError, ValueError):
                 response = {}
+            response = service._strip_known_output_handles(
+                response, set(source_map) | set(tool_source_map) | evidence_aliases
+            )
             validation = UnifiedAssistantService._validate(
                 response, source_map, collected.visual_available, tool_source_map
             )

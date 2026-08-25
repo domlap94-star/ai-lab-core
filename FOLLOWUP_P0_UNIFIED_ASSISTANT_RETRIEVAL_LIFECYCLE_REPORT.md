@@ -161,3 +161,19 @@ as the non-stable physical-retest candidate:
 
 The final post-reset Flutter analyze and focused widget suite passed again
 (3/3). No physical PASS is inferred from the source or artifact checks.
+
+## 2026-08-25 general/system routing postscript
+
+The +36 artifact is superseded for final physical acceptance and was not
+overwritten. A second owner-observed P0 proved that unscoped system/general
+questions still entered the evidence-centric local prompt, could retain prior
+conversation, emit an irrelevant `MISSING`, leak internal vocabulary, and show
+misleading Advanced progress. The deterministic top-level query modes,
+system-capability fast path, general-knowledge prompt, reasoning-context reset,
+user-output boundary, and accurate progress states now pass source tests.
+
+All named-document and lifecycle regressions in this report remain PASS. The
+new final non-stable candidate is Android `1.0.2+37`, SHA-256
+`E6E2742FCBACF193676E7CCB82E4E8D5AD6C75CA47034BC5C35B02E8BB662F31`,
+under `staging/android`. Both P0s require the same owner physical retest. See
+`FOLLOWUP_P0_UNIFIED_ASSISTANT_GENERAL_ROUTING_REPORT.md`.

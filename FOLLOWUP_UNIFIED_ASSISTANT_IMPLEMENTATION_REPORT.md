@@ -218,3 +218,28 @@ SHA-256
 `3C9229AE5191FD8156EDD7198151A382A5C59862BFA8B7C05DBF93E8D7AABE36`.
 VersionCode 35 was consumed by a pre-final build and left untouched; it is
 superseded and must not be used for acceptance. +36 is not published.
+
+## 2026-08-25 general/system routing P0 remediation
+
+The owner subsequently found that an unscoped system-capability question with
+an explicit conversation-reset phrase entered the evidence-only prompt, took
+minutes, returned an irrelevant `MISSING`, and exposed
+`VALIDATED_EVIDENCE`. Source now has deterministic `SYSTEM_META`,
+`GENERAL_KNOWLEDGE`, `EVIDENCE_GROUNDED`, and `GLOBAL_CRM_SEARCH` modes; a
+model-free capability fast path; reasoning-only conversation reset; a separate
+general-knowledge prompt; a fail-closed user-output marker guard; and truthful
+local/external progress states.
+
+Focused backend tests pass 76/76, the 30-case supplementary general-routing
+matrix passes all zero-error targets, Flutter analyze passes, focused Flutter
+tests pass 4/4, and the full Flutter suite passes 304/304. The immutable
+50-case replay remains above the unchanged gates at 88.66 overall and 95.50%
+factual/evidence, with zero wrong sources/privacy failures and one material
+hard failure (2.00%). No external call was made.
+
++36 remains untouched but is superseded for final acceptance. The new
+non-stable source candidate is Android `1.0.2+37`, SHA-256
+`E6E2742FCBACF193676E7CCB82E4E8D5AD6C75CA47034BC5C35B02E8BB662F31`,
+at `C:\ai-lab-core\staging\android\NEXT-Stabil-1.0.2+37-unified-assistant-final-p0-candidate.apk`.
+PRE-CHUNK23 remains physical-acceptance required and CHUNK23 remains blocked.
+Detailed evidence: `FOLLOWUP_P0_UNIFIED_ASSISTANT_GENERAL_ROUTING_REPORT.md`.

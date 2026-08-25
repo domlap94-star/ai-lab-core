@@ -2476,3 +2476,34 @@ SHA-256
 under `staging/android`. VersionCode 35 was consumed before the final
 new-request stale-result reset and is superseded. Neither artifact was
 published. PRE-CHUNK23 remains incomplete pending owner physical retest.
+
+**P0 UNIFIED ASSISTANT GENERAL/SYSTEM ROUTING — SOURCE PASS / PHYSICAL RETEST
+REQUIRED — 2026-08-25.** An unscoped system-capability request with an explicit
+conversation reset was incorrectly sent through the evidence-centric Qwen
+path. It took minutes, produced an irrelevant `MISSING`, leaked internal
+contract vocabulary, and showed contradictory source/progress semantics.
+Source now deterministically separates `SYSTEM_META`, `GENERAL_KNOWLEDGE`,
+`EVIDENCE_GROUNDED`, and explicit `GLOBAL_CRM_SEARCH`. High-confidence system
+questions use a model-free local capability manifest; general knowledge uses
+no arbitrary CRM retrieval and cannot generate missing Client data merely
+because no target is selected. Reset clears effective reasoning history but
+preserves selected target scope and persisted audit/UI history. A fail-closed
+output boundary blocks internal markers, and local versus Advanced progress is
+truthful.
+
+Focused backend tests pass 76/76, the supplementary 30-case general-routing
+matrix passes with 100% task completion and zero incorrect MISSING, internal
+leaks, unnecessary CRM retrieval, or unnecessary Advanced Analysis. Flutter
+analyze, focused 4/4 and full 304/304 pass. The immutable F0 replay passes the
+unchanged gates at 88.66 overall / 95.50% factual-evidence, 0 wrong sources,
+0 privacy failures and 1/50 material hard failure (2.00%).
+
++36 remains consumed, untouched, and superseded for final acceptance. Signed,
+non-public Android `1.0.2+37`, SHA-256
+`E6E2742FCBACF193676E7CCB82E4E8D5AD6C75CA47034BC5C35B02E8BB662F31`,
+is staged under `staging/android`. `P0 GENERAL/SYSTEM ROUTING` and
+`P0 DOCUMENT RETRIEVAL/LIFECYCLE` are both SOURCE PASS / PHYSICAL RETEST
+REQUIRED. PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL
+ACCEPTANCE REQUIRED`; CHUNK23 remains BLOCKED / NOT STARTED. Stable remains
+`1.0.2+29`. Evidence:
+`FOLLOWUP_P0_UNIFIED_ASSISTANT_GENERAL_ROUTING_REPORT.md`.

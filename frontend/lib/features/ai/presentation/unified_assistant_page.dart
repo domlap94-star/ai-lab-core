@@ -297,6 +297,14 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     final attemptId = 'android-${DateTime.now().microsecondsSinceEpoch}';
     cancelToken?.cancel('superseded');
     cancelToken = token;
+    if (_hasResetIntent(question)) {
+      conversation.clear();
+    }
+    final localDelayTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted && loading && result == null && !token.isCancelled) {
+        setState(() => progress = 'Analiza trwa dłużej niż zwykle.');
+      }
+    });
     setState(() {
       loading = true;
       error = null;
@@ -311,8 +319,8 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         if (!mounted || token.isCancelled) return;
         setState(
           () => progress = result?.isPending == true
-              ? 'Analiza rozszerzona'
-              : 'Analizuję dokumentację',
+              ? _advancedProgress(result!)
+              : 'Analizuję lokalnie',
         );
         next = await ref
             .read(unifiedAssistantApiProvider)
@@ -333,14 +341,13 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
               cancelToken: token,
             );
         if (!mounted || token.isCancelled) return;
+        localDelayTimer.cancel();
         setState(() {
           result = next;
           activeRequestId = next.requestId;
-          progress = next.delayed
-              ? 'Analiza trwa dłużej niż zwykle.'
-              : next.status == 'advanced_processing'
-                  ? 'Analiza rozszerzona'
-                  : 'Weryfikuję wynik';
+          progress = next.isPending
+              ? _advancedProgress(next)
+              : 'Weryfikuję wynik';
         });
         if (next.isPending) {
           final started = advancedStartedAt ??= DateTime.now();
@@ -374,18 +381,54 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       );
     } on TimeoutException {
       if (mounted) {
-        setState(() => error =
-            'Analiza rozszerzona nie zakończyła się w wymaganym czasie. Możesz spróbować ponownie.');
+        setState(
+          () => error =
+              'Analiza rozszerzona nie zakończyła się w wymaganym czasie. Możesz spróbować ponownie.',
+        );
       }
     } catch (_) {
       if (mounted) {
         setState(() => error = 'Nie udało się uzyskać odpowiedzi AI.');
       }
     } finally {
+      localDelayTimer.cancel();
       if (mounted && identical(token, cancelToken)) {
         setState(() => loading = false);
       }
     }
+  }
+
+  String _advancedProgress(UnifiedAssistantAnswer answer) {
+    if (answer.delayed) return 'Analiza trwa dłużej niż zwykle.';
+    return answer.currentStage == 'QUEUED'
+        ? 'Oczekiwanie na analizę rozszerzoną'
+        : 'Analiza rozszerzona';
+  }
+
+  bool _hasResetIntent(String value) {
+    var normalized = value.toLowerCase();
+    const replacements = <String, String>{
+      'ą': 'a',
+      'ć': 'c',
+      'ę': 'e',
+      'ł': 'l',
+      'ń': 'n',
+      'ó': 'o',
+      'ś': 's',
+      'ź': 'z',
+      'ż': 'z',
+    };
+    replacements.forEach((source, target) {
+      normalized = normalized.replaceAll(source, target);
+    });
+    return <String>[
+      'ignoruj poprzednie pytanie',
+      'ignoruj poprzednie zapytanie',
+      'ignoruj poprzedni kontekst',
+      'nie bierz pod uwage wczesniejszej rozmowy',
+      'zacznij od nowa',
+      'nowy temat',
+    ].any(normalized.contains);
   }
 
   Future<void> cancel() async {
@@ -394,10 +437,9 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       final session = (await ref.read(authControllerProvider.future)).session;
       if (session != null) {
         try {
-          await ref.read(unifiedAssistantApiProvider).cancel(
-            session: session,
-            requestId: requestId,
-          );
+          await ref
+              .read(unifiedAssistantApiProvider)
+              .cancel(session: session, requestId: requestId);
         } catch (_) {
           // The local request is still cancelled; the backend timeout remains fail-closed.
         }
@@ -420,10 +462,12 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     timer = Timer(const Duration(seconds: 3), () {
       if (!completer.isCompleted) completer.complete();
     });
-    unawaited(token.whenCancel.then((_) {
-      timer.cancel();
-      if (!completer.isCompleted) completer.complete();
-    }));
+    unawaited(
+      token.whenCancel.then((_) {
+        timer.cancel();
+        if (!completer.isCompleted) completer.complete();
+      }),
+    );
     await completer.future;
   }
 }

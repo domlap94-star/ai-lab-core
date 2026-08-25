@@ -58,6 +58,31 @@ void main() {
     expect(api.cancelledRequestId, 'pending-request');
     expect(find.byKey(const Key('unified-ai-send')), findsOneWidget);
   });
+
+  testWidgets(
+    'explicit reset clears reasoning history before the next request',
+    (tester) async {
+      final api = _RecordingApi();
+      await _pump(tester, api: api);
+      await tester.enterText(
+        find.byKey(const Key('unified-ai-question')),
+        'Przeanalizuj poprzedni temat',
+      );
+      await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
+      await tester.tap(find.byKey(const Key('unified-ai-send')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('unified-ai-question')),
+        'Ignoruj poprzednie zapytanie. Co potrafisz?',
+      );
+      await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
+      await tester.tap(find.byKey(const Key('unified-ai-send')));
+      await tester.pumpAndSettle();
+      expect(api.conversations, hasLength(2));
+      expect(api.conversations.first, isEmpty);
+      expect(api.conversations.last, isEmpty);
+    },
+  );
 }
 
 Future<void> _pump(WidgetTester tester, {UnifiedAssistantApi? api}) async {
@@ -143,9 +168,16 @@ class _PendingApi extends UnifiedAssistantApi {
     String? attemptId,
     CancelToken? cancelToken,
   }) async => const UnifiedAssistantAnswer(
-    requestId: 'pending-request', answer: '', status: 'advanced_processing',
-    progress: 'advanced_analysis', targetScope: 'TARGET_01', claims: [],
-    sources: [], usedTools: [], externalAnalysisUsed: true, canCancel: true,
+    requestId: 'pending-request',
+    answer: '',
+    status: 'advanced_processing',
+    progress: 'advanced_analysis',
+    targetScope: 'TARGET_01',
+    claims: [],
+    sources: [],
+    usedTools: [],
+    externalAnalysisUsed: true,
+    canCancel: true,
   );
 
   @override
@@ -155,9 +187,49 @@ class _PendingApi extends UnifiedAssistantApi {
   }) async {
     cancelledRequestId = requestId;
     return const UnifiedAssistantAnswer(
-      requestId: 'pending-request', answer: '', status: 'cancelled',
-      progress: 'complete', targetScope: 'TARGET_01', claims: [], sources: [],
-      usedTools: [], externalAnalysisUsed: true,
+      requestId: 'pending-request',
+      answer: '',
+      status: 'cancelled',
+      progress: 'complete',
+      targetScope: 'TARGET_01',
+      claims: [],
+      sources: [],
+      usedTools: [],
+      externalAnalysisUsed: true,
+    );
+  }
+}
+
+class _RecordingApi extends _Api {
+  final conversations = <List<Map<String, String>>>[];
+
+  @override
+  Future<UnifiedAssistantAnswer> ask({
+    required AuthSession session,
+    required String question,
+    required List<Map<String, String>> conversation,
+    int? clientId,
+    int? candidateId,
+    int? documentId,
+    int? mailSourceId,
+    int? inspectionId,
+    String? attemptId,
+    CancelToken? cancelToken,
+  }) async {
+    conversations.add(
+      conversation.map((item) => Map<String, String>.from(item)).toList(),
+    );
+    return super.ask(
+      session: session,
+      question: question,
+      conversation: conversation,
+      clientId: clientId,
+      candidateId: candidateId,
+      documentId: documentId,
+      mailSourceId: mailSourceId,
+      inspectionId: inspectionId,
+      attemptId: attemptId,
+      cancelToken: cancelToken,
     );
   }
 }
