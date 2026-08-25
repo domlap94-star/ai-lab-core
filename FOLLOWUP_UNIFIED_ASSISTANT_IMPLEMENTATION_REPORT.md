@@ -7,10 +7,13 @@ Stable release: NEXT Stabil `1.0.2+29` (unchanged)
 ## Outcome
 
 The qualified F0 architecture is implemented as the single primary user-facing
-`Asystent AI`. Source, production-like frozen replay, Windows/Web build smoke,
-and automated Flutter/backend acceptance pass. PRE-CHUNK23 remains open only
-for owner physical Android acceptance of the non-stable +33 candidate. CHUNK23
-remains blocked and was not started.
+`Asystent AI`. Source, production-like frozen replay, Web build smoke, and
+automated Flutter/backend acceptance pass. The earlier Windows raw-build smoke
+claim was invalidated on 2026-08-25 by direct Code Integrity evidence; see the
+postscript below. The subsequent installed-current-source diagnostic passed
+under the current policy and stable +29 was restored. PRE-CHUNK23 remains open
+only for owner Android +33 physical acceptance. CHUNK23 remains blocked and was
+not started.
 
 The implementation is additive. The deployed +29 Business, Technical and Agent
 API contracts remain present for compatibility; old `/ai?mode=...` deep links
@@ -94,9 +97,10 @@ replay score.
 - Web release build: PASS; local `index.html` and `main.dart.js` both returned
   HTTP 200. The in-app browser was not granted localhost navigation, so no
   authenticated Web session was claimed or modified.
-- Windows release build: PASS. The generated diagnostic payload was normalized
-  with the hash-verified CHUNK21 WDAC-accepted native pair and remained alive
-  through the bounded raw-launch smoke.
+- Windows release build: INVALIDATED. The generated diagnostic payload was
+  hash-normalized, but the bounded check only proved that a process remained
+  alive and did not inspect a Bad Image dialog or the post-launch Code
+  Integrity log. That was not sufficient Windows acceptance evidence.
 - Authenticated production read-only smoke: Clients page/list/search/detail,
   Global Search, Dashboard, Backup managed/legacy/storage, Mail, Documents and
   System Control all returned HTTP 200. The P0 Clients HTTP 500 did not recur.
@@ -140,3 +144,20 @@ Roadmap result:
 `PRE-CHUNK23 = UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`
 
 `CHUNK23 = BLOCKED / NOT STARTED`
+
+## 2026-08-25 Windows WDAC postscript
+
+The owner subsequently observed Bad Image status `0xc0e90002` for the exact
+repository-build `geolocator_windows_plugin.dll`. Its flat SHA-256 is the
+CHUNK21 pinned value, but Code Integrity 3033/3077 records 51044/51046 confirm
+that current policy rejected it. The policy was refreshed after the CHUNK21
+raw smoke. The repository workflow now rejects raw/staged acceptance and
+requires installed-root Managed Installer evidence plus a post-launch Code
+Integrity audit. This report must not be used as Windows physical acceptance;
+The owner-approved installed-current-source diagnostic subsequently passed.
+The installed files received Managed Installer evidence, both pinned native
+modules loaded, a normal app window opened, and no new relevant 3033/3077 event
+occurred. The canonical +29 installer then restored stable in a mandatory
+`finally` rollback and stable also launched without new blocks. Raw and staged
+execution remain forbidden acceptance paths. PRE-CHUNK23 returns to Android
++33 physical acceptance required.

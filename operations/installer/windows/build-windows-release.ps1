@@ -270,6 +270,11 @@ $buildManifest = [ordered]@{
     dart_define_names = @('API_BASE_URL', 'SUPERVISOR_BASE_URL')
     accepted_native_manifest_sha256 = Get-Sha256 -Path $nativeManifestPath
     accepted_native_files = @($nativeManifest.files)
+    launch_readiness = [ordered]@{
+        status = 'INSTALLER_REQUIRED'
+        raw_payload_launch_supported = $false
+        reason = 'Hash normalization does not establish WDAC trust. Install through the approved user-scope installer, run assert-windows-acceptance-ready.ps1 against the installed root, and audit Code Integrity after launch.'
+    }
     toolchain = $toolchain
     payload_files = @($payloadFiles)
     installer = [ordered]@{
@@ -283,3 +288,5 @@ $manifestJson = $buildManifest | ConvertTo-Json -Depth 8
 [System.IO.File]::WriteAllText($manifestPath, $manifestJson, (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Windows staging build complete: $buildRoot"
 Write-Host "Build manifest: $manifestPath"
+Write-Warning 'The staged payload is NSIS installer input, not a WDAC acceptance-ready raw launch directory.'
+Write-Warning 'Run Windows acceptance only from the installed root after assert-windows-acceptance-ready.ps1 passes.'

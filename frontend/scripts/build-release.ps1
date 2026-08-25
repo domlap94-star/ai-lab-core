@@ -15,7 +15,15 @@ param(
 
     [string]$Version = "1.0.0",
 
-    [int]$BuildNumber = 1
+    [int]$BuildNumber = 1,
+
+    [string]$AcceptedNativeRoot = "",
+
+    [string]$WindowsStagingRoot = "",
+
+    [string]$FlutterPath = "C:\FlutterSDK-New\flutter\bin\flutter.bat",
+
+    [string]$MakensisPath = "C:\Users\domai\AppData\Local\NEXT Stabil\Tools\NSIS\3.12\makensis.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,11 +82,20 @@ if ($Platform -in @("all", "windows")) {
     Write-Host "BUILD WINDOWS"
     Write-Host "------------------------------------------------------------"
 
-    flutter build windows @commonArguments
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Windows build failed"
+    if ([string]::IsNullOrWhiteSpace($AcceptedNativeRoot) -or
+        [string]::IsNullOrWhiteSpace($WindowsStagingRoot)) {
+        throw "Windows release builds require -AcceptedNativeRoot and -WindowsStagingRoot. Direct Flutter output is not a WDAC acceptance artifact."
     }
+
+    & "$PSScriptRoot\..\..\operations\installer\windows\build-windows-release.ps1" `
+        -Version $Version `
+        -BuildNumber $BuildNumber `
+        -ApiBaseUrl $ApiBaseUrl `
+        -SupervisorBaseUrl $SupervisorBaseUrl `
+        -AcceptedNativeRoot $AcceptedNativeRoot `
+        -StagingRoot $WindowsStagingRoot `
+        -FlutterPath $FlutterPath `
+        -MakensisPath $MakensisPath
 }
 
 if ($Platform -in @("all", "android")) {
@@ -111,8 +128,9 @@ Write-Host "BUILD COMPLETE"
 Write-Host "============================================================"
 
 if ($Platform -in @("all", "windows")) {
-    Write-Host "Windows:"
-    Write-Host "build\windows\x64\runner\Release"
+    Write-Host "Windows installer staging:"
+    Write-Host $WindowsStagingRoot
+    Write-Warning "Do not launch build\windows\x64\runner\Release for acceptance. Install first, then run the Windows acceptance-ready gate against the registered install root."
 }
 
 if ($Platform -in @("all", "android")) {

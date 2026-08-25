@@ -2409,6 +2409,27 @@ pass. Non-stable signed candidate `1.0.2+33` is built but not published;
 PRE-CHUNK23 remains open for owner physical Android Assistant acceptance.
 CHUNK23 stays BLOCKED / NOT STARTED. Stable remains `1.0.2+29`.
 
+**P0 WINDOWS BAD IMAGE / WDAC REGRESSION — RESOLVED — 2026-08-25.**
+Owner-observed Windows acceptance is invalidated. The failing repository-build
+`geolocator_windows_plugin.dll` exactly matches the CHUNK21 pinned SHA-256, but
+current Code Integrity policy `VerifiedAndReputableDesktop` blocked it with
+events 3033/3077 and status `0xc0e90002`. The same policy was refreshed on
+2026-08-23 after the CHUNK21 raw smoke. The installed +29 copy has Managed
+Installer/SmartLocker origin evidence, passes the new pre-launch gate, loads
+both pinned native DLLs, and creates no new relevant block event; raw and
+isolated staging paths are now rejected before launch. The canonical workflow
+is hardened to mark staging as installer input only and to require installed-
+root trust evidence plus a post-launch Code Integrity audit. The owner-approved
+installed-current-source cycle then passed: the diagnostic installer exited 0,
+the installed payload received Managed Installer evidence, loaded both native
+plug-ins, opened a normal NEXT Stabil window and generated zero new relevant
+Code Integrity events. The canonical public +29 installer ran in `finally`;
+stable hashes, trust gate, native module load, zero new WDAC events and visible
+`1.0.2+29` login screen passed after rollback. PRE-CHUNK23 returns to UNIFIED
+ASSISTANT IMPLEMENTED / ANDROID PHYSICAL ACCEPTANCE REQUIRED. CHUNK23 remains
+BLOCKED / NOT STARTED, and no release was performed. Evidence:
+`FOLLOWUP_P0_WINDOWS_WDAC_HOTFIX_REPORT.md`.
+
 **RELEASE F REQUIRED UI MICRO-FIX — IGNORE MAIL ADDRESS/DOMAIN.** Before
 Release F, restore consistent Administrator Ignore actions in Candidate
 Details, Global Mail and Client Emails, with exact sender/domain add and undo.

@@ -5,6 +5,8 @@ $scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 $buildScriptPath = Join-Path $scriptDirectory 'build-windows-release.ps1'
 $nsiPath = Join-Path $scriptDirectory 'next-stabil.nsi'
 $nativeManifestPath = Join-Path $scriptDirectory 'wdac-accepted-native-payload.json'
+$acceptanceGatePath = Join-Path $scriptDirectory 'assert-windows-acceptance-ready.ps1'
+$frontendBuildScriptPath = Join-Path $scriptDirectory '..\..\..\frontend\scripts\build-release.ps1'
 
 $parseErrors = $null
 [void][System.Management.Automation.Language.Parser]::ParseFile(
@@ -16,6 +18,18 @@ if ($parseErrors.Count -ne 0) {
     throw "PowerShell parser errors: $($parseErrors -join '; ')"
 }
 
+foreach ($path in @($acceptanceGatePath, $frontendBuildScriptPath)) {
+    $childParseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile(
+        $path,
+        [ref]$null,
+        [ref]$childParseErrors
+    )
+    if ($childParseErrors.Count -ne 0) {
+        throw "PowerShell parser errors in ${path}: $($childParseErrors -join '; ')"
+    }
+}
+
 $buildScript = Get-Content -LiteralPath $buildScriptPath -Raw
 foreach ($requiredToken in @(
     'C:\FlutterSDK-New\flutter\bin\flutter.bat',
@@ -23,10 +37,35 @@ foreach ($requiredToken in @(
     'pubspec version must be exactly',
     'Accepted native payload hash mismatch',
     'Pinned native payload verification failed after copy',
-    'NEXT_STABIL_WINDOWS_BUILD_MANIFEST_V1'
+    'NEXT_STABIL_WINDOWS_BUILD_MANIFEST_V1',
+    'raw_payload_launch_supported = $false',
+    'The staged payload is NSIS installer input'
 )) {
     if (-not $buildScript.Contains($requiredToken)) {
         throw "Build script is missing fail-closed token: $requiredToken"
+    }
+}
+
+$acceptanceGate = Get-Content -LiteralPath $acceptanceGatePath -Raw
+foreach ($requiredToken in @(
+    'WINDOWS_NATIVE_PAYLOAD_NOT_NORMALIZED',
+    'WINDOWS_NATIVE_PAYLOAD_NOT_INSTALLER_TRUSTED',
+    '$KERNEL.SMARTLOCKER.ORIGINCLAIM',
+    '$KERNEL.PURGE.SMARTLOCKER.VALID',
+    'WINDOWS_ACCEPTANCE_PAYLOAD_GATE=PASS'
+)) {
+    if (-not $acceptanceGate.Contains($requiredToken)) {
+        throw "Acceptance gate is missing fail-closed token: $requiredToken"
+    }
+}
+
+$frontendBuildScript = Get-Content -LiteralPath $frontendBuildScriptPath -Raw
+if ($frontendBuildScript -match '(?m)^\s*flutter build windows') {
+    throw 'Generic release script still launches a direct Windows Flutter build.'
+}
+foreach ($requiredToken in @('AcceptedNativeRoot', 'WindowsStagingRoot', 'build-windows-release.ps1')) {
+    if (-not $frontendBuildScript.Contains($requiredToken)) {
+        throw "Generic release script does not delegate Windows builds safely: $requiredToken"
     }
 }
 if ($buildScript -match '(?im)^\s*exit\s+\d+') {

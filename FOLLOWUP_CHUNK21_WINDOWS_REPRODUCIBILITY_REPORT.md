@@ -239,6 +239,17 @@ substitution is eliminated.
 
 ## WDAC evidence
 
+> Postscript, 2026-08-25: the hash-pinned native pair is no longer sufficient
+> evidence for a raw/staging launch under the current host policy state. After
+> this report's raw smoke, `VerifiedAndReputableDesktop` was refreshed on
+> 2026-08-23. Code Integrity later blocked the pinned geolocator flat hash from
+> the repository build path with 3033/3077 and `0xc0e90002`. Installed +29 files
+> carry Managed Installer/SmartLocker origin evidence; raw copies do not. The
+> canonical workflow now treats staging as installer input only. See
+> `FOLLOWUP_P0_WINDOWS_WDAC_HOTFIX_REPORT.md`. Historical build reproducibility
+> results below remain valid, but the historical raw-launch trust conclusion
+> must not be reused as current acceptance.
+
 Observed enterprise policy GUID:
 `{0283ac0f-fff1-49ae-ada1-8a933130cad6}` (`VerifiedAndReputableDesktop`).
 
