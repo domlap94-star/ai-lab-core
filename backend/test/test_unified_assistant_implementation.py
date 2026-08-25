@@ -54,14 +54,18 @@ SYSTEM_META_CASES = [
 ]
 
 GENERAL_CASES = [
+    "Czym różni się fakt od hipotezy?",
+    "Jak jasno wyjaśnić różnicę między faktem a opinią?",
+    "Jak przygotować krótkie podsumowanie rozmowy?",
+]
+
+KB_TECHNICAL_CASES = [
     "Co to jest osiadanie różnicowe?",
     "Co oznacza nośność gruntu?",
     "Jakie są typowe przyczyny pęknięć ścian?",
-    "Jak rozmawiać z klientem o ryzyku technicznym?",
+    "Jak rozmawiać z klientem o ryzyku technicznym fundamentów?",
     "Jak działa fundament płytowy?",
-    "Czym różni się fakt od hipotezy?",
     "Jak zwykle ocenia się przyczyny pęknięć?",
-    "Co to jest dylatacja?",
     "Co oznacza osiadanie budynku?",
     "Jakie są typowe rodzaje fundamentów?",
 ]
@@ -82,6 +86,14 @@ def test_system_meta_router_matrix(question):
 def test_general_knowledge_router_matrix(question):
     request = UnifiedAssistantRequest(question=question)
     assert UnifiedAssistantService._query_mode(request) == QUERY_MODE_GENERAL_KNOWLEDGE
+    assert UnifiedAssistantService._route(request, None) == []
+
+
+@pytest.mark.parametrize("question", KB_TECHNICAL_CASES)
+def test_technical_questions_route_to_curated_kb_before_general_weights(question):
+    request = UnifiedAssistantRequest(question=question)
+    assert UnifiedAssistantService._query_mode(request) == QUERY_MODE_EVIDENCE_GROUNDED
+    assert UnifiedAssistantService._should_retrieve_kb(request)
     assert UnifiedAssistantService._route(request, None) == []
 
 

@@ -19,7 +19,7 @@ from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.inspection import Inspection
-from app.models.knowledge_base import AnalysisJob
+from app.models.knowledge_base import AnalysisJob, KnowledgeBaseItem
 from app.schemas.agent import AgentSource
 from app.schemas.analysis import (
     AnalysisContextLimits, AnalysisProvenance, AnalysisQualitySignals,
@@ -34,7 +34,7 @@ from app.services.advanced_analysis_orchestrator import AdvancedAnalysisOrchestr
 from app.services.analysis_result_contract import TemporaryChatResultContractV2
 from app.core.config import settings
 from app.services.agent_tool_registry import AgentToolRegistry, ScopeViolation, ToolDenied
-from app.services.knowledge_base_service import KnowledgeBaseService
+from app.services.knowledge_base_retrieval_service import KnowledgeBaseRetrievalService
 from app.services.unified_document_content_service import (
     FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
     FILE_FOUND_NATIVE_TEXT_AVAILABLE,
@@ -51,6 +51,7 @@ from app.services.unified_document_content_service import (
 MODEL = "qwen3.5:9b"
 TARGET = "TARGET_01"
 MAX_SOURCES = 8
+MAX_KB_SOURCES = 5
 MAX_EVIDENCE_CHARS = 12_000
 DOCUMENT_EXTENSIONS = ("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "jpg", "jpeg", "png")
 ADVANCED_QUEUE_HARD_SECONDS = 60
@@ -123,6 +124,13 @@ class _DocumentResolution:
     document_id: int | None = None
 
 
+@dataclass(frozen=True)
+class _KnowledgeBaseResolution:
+    state: str
+    reference: str | None = None
+    item_id: int | None = None
+
+
 class UnifiedAssistantContextError(RuntimeError):
     pass
 
@@ -149,12 +157,38 @@ class UnifiedAssistantService:
         if query_mode == QUERY_MODE_GENERAL_KNOWLEDGE:
             return await self._answer_general(effective_request, empty)
 
+        kb_resolution = self._resolve_required_kb(effective_request)
+        if kb_resolution is not None and kb_resolution.state not in {
+            "EXACT_MATCH", "UNIQUE_NORMALIZED_MATCH",
+        }:
+            return self._kb_resolution_response(effective_request, kb_resolution)
         resolution = self._resolve_required_document(effective_request)
         if resolution is not None and resolution.state not in {"EXACT_MATCH", "UNIQUE_MATCH"}:
             return self._document_resolution_response(effective_request, resolution)
         effective_request = effective_request.model_copy(update={"document_id": resolution.document_id}) if resolution else effective_request
-        collected = self._collect(effective_request)
+        collected = self._collect(effective_request, kb_resolution=kb_resolution)
+        if (
+            kb_resolution is None
+            and self._has_explicit_kb_intent(effective_request.question)
+            and not any(source.source_type == "knowledge_base" for source in collected.sources)
+        ):
+            return self._kb_resolution_response(
+                effective_request, _KnowledgeBaseResolution(state="NOT_FOUND")
+            )
+        if (
+            not collected.sources
+            and kb_resolution is None
+            and self._should_retrieve_kb(effective_request)
+            and not any((effective_request.client_id, effective_request.candidate_id,
+                         effective_request.document_id, effective_request.mail_source_id,
+                         effective_request.inspection_id))
+        ):
+            return await self._answer_general(effective_request, empty)
         request_id = self._request_id(effective_request, collected)
+        if kb_resolution and self._is_kb_overview_request(effective_request.question):
+            return await self._answer_kb_overview(
+                effective_request, collected, kb_resolution, request_id
+            )
         existing = self.db.get(AnalysisJob, request_id)
         if existing is not None:
             analysis_request, _ = self._advanced_request(effective_request, collected, user_id, request_id)
@@ -166,7 +200,10 @@ class UnifiedAssistantService:
             if existing.status == "accepted_advanced":
                 completed = self._read_advanced_response(existing, analysis_request, collected)
                 if completed is not None:
-                    if resolution and not self._response_uses_document(completed, resolution.document_id):
+                    if (
+                        (resolution and not self._response_uses_document(completed, resolution.document_id))
+                        or (kb_resolution and not self._response_uses_kb(completed, kb_resolution.item_id))
+                    ):
                         existing.status = "review_required"
                         existing.decision = "review_required"
                         existing.error_code = "task_completion_fail"
@@ -176,11 +213,22 @@ class UnifiedAssistantService:
                     return completed
             return self._advanced_response(existing, collected)
 
-        prompt, source_map, tool_source_map = self._prompt(effective_request, collected, query_mode)
+        prompt, source_map, tool_source_map = self._prompt(
+            effective_request, collected, query_mode,
+            required_kb_item_id=kb_resolution.item_id if kb_resolution else None,
+        )
+        kb_only = bool(collected.sources) and all(
+            source.source_type == "knowledge_base" for source in collected.sources
+        )
+        local_num_predict = 480
         raw_local: dict[str, Any] = {}
         try:
-            bounded_schema = self._bounded_model_schema(set(source_map), set(tool_source_map))
-            raw_local = await asyncio.wait_for(self._generate_local(prompt, bounded_schema), timeout=120)
+            bounded_schema = self._bounded_model_schema(
+                set(source_map), set(tool_source_map), compact=kb_only
+            )
+            raw_local = await asyncio.wait_for(
+                self._generate_local(prompt, bounded_schema, num_predict=local_num_predict), timeout=120
+            )
             parsed = self._resolve_tool_provenance(
                 self._normalize_model_result(raw_local), tool_source_map
             )
@@ -203,7 +251,9 @@ class UnifiedAssistantService:
         }:
             correction = self._format_correction_prompt(prompt, validation, raw_local)
             try:
-                retried = await asyncio.wait_for(self._generate_local(correction, bounded_schema), timeout=120)
+                retried = await asyncio.wait_for(
+                    self._generate_local(correction, bounded_schema, num_predict=local_num_predict), timeout=120
+                )
                 parsed = self._resolve_tool_provenance(
                     self._normalize_model_result(retried), tool_source_map
                 )
@@ -220,7 +270,9 @@ class UnifiedAssistantService:
         if validation is None and resolution and not self._payload_uses_document(parsed, source_map, resolution.document_id):
             correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
             try:
-                retried = await asyncio.wait_for(self._generate_local(correction, bounded_schema), timeout=120)
+                retried = await asyncio.wait_for(
+                    self._generate_local(correction, bounded_schema, num_predict=local_num_predict), timeout=120
+                )
                 parsed = self._resolve_tool_provenance(
                     self._normalize_model_result(retried), tool_source_map
                 )
@@ -236,12 +288,43 @@ class UnifiedAssistantService:
                     raise UnifiedAssistantModelUnavailable from error
             if validation is None and not self._payload_uses_document(parsed, source_map, resolution.document_id):
                 return self._task_completion_failure_response(request_id, collected)
+        if validation is None and kb_resolution and not self._payload_uses_kb(
+            parsed, source_map, kb_resolution.item_id
+        ):
+            correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
+            try:
+                retried = await asyncio.wait_for(
+                    self._generate_local(correction, bounded_schema, num_predict=local_num_predict), timeout=120
+                )
+                parsed = self._resolve_tool_provenance(
+                    self._normalize_model_result(retried), tool_source_map
+                )
+                parsed = self._strip_known_output_handles(
+                    parsed, set(source_map) | set(tool_source_map)
+                )
+                validation = self._validate(
+                    parsed, source_map, collected.visual_available, tool_source_map,
+                    allow_general_knowledge=False,
+                )
+            except Exception as error:
+                if error.__class__.__module__.startswith(("httpx", "httpcore")) or isinstance(
+                    error, (OSError, TimeoutError, ConnectionError)
+                ):
+                    raise UnifiedAssistantModelUnavailable from error
+            if validation is None and not self._payload_uses_kb(
+                parsed, source_map, kb_resolution.item_id
+            ):
+                return self._task_completion_failure_response(request_id, collected, domain="knowledge_base")
         if query_mode == QUERY_MODE_GENERAL_KNOWLEDGE and validation is not None:
             return self._safe_output_failure_response(request_id, collected)
         advanced_reason = validation or self._advanced_reason(
             effective_request, parsed, collected, query_mode=query_mode
         )
         if advanced_reason is not None:
+            if any(source.source_type == "knowledge_base" for source in collected.sources):
+                # KB currently has no per-item external sensitivity contract.
+                # Proprietary technical memory therefore remains local-only.
+                return self._kb_external_blocked_response(request_id, collected)
             analysis_request, entities = self._advanced_request(effective_request, collected, user_id, request_id)
             local = LocalAnalysisResult(
                 analysis_id=analysis_request.analysis_id, processor_id="unified_assistant_f0",
@@ -291,6 +374,108 @@ class UnifiedAssistantService:
         })
 
     @classmethod
+    def _has_explicit_kb_intent(cls, question: str) -> bool:
+        folded = cls._fold_intent(question)
+        return any(marker in folded for marker in (
+            "baza wiedzy", "bazy wiedzy", "bazie wiedzy",
+            "material techniczny", "material referencyjny",
+            "nasza baza", "naszej bazy", "zrodlo techniczne",
+        ))
+
+    @classmethod
+    def _should_retrieve_kb(cls, request: UnifiedAssistantRequest) -> bool:
+        if cls._has_explicit_kb_intent(request.question):
+            return True
+        question = cls._fold_intent(request.question)
+        # Deterministic domain families, not record names: this selects the
+        # curated technical-memory domain while excluding CRM/UI lookups.
+        technical_domain = re.search(
+            r"\b(?:fundament\w*|geotechn\w*|grunt\w*|osiad\w*|nosnosc\w*|"
+            r"pekn\w*|rys\w*|iniekcj\w*|konstrukcj\w*|beton\w*|izolacj\w*|"
+            r"material\w*|technologi\w*|wykonaw\w*|norm\w*|obciaz\w*|"
+            r"stateczn\w*|wilgotn\w*|odwodn\w*|drenaz\w*)\b",
+            question,
+        )
+        operational_only = re.search(
+            r"\b(?:telefon|email|adres|termin|harmonogram|kontakt|zalog|przycisk|ekran|menu)\b",
+            question,
+        )
+        return bool(technical_domain and not operational_only)
+
+    @classmethod
+    def _kb_item_reference(cls, question: str) -> str | None:
+        if not cls._has_explicit_kb_intent(question):
+            return None
+        quoted = re.findall(r"['\"„”]([^'\"„”]{2,255})['\"„”]", question)
+        if quoted:
+            return " ".join(quoted[0].split())
+        folded = cls._fold_intent(question)
+        match = re.search(
+            r"(?:ze\s+zrodla|z\s+materialu)\s+(.+?)\s+(?:z|w)\s+baz(?:y|ie)\s+wiedzy",
+            folded,
+        )
+        return " ".join(match.group(1).strip(" .,:;?!").split()) if match else None
+
+    @classmethod
+    def _is_kb_overview_request(cls, question: str) -> bool:
+        folded = cls._fold_intent(question)
+        return cls._has_explicit_kb_intent(question) and any(marker in folded for marker in (
+            "czego mozna dowiedziec", "czego mozesz sie dowiedziec",
+            "co mowi zrodlo", "co zawiera material", "podsumuj material",
+            "omow material", "co jest w zrodle",
+        ))
+
+    @classmethod
+    def _normalized_kb_title(cls, value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", " ", cls._fold_intent(value)).strip()
+
+    @classmethod
+    def _match_kb_rows(cls, reference: str, rows: list[KnowledgeBaseItem]):
+        raw = " ".join(reference.split())
+        casefolded = raw.casefold()
+        exact = [row for row in rows if " ".join(row.title.split()).casefold() == casefolded]
+        if len(exact) == 1:
+            return "EXACT_MATCH", exact[0]
+        if len(exact) > 1:
+            return "AMBIGUOUS", None
+        wanted = cls._normalized_kb_title(raw)
+        normalized = [row for row in rows if cls._normalized_kb_title(row.title) == wanted]
+        if len(normalized) == 1:
+            return "UNIQUE_NORMALIZED_MATCH", normalized[0]
+        if len(normalized) > 1:
+            return "AMBIGUOUS", None
+        partial = [
+            row for row in rows
+            if len(wanted) >= 3 and (
+                wanted in cls._normalized_kb_title(row.title)
+                or cls._normalized_kb_title(row.title) in wanted
+            )
+        ]
+        if len(partial) == 1:
+            return "UNIQUE_NORMALIZED_MATCH", partial[0]
+        if len(partial) > 1:
+            return "AMBIGUOUS", None
+        return "NOT_FOUND", None
+
+    def _resolve_required_kb(
+        self, request: UnifiedAssistantRequest
+    ) -> _KnowledgeBaseResolution | None:
+        reference = self._kb_item_reference(request.question)
+        if reference is None:
+            return None
+        rows = self.db.query(KnowledgeBaseItem).filter(
+            KnowledgeBaseItem.archived_at.is_(None),
+            KnowledgeBaseItem.status == "current",
+        ).all()
+        state, item = self._match_kb_rows(reference, rows)
+        if item is None:
+            return _KnowledgeBaseResolution(state=state, reference=reference)
+        has_content = bool(item.extracted_text) or any(bool(page.text) for page in item.pages)
+        if item.processing_status != "processed" or not has_content:
+            return _KnowledgeBaseResolution(state="UNAVAILABLE", reference=reference, item_id=item.id)
+        return _KnowledgeBaseResolution(state=state, reference=reference, item_id=item.id)
+
+    @classmethod
     def _query_mode(cls, request: UnifiedAssistantRequest) -> str:
         question = cls._fold_intent(request.question)
         system_patterns = (
@@ -304,7 +489,7 @@ class UnifiedAssistantService:
             r"\bdo\s+czego\s+sluzy\s+(?:ten\s+)?asystent\b",
         )
         capability_subject = re.search(
-            r"\b(?:dokument|repozytori|poczt|mail|dan|klient|kandydat|zdjec|obraz|wizj|zrodl|system|asystent)",
+            r"\b(?:dokument|repozytori|baza\s+wiedz|poczt|mail|dan|klient|kandydat|zdjec|obraz|wizj|zrodl|system|asystent)",
             question,
         )
         capability_relation = re.search(
@@ -331,6 +516,8 @@ class UnifiedAssistantService:
         )
         if explicit_global and not has_selected_target:
             return QUERY_MODE_GLOBAL_CRM_SEARCH
+        if cls._has_explicit_kb_intent(request.question) or cls._should_retrieve_kb(request):
+            return QUERY_MODE_EVIDENCE_GROUNDED
         evidence_intent = bool(cls._filename_reference(request.question)) or any(
             token in question
             for token in (
@@ -350,7 +537,7 @@ class UnifiedAssistantService:
     def _system_meta_response(request_id: str) -> UnifiedAssistantResponse:
         answer = (
             "Mam dostęp wyłącznie do danych zapisanych i powiązanych w NEXT Stabil, w zakresie uprawnień bieżącego użytkownika — nie do dowolnych plików hosta. "
-            "Pomagam analizować dane klientów i kandydatów, dokumentację, pocztę, aktywność, "
+            "Pomagam analizować dane klientów i kandydatów, dokumentację, bazę wiedzy, pocztę, aktywność, "
             "wizyty i projekty. Mogę wykonywać kontrolowane obliczenia, wskazywać brakujące dane, "
             "tworzyć bezpieczne estymacje i hipotezy oraz łączyć tekst z walidowaną analizą obrazu. "
             "Dokument mogę analizować, gdy jego treść jest zapisana w systemie albo możliwa do bezpiecznego odczytu z autorytatywnego pliku; skany mogą wymagać analizy obrazu. "
@@ -371,6 +558,74 @@ class UnifiedAssistantService:
             target_scope=TARGET, claims=[claim], sources=[source], used_tools=[], model=None,
             current_stage=QUERY_MODE_SYSTEM_META, can_cancel=False,
         )
+
+    async def _answer_kb_overview(
+        self, request: UnifiedAssistantRequest, collected: _Collected,
+        resolution: _KnowledgeBaseResolution, request_id: str,
+    ) -> UnifiedAssistantResponse:
+        source_map = {
+            f"S{index:02d}": source for index, source in enumerate(collected.sources, 1)
+            if source.source_type == "knowledge_base" and source.source_id == resolution.item_id
+        }
+        evidence = [{
+            "source_ref": handle, "title": source.title,
+            "excerpt": " ".join((source.snippet or "").split())[:700],
+        } for handle, source in source_map.items()]
+        allowed = sorted(source_map)
+        schema = {
+            "type": "object",
+            "properties": {
+                "answer": {"type": "string", "maxLength": 900},
+                "claims": {"type": "array", "maxItems": 3, "items": {
+                    "type": "object", "properties": {
+                        "class": {"type": "string", "enum": ["FACT", "HYPOTHESIS"]},
+                        "text": {"type": "string", "maxLength": 300},
+                        "source_ref": {"type": "string", "enum": allowed},
+                    }, "required": ["class", "text", "source_ref"],
+                    "additionalProperties": False,
+                }},
+            }, "required": ["answer", "claims"], "additionalProperties": False,
+        }
+        prompt = (
+            "Jesteś lokalnym Asystentem NEXT Stabil. Zwięźle omów wyłącznie wskazany, "
+            "bieżący materiał bazy wiedzy na podstawie dozwolonych fragmentów. Nie dodawaj "
+            "wiedzy ogólnej ani danych klienta. Zwróć maksymalnie 3 materialne twierdzenia. "
+            "FACT oznacza treść bezpośrednio obecną w materiale. HYPOTHESIS wymaga w tekście "
+            "informacji, co ją potwierdzi lub obali. Każde twierdzenie musi podać dokładny "
+            "source_ref. Nie ujawniaj uchwytów w answer ani text. Zwróć wyłącznie JSON.\n"
+            f"QUESTION={request.question}\nEVIDENCE={json.dumps(evidence, ensure_ascii=False)}"
+        )
+        try:
+            raw = await asyncio.wait_for(self.llm.generate(
+                model=MODEL, prompt=prompt, stream=False, format=schema,
+                options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 320},
+                think=False, keep_alive="5m",
+            ), timeout=120)
+            result = json.loads(str(raw.get("response") or "{}"))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return self._kb_external_blocked_response(request_id, collected)
+        claims = result.get("claims") if isinstance(result.get("claims"), list) else []
+        payload = {
+            "answer": str(result.get("answer") or "").strip(),
+            "claims": [{
+                "class": claim.get("class"), "text": claim.get("text"),
+                "source_refs": [claim.get("source_ref")], "tool_refs": [],
+            } for claim in claims if isinstance(claim, dict)],
+            "used_sources": sorted({
+                str(claim.get("source_ref")) for claim in claims
+                if isinstance(claim, dict) and claim.get("source_ref")
+            }),
+            "tool_plan": ["knowledge_base"], "estimate": None,
+        }
+        payload = self._strip_known_output_handles(payload, set(source_map))
+        if (
+            self._validate(payload, source_map, False) is not None
+            or not self._payload_uses_kb(payload, source_map, resolution.item_id)
+        ):
+            return self._kb_external_blocked_response(request_id, collected)
+        return self._local_response(request_id, payload, source_map, collected)
 
     @staticmethod
     def _safe_output_failure_response(request_id: str, collected: _Collected) -> UnifiedAssistantResponse:
@@ -612,13 +867,38 @@ class UnifiedAssistantService:
         )
 
     @staticmethod
-    def _task_completion_failure_response(
-        request_id: str, collected: _Collected
+    def _kb_resolution_response(
+        request: UnifiedAssistantRequest, resolution: _KnowledgeBaseResolution
     ) -> UnifiedAssistantResponse:
+        messages = {
+            "AMBIGUOUS": "Znalazłem kilka bieżących materiałów bazy wiedzy pasujących do tej nazwy. Wybierz właściwy materiał.",
+            "NOT_FOUND": "Nie znalazłem wskazanego bieżącego materiału w bazie wiedzy.",
+            "UNAVAILABLE": "Wskazany materiał istnieje, ale jego treść nie jest obecnie dostępna do bezpiecznej analizy.",
+        }
+        digest = hashlib.sha256(json.dumps({
+            "request": request.model_dump(mode="json"), "kb_resolution": resolution.state,
+        }, sort_keys=True).encode()).hexdigest()
+        return UnifiedAssistantResponse(
+            request_id=str(uuid.UUID(digest[:32])), answer="", status="review_required",
+            progress="complete", target_scope=TARGET, claims=[], sources=[], used_tools=[],
+            model=None, error_message=messages.get(
+                resolution.state, "Nie udało się jednoznacznie odczytać wskazanego materiału bazy wiedzy."
+            ), current_stage="knowledge_base_resolution", can_cancel=False,
+        )
+
+    @staticmethod
+    def _task_completion_failure_response(
+        request_id: str, collected: _Collected, *, domain: str = "document"
+    ) -> UnifiedAssistantResponse:
+        message = (
+            "Nie udało się bezpiecznie powiązać odpowiedzi ze wskazanym materiałem bazy wiedzy. Spróbuj ponownie."
+            if domain == "knowledge_base" else
+            "Nie udało się bezpiecznie powiązać odpowiedzi ze wskazanym dokumentem. Spróbuj ponownie."
+        )
         return UnifiedAssistantResponse(
             request_id=request_id, answer="", status="review_required", progress="complete",
             target_scope=TARGET, claims=[], sources=[], used_tools=collected.tools, model=MODEL,
-            error_message="Nie udało się bezpiecznie powiązać odpowiedzi ze wskazanym dokumentem. Spróbuj ponownie.",
+            error_message=message,
             current_stage="task_completion_validation", can_cancel=False,
         )
 
@@ -647,6 +927,43 @@ class UnifiedAssistantService:
             for source in response.sources
         )
 
+    @staticmethod
+    def _payload_uses_kb(
+        payload: dict[str, Any], source_map: dict[str, AgentSource], item_id: int | None
+    ) -> bool:
+        handles = {
+            handle for handle, source in source_map.items()
+            if source.source_type == "knowledge_base" and source.source_id == item_id
+        }
+        used = set(map(str, payload.get("used_sources") or []))
+        claim_refs = {
+            str(ref) for claim in payload.get("claims") or []
+            for ref in (claim.get("source_refs") or []) if isinstance(claim, dict)
+        }
+        return bool(handles & used & claim_refs)
+
+    @staticmethod
+    def _response_uses_kb(
+        response: UnifiedAssistantResponse, item_id: int | None
+    ) -> bool:
+        return any(
+            source.source_type == "knowledge_base" and source.source_id == item_id
+            and source.supports_claim_ids for source in response.sources
+        )
+
+    @staticmethod
+    def _kb_external_blocked_response(
+        request_id: str, collected: _Collected
+    ) -> UnifiedAssistantResponse:
+        return UnifiedAssistantResponse(
+            request_id=request_id, answer="", status="review_required", progress="complete",
+            target_scope=TARGET, claims=[], sources=[], used_tools=collected.tools, model=MODEL,
+            error_message=(
+                "Wynik lokalny nie przeszedł pełnej weryfikacji, a materiał bazy wiedzy nie może być "
+                "wysłany do analizy zewnętrznej bez osobnej klasyfikacji poufności."
+            ), current_stage="knowledge_base_local_only", can_cancel=False,
+        )
+
     def _expire_advanced(self, job: AnalysisJob) -> bool:
         if job.status not in {"advanced_queued", "advanced_processing", "awaiting_auth", "awaiting_ui_fix", "advanced_validating"}:
             return False
@@ -670,14 +987,14 @@ class UnifiedAssistantService:
         return True
 
     async def _generate_local(
-        self, prompt: str, schema: dict[str, Any] | None = None
+        self, prompt: str, schema: dict[str, Any] | None = None, *, num_predict: int = 480
     ) -> dict[str, Any]:
         raw = await self.llm.generate(
             model=MODEL,
             prompt=prompt,
             stream=False,
             format=schema or MODEL_SCHEMA,
-            options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 480},
+            options={"temperature": 0.1, "num_ctx": 4096, "num_predict": num_predict},
             think=False,
             keep_alive="5m",
         )
@@ -697,7 +1014,7 @@ class UnifiedAssistantService:
 
     @staticmethod
     def _bounded_model_schema(
-        source_refs: set[str], tool_refs: set[str]
+        source_refs: set[str], tool_refs: set[str], *, compact: bool = False
     ) -> dict[str, Any]:
         schema = deepcopy(MODEL_SCHEMA)
         claim_properties = schema["properties"]["claims"]["items"]["properties"]
@@ -717,6 +1034,14 @@ class UnifiedAssistantService:
             schema["properties"]["estimate"]["properties"]["basis"]["maxItems"] = 0
         if not tool_refs:
             claim_properties["tool_refs"]["maxItems"] = 0
+        if compact:
+            schema["properties"]["answer"]["maxLength"] = 900
+            schema["properties"]["claims"]["maxItems"] = 3
+            claim_properties["text"]["maxLength"] = 300
+            claim_properties["source_refs"]["maxItems"] = min(5, len(source_refs))
+            claim_properties["tool_refs"]["maxItems"] = min(2, len(tool_refs))
+            schema["properties"]["used_sources"]["maxItems"] = min(5, len(source_refs))
+            schema["properties"]["tool_plan"]["maxItems"] = 2
         return schema
 
     @staticmethod
@@ -874,7 +1199,10 @@ class UnifiedAssistantService:
         digest = hashlib.sha256(canonical.encode()).hexdigest()
         return str(uuid.UUID(digest[:32]))
 
-    def _collect(self, request: UnifiedAssistantRequest) -> _Collected:
+    def _collect(
+        self, request: UnifiedAssistantRequest,
+        kb_resolution: _KnowledgeBaseResolution | None = None,
+    ) -> _Collected:
         client_id = request.client_id
         if request.inspection_id is not None:
             row = self.db.query(Inspection).filter(Inspection.id == request.inspection_id, Inspection.deleted_at.is_(None)).first()
@@ -934,9 +1262,17 @@ class UnifiedAssistantService:
             })
             if len(sources) >= MAX_SOURCES:
                 break
-        if any(word in request.question.casefold() for word in ("baza wiedzy", "norm", "standard", "instrukcj")) and len(sources) < MAX_SOURCES:
+        if self._should_retrieve_kb(request):
+            kb_limit = MAX_KB_SOURCES if kb_resolution is not None else 3
+            # Reserve a bounded part of the evidence window for global
+            # technical memory in joint Client/document + KB reasoning.
+            sources = sources[:max(0, MAX_SOURCES - kb_limit)]
             try:
-                rows = KnowledgeBaseService(self.db).search(request.question, MAX_SOURCES - len(sources))
+                rows = KnowledgeBaseRetrievalService(self.db).search(
+                    kb_resolution.reference if kb_resolution else request.question,
+                    limit=kb_limit, method="hybrid", include_superseded=False,
+                    item_id=kb_resolution.item_id if kb_resolution else None,
+                )
             except Exception:
                 rows = []
             if rows:
@@ -944,13 +1280,27 @@ class UnifiedAssistantService:
             for row in rows:
                 source = AgentSource(
                     source_type="knowledge_base", source_id=int(row["knowledge_base_item_id"]),
-                    title=str(row["title"]), route="/settings/knowledge-base",
+                    title=str(row["title"]), route=(
+                        f"/settings/knowledge-base?item={int(row['knowledge_base_item_id'])}"
+                        + (f"&page={int(row['page'])}" if row.get("page") is not None else "")
+                    ),
                     snippet=str(row["excerpt"])[:600],
                 )
+                key = (source.source_type, source.source_id, source.route)
+                if any((item.source_type, item.source_id, item.route) == key for item in sources):
+                    continue
                 sources.append(source)
                 payloads.append({
                     "tool": "knowledge_base",
-                    "data": row,
+                    # The excerpt already lives in the canonical source
+                    # manifest. Keep the tool result metadata-only to avoid
+                    # duplicating proprietary content in the prompt.
+                    "data": {
+                        "knowledge_base_item_id": row["knowledge_base_item_id"],
+                        "page": row.get("page"),
+                        "retrieval_method": row.get("retrieval_method"),
+                        "status": row.get("status"),
+                    },
                     "source_keys": [(source.source_type, source.source_id, source.route)],
                 })
         return _Collected(sources=sources[:MAX_SOURCES], tool_payloads=payloads, tools=tools, client_id=client_id, visual_available=visual_available)
@@ -1006,6 +1356,7 @@ class UnifiedAssistantService:
         request: UnifiedAssistantRequest,
         collected: _Collected,
         query_mode: str = QUERY_MODE_EVIDENCE_GROUNDED,
+        required_kb_item_id: int | None = None,
     ) -> tuple[str, dict[str, AgentSource], dict[str, set[str]]]:
         source_map = {f"S{index:02d}": source for index, source in enumerate(collected.sources, 1)}
         evidence = []
@@ -1048,6 +1399,10 @@ class UnifiedAssistantService:
             f"Dozwolone source_refs: {sorted(source_map)}. TARGET_SCOPE={TARGET}.\n"
             f"REQUIRED_DOCUMENT_SOURCE_REFS={sorted(handle for handle, source in source_map.items() if request.document_id is not None and source.source_type == 'document' and source.source_id == request.document_id)}. "
             "Jeżeli lista nie jest pusta, odpowiedź analizująca dokument musi użyć co najmniej jednego z tych źródeł w materialnym claim i used_sources.\n"
+            f"REQUIRED_KNOWLEDGE_BASE_SOURCE_REFS={sorted(handle for handle, source in source_map.items() if required_kb_item_id is not None and source.source_type == 'knowledge_base' and source.source_id == required_kb_item_id)}. "
+            "Jeżeli lista nie jest pusta, wskazany materiał bazy wiedzy jest wymaganym dowodem: użyj co najmniej jednego z tych źródeł w materialnym claim i used_sources. "
+            "Nie zastępuj go wiedzą ogólną. Dane klienta są faktami przypadku, a baza wiedzy jest ogólnym materiałem technicznym; jawnie uwzględnij sprzeczności.\n"
+            "Dla pytania wyłącznie o bazę wiedzy odpowiedz zwięźle: najwyżej 3 materialne claims, bez przepisywania całych fragmentów źródła.\n"
             f"QUESTION={request.question}\nHISTORY={json.dumps(history, ensure_ascii=False)}\n"
             f"VALIDATED_EVIDENCE={json.dumps(evidence, ensure_ascii=False)}\n"
             f"VALIDATED_TOOL_RESULTS={json.dumps(tool_manifest, ensure_ascii=False, default=str)[:MAX_EVIDENCE_CHARS]}\n"

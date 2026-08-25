@@ -14,17 +14,31 @@ class KnowledgeBaseRetrievalService:
         self.vector = vector_service or KnowledgeBaseVectorService(db)
 
     def search(self, query: str, *, limit: int = 20, method: str = "hybrid",
-               include_superseded: bool = False) -> list[dict]:
+               include_superseded: bool = False, item_id: int | None = None) -> list[dict]:
         lexical = self.lexical.search(query, limit)
         if not include_superseded:
             lexical = [row for row in lexical if row["status"] == "current"]
+        if item_id is not None:
+            lexical = [row for row in lexical if int(row["knowledge_base_item_id"]) == item_id]
         if method == "lexical": return lexical[:limit]
-        vector = self.vector.search(query, limit=limit, include_superseded=include_superseded)
+        try:
+            vector = self.vector.search(
+                query, limit=limit, include_superseded=include_superseded, item_id=item_id
+            )
+        except Exception:
+            # Qdrant/embedding availability must never remove the already-safe
+            # lexical Knowledge Base path.
+            vector = []
         if method == "vector": return vector[:limit]
         seen: set[tuple[int, int | None, str]] = set(); result = []
-        for row in [*lexical, *vector]:
-            key = (int(row["knowledge_base_item_id"]), row.get("page"), str(row["excerpt"]))
-            if key not in seen:
-                seen.add(key); result.append(row)
-            if len(result) >= limit: break
+        # Interleave methods so lexical title matches cannot crowd every
+        # semantic page out of a bounded hybrid result.
+        for index in range(max(len(lexical), len(vector))):
+            for rows in (lexical, vector):
+                if index >= len(rows): continue
+                row = rows[index]
+                key = (int(row["knowledge_base_item_id"]), row.get("page"), str(row["excerpt"]))
+                if key not in seen:
+                    seen.add(key); result.append(row)
+                if len(result) >= limit: return result
         return result

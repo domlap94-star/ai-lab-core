@@ -103,11 +103,16 @@ class KnowledgeBaseVectorService:
         ])
         self.client.set_payload(self.collection, payload={"status": item.status, "version": item.version, "category": item.category}, points=selector, wait=True)
 
-    def search(self, query: str, *, limit: int = 20, include_superseded: bool = False) -> list[dict]:
+    def search(self, query: str, *, limit: int = 20, include_superseded: bool = False,
+               item_id: int | None = None) -> list[dict]:
         if not self.client.collection_exists(self.collection): return []
         vector = self.embedding.embed_one(query)
         must = [models.FieldCondition(key="source_type", match=models.MatchValue(value="knowledge_base")),
                 models.FieldCondition(key="content_kind", match=models.MatchValue(value="source"))]
+        if item_id is not None:
+            must.append(models.FieldCondition(
+                key="knowledge_base_item_id", match=models.MatchValue(value=item_id)
+            ))
         if not include_superseded: must.append(models.FieldCondition(key="status", match=models.MatchValue(value="current")))
         response = self.client.query_points(collection_name=self.collection, query=vector,
             query_filter=models.Filter(must=must), limit=limit, with_payload=True)

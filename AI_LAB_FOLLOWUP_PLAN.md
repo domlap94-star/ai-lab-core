@@ -2575,3 +2575,28 @@ REQUIRED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
 The owner must retest the same named PDF, repository capability, general
 knowledge, Sources and cancel flow. Evidence:
 `FOLLOWUP_P0_DOCUMENT_CONTENT_AND_GENERAL_LATENCY_REPORT.md`.
+
+**P0 UNIFIED ASSISTANT KNOWLEDGE BASE GROUNDING — SOURCE/RUNTIME PASS /
+PHYSICAL RETEST REQUIRED — 2026-08-25.** CHUNK16 remained healthy: the exact
+current `fundamentowanie` item is processed, locally accepted and indexed with
+56 page points. The defect was an orchestration gap: Unified Assistant used a
+narrow legacy lexical branch, not the canonical KB retriever, and did not
+require a named KB source in the final claim/source contract.
+
+KB is now a first-class global technical evidence domain. Explicit titles are
+resolved before Qwen; bounded current-only hybrid retrieval fails open to
+lexical; implicit technical questions can retrieve KB; joint Client/document
++ KB evidence preserves fact/reference separation; and an explicit item must
+support a material claim or the response fails closed. KB remains local-only
+until per-item external sensitivity is separately defined.
+
+Focused tests pass 135/135 plus 30/30 document/V2/Vision, the synthetic KB
+matrix passes 35/35, and saved F0 remains 88.03 overall / 94.50%
+factual-evidence with zero wrong sources and privacy failures. After backend-
+only reload, live authenticated exact-item proof returned HTTP 200 in 38.48 s,
+`accepted_local`, with only `fundamentowanie` page sources and no external
+analysis. No DB/KB/Qdrant write occurred. Android +37 remains reusable;
+versionCode 38 was not consumed. PRE-CHUNK23 remains `UNIFIED ASSISTANT
+IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 remains BLOCKED / NOT
+STARTED; stable remains `1.0.2+29`. Evidence:
+`FOLLOWUP_P0_UNIFIED_ASSISTANT_KB_GROUNDING_REPORT.md`.

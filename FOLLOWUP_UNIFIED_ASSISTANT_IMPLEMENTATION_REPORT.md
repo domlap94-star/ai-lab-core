@@ -295,3 +295,26 @@ Backend regression is 118/118 plus 101/101 focused; Flutter analyze and full
 No Android source changed, so +37 remains reusable and physical retest is still
 required. Detailed evidence:
 `FOLLOWUP_P0_DOCUMENT_CONTENT_AND_GENERAL_LATENCY_REPORT.md`.
+
+## 2026-08-25 Knowledge Base grounding P0 remediation
+
+The existing CHUNK16 Knowledge Base was healthy, but Unified Assistant used a
+narrow secondary lexical branch instead of the canonical hybrid retriever and
+had no exact-item/task-completion contract. KB is now a first-class global
+technical evidence domain. Explicit titles resolve before Qwen, implicit
+technical questions can retrieve bounded current KB evidence, lexical remains
+available when vector search fails, and page sources participate in the same
+fail-closed claim/source map as Client documents.
+
+Live item ID 3 (`fundamentowanie`) is current, processed, locally accepted and
+indexed at 56/56 page points. Post-reload authenticated proof returned HTTP
+200/`accepted_local` in 38.48 seconds with three claims, only that KB item in
+Sources (pages 49 and 20), and no external analysis. No KB content is reproduced
+in the report.
+
+Focused tests pass 135/135 plus 30/30 document/V2/Vision; Advanced/privacy/
+calculation controls pass. The separate KB grounding matrix passes 35/35.
+Saved F0 remains 88.03 overall / 94.50% factual-evidence, wrong source 0 and
+privacy failures 0. Android source did not change, so +37 remains reusable.
+PRE-CHUNK23 remains physical-acceptance required and CHUNK23 remains blocked.
+Detailed evidence: `FOLLOWUP_P0_UNIFIED_ASSISTANT_KB_GROUNDING_REPORT.md`.
