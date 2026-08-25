@@ -243,3 +243,29 @@ non-stable source candidate is Android `1.0.2+37`, SHA-256
 at `C:\ai-lab-core\staging\android\NEXT-Stabil-1.0.2+37-unified-assistant-final-p0-candidate.apk`.
 PRE-CHUNK23 remains physical-acceptance required and CHUNK23 remains blocked.
 Detailed evidence: `FOLLOWUP_P0_UNIFIED_ASSISTANT_GENERAL_ROUTING_REPORT.md`.
+
+## 2026-08-25 Android +37 HTTP 422 contract-sync postscript
+
+Owner physical +37 evidence showed immediate HTTP 422-equivalent errors for
+both system/meta and Client quick-action requests. Live OpenAPI proved the
+running bind-mounted backend process had imported an older request/response
+contract: it rejected `attempt_id`, omitted the new lifecycle fields, and had
+no cancel endpoint. A direct current-shape control returned
+`body.attempt_id / extra_forbidden`; the old shape passed validation and
+entered the old model path. Flutter generated a valid 24-character attempt ID.
+
+After confirming DB head, zero active backup/restore work and an idle private
+Supervisor queue, only the backend container and exact NEXT Stabil Supervisor
+scheduled task were reloaded. Post-deploy live OpenAPI matches current source.
+The exact +37-shaped SYSTEM_META request returns HTTP 200 in 21.95 ms locally
+and 75.08 ms through the public gateway, with no model. GENERAL_KNOWLEDGE also
+returns HTTP 200 locally with no external analysis.
+
+A shared cross-stack request fixture now validates actual Flutter serialization
+against the actual FastAPI Pydantic schema; backend/Unified tests pass 82/82
+and focused Flutter tests pass 5/5. Flutter analyze and full 305/305 pass;
+post-restart authenticated read-only Clients/Backup/System Control/Mail/
+Documents smoke returns HTTP 200. No application source or APK changed, so +37
+remains the candidate and versionCode 38 was not consumed. Physical
+general, Client, named-PDF, Sources and cancel retest remains required. See
+`FOLLOWUP_P0_UNIFIED_ASSISTANT_CONTRACT_SYNC_REPORT.md`.

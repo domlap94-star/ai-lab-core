@@ -2507,3 +2507,27 @@ REQUIRED. PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL
 ACCEPTANCE REQUIRED`; CHUNK23 remains BLOCKED / NOT STARTED. Stable remains
 `1.0.2+29`. Evidence:
 `FOLLOWUP_P0_UNIFIED_ASSISTANT_GENERAL_ROUTING_REPORT.md`.
+
+**P0 UNIFIED ASSISTANT FRONTEND/BACKEND CONTRACT SYNC — RESOLVED —
+2026-08-25.** Android +37 correctly sent a bounded `attempt_id`, but the live
+bind-mounted backend process had started before the document/lifecycle and
+general-routing commits. Live OpenAPI rejected that field under
+`extra="forbid"`, omitted the lifecycle response fields, and had no cancel
+endpoint. Direct controls proved current shape = HTTP 422
+`body.attempt_id/extra_forbidden`, while the old shape passed validation and
+entered the old model path. Flutter's attempt ID was valid.
+
+After a safety audit found DB head exact, zero active backup/restore work and
+an idle Supervisor queue, only the backend container and the exact private
+Supervisor scheduled task were reloaded. Live OpenAPI now matches current
+source; a +37-shaped SYSTEM_META request returns HTTP 200 in 21.95 ms locally
+and 75.08 ms through the public gateway with no model. A shared five-case
+Flutter/FastAPI contract fixture prevents this drift from escaping again;
+backend/Unified tests pass 82/82 and focused Flutter tests pass 5/5.
+
+No Flutter application source changed, so +37 remains valid and versionCode 38
+was not consumed. `P0 GENERAL/SYSTEM ROUTING` and `P0 DOCUMENT
+RETRIEVAL/LIFECYCLE` remain PHYSICAL RETEST REQUIRED. PRE-CHUNK23 remains
+`UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 remains
+BLOCKED / NOT STARTED. Stable remains `1.0.2+29`. Evidence:
+`FOLLOWUP_P0_UNIFIED_ASSISTANT_CONTRACT_SYNC_REPORT.md`.

@@ -1,0 +1,45 @@
+[
+  {
+    "case": "general",
+    "request": {
+      "question": "Czym się zajmujesz w tym systemie?",
+      "conversation": [],
+      "attempt_id": "android-1724600000000000"
+    }
+  },
+  {
+    "case": "client_scoped",
+    "request": {
+      "question": "Podsumuj ten przypadek",
+      "conversation": [],
+      "client_id": 101,
+      "attempt_id": "android-1724600000000001"
+    }
+  },
+  {
+    "case": "named_document",
+    "request": {
+      "question": "Przeanalizuj wskazany raport.pdf",
+      "conversation": [],
+      "client_id": 101,
+      "document_id": 202,
+      "attempt_id": "android-1724600000000002"
+    }
+  },
+  {
+    "case": "retry",
+    "request": {
+      "question": "Wyjaśnij ogólnie nośność gruntu",
+      "conversation": [],
+      "attempt_id": "android-1724600000000003"
+    }
+  },
+  {
+    "case": "conversation_reset",
+    "request": {
+      "question": "Ignoruj poprzednie zapytanie. Co potrafisz?",
+      "conversation": [],
+      "attempt_id": "android-1724600000000004"
+    }
+  }
+]

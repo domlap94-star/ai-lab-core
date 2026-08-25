@@ -76,6 +76,25 @@ Outputs:
   `..\staging\android\NEXT-Stabil-<version>+<build>-<label>.apk`
 - Web: `build/web`
 
+## Physical-candidate runtime contract gate
+
+Before handing any Windows, Web, or Android physical candidate to the owner,
+source/build success is insufficient. Record all of the following against the
+live target environment:
+
+1. the backend source required by the candidate is loaded by the running
+   process (a bind-mounted file on disk is not proof of an import/restart);
+2. the private Supervisor source required by the candidate is loaded;
+3. live OpenAPI accepts the exact current Flutter request fixture at
+   `backend/test/fixtures/unified_assistant_current_android_requests.json`;
+4. live OpenAPI exposes the lifecycle response fields and cancel endpoint used
+   by the candidate;
+5. authenticated synthetic/read-only smoke passes before physical handoff.
+
+The paired backend and Flutter contract-sync tests validate the same fixture.
+Any candidate/runtime mismatch blocks handoff; it must not be reported as an
+LLM-quality failure.
+
 ## Windows WDAC acceptance boundary
 
 `flutter build windows` still produces compiler output at
