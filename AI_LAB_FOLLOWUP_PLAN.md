@@ -1897,7 +1897,7 @@ The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing
 AI physical test and is handled by the owner-inserted pre-CHUNK23 item below.
 
-## [~] PRE-CHUNK23 — UNIFIED ASSISTANT IMPLEMENTATION — NEXT / AUTHORIZED TO PREPARE
+## [~] PRE-CHUNK23 — UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED
 
 **Priority: P1 / BLOCKS CHUNK23**
 
@@ -2614,3 +2614,23 @@ Backend is reloaded; backend suites, Flutter analyze and Flutter 305/305 pass.
 physical acceptance required; CHUNK23 remains BLOCKED / NOT STARTED; stable
 remains `1.0.2+29`. Evidence:
 `FOLLOWUP_P0_KB_LOCAL_STABILITY_AND_TIMEOUT_CONTRACT_REPORT.md`.
+
+**P0 KB SYNTHESIS + CLIENT DOCUMENT DISCOVERY — SOURCE/RUNTIME PASS / OWNER
+PHYSICAL RETEST REQUIRED — 2026-08-26.** Owner +38 proof confirmed exact KB
+retrieval/provenance but exposed a raw-fragment overview, filename-only
+same-Client document discovery and false general-knowledge provenance after a
+terminal retrieval failure. Exact KB overview now selects substantive original
+pages and produces a source-bound technical concept synthesis rather than
+copying snippets. Live `fundamentowanie` repeatability is 10/10 without Qwen or
+external work (p50 0.039 s, bounded p95 0.349 s). Descriptive document search
+now uses a SQL Client allowlist, weighted metadata and bounded read-only content
+matching; a production control with zero filename overlap and six content hits
+resolved the correct row among three documents. Terminal failures no longer
+render an answer/Sources or claim general knowledge. Backend 163/163 focused
+and 171/171 broader tests, Flutter analyze, focused 5/5 and full 306/306 pass.
+Backend was reloaded; health and public-ingress guard pass. Flutter changed, so
++38 is superseded by non-stable +39 at canonical staging, SHA-256
+`CC54559EEE3C1648058B099BD11CA4CDB3D883090E7B15ADB199BA4482B33DB9`.
+PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
+REQUIRED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
+Evidence: `FOLLOWUP_P0_KB_SYNTHESIS_AND_DOCUMENT_DISCOVERY_REPORT.md`.

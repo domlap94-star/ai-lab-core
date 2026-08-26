@@ -21,7 +21,9 @@ from app.models.client import Client
 from app.models.document import Document
 from app.models.document_page import DocumentPage
 from app.models.inspection import Inspection
-from app.models.knowledge_base import AnalysisJob, KnowledgeBaseItem
+from app.models.knowledge_base import (
+    AnalysisJob, KnowledgeBaseAnalysisArtifact, KnowledgeBaseItem,
+)
 from app.schemas.agent import AgentSource
 from app.schemas.analysis import (
     AnalysisContextLimits, AnalysisProvenance, AnalysisQualitySignals,
@@ -55,6 +57,7 @@ TARGET = "TARGET_01"
 MAX_SOURCES = 8
 MAX_KB_SOURCES = 5
 MAX_EVIDENCE_CHARS = 12_000
+MAX_DOCUMENT_DISCOVERY_CANDIDATES = 12
 DOCUMENT_EXTENSIONS = ("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "jpg", "jpeg", "png")
 ADVANCED_QUEUE_HARD_SECONDS = 60
 ADVANCED_EXTERNAL_HARD_SECONDS = 180
@@ -126,6 +129,7 @@ class _DocumentResolution:
     state: str
     reference: str | None = None
     document_id: int | None = None
+    candidate_titles: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -452,6 +456,8 @@ class UnifiedAssistantService:
             "czego mozna dowiedziec", "czego mozesz sie dowiedziec",
             "co mowi zrodlo", "co zawiera material", "podsumuj material",
             "omow material", "co jest w zrodle",
+            "jakie informacje zawiera", "przedstaw najwazniejsze",
+            "co mowi material", "jakie zagadnienia opisuje",
         ))
 
     @classmethod
@@ -600,25 +606,35 @@ class UnifiedAssistantService:
             "source_ref": handle, "title": source.title,
             "excerpt": " ".join((source.snippet or "").split())[:420],
         } for handle, source in source_map.items()]
-        extractive = self._deterministic_kb_overview_payload(evidence, source_map)
-        if (
-            self._kb_overview_validation_reason(
-                extractive, source_map, resolution.item_id
-            ) is None
-        ):
-            response = self._local_response(request_id, extractive, source_map, collected)
+        if not evidence:
+            return self._kb_external_blocked_response(request_id, collected)
+        analysis_aid = self._accepted_kb_analysis_aid(
+            resolution.item_id, source_map
+        )
+        deterministic = self._deterministic_kb_overview_payload(evidence, source_map)
+        deterministic_validation = self._kb_overview_validation_reason(
+            deterministic, source_map, resolution.item_id
+        )
+        if deterministic_validation is None:
+            deterministic_validation = self._kb_overview_usefulness_reason(
+                deterministic, source_map
+            )
+        if deterministic_validation is None:
+            response = self._local_response(
+                request_id, deterministic, source_map, collected
+            )
             return response.model_copy(update={
-                "model": None, "current_stage": "knowledge_base_extract",
+                "model": None, "current_stage": "knowledge_base_synthesis",
             })
         allowed = sorted(source_map)
         schema = {
             "type": "object",
             "properties": {
-                "answer": {"type": "string", "maxLength": 600},
-                "claims": {"type": "array", "maxItems": 2, "items": {
+                "answer": {"type": "string", "minLength": 120, "maxLength": 900},
+                "claims": {"type": "array", "minItems": 2, "maxItems": 5, "items": {
                     "type": "object", "properties": {
                         "class": {"type": "string", "enum": ["FACT", "HYPOTHESIS"]},
-                        "text": {"type": "string", "maxLength": 300},
+                        "text": {"type": "string", "minLength": 35, "maxLength": 320},
                         "source_ref": {"type": "string", "enum": allowed},
                     }, "required": ["class", "text", "source_ref"],
                     "additionalProperties": False,
@@ -627,12 +643,17 @@ class UnifiedAssistantService:
         }
         prompt = (
             "Jesteś lokalnym Asystentem NEXT Stabil. Zwięźle omów wyłącznie wskazany, "
-            "bieżący materiał bazy wiedzy na podstawie dozwolonych fragmentów. Nie dodawaj "
-            "wiedzy ogólnej ani danych klienta. Zwróć maksymalnie 2 materialne twierdzenia. "
+            "bieżący materiał bazy wiedzy na podstawie dozwolonych fragmentów. Odpowiedź ma "
+            "wyjaśnić, czego technicznie uczy materiał: zsyntetyzuj 2–5 najważniejszych zasad, "
+            "mechanizmów lub wniosków. Nie sklejaj fragmentów, nagłówków, nazw autorów, dat ani "
+            "podpisów ilustracji. Parafrazuj treść, zachowując jej znaczenie. Nie dodawaj "
+            "wiedzy ogólnej ani danych klienta. "
             "FACT oznacza treść bezpośrednio obecną w materiale. HYPOTHESIS wymaga w tekście "
             "informacji, co ją potwierdzi lub obali. Każde twierdzenie musi podać dokładny "
             "source_ref. Nie ujawniaj uchwytów w answer ani text. Zwróć wyłącznie JSON.\n"
-            f"QUESTION={request.question}\nEVIDENCE={json.dumps(evidence, ensure_ascii=False)}"
+            f"QUESTION={request.question}\n"
+            f"STRUCTURED_AID={json.dumps(analysis_aid, ensure_ascii=False)}\n"
+            f"EVIDENCE={json.dumps(evidence, ensure_ascii=False)}"
         )
         deadline = time.monotonic() + KB_OVERVIEW_LOCAL_HARD_SECONDS
         raw: dict[str, Any] = {}
@@ -653,9 +674,12 @@ class UnifiedAssistantService:
         validation = self._kb_overview_validation_reason(
             payload, source_map, resolution.item_id
         )
+        if validation is None:
+            validation = self._kb_overview_usefulness_reason(payload, source_map)
         if validation in {
             "invalid_schema", "source_binding", "missing_provenance",
             "hypothesis_contract", "user_output_internal_leak", "task_completion_fail",
+            "raw_extract_noise", "raw_extract_leak",
         }:
             correction = (
                 prompt
@@ -674,6 +698,8 @@ class UnifiedAssistantService:
                 validation = self._kb_overview_validation_reason(
                     payload, source_map, resolution.item_id
                 )
+                if validation is None:
+                    validation = self._kb_overview_usefulness_reason(payload, source_map)
             except asyncio.TimeoutError:
                 await self._unload_for_external_wait()
                 return self._local_timeout_response(request_id, collected)
@@ -686,32 +712,164 @@ class UnifiedAssistantService:
             return self._kb_external_blocked_response(request_id, collected)
         return self._local_response(request_id, payload, source_map, collected)
 
+    def _accepted_kb_analysis_aid(
+        self, item_id: int | None, source_map: dict[str, AgentSource]
+    ) -> dict[str, Any]:
+        """Return only a sufficiently rich, accepted local aid for the same KB item.
+
+        The aid may help presentation but never becomes a source. Original KB pages
+        remain the only claim provenance.
+        """
+        if item_id is None:
+            return {}
+        try:
+            artifact = self.db.query(KnowledgeBaseAnalysisArtifact).filter(
+                KnowledgeBaseAnalysisArtifact.item_id == item_id,
+                KnowledgeBaseAnalysisArtifact.kind == "structured_technical_knowledge",
+                KnowledgeBaseAnalysisArtifact.origin == "local",
+                KnowledgeBaseAnalysisArtifact.validation_state == "accepted",
+            ).order_by(KnowledgeBaseAnalysisArtifact.id.desc()).first()
+        except (AttributeError, TypeError):
+            # Lightweight test doubles and deployments without an artifact do
+            # not change the canonical original-page path.
+            return {}
+        if artifact is None or not isinstance(artifact.payload, dict):
+            return {}
+        page_numbers = {
+            int(match.group(1))
+            for source in source_map.values()
+            if source.source_id == item_id and source.route
+            and (match := re.search(r"[?&]page=(\d+)", source.route))
+        }
+        artifact_pages = {
+            int(row["page"])
+            for row in (artifact.source_page_refs or [])
+            if isinstance(row, dict) and row.get("page") is not None
+        }
+        if page_numbers and artifact_pages and not (page_numbers & artifact_pages):
+            return {}
+        allowed_keys = (
+            "definitions", "constraints", "standards", "applicability",
+            "exceptions", "worked_examples", "formulas", "technical_values",
+        )
+        aid = {
+            key: value[:8]
+            for key in allowed_keys
+            if isinstance((value := artifact.payload.get(key)), list) and value
+        }
+        # A single parser hit is not a technical synthesis. Avoid giving sparse
+        # metadata disproportionate influence over the original pages.
+        if sum(len(value) for value in aid.values()) < 3 or len(aid) < 2:
+            return {}
+        return aid
+
     @staticmethod
     def _deterministic_kb_overview_payload(
         evidence: list[dict[str, Any]], source_map: dict[str, AgentSource]
     ) -> dict[str, Any]:
+        concepts = (
+            (
+                "wpływ warunków gruntowych i wodnych na dobór rozwiązania fundamentowego",
+                ("grunt", "podloz", "geotechn", "geolog", "woda grunt", "zwierciadl"),
+            ),
+            (
+                "zasady doboru i projektowania fundamentów oraz ich współpracy z konstrukcją",
+                ("fundament", "konstruk", "posadow", "projekt"),
+            ),
+            (
+                "sprawdzanie nośności, stateczności i bezpieczeństwa projektowego",
+                ("nosnosc", "stateczn", "bezpieczen", "stan granicz", "oblicz"),
+            ),
+            (
+                "ocenę osiadań, przemieszczeń i odkształceń podłoża lub konstrukcji",
+                ("osiad", "przemieszcz", "odksztalc", "ugię", "deform"),
+            ),
+            (
+                "sposób przenoszenia obciążeń między obiektem, fundamentem i podłożem",
+                ("obciaz", "nacisk", "naprezen", "oddzialyw", "przenosz"),
+            ),
+            (
+                "wymagania normowe, reguły obliczeniowe i sposób weryfikacji projektu",
+                ("norm", "eurokod", "wymaga", "weryfik", "sprawd"),
+            ),
+            (
+                "uwarunkowania wykonawcze, kontrolę robót i ograniczenia technologiczne",
+                ("wykon", "robot", "technolog", "kontrol", "ogranicz"),
+            ),
+            (
+                "metody badań, rozpoznania i dokumentowania warunków technicznych",
+                ("badani", "odwiert", "sondow", "pomiar", "rozpozn", "dokumentac"),
+            ),
+        )
         claims: list[dict[str, Any]] = []
-        for row in evidence:
-            handle = str(row.get("source_ref") or "")
-            text = UnifiedAssistantService._safe_source_excerpt(
-                str(row.get("excerpt") or "")
-            ).strip()
-            if handle not in source_map or not text or INTERNAL_OUTPUT_PATTERN.search(text):
+        for label, markers in concepts:
+            handles = []
+            for row in evidence:
+                handle = str(row.get("source_ref") or "")
+                text = UnifiedAssistantService._fold_intent(
+                    str(row.get("excerpt") or "")
+                )
+                if handle in source_map and any(marker in text for marker in markers):
+                    handles.append(handle)
+            handles = list(dict.fromkeys(handles))[:2]
+            if not handles:
                 continue
             claims.append({
-                "class": "FACT", "text": text[:300],
-                "source_refs": [handle], "tool_refs": [],
+                "class": "FACT",
+                "text": f"Materiał omawia {label}.",
+                "source_refs": handles, "tool_refs": [],
             })
-            if len(claims) == 2:
+            if len(claims) == 5:
                 break
-        answer = " ".join(claim["text"] for claim in claims)
+        answer = (
+            "Najważniejsze obszary techniczne opisane w materiale:\n"
+            + "\n".join(f"- {claim['text']}" for claim in claims)
+        ) if claims else ""
         return {
             "answer": answer,
             "claims": claims,
-            "used_sources": [claim["source_refs"][0] for claim in claims],
+            "used_sources": sorted({
+                ref for claim in claims for ref in claim["source_refs"]
+            }),
             "tool_plan": ["knowledge_base"],
             "estimate": None,
         }
+
+    @staticmethod
+    def _kb_overview_usefulness_reason(
+        payload: dict[str, Any], source_map: dict[str, AgentSource]
+    ) -> str | None:
+        answer = " ".join(str(payload.get("answer") or "").split())
+        claims = [
+            claim for claim in (payload.get("claims") or [])
+            if isinstance(claim, dict) and str(claim.get("text") or "").strip()
+        ]
+        if len(claims) < 2 or len(answer) < 120:
+            return "task_completion_fail"
+        combined = " ".join(str(claim.get("text") or "") for claim in claims)
+        folded = UnifiedAssistantService._fold_intent(combined)
+        noise_hits = len(re.findall(
+            r"\b(?:isbn|copyright|wydawnictw|autor|instytut|komitet|strona|rysunek|"
+            r"tablica|spis tresci|eurokod\s*\d*)\b", folded
+        ))
+        technical_words = {
+            token for token in re.findall(r"[a-z]{5,}", folded)
+            if token not in {"ktore", "przez", "material", "zrodlo", "strona"}
+        }
+        if noise_hits >= 3 and noise_hits * 3 >= max(1, len(technical_words)):
+            return "raw_extract_noise"
+        excerpts = [
+            " ".join((source.snippet or "").split()).casefold()
+            for source in source_map.values() if source.snippet
+        ]
+        copied = 0
+        for claim in claims:
+            text = " ".join(str(claim.get("text") or "").split()).casefold()
+            if len(text) >= 80 and any(text in excerpt for excerpt in excerpts):
+                copied += 1
+        if copied >= max(1, len(claims) - 1):
+            return "raw_extract_leak"
+        return None
 
     async def _kb_generate_before_deadline(
         self, prompt: str, schema: dict[str, Any], deadline: float
@@ -979,45 +1137,138 @@ class UnifiedAssistantService:
             Document.trashed_at.is_(None),
             Document.purged_at.is_(None),
         ).all()
-        query_tokens = {
-            token for token in re.findall(r"[a-z0-9]+", folded)
-            if len(token) >= 3 and token not in {
-                "tego", "ten", "jest", "ktory", "ktorego", "klienta", "dokumentach",
-                "znajdz", "wyszukaj", "przeanalizuj", "zawiera", "plik", "pdf",
-            }
+        query_tokens, expanded_terms = self._document_discovery_terms(folded)
+        client = self.db.get(Client, request.client_id)
+        local_address = " ".join(filter(None, (
+            getattr(client, "street", None), getattr(client, "building_number", None),
+            getattr(client, "postal_code", None), getattr(client, "city", None),
+        ))) if client is not None else ""
+        address_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", self._fold_intent(local_address))
+            if len(token) >= 2
         }
-        if any(token in folded for token in ("grunt", "geotechn", "badanie podloza")):
-            query_tokens.update({"grunt", "geotechn", "badanie", "podloz", "opinia"})
-        if "adres" in folded:
-            client = self.db.get(Client, request.client_id)
-            if client is not None:
-                local_address = " ".join(filter(None, (
-                    client.street, client.building_number, client.postal_code, client.city,
-                )))
-                query_tokens.update(
-                    token for token in re.findall(r"[a-z0-9]+", self._fold_intent(local_address))
-                    if len(token) >= 2
-                )
-        scored: list[tuple[int, Document]] = []
-        for row in rows:
-            name = self._fold_intent(row.original_filename or row.filename)
-            name_tokens = set(re.findall(r"[a-z0-9]+", name))
-            score = len(query_tokens & name_tokens)
-            if score >= 2:
-                scored.append((score, row))
+        metadata: list[tuple[int, Document]] = [
+            (
+                self._document_metadata_score(
+                    row, query_tokens=query_tokens, expanded_terms=expanded_terms,
+                    address_tokens=address_tokens, expects_pdf="pdf" in folded,
+                ),
+                row,
+            )
+            for row in rows
+        ]
+        metadata.sort(key=lambda pair: (-pair[0], pair[1].id))
+        high = [pair for pair in metadata if pair[0] >= 6]
+        if high and (len(high) == 1 or high[0][0] >= high[1][0] + 3):
+            document = high[0][1]
+            content = self.document_content.access(document, query=request.question)
+            if content.state not in {
+                FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+            }:
+                return _DocumentResolution(content.state, "opis dokumentu", document.id)
+            return _DocumentResolution("UNIQUE_MATCH", "opis dokumentu", document.id)
+        if len(high) >= 2 and high[0][0] == high[1][0] and high[0][0] >= 8:
+            return _DocumentResolution(
+                "AMBIGUOUS", "opis dokumentu", candidate_titles=tuple(
+                    Path(row.original_filename or row.filename).name for _, row in high[:4]
+                ),
+            )
+
+        # Stage 2 remains strictly inside the SQL Client allowlist. It reads a
+        # bounded set of likely files and never trusts global vector ownership.
+        candidates = sorted(
+            metadata,
+            key=lambda pair: (
+                -pair[0],
+                0 if "pdf" in str(getattr(pair[1], "content_type", "") or "").casefold() else 1,
+                pair[1].id,
+            ),
+        )[:MAX_DOCUMENT_DISCOVERY_CANDIDATES]
+        discovery_query = " ".join(sorted(expanded_terms))[:600]
+        scored: list[tuple[int, Document, Any]] = []
+        unavailable: list[tuple[int, Document, Any]] = []
+        for metadata_score, row in candidates:
+            content = self.document_content.access(row, query=discovery_query)
+            if content.state not in {
+                FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+            }:
+                if metadata_score >= 4:
+                    unavailable.append((metadata_score, row, content))
+                continue
+            text = self._fold_intent(" ".join(page.text for page in content.pages))
+            content_hits = sum(1 for term in expanded_terms if term in text)
+            query_hits = sum(1 for term in query_tokens if term in text)
+            score = metadata_score + min(16, content_hits * 2) + min(6, query_hits * 2)
+            if score >= 7:
+                scored.append((score, row, content))
         if not scored:
+            unavailable.sort(key=lambda row: (-row[0], row[1].id))
+            if unavailable and (
+                len(unavailable) == 1 or unavailable[0][0] >= unavailable[1][0] + 3
+            ):
+                return _DocumentResolution(
+                    unavailable[0][2].state, "opis dokumentu", unavailable[0][1].id
+                )
             return _DocumentResolution("NOT_FOUND", "opis dokumentu")
-        best_score = max(score for score, _ in scored)
-        best = [row for score, row in scored if score == best_score]
-        if len(best) != 1:
-            return _DocumentResolution("AMBIGUOUS", "opis dokumentu")
-        document = best[0]
-        content = self.document_content.access(document, query=request.question)
+        scored.sort(key=lambda row: (-row[0], row[1].id))
+        if len(scored) > 1 and scored[0][0] < scored[1][0] + 3:
+            return _DocumentResolution(
+                "AMBIGUOUS", "opis dokumentu", candidate_titles=tuple(
+                    Path(row.original_filename or row.filename).name
+                    for _, row, _ in scored[:4]
+                ),
+            )
+        document = scored[0][1]
+        content = scored[0][2]
         if content.state not in {
             FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
         }:
             return _DocumentResolution(content.state, "opis dokumentu", document.id)
         return _DocumentResolution("UNIQUE_MATCH", "opis dokumentu", document.id)
+
+    @classmethod
+    def _document_discovery_terms(cls, folded: str) -> tuple[set[str], set[str]]:
+        stop = {
+            "tego", "ten", "jest", "ktory", "ktorego", "klienta", "dokumentach",
+            "znajdz", "wyszukaj", "przeanalizuj", "zawiera", "plik", "pdf", "podaj",
+            "wnioski", "dokument", "raport",
+        }
+        query_tokens = {
+            token for token in re.findall(r"[a-z0-9]+", folded)
+            if len(token) >= 3 and token not in stop
+        }
+        expanded = set(query_tokens)
+        concepts = (
+            (
+                ("grunt", "geotechn", "badanie podloza", "badanie gruntu"),
+                {
+                    "grunt", "geotechn", "geolog", "podloz", "odwiert", "sondow",
+                    "warstw", "woda grunt", "zwierciadl", "nosnosc", "osiad",
+                    "fundament", "warunki grunt", "dokumentacja badan",
+                },
+            ),
+            (("wilgot", "zawilgoc", "izolac"), {"wilgot", "zawilgoc", "izolac", "woda", "przeciek"}),
+            (("pekni", "rysa", "uszkodz"), {"pekni", "rysa", "uszkodz", "odksztalc", "konstruk"}),
+        )
+        for triggers, terms in concepts:
+            if any(trigger in folded for trigger in triggers):
+                expanded.update(terms)
+        return query_tokens, expanded
+
+    @classmethod
+    def _document_metadata_score(
+        cls, document: Document, *, query_tokens: set[str], expanded_terms: set[str],
+        address_tokens: set[str], expects_pdf: bool,
+    ) -> int:
+        name = cls._fold_intent(document.original_filename or document.filename or "")
+        name_tokens = set(re.findall(r"[a-z0-9]+", name))
+        direct = len(query_tokens & name_tokens)
+        expanded = sum(1 for term in expanded_terms if term in name)
+        address = len(address_tokens & name_tokens)
+        score = direct * 3 + min(8, expanded * 2) + min(6, address * 2)
+        if expects_pdf and "pdf" in str(getattr(document, "content_type", "") or "").casefold():
+            score += 1
+        return score
 
     def _document_has_content(self, document: Document) -> bool:
         return self.document_content.access(document).state in {
@@ -1052,8 +1303,12 @@ class UnifiedAssistantService:
     def _document_resolution_response(
         request: UnifiedAssistantRequest, resolution: _DocumentResolution
     ) -> UnifiedAssistantResponse:
+        ambiguous = "Znalazłem kilka dokumentów pasujących do opisu."
+        if resolution.candidate_titles:
+            ambiguous += " Możliwe pliki: " + "; ".join(resolution.candidate_titles) + "."
+        ambiguous += " Wskaż jeden z nich."
         messages = {
-            "AMBIGUOUS": "Znalazłem kilka dokumentów pasujących do tej nazwy. Wybierz właściwy plik.",
+            "AMBIGUOUS": ambiguous,
             "NOT_FOUND": "Nie znalazłem wskazanego pliku w dokumentach tego klienta.",
             FILE_FOUND_REQUIRES_OCR: "Wskazany plik jest skanem i wymaga dozwolonej analizy obrazu lub OCR.",
             FILE_FOUND_PROCESSING_PENDING: "Wskazany plik jest zapisany, ale jego przetwarzanie jeszcze trwa.",
@@ -1476,11 +1731,20 @@ class UnifiedAssistantService:
             # technical memory in joint Client/document + KB reasoning.
             sources = sources[:max(0, MAX_SOURCES - kb_limit)]
             try:
-                rows = KnowledgeBaseRetrievalService(self.db).search(
-                    kb_resolution.reference if kb_resolution else request.question,
-                    limit=kb_limit, method="hybrid", include_superseded=False,
-                    item_id=kb_resolution.item_id if kb_resolution else None,
-                )
+                if kb_resolution is not None and self._is_kb_overview_request(request.question):
+                    rows = self._kb_overview_rows(kb_resolution, limit=kb_limit)
+                    if not rows:
+                        rows = KnowledgeBaseRetrievalService(self.db).search(
+                            kb_resolution.reference or request.question,
+                            limit=kb_limit, method="hybrid", include_superseded=False,
+                            item_id=kb_resolution.item_id,
+                        )
+                else:
+                    rows = KnowledgeBaseRetrievalService(self.db).search(
+                        kb_resolution.reference if kb_resolution else request.question,
+                        limit=kb_limit, method="hybrid", include_superseded=False,
+                        item_id=kb_resolution.item_id if kb_resolution else None,
+                    )
             except Exception:
                 rows = []
             if rows:
@@ -1512,6 +1776,85 @@ class UnifiedAssistantService:
                     "source_keys": [(source.source_type, source.source_id, source.route)],
                 })
         return _Collected(sources=sources[:MAX_SOURCES], tool_payloads=payloads, tools=tools, client_id=client_id, visual_available=visual_available)
+
+    def _kb_overview_rows(
+        self, resolution: _KnowledgeBaseResolution, *, limit: int
+    ) -> list[dict[str, Any]]:
+        item = self.db.get(KnowledgeBaseItem, resolution.item_id)
+        if item is None or item.status != "current" or item.archived_at is not None:
+            return []
+        ranked: list[tuple[int, int, str]] = []
+        seen: set[str] = set()
+        for page in list(item.pages)[:400]:
+            excerpt, score = self._substantive_kb_excerpt(page.text or "")
+            fingerprint = self._fold_intent(excerpt)[:180]
+            if score < 4 or not fingerprint or fingerprint in seen:
+                continue
+            seen.add(fingerprint)
+            ranked.append((score, int(page.page_number), excerpt))
+        ranked.sort(key=lambda row: (-row[0], row[1]))
+        return [{
+            "knowledge_base_item_id": item.id,
+            "title": item.title,
+            "publisher": item.publisher,
+            "version": item.version,
+            "effective_date": item.effective_date,
+            "category": item.category,
+            "status": item.status,
+            "source_file": item.original_filename,
+            "page": page_number,
+            "excerpt": excerpt,
+            "retrieval_method": "overview_substantive",
+        } for score, page_number, excerpt in ranked[:limit]]
+
+    @classmethod
+    def _substantive_kb_excerpt(cls, text: str) -> tuple[str, int]:
+        normalized = " ".join((text or "").split())
+        if not normalized:
+            return "", 0
+        parts = [
+            part.strip(" -–—•\t")
+            for part in re.split(r"(?<=[.!?;:])\s+|\s+[•▪]\s+", normalized)
+            if 45 <= len(part.strip()) <= 700
+        ]
+        if not parts and 80 <= len(normalized):
+            parts = [normalized[:700]]
+
+        def score(part: str) -> int:
+            folded = cls._fold_intent(part)
+            tokens = re.findall(r"[a-z0-9]+", folded)
+            unique = {token for token in tokens if len(token) >= 5}
+            value = min(8, len(unique) // 3)
+            if 90 <= len(part) <= 420:
+                value += 3
+            if re.search(
+                r"\b(?:nalezy|powinien|zalezy|wymaga|okresla|projekt|oblicz|"
+                r"grunt|fundament|nosnosc|osiad|obciaz|warstw|woda|konstruk|"
+                r"wykon|sprawd|weryfik|stateczn|odksztalc)\w*\b", folded
+            ):
+                value += 5
+            if re.search(
+                r"\b(?:isbn|copyright|wydawnictw|autor|instytut|komitet|"
+                r"spis tresci|przedmowa|strona|rysunek|tablica)\b", folded
+            ):
+                value -= 7
+            digit_ratio = sum(char.isdigit() for char in part) / max(1, len(part))
+            if digit_ratio > 0.12:
+                value -= 4
+            if len(tokens) < 8:
+                value -= 4
+            return value
+
+        selected = sorted(
+            ((score(part), index, part) for index, part in enumerate(parts)),
+            key=lambda row: (-row[0], row[1]),
+        )[:2]
+        selected = [row for row in selected if row[0] >= 2]
+        if not selected:
+            return "", 0
+        selected.sort(key=lambda row: row[1])
+        excerpt = " ".join(row[2] for row in selected)[:600]
+        return excerpt, sum(row[0] for row in selected)
 
     @staticmethod
     def _route(request: UnifiedAssistantRequest, client_id: int | None) -> list[tuple[str, dict[str, Any]]]:

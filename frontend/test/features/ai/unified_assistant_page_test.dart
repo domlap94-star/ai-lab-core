@@ -83,6 +83,24 @@ void main() {
       expect(api.conversations.last, isEmpty);
     },
   );
+
+  testWidgets(
+    'terminal retrieval failure does not claim a general-knowledge answer or Sources',
+    (tester) async {
+      await _pump(tester, api: _TerminalFailureApi());
+      await tester.enterText(
+        find.byKey(const Key('unified-ai-question')),
+        'Znajdź opisany dokument',
+      );
+      await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
+      await tester.tap(find.byKey(const Key('unified-ai-send')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('unified-ai-error')), findsOneWidget);
+      expect(find.byKey(const Key('unified-ai-answer')), findsNothing);
+      expect(find.byKey(const Key('unified-ai-sources')), findsNothing);
+      expect(find.textContaining('wiedzy ogólnej'), findsNothing);
+    },
+  );
 }
 
 Future<void> _pump(WidgetTester tester, {UnifiedAssistantApi? api}) async {
@@ -232,4 +250,32 @@ class _RecordingApi extends _Api {
       cancelToken: cancelToken,
     );
   }
+}
+
+class _TerminalFailureApi extends _Api {
+  @override
+  Future<UnifiedAssistantAnswer> ask({
+    required AuthSession session,
+    required String question,
+    required List<Map<String, String>> conversation,
+    int? clientId,
+    int? candidateId,
+    int? documentId,
+    int? mailSourceId,
+    int? inspectionId,
+    String? attemptId,
+    CancelToken? cancelToken,
+  }) async => const UnifiedAssistantAnswer(
+    requestId: 'terminal-failure',
+    answer: '',
+    status: 'review_required',
+    progress: 'complete',
+    targetScope: 'TARGET_01',
+    claims: [],
+    sources: [],
+    usedTools: [],
+    externalAnalysisUsed: false,
+    errorMessage: 'Nie znaleziono dokumentu.',
+    currentStage: 'document_resolution',
+  );
 }

@@ -171,7 +171,8 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
                         ),
                 ),
                 if (error != null) errorCard(),
-                if (result != null && !result!.isPending) answerView(result!),
+                if (result != null && _hasRenderableAnswer(result!))
+                  answerView(result!),
               ],
             ),
           ),
@@ -216,7 +217,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
           title: const Text('Źródła'),
           subtitle: Text(
             answer.sources.isEmpty
-                ? 'Brak źródeł z danych klienta. Odpowiedź oparta na wiedzy ogólnej modelu.'
+                ? 'Odpowiedź oparta na wiedzy ogólnej.'
                 : '${answer.sources.length} użytych źródeł',
           ),
           children: answer.sources.map(sourceTile).toList(growable: false),
@@ -227,6 +228,12 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       ],
     ),
   );
+
+  bool _hasRenderableAnswer(UnifiedAssistantAnswer answer) =>
+      !answer.isPending &&
+      (answer.status == 'accepted_local' ||
+          answer.status == 'accepted_advanced') &&
+      answer.answer.trim().isNotEmpty;
 
   Widget claimCard(UnifiedAssistantClaim claim) {
     final label = switch (claim.claimClass) {

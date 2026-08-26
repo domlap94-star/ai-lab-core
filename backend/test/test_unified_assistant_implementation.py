@@ -22,6 +22,7 @@ from app.services.unified_assistant_service import (
 from app.services.unified_document_content_service import (
     FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
     UnifiedDocumentContent,
+    UnifiedDocumentPage,
 )
 
 
@@ -516,6 +517,71 @@ def test_described_document_resolution_fails_closed_on_ambiguous_same_client(mon
     ))
     assert resolution is not None
     assert resolution.state == "AMBIGUOUS"
+    assert len(resolution.candidate_titles) == 2
+    response = UnifiedAssistantService._document_resolution_response(
+        UnifiedAssistantRequest(question="Znajdź badanie gruntu.", client_id=7), resolution
+    )
+    assert "badanie-gruntu-a.pdf" in (response.error_message or "")
+
+
+def test_described_document_resolution_uses_bounded_same_client_content(monkeypatch):
+    target = SimpleNamespace(
+        id=91, client_id=7, original_filename="lesna-12.pdf", filename="stored-91.pdf",
+        content_type="application/pdf",
+    )
+    invoice = SimpleNamespace(
+        id=92, client_id=7, original_filename="faktura.pdf", filename="stored-92.pdf",
+        content_type="application/pdf",
+    )
+    class Query:
+        def filter(self, *args): return self
+        def all(self): return [target, invoice]
+    class Db:
+        def query(self, *args): return Query()
+        def get(self, model, item_id):
+            return SimpleNamespace(street="Leśna", building_number="12", postal_code=None, city=None)
+    service = UnifiedAssistantService(Db(), llm_client=SimpleNamespace())
+    def access(document, **kwargs):
+        text = (
+            "Dokumentacja badań podłoża opisuje odwierty, warstwy gruntu, poziom wody "
+            "gruntowej i warunki geotechniczne."
+            if document.id == 91 else "Rozliczenie usług i termin płatności."
+        )
+        return UnifiedDocumentContent(
+            state=FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+            pages=(UnifiedDocumentPage(1, text, "fixture"),), character_count=len(text),
+        )
+    monkeypatch.setattr(service.document_content, "access", access)
+    resolution = service._resolve_required_document(UnifiedAssistantRequest(
+        question="W dokumentach tego klienta jest badanie gruntu. Znajdź je i przeanalizuj.",
+        client_id=7,
+    ))
+    assert resolution is not None
+    assert resolution.state == "UNIQUE_MATCH"
+    assert resolution.document_id == 91
+    assert "Leśna" not in (resolution.reference or "")
+
+
+def test_described_document_content_search_never_widens_to_other_client(monkeypatch):
+    allowed = SimpleNamespace(
+        id=91, client_id=7, original_filename="notatka.pdf", filename="stored-91.pdf",
+        content_type="application/pdf",
+    )
+    class Query:
+        def filter(self, *args): return self
+        def all(self): return [allowed]
+    db = SimpleNamespace(query=lambda *args: Query(), get=lambda *args: None)
+    service = UnifiedAssistantService(db, llm_client=SimpleNamespace())
+    monkeypatch.setattr(service.document_content, "access", lambda document, **kwargs: UnifiedDocumentContent(
+        state=FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
+        pages=(UnifiedDocumentPage(1, "Notatka handlowa dotycząca terminu spotkania.", "fixture"),),
+        character_count=45,
+    ))
+    resolution = service._resolve_required_document(UnifiedAssistantRequest(
+        question="Znajdź badanie gruntu tego klienta.", client_id=7,
+    ))
+    assert resolution is not None
+    assert resolution.state == "NOT_FOUND"
 
 
 @pytest.mark.asyncio

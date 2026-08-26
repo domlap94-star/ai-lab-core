@@ -335,3 +335,29 @@ Flutter changed, so +37 is superseded by non-stable +38 (SHA-256
 `02DF6A8F72C664CDE36FF8A860133CFC200B1BC5BBCE38D33027D40AF9DF84E1`).
 Owner physical retest remains required; CHUNK23 remains blocked. Evidence:
 `FOLLOWUP_P0_KB_LOCAL_STABILITY_AND_TIMEOUT_CONTRACT_REPORT.md`.
+
+## 2026-08-26 KB synthesis and semantic Client-document discovery postscript
+
+Owner +38 testing proved that exact KB retrieval and Sources were correct but
+the deterministic overview merely copied raw page fragments; a descriptive
+same-Client soil-report request also failed because the resolver searched only
+filenames. Empty terminal failures then displayed a false general-knowledge
+Sources caption.
+
+The overview now ranks substantive original pages, demotes title/header noise
+and creates a deterministic, page-bound technical concept synthesis. The live
+accepted KB artifact was too sparse to use. Qwen overview control timed out at
+106.65 seconds, whereas the selected deterministic path passed 10/10 at p50
+0.039 seconds and bounded p95 0.349 seconds. Same-Client document discovery now
+uses metadata followed by bounded read-only content relevance over an SQL
+allowlist; a live three-document control resolved the correct target despite
+zero filename overlap. Terminal failure results no longer render an answer or
+false Sources.
+
+Backend focused 163/163 and broader 171/171 pass; Flutter analyze, focused 5/5
+and full 306/306 pass. Runtime was reloaded and live KB/document controls pass.
+Flutter changed, so +38 is superseded by non-stable +39, SHA-256
+`CC54559EEE3C1648058B099BD11CA4CDB3D883090E7B15ADB199BA4482B33DB9`.
+Owner physical retest remains required; PRE-CHUNK23 is not complete and
+CHUNK23 remains blocked. Evidence:
+`FOLLOWUP_P0_KB_SYNTHESIS_AND_DOCUMENT_DISCOVERY_REPORT.md`.
