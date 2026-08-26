@@ -361,3 +361,21 @@ Flutter changed, so +38 is superseded by non-stable +39, SHA-256
 Owner physical retest remains required; PRE-CHUNK23 is not complete and
 CHUNK23 remains blocked. Evidence:
 `FOLLOWUP_P0_KB_SYNTHESIS_AND_DOCUMENT_DISCOVERY_REPORT.md`.
+
+## 2026-08-26 canonical file preparation / auto-resume design gate
+
+The owner replaced synchronous analysis of unprepared historical files with a
+durable prepare-on-ingress and lazy exact-file preparation architecture. A
+complete source/live audit found that Knowledge Base already has a durable
+processing job, but ordinary Documents have only state columns and the Vision
+dispatcher. Existing `analysis_jobs` cannot persist the bounded original
+request/result or bind it to a preparation generation.
+
+Additive revision `followup_assistant_file_pipeline_20260826` was prepared and
+passed isolated upgrade/downgrade/re-upgrade with zero backfill. It was not
+applied to production. No runtime worker, historical job, Flutter change or
+APK build was performed. Unified Assistant auto-resume remains blocked on
+`FOLLOWUP_ASSISTANT_FILE_PIPELINE_SCHEMA_APPROVAL_REQUIRED`; PRE-CHUNK23 stays
+physical-acceptance required and CHUNK23 remains blocked. Evidence and the
+complete ingress matrix:
+`FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.

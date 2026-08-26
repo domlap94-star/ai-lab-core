@@ -2634,3 +2634,27 @@ Backend was reloaded; health and public-ingress guard pass. Flutter changed, so
 PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
 REQUIRED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
 Evidence: `FOLLOWUP_P0_KB_SYNTHESIS_AND_DOCUMENT_DISCOVERY_REPORT.md`.
+
+**P0 CANONICAL FILE INGESTION + ON-DEMAND PREPARATION + ASSISTANT AUTO-RESUME
+— SCHEMA APPROVAL REQUIRED — 2026-08-26.** Owner-directed architecture now
+requires every supported new file ingress to enqueue bounded canonical
+preparation and requires an exact historical file requested by Unified
+Assistant to prepare once, persist progress, and resume the original question
+without a long HTTP request or Qwen residency. Source/live audit found that KB
+already has a durable processing job, while ordinary Documents have no
+preparation job/generation/lease ledger and `analysis_jobs` cannot persist or
+bind the wait/resume request and result.
+
+Additive revision `followup_assistant_file_pipeline_20260826` (parent
+`followup_backup_planner_retention_20260824`) creates the empty durable
+Document preparation ledger and extends existing AnalysisJob operational state
+for exact wait/resume binding. Isolated upgrade, downgrade and re-upgrade pass;
+historical Document/Assistant backfill is zero. Production migration/apply,
+runtime worker, historical processing, Flutter change and APK rebuild are all
+zero. Required owner gate:
+`FOLLOWUP_ASSISTANT_FILE_PIPELINE_SCHEMA_APPROVAL_REQUIRED`.
+
+PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
+BLOCKED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
+Evidence and complete ingress/format/queue/rollback design:
+`FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.
