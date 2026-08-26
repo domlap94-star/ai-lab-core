@@ -518,7 +518,7 @@ class DocumentArchiveImportService:
             ),
             processing_status="stored",
             processing_error=None,
-            vision_auto_eligible=True,
+            vision_auto_eligible=False,
             vision_status="not_evaluated",
             extracted_text=None,
             metadata_status="pending",
@@ -544,6 +544,13 @@ class DocumentArchiveImportService:
                 self.repository.create(
                     document
                 )
+            )
+
+            from app.services.document_preparation_service import DocumentPreparationService
+            DocumentPreparationService(self.repository.db).get_or_create(
+                document=created_document,
+                trigger="ingestion",
+                priority=2,
             )
 
             self.repository.commit()

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/friendly_api_error.dart';
 import '../../../core/widgets/app_shell.dart';
@@ -32,6 +33,8 @@ class UnifiedAssistantPage extends ConsumerStatefulWidget {
 }
 
 class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
+  static const _storage = FlutterSecureStorage();
+  static const _pendingRequestKey = 'unified_assistant_pending_request_v1';
   static const quickActions = <String>[
     'Podsumuj ten przypadek',
     'Co sprawdzić podczas wizji lokalnej?',
@@ -56,6 +59,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     clientId = widget.initialClientId;
     clientName = clientId == null ? null : 'Klient #$clientId';
     controller.text = widget.initialQuestion ?? '';
+    unawaited(_restorePendingRequest());
   }
 
   @override
@@ -329,9 +333,14 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
               ? _advancedProgress(result!)
               : 'Analizuję lokalnie',
         );
-        next = await ref
-            .read(unifiedAssistantApiProvider)
-            .ask(
+        next = result?.isDocumentPreparationPending == true &&
+                activeRequestId != null
+            ? await ref.read(unifiedAssistantApiProvider).status(
+                session: session,
+                requestId: activeRequestId!,
+                cancelToken: token,
+              )
+            : await ref.read(unifiedAssistantApiProvider).ask(
               session: session,
               question: question,
               conversation: List.unmodifiable(
@@ -356,9 +365,13 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
               ? _advancedProgress(next)
               : 'Weryfikuję wynik';
         });
+        if (next.isDocumentPreparationPending) {
+          await _storage.write(key: _pendingRequestKey, value: next.requestId);
+        }
         if (next.isPending) {
           final started = advancedStartedAt ??= DateTime.now();
-          if (DateTime.now().difference(started) >=
+          if (!next.isDocumentPreparationPending &&
+              DateTime.now().difference(started) >=
               const Duration(seconds: 185)) {
             await cancel();
             throw TimeoutException('advanced_analysis_timeout');
@@ -366,6 +379,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
           await pollDelay(token);
         }
       } while (next.isPending);
+      await _storage.delete(key: _pendingRequestKey);
       if (next.status == 'accepted_local' ||
           next.status == 'accepted_advanced') {
         conversation
@@ -408,6 +422,19 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   }
 
   String _advancedProgress(UnifiedAssistantAnswer answer) {
+    if (answer.isDocumentPreparationPending) {
+      return switch (answer.currentStage) {
+        'received' || 'queued' => 'W kolejce do przygotowania.',
+        'validating' => 'Sprawdzam plik.',
+        'extracting' => 'Wyodrębniam treść.',
+        'rendering' => 'Przygotowuję strony dokumentu.',
+        'ocr_required' || 'ocr_processing' => 'Rozpoznaję skan.',
+        'vision_processing' => 'Analizuję materiał.',
+        'local_analysis' || 'resume_queued' =>
+          'Dokument jest gotowy. Przygotowuję odpowiedź.',
+        _ => 'Znalazłem dokument. Przygotowuję go do analizy.',
+      };
+    }
     if (answer.delayed) return 'Analiza trwa dłużej niż zwykle.';
     return answer.currentStage == 'QUEUED'
         ? 'Oczekiwanie na analizę rozszerzoną'
@@ -445,6 +472,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     cancelToken?.cancel('Anulowano przez użytkownika');
     cancelToken = null;
     activeRequestId = null;
+    await _storage.delete(key: _pendingRequestKey);
     if (mounted) {
       setState(() {
         loading = false;
@@ -453,6 +481,54 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     }
     if (requestId != null) {
       unawaited(_cancelDurable(requestId));
+    }
+  }
+
+  Future<void> _restorePendingRequest() async {
+    final requestId = await _storage.read(key: _pendingRequestKey);
+    if (requestId == null || requestId.isEmpty || !mounted) return;
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null || !mounted) return;
+    final token = CancelToken();
+    cancelToken = token;
+    setState(() {
+      loading = true;
+      activeRequestId = requestId;
+      progress = 'Sprawdzam stan przygotowania dokumentu.';
+    });
+    try {
+      while (mounted && !token.isCancelled) {
+        final next = await ref.read(unifiedAssistantApiProvider).status(
+          session: session,
+          requestId: requestId,
+          cancelToken: token,
+        );
+        if (!mounted || token.isCancelled) return;
+        setState(() {
+          result = next;
+          progress = next.isPending ? _advancedProgress(next) : 'Weryfikuję wynik';
+          error = next.isPending ? null : next.errorMessage;
+        });
+        if (!next.isPending) {
+          await _storage.delete(key: _pendingRequestKey);
+          break;
+        }
+        await pollDelay(token);
+      }
+    } on DioException catch (exception) {
+      if (mounted && !CancelToken.isCancel(exception)) {
+        if (exception.response?.statusCode == 404) {
+          await _storage.delete(key: _pendingRequestKey);
+        }
+        setState(() => error = friendlyApiError(
+          exception,
+          fallback: 'Nie udało się odczytać stanu analizy.',
+        ));
+      }
+    } finally {
+      if (mounted && identical(token, cancelToken)) {
+        setState(() => loading = false);
+      }
     }
   }
 

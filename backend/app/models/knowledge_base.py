@@ -72,11 +72,11 @@ class KnowledgeBasePage(Base):
 class AnalysisJob(Base):
     __tablename__ = "analysis_jobs"
     __table_args__ = (
-        CheckConstraint("status IN ('queued','local_processing','local_validating','advanced_queued','advanced_processing','awaiting_auth','awaiting_ui_fix','advanced_validating','accepted_local','accepted_advanced','review_required','failed','cancelled')", name="ck_analysis_jobs_status"),
+        CheckConstraint("status IN ('queued','document_preparation_queued','document_preparation_running','resume_queued','local_processing','local_validating','advanced_queued','advanced_processing','awaiting_auth','awaiting_ui_fix','advanced_validating','accepted_local','accepted_advanced','review_required','failed','cancelled')", name="ck_analysis_jobs_status"),
         CheckConstraint("sensitivity IN ('public_reference','internal_non_sensitive','customer_sanitizable','restricted_never_external')", name="ck_analysis_jobs_sensitivity"),
         Index("ix_analysis_jobs_status_updated", "status", "updated_at"),
         Index("uq_analysis_jobs_active_fingerprint", "analysis_type", "source_domain", "input_fingerprint", unique=True,
-              postgresql_where=text("status IN ('queued','local_processing','local_validating','advanced_queued','advanced_processing','awaiting_auth','awaiting_ui_fix','advanced_validating')")),
+              postgresql_where=text("status IN ('queued','document_preparation_queued','document_preparation_running','resume_queued','local_processing','local_validating','advanced_queued','advanced_processing','awaiting_auth','awaiting_ui_fix','advanced_validating')")),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     analysis_type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -95,6 +95,13 @@ class AnalysisJob(Base):
     format_retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     quality_signals: Mapped[dict | None] = mapped_column(JSON)
     error_code: Mapped[str | None] = mapped_column(String(100))
+    attempt_id: Mapped[str | None] = mapped_column(String(80))
+    request_payload: Mapped[dict | None] = mapped_column(JSON)
+    result_payload: Mapped[dict | None] = mapped_column(JSON)
+    waiting_document_preparation_job_id: Mapped[str | None] = mapped_column(ForeignKey("document_preparation_jobs.id", ondelete="SET NULL"))
+    resume_generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

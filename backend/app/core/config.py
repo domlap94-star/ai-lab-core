@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     advanced_analysis_enabled: bool = False
     knowledge_base_processing_enabled: bool = False
     knowledge_base_vector_writes_enabled: bool = False
+    document_preparation_enabled: bool = False
     qdrant_knowledge_base_chunks_collection: str = "ai_lab_knowledge_base_chunks"
     backup_supervisor_url: str = "http://host.docker.internal:8787"
     backup_root: str = "C:\\ai-lab-core-backups"

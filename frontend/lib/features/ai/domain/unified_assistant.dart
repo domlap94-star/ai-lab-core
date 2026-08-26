@@ -127,7 +127,13 @@ class UnifiedAssistantAnswer {
         delayed: json['delayed'] as bool? ?? false,
       );
   bool get isPending =>
-      status == 'advanced_queued' || status == 'advanced_processing';
+      status == 'advanced_queued' ||
+      status == 'advanced_processing' ||
+      isDocumentPreparationPending;
+  bool get isDocumentPreparationPending =>
+      status == 'document_preparation_queued' ||
+      status == 'document_preparation_running' ||
+      status == 'resume_queued';
   final String requestId;
   final String answer;
   final String status;

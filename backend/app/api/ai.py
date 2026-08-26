@@ -80,6 +80,18 @@ async def cancel_unified_assistant(
         raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej analizy.") from error
 
 
+@router.get("/assistant/{request_id}", response_model=UnifiedAssistantResponse)
+async def get_unified_assistant_status(
+    request_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UnifiedAssistantResponse:
+    try:
+        return await UnifiedAssistantService(db).status(request_id=request_id, user_id=current_user.id)
+    except UnifiedAssistantContextError as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej analizy.") from error
+
+
 @router.post("/agent/ask", response_model=AgentAskResponse)
 async def ask_agent(
     request: AgentAskRequest,

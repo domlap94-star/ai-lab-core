@@ -6,9 +6,116 @@ Source baseline: `26e2b8e6a6b06df36dc9a8364a804f13eb607474`
 
 Stable: `NEXT Stabil 1.0.2+29`
 
-Decision: `FOLLOWUP_ASSISTANT_FILE_PIPELINE_SCHEMA_APPROVAL_REQUIRED`
+Decision: `P0_FILE_PREPARATION_AUTO_RESUME_RESOLVED_PHYSICAL_RETEST_REQUIRED`
 
-## Outcome
+## Approved implementation outcome
+
+Owner approval for the exact additive schema gate was consumed on 2026-08-26.
+Before migration, the canonical CHUNK15 database checkpoint was created at
+`C:\ai-lab-core-backups\20260826T050248Z`. Its manifest SHA-256 is
+`1C2C5384FFE5DC02ECE1C376ADD9B3827DB8F12BD58A550270CC489DC57D90C6`
+and its database dump SHA-256 is
+`64410699A4444FCDADA25BB45AD88DB3953A0885B2FF650B5C97FB96FB17FB28`.
+The checkpoint records the exact parent DB head and source HEAD.
+
+Revision `followup_assistant_file_pipeline_20260826`, parent
+`followup_backup_planner_retention_20260824`, passed a fresh isolated
+upgrade/downgrade/re-upgrade roundtrip and was then applied to production.
+Production now has one exact Alembic head:
+`followup_assistant_file_pipeline_20260826`. Migration-time historical
+Document job backfill is zero, Assistant payload backfill is zero, and the
+live post-deploy ledger remains empty until a new ingress or exact on-demand
+request creates work.
+
+The approved runtime is implemented as one orchestration adapter over the
+existing Document processors. `DocumentService` creates the preparation row
+in the same transaction as every normal canonical Document ingress;
+`DocumentArchiveImportService` does the same for a bounded archive child.
+Consequently Documents workspace, Client, Candidate/import, incoming Mail,
+Task, Note, Project/Realization, Visit/Inspection and camera/gallery adapters
+all converge on the same ledger without a duplicate byte store. Knowledge
+Base remains on its separate CHUNK16 job pipeline.
+
+The generation key is exactly `document_id + input_checksum +
+processor_generation`. A Document row lock serializes generation decisions,
+the database unique constraint prevents duplicates, only one active
+generation may exist, and changed bytes require a new checksum generation.
+The initial scheduler is deliberately conservative: one worker, satisfying
+both native concurrency `<=2` and heavy OCR/Vision concurrency `<=1`.
+Priority is P0 Assistant wait, P1 interactive upload, P2 Mail/background and
+P3 maintenance; half-hour aging prevents permanent starvation. A saturated
+queue does not roll back ingestion.
+
+Before parser routing, a bounded signature classifier checks extension,
+declared MIME and magic/container structure. It supports the formats already
+backed by repository processors, including PDF, Office containers, legacy
+Office signatures, safe text/CSV, RFC822 and supported images. Executable
+signatures and EXE/MSI/BAT/CMD/PS1/JS/DLL/APK, RAR/7Z/video, encrypted or
+oversized Office containers, and MIME/signature mismatches fail closed. No
+new parser or system dependency was installed.
+
+For an exact historical Document that is not READY, Unified Assistant now
+creates or attaches to the canonical preparation generation and persists a
+bounded `unified_assistant_wait` consumer. The initial request returns
+immediately with a preparation status. Flutter polls the durable request ID,
+stores only that opaque ID in secure storage, restores polling after app
+reopen, and displays only backend-proven stages. Cancellation detaches the
+consumer and prevents stale binding but does not cancel shared preparation.
+
+When READY is reached, the dispatcher revalidates the active user, scope,
+Document identity, checksum and processor generation, increments the resume
+generation once, performs reasoning, and persists the final bounded response.
+No token or credential is persisted. Startup recovery reclaims only expired
+preparation leases and stale local-resume attempts, with bounded attempt
+counts. Qwen is not loaded during extraction/render/OCR; live post-deploy
+`ollama ps` showed only the embedding model resident.
+
+Images and scanned PDFs use the existing local extraction/render/OCR
+processors. Automatic external Temporary Chat/Vision transmission during
+ingestion is forbidden and remains disabled. A visual-only file without
+locally validated evidence ends in the truthful controlled-Vision-required
+state instead of fabricating READY or sending proprietary bytes externally.
+
+Verification passed:
+
+- migration isolated upgrade/downgrade/re-upgrade and production post-audit;
+- signature safety unit matrix;
+- isolated ledger/idempotency/wait/cancel/prepare/auto-resume integration;
+- backend compile/import and live OpenAPI/health checks;
+- frozen F0 50/50 automatic replay: overall 88.03, factual/evidence 94.50%,
+  wrong sources 0, privacy failures 0, one bounded estimate hard-failure case;
+- Flutter analyze: no issues;
+- focused Unified Assistant Flutter: 6/6;
+- full Flutter: 307/307.
+
+The backend was actually recreated with only the backend service affected.
+Postgres, Qdrant, Ollama, Supervisor, n8n and other services were not
+restarted. Host/runtime SHA-256 matches for the preparation service,
+dispatcher, Unified Assistant service and API. Backend health, live schema,
+public-ingress guard and the new status endpoint pass. Qdrant stayed read-only
+at 57 customer points and 56 Knowledge Base points.
+
+Flutter changed, so +39 is superseded. The non-stable physical candidate is:
+
+- `C:\ai-lab-core\staging\android\NEXT-Stabil-1.0.2+40-file-preparation-auto-resume-candidate.apk`;
+- version `1.0.2+40`, application ID `pl.ailab.app`;
+- SHA-256 `F774D2D07C69EDFF0E398B13A163A0C1EEC479B36F3DBD36E942521EC33B1FFD`;
+- signer SHA-256 `5e223da2da7c893d089d7333e99aaeee8d98c9cdf72be80609020967368fe018`;
+- v2 signature verified, release non-debuggable, cleartext disabled, canonical
+  HTTPS API embedded;
+- published: no.
+
+No historical production Document was guessed or processed by Codex. The
+single approved historical acceptance path remains owner-driven: the physical
+query will bind the exact selected Client Document and create only its exact
+generation. Therefore source/runtime is PASS and owner physical +40 retest is
+still required. PRE-CHUNK23 remains incomplete and CHUNK23 remains blocked.
+
+## Historical design-gate outcome (before owner approval)
+
+The following section records the pre-approval state at source baseline
+`26e2b8e6a6b06df36dc9a8364a804f13eb607474`; it is retained as design and audit
+history. The implementation outcome above supersedes its operational status.
 
 The source and live read-only audit proves that the requested durable
 preparation/auto-resume contract cannot be implemented safely on the current

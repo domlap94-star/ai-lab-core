@@ -379,3 +379,34 @@ APK build was performed. Unified Assistant auto-resume remains blocked on
 physical-acceptance required and CHUNK23 remains blocked. Evidence and the
 complete ingress matrix:
 `FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.
+
+## 2026-08-26 canonical file preparation / auto-resume implementation
+
+The owner approved the exact additive revision
+`followup_assistant_file_pipeline_20260826`. A canonical DB checkpoint was
+verified first, the isolated migration roundtrip passed again, and production
+was advanced from `followup_backup_planner_retention_20260824` to the one exact
+new head. Migration backfill and live historical preparation rows are zero.
+
+All new canonical Document ingresses now atomically create an idempotent
+checksum/generation preparation job, while Knowledge Base remains separate.
+The bounded worker composes the existing extraction/render/OCR/content
+services, applies a fail-closed file signature gate and never requires customer
+Qdrant indexing for READY. Exact unprepared historical Documents cause an
+immediate durable wait response rather than a long HTTP request. Flutter polls
+and restores that opaque request across app reopen; READY triggers a guarded,
+exact-once Assistant resume after user/scope/checksum/generation revalidation.
+Cancel removes only the consumer and blocks stale result binding.
+
+Isolated ledger/auto-resume and format tests pass. Frozen F0 remains 88.03
+overall / 94.50% factual-evidence with 0 wrong sources and 0 privacy failures.
+Flutter analyze, focused 6/6 and full 307/307 pass. The backend was actually
+recreated and host/runtime source hashes, DB head, health, OpenAPI and public
+ingress all pass; Qdrant remained unchanged at 57/56 points.
+
+Flutter changed, so +39 is superseded by non-stable +40 at
+`C:\ai-lab-core\staging\android\NEXT-Stabil-1.0.2+40-file-preparation-auto-resume-candidate.apk`,
+SHA-256 `F774D2D07C69EDFF0E398B13A163A0C1EEC479B36F3DBD36E942521EC33B1FFD`.
+No historical file was guessed or processed; the owner physical flow will
+identify the single authorized Document. Status is SOURCE/RUNTIME PASS /
+OWNER PHYSICAL RETEST REQUIRED. CHUNK23 remains blocked.

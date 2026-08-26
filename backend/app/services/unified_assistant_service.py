@@ -19,11 +19,13 @@ from app.ai.clients.ollama_client import OllamaClient
 from app.models.client_candidate import ClientCandidate
 from app.models.client import Client
 from app.models.document import Document
+from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.document_page import DocumentPage
 from app.models.inspection import Inspection
 from app.models.knowledge_base import (
     AnalysisJob, KnowledgeBaseAnalysisArtifact, KnowledgeBaseItem,
 )
+from app.models.user import User
 from app.schemas.agent import AgentSource
 from app.schemas.analysis import (
     AnalysisContextLimits, AnalysisProvenance, AnalysisQualitySignals,
@@ -50,6 +52,7 @@ from app.services.unified_document_content_service import (
     INTEGRITY_MISMATCH,
     UnifiedDocumentContentService,
 )
+from app.services.document_preparation_service import DocumentPreparationService
 
 
 MODEL = "qwen3.5:9b"
@@ -171,8 +174,13 @@ class UnifiedAssistantService:
         }:
             return self._kb_resolution_response(effective_request, kb_resolution)
         resolution = self._resolve_required_document(effective_request)
-        if resolution is not None and resolution.state not in {"EXACT_MATCH", "UNIQUE_MATCH"}:
-            return self._document_resolution_response(effective_request, resolution)
+        if resolution is not None:
+            if resolution.document_id is not None and self._document_needs_preparation(resolution.document_id):
+                return self._queue_document_preparation(
+                    effective_request, resolution.document_id, user_id
+                )
+            if resolution.state not in {"EXACT_MATCH", "UNIQUE_MATCH"}:
+                return self._document_resolution_response(effective_request, resolution)
         effective_request = effective_request.model_copy(update={"document_id": resolution.document_id}) if resolution else effective_request
         collected = self._collect(effective_request, kb_resolution=kb_resolution)
         if (
@@ -1016,6 +1024,10 @@ class UnifiedAssistantService:
         job = self.db.get(AnalysisJob, request_id)
         if job is None or job.created_by_user_id != user_id:
             raise UnifiedAssistantContextError("analysis_job_not_found")
+        if job.analysis_type == "unified_assistant_wait" and job.status in {
+            "accepted_local", "accepted_advanced", "review_required", "failed", "cancelled"
+        }:
+            return self._preparation_response(job)
         if job.status in {"accepted_local", "accepted_advanced", "review_required", "failed", "cancelled"}:
             return self._advanced_response(job, _Collected([], [], [], None, False))
         if job.external_job_id:
@@ -1027,8 +1039,108 @@ class UnifiedAssistantService:
         job.decision = "cancelled"
         job.error_code = None
         job.finished_at = datetime.now(UTC)
+        job.cancel_requested_at = job.finished_at
         self.db.flush()
+        if job.analysis_type == "unified_assistant_wait":
+            self.db.commit()
+            return self._preparation_response(job)
         return self._advanced_response(job, _Collected([], [], [], None, False))
+
+    def _document_needs_preparation(self, document_id: int) -> bool:
+        document = self.db.get(Document, document_id)
+        if document is None:
+            return False
+        if document.processing_status != "processed":
+            return True
+        pages = self.db.query(DocumentPage).filter(DocumentPage.document_id == document_id).all()
+        return not bool(
+            (document.extracted_text or "").strip()
+            or any((page.extracted_text or page.ocr_text or page.vision_analysis or "").strip() for page in pages)
+        )
+
+    def _queue_document_preparation(
+        self, request: UnifiedAssistantRequest, document_id: int, user_id: int
+    ) -> UnifiedAssistantResponse:
+        document = self.db.query(Document).filter(
+            Document.id == document_id, Document.trashed_at.is_(None), Document.purged_at.is_(None)
+        ).one_or_none()
+        if document is None:
+            raise UnifiedAssistantContextError("document_scope_invalid")
+        if request.client_id is not None and document.client_id not in {None, request.client_id}:
+            raise UnifiedAssistantContextError("document_scope_invalid")
+        preparation, _ = DocumentPreparationService(self.db).get_or_create(
+            document=document, trigger="assistant", priority=0, created_by_user_id=user_id
+        )
+        canonical = json.dumps({
+            "request": request.model_dump(mode="json"), "preparation_job_id": preparation.id,
+            "checksum": preparation.input_checksum, "generation": preparation.processor_generation,
+        }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        fingerprint = hashlib.sha256(canonical.encode()).hexdigest()
+        wait_id = str(uuid.UUID(fingerprint[:32]))
+        wait = self.db.get(AnalysisJob, wait_id)
+        if wait is None:
+            wait = AnalysisJob(
+                id=wait_id, analysis_type="unified_assistant_wait", source_domain="document",
+                status="document_preparation_running" if preparation.status == "running" else "document_preparation_queued",
+                sensitivity="restricted_never_external", input_fingerprint=fingerprint,
+                attempt_id=request.attempt_id, request_payload=request.model_dump(mode="json"),
+                waiting_document_preparation_job_id=preparation.id, resume_generation=0,
+                last_progress_at=datetime.now(UTC), created_by_user_id=user_id,
+            )
+            self.db.add(wait)
+        self.db.commit()
+        self.db.refresh(wait)
+        return self._preparation_response(wait, preparation)
+
+    def _preparation_response(
+        self, job: AnalysisJob, preparation: DocumentPreparationJob | None = None
+    ) -> UnifiedAssistantResponse:
+        if isinstance(job.result_payload, dict):
+            return UnifiedAssistantResponse.model_validate(job.result_payload)
+        preparation = preparation or (
+            self.db.get(DocumentPreparationJob, job.waiting_document_preparation_job_id)
+            if job.waiting_document_preparation_job_id else None
+        )
+        if job.status == "cancelled":
+            return UnifiedAssistantResponse(
+                request_id=job.id, answer="", status="cancelled", progress="complete",
+                target_scope=TARGET, claims=[], sources=[], used_tools=[], model=None,
+                error_message="Analiza została anulowana.", current_stage="cancelled", can_cancel=False,
+            )
+        if preparation is not None and preparation.status in {"failed", "unsupported", "integrity_failed"}:
+            messages = {
+                "unsupported": "Nie mogę obecnie przetworzyć tego typu pliku. Wyeksportuj lub prześlij go ponownie w obsługiwanym formacie.",
+                "integrity_failed": "Integralność pliku nie zgadza się z zapisem systemowym. Analiza została zatrzymana.",
+            }
+            response = UnifiedAssistantResponse(
+                request_id=job.id, answer="", status="review_required", progress="complete",
+                target_scope=TARGET, claims=[], sources=[], used_tools=[], model=None,
+                error_message=messages.get(preparation.status, "Nie udało się przygotować dokumentu do analizy."),
+                current_stage=preparation.stage, can_cancel=False,
+                last_progress_at=preparation.updated_at.isoformat() if preparation.updated_at else None,
+            )
+            job.status = "review_required"; job.error_code = preparation.error_code
+            job.finished_at = datetime.now(UTC); job.result_payload = response.model_dump(mode="json")
+            self.db.commit()
+            return response
+        stage = preparation.stage if preparation is not None else "queued"
+        status = "document_preparation_running" if preparation is not None and preparation.status == "running" else (
+            "resume_queued" if job.status in {"resume_queued", "local_processing"} else "document_preparation_queued"
+        )
+        return UnifiedAssistantResponse(
+            request_id=job.id, answer="", status=status, progress="preparing_document",
+            target_scope=TARGET, claims=[], sources=[], used_tools=[], model=None,
+            current_stage=stage, can_cancel=True,
+            last_progress_at=(preparation.updated_at.isoformat() if preparation and preparation.updated_at else None),
+        )
+
+    async def status(self, *, request_id: str, user_id: int) -> UnifiedAssistantResponse:
+        job = self.db.get(AnalysisJob, request_id)
+        if job is None or job.created_by_user_id != user_id:
+            raise UnifiedAssistantContextError("analysis_job_not_found")
+        if job.analysis_type != "unified_assistant_wait":
+            return self._advanced_response(job, _Collected([], [], [], None, False))
+        return self._preparation_response(job)
 
     async def _unload_for_external_wait(self) -> None:
         try:
@@ -1073,12 +1185,6 @@ class UnifiedAssistantService:
                 return _DocumentResolution("NOT_FOUND", document_id=request.document_id)
             if request.client_id is not None and document.client_id not in {None, request.client_id}:
                 return _DocumentResolution("INVALID", document_id=request.document_id)
-            content = self.document_content.access(document, query=request.question)
-            if content.state not in {
-                FILE_FOUND_NATIVE_TEXT_AVAILABLE,
-                FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
-            }:
-                return _DocumentResolution(content.state, document_id=document.id)
             return _DocumentResolution(
                 "EXACT_MATCH", document.original_filename or document.filename, document.id
             )
@@ -1101,22 +1207,10 @@ class UnifiedAssistantService:
             return _DocumentResolution("AMBIGUOUS", reference)
         if len(named_rows) == 1:
             document = named_rows[0]
-            content = self.document_content.access(document, query=request.question)
-            if content.state not in {
-                FILE_FOUND_NATIVE_TEXT_AVAILABLE,
-                FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
-            }:
-                return _DocumentResolution(content.state, reference, document.id)
             return _DocumentResolution("EXACT_MATCH", reference, document.id)
         state, document = self._match_document_rows(reference, rows)
         if document is None:
             return _DocumentResolution(state, reference)
-        content = self.document_content.access(document, query=request.question)
-        if content.state not in {
-            FILE_FOUND_NATIVE_TEXT_AVAILABLE,
-            FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
-        }:
-            return _DocumentResolution(content.state, reference, document.id)
         return _DocumentResolution(state, reference, document.id)
 
     def _resolve_described_document(

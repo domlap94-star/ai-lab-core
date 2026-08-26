@@ -73,9 +73,10 @@ class UnifiedAssistantResponse(BaseModel):
     status: Literal[
         "accepted_local", "advanced_queued", "advanced_processing",
         "accepted_advanced", "review_required", "failed", "timed_out", "cancelled",
+        "document_preparation_queued", "document_preparation_running", "resume_queued",
     ]
     progress: Literal[
-        "collecting", "analyzing", "advanced_analysis", "validating", "complete"
+        "collecting", "preparing_document", "analyzing", "advanced_analysis", "validating", "complete"
     ]
     target_scope: str
     claims: list[UnifiedClaim]

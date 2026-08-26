@@ -2658,3 +2658,31 @@ PRE-CHUNK23 remains `UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE
 BLOCKED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
 Evidence and complete ingress/format/queue/rollback design:
 `FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.
+
+**P0 CANONICAL FILE PREPARATION + ASSISTANT AUTO-RESUME — SOURCE/RUNTIME PASS /
+OWNER PHYSICAL RETEST REQUIRED — 2026-08-26.** The owner consumed the exact
+schema approval for revision `followup_assistant_file_pipeline_20260826`.
+After a verified CHUNK15 database checkpoint and a repeated isolated
+upgrade/downgrade/re-upgrade proof, production was advanced to that single
+head with zero historical job or Assistant-payload backfill.
+
+New Document-backed ingresses now atomically create one checksum/generation
+preparation ledger row and are processed asynchronously by a bounded,
+lease-recoverable dispatcher over existing extraction/render/OCR services.
+Exact historical Documents are lazy only. Unified Assistant returns a durable
+preparation wait immediately, Flutter polls/restores it across app close, and
+READY triggers one guarded resume after authorization, scope, checksum and
+generation revalidation. Cancellation removes only the waiting consumer.
+Knowledge Base remains on CHUNK16, customer Qdrant is not a READY prerequisite,
+and no attachment is sent automatically to Temporary Chat/Vision.
+
+Migration, isolated ledger/auto-resume, file-safety, F0 and Flutter gates pass;
+the live backend is reloaded and public ingress is healthy. +39 is superseded
+by non-stable +40 (SHA-256
+`F774D2D07C69EDFF0E398B13A163A0C1EEC479B36F3DBD36E942521EC33B1FFD`).
+The owner must now install +40 and exercise the exact one-document physical
+prepare/wait/reopen/auto-resume flow. PRE-CHUNK23 remains `UNIFIED ASSISTANT
+IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 remains BLOCKED / NOT
+STARTED; stable remains `1.0.2+29`. Release F Ignore Mail address/domain remains
+required and was not implemented here. Evidence:
+`FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.

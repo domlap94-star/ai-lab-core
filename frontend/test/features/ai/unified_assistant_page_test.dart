@@ -8,9 +8,13 @@ import 'package:ai_lab/features/auth/domain/auth_session.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues(<String, String>{});
+  });
   testWidgets('single assistant has quick actions and no mode selector', (
     tester,
   ) async {
@@ -51,7 +55,7 @@ void main() {
     );
     await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
     await tester.tap(find.byKey(const Key('unified-ai-send')));
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.ensureVisible(find.text('Anuluj'));
     await tester.tap(find.text('Anuluj'));
     await tester.pumpAndSettle();
@@ -101,6 +105,25 @@ void main() {
       expect(find.textContaining('wiedzy ogólnej'), findsNothing);
     },
   );
+
+  testWidgets('document preparation polls durable status and resumes once', (
+    tester,
+  ) async {
+    final api = _PreparationApi();
+    await _pump(tester, api: api);
+    await tester.enterText(
+      find.byKey(const Key('unified-ai-question')),
+      'Przeanalizuj zapisany skan',
+    );
+    await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
+    await tester.tap(find.byKey(const Key('unified-ai-send')));
+    await tester.pump();
+    expect(find.text('Rozpoznaję skan.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(api.statusCalls, 1);
+    expect(find.byKey(const Key('unified-ai-answer')), findsOneWidget);
+  });
 }
 
 Future<void> _pump(WidgetTester tester, {UnifiedAssistantApi? api}) async {
@@ -278,4 +301,55 @@ class _TerminalFailureApi extends _Api {
     errorMessage: 'Nie znaleziono dokumentu.',
     currentStage: 'document_resolution',
   );
+}
+
+class _PreparationApi extends _Api {
+  int statusCalls = 0;
+
+  @override
+  Future<UnifiedAssistantAnswer> ask({
+    required AuthSession session,
+    required String question,
+    required List<Map<String, String>> conversation,
+    int? clientId,
+    int? candidateId,
+    int? documentId,
+    int? mailSourceId,
+    int? inspectionId,
+    String? attemptId,
+    CancelToken? cancelToken,
+  }) async => const UnifiedAssistantAnswer(
+    requestId: 'preparation-request',
+    answer: '',
+    status: 'document_preparation_running',
+    progress: 'preparing_document',
+    targetScope: 'TARGET_01',
+    claims: [],
+    sources: [],
+    usedTools: [],
+    externalAnalysisUsed: false,
+    currentStage: 'ocr_processing',
+    canCancel: true,
+  );
+
+  @override
+  Future<UnifiedAssistantAnswer> status({
+    required AuthSession session,
+    required String requestId,
+    CancelToken? cancelToken,
+  }) async {
+    statusCalls += 1;
+    return const UnifiedAssistantAnswer(
+      requestId: 'preparation-request',
+      answer: 'Dokument został przygotowany i przeanalizowany.',
+      status: 'accepted_local',
+      progress: 'complete',
+      targetScope: 'TARGET_01',
+      claims: [],
+      sources: [],
+      usedTools: [],
+      externalAnalysisUsed: false,
+      currentStage: 'complete',
+    );
+  }
 }

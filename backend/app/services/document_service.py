@@ -285,7 +285,10 @@ class DocumentService:
             ),
             processing_status="stored",
             processing_error=None,
-            vision_auto_eligible=True,
+            # Preparation is local. A future image may enter the controlled
+            # Vision path only from an explicit authorized analysis request;
+            # ingestion itself never sends an attachment externally.
+            vision_auto_eligible=False,
             vision_status="not_evaluated",
             match_status=(
                 "matched"
@@ -310,6 +313,16 @@ class DocumentService:
 
             created_document = self.repository.create(
                 document,
+            )
+
+            # The canonical preparation row and the business Document commit
+            # together. Heavy processing is claimed only after this commit.
+            from app.services.document_preparation_service import DocumentPreparationService
+            DocumentPreparationService(self.repository.db).get_or_create(
+                document=created_document,
+                trigger="ingestion",
+                priority=2 if source_type == "gmail_attachment" else 1,
+                created_by_user_id=(intake_metadata or {}).get("actor_user_id") if isinstance((intake_metadata or {}).get("actor_user_id"), int) else None,
             )
 
             if commit:

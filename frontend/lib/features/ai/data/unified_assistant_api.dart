@@ -62,4 +62,24 @@ class UnifiedAssistantApi {
     }
     return UnifiedAssistantAnswer.fromJson(response.data!);
   }
+
+  Future<UnifiedAssistantAnswer> status({
+    required AuthSession session,
+    required String requestId,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/api/v1/ai/assistant/$requestId',
+      options: Options(
+        headers: <String, Object>{
+          'Authorization': '${session.tokenType} ${session.accessToken}',
+        },
+      ),
+      cancelToken: cancelToken,
+    );
+    if (response.data == null) {
+      throw const FormatException('Nie udało się odczytać stanu analizy.');
+    }
+    return UnifiedAssistantAnswer.fromJson(response.data!);
+  }
 }
