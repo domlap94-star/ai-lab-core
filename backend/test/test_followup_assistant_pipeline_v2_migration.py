@@ -45,6 +45,13 @@ def table_checks(schema, table: str) -> set[str]:
     return {row["name"] for row in schema.get_check_constraints(table)}
 
 
+def check_sql(schema, table: str, name: str) -> str:
+    for row in schema.get_check_constraints(table):
+        if row["name"] == name:
+            return str(row.get("sqltext") or "")
+    raise AssertionError(f"missing check {table}.{name}")
+
+
 def main() -> None:
     name = require_test_database_environment()
     engine = create_engine(database_url(name))
@@ -90,6 +97,7 @@ def main() -> None:
             require(
                 {
                     "document_id", "input_checksum", "analyzer_generation", "kind",
+                    "artifact_key",
                     "status", "validation_state", "payload", "payload_sha256",
                     "processor_id", "processor_version", "preparation_job_id",
                 }
@@ -106,8 +114,11 @@ def main() -> None:
             )
             require(
                 {
-                    "created_by_user_id", "attempt_id", "request_payload", "target_scope",
-                    "complexity", "status", "current_stage", "plan", "result_payload",
+                    "created_by_user_id", "attempt_id", "api_version",
+                    "orchestrator_version", "evidence_contract_version",
+                    "policy_generation", "request_payload", "target_scope",
+                    "complexity", "status", "current_stage", "plan", "plan_sha256",
+                    "result_payload", "result_payload_sha256",
                     "heartbeat_at", "cancel_requested_at", "recovery_generation",
                 }
                 <= table_columns(schema, "assistant_runs"),
@@ -116,7 +127,8 @@ def main() -> None:
             require(
                 {
                     "assistant_run_id", "stage_key", "stage_type", "status", "attempt",
-                    "progress_current", "progress_total", "heartbeat_at", "lease_expires_at",
+                    "progress_current", "progress_total", "heartbeat_at", "last_progress_at",
+                    "lease_expires_at", "result_manifest",
                     "inactivity_timeout_seconds", "absolute_cap_seconds", "analysis_job_id",
                     "document_preparation_job_id", "intelligence_artifact_id",
                 }
@@ -139,6 +151,28 @@ def main() -> None:
                 in table_checks(schema, "assistant_run_stages"),
                 "progress-aware stage time bounds missing",
             )
+            run_status_sql = check_sql(schema, "assistant_runs", "ck_assistant_runs_status")
+            require("'running'" in run_status_sql and "'waiting'" in run_status_sql,
+                    "high-level run lifecycle missing")
+            require("'analyzing_local'" not in run_status_sql,
+                    "stage name leaked into run lifecycle")
+            current_stage_sql = check_sql(
+                schema, "assistant_runs", "ck_assistant_runs_current_stage"
+            )
+            require("'building_intelligence'" in current_stage_sql,
+                    "intelligence stage contract missing")
+            require("'reducing_findings'" in current_stage_sql,
+                    "map/reduce stage contract missing")
+            require(
+                "ck_assistant_runs_terminal_stage"
+                in table_checks(schema, "assistant_runs"),
+                "terminal current-stage convention missing",
+            )
+            require(
+                "ck_assistant_runs_completed_result"
+                in table_checks(schema, "assistant_runs"),
+                "completed result/hash binding missing",
+            )
             require(
                 "uq_document_intelligence_generation"
                 in {
@@ -149,6 +183,15 @@ def main() -> None:
                 },
                 "intelligence generation idempotency missing",
             )
+            generation_columns = next(
+                row["column_names"]
+                for row in schema.get_unique_constraints(
+                    "document_intelligence_artifacts"
+                )
+                if row["name"] == "uq_document_intelligence_generation"
+            )
+            require("artifact_key" in generation_columns,
+                    "multi-segment intelligence uniqueness missing")
             require(
                 "uq_assistant_runs_user_attempt"
                 in {

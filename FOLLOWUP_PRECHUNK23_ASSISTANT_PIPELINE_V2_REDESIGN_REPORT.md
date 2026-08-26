@@ -421,3 +421,35 @@ Approve only the exact additive revision:
 
 PRE-CHUNK23 remains blocked on this schema approval and subsequent source,
 runtime and owner physical acceptance. CHUNK23 remains blocked/not started.
+
+## Approved pre-apply hardening — 2026-08-26
+
+The owner consumed `FOLLOWUP_ASSISTANT_PIPELINE_V2_SCHEMA_APPROVAL_REQUIRED`
+and required the unapplied migration to be hardened before production use. The
+same revision and parent are retained; no unrelated domain was added.
+
+The hardened schema now:
+
+- separates high-level run lifecycle (`created`, `queued`, `running`,
+  `waiting`, terminal dispositions) from detailed `current_stage`;
+- records both worker `heartbeat_at` and substantive `last_progress_at` on
+  stage attempts;
+- adds `artifact_key` to artifact identity and current uniqueness so accepted
+  section maps can coexist by stable segment;
+- adds a bounded application-owned `result_manifest` to stage attempts while
+  retaining typed primary-child foreign keys;
+- represents polymorphic intelligence-source identifiers as bounded text;
+- records orchestrator, evidence-contract and policy generations plus plan and
+  result hashes on the run;
+- requires completed runs to have a persisted result and result hash;
+- defines terminal runs with `current_stage = NULL`.
+
+Hardened migration SHA-256:
+`09FB4401E98F6D425404B8A7463B65BBA7349935A0458ADF14F6FBFBC5347E83`.
+
+The hardened isolated proof again passed upgrade, downgrade and re-upgrade,
+with one Alembic source head, zero AssistantRun/artifact backfill and zero
+existing AnalysisJob/DocumentPreparationJob mutation. Production still remains
+at the parent revision at this checkpoint. Application-level strict JSON
+size/depth contracts are mandatory in the V2 implementation and are not
+delegated to unrelated JSON columns.

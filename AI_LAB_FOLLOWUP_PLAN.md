@@ -1897,7 +1897,7 @@ The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing
 AI physical test and is handled by the owner-inserted pre-CHUNK23 item below.
 
-## [~] PRE-CHUNK23 — ASSISTANT PIPELINE V2 SCHEMA APPROVAL REQUIRED
+## [~] PRE-CHUNK23 — ASSISTANT PIPELINE V2 IMPLEMENTATION IN PROGRESS
 
 **Priority: P1 / BLOCKS CHUNK23**
 
@@ -2728,3 +2728,14 @@ applied to production. Required gate:
 acceptance is blocked; CHUNK23 is BLOCKED / NOT STARTED; no new candidate is to
 be built before a coherent V2 source/runtime checkpoint. Stable remains
 `1.0.2+29`.
+
+**OWNER APPROVAL CONSUMED — ASSISTANT PIPELINE V2 IMPLEMENTATION IN PROGRESS —
+2026-08-26.** The owner approved revision
+`followup_assistant_pipeline_v2_20260826` subject to mandatory pre-apply
+hardening of lifecycle/stage semantics, worker heartbeat versus substantive
+progress, multi-segment artifacts, bounded stage manifests, polymorphic source
+IDs, reproducibility fields and JSON bounds. Production remains on parent
+`followup_assistant_file_pipeline_20260826` until the hardened isolated
+roundtrip and canonical CHUNK15 checkpoint pass. PRE-CHUNK23 physical
+acceptance remains blocked; CHUNK23 remains BLOCKED / NOT STARTED; stable
+remains `1.0.2+29`.

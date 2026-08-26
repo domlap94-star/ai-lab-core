@@ -20,27 +20,20 @@ depends_on = None
 
 
 _RUN_STATES = (
-    "'created','planning','resolving_targets','waiting_for_material',"
-    "'preparing_material','retrieving_case_evidence','retrieving_knowledge_base',"
-    "'analyzing_local','validating_local','waiting_for_vision','analyzing_vision',"
-    "'waiting_for_advanced','analyzing_advanced','validating_advanced',"
-    "'synthesizing','finalizing','completed','review_required','failed','cancelled'"
+    "'created','queued','running','waiting','completed','review_required','failed','cancelled'"
 )
 
 _ACTIVE_RUN_STATES = (
-    "'created','planning','resolving_targets','waiting_for_material',"
-    "'preparing_material','retrieving_case_evidence','retrieving_knowledge_base',"
-    "'analyzing_local','validating_local','waiting_for_vision','analyzing_vision',"
-    "'waiting_for_advanced','analyzing_advanced','validating_advanced',"
-    "'synthesizing','finalizing'"
+    "'created','queued','running','waiting'"
 )
 
 _STAGE_TYPES = (
     "'planning','resolving_targets','waiting_for_material','preparing_material',"
-    "'retrieving_case_evidence','retrieving_knowledge_base','analyzing_local',"
-    "'validating_local','waiting_for_vision','analyzing_vision',"
+    "'building_intelligence','validating_intelligence','retrieving_case_evidence',"
+    "'retrieving_knowledge_base','analyzing_local','validating_local',"
+    "'waiting_for_vision','analyzing_vision',"
     "'waiting_for_advanced','analyzing_advanced','validating_advanced',"
-    "'synthesizing','finalizing'"
+    "'reducing_findings','synthesizing','finalizing'"
 )
 
 _SENSITIVITIES = (
@@ -62,6 +55,12 @@ def upgrade() -> None:
         sa.Column("input_checksum", sa.String(64), nullable=False),
         sa.Column("analyzer_generation", sa.String(64), nullable=False),
         sa.Column("kind", sa.String(32), nullable=False),
+        sa.Column(
+            "artifact_key",
+            sa.String(100),
+            nullable=False,
+            server_default="default",
+        ),
         sa.Column("status", sa.String(24), nullable=False, server_default="draft"),
         sa.Column(
             "validation_state",
@@ -102,6 +101,10 @@ def upgrade() -> None:
             name="ck_document_intelligence_artifacts_kind",
         ),
         sa.CheckConstraint(
+            "length(artifact_key) BETWEEN 1 AND 100 AND artifact_key ~ '^[A-Za-z0-9:_-]+$'",
+            name="ck_document_intelligence_artifacts_key",
+        ),
+        sa.CheckConstraint(
             "status IN ('draft','validating','accepted','review_required','rejected','superseded')",
             name="ck_document_intelligence_artifacts_status",
         ),
@@ -118,6 +121,7 @@ def upgrade() -> None:
             "input_checksum",
             "analyzer_generation",
             "kind",
+            "artifact_key",
             name="uq_document_intelligence_generation",
         ),
     )
@@ -134,7 +138,7 @@ def upgrade() -> None:
     op.create_index(
         "uq_document_intelligence_current",
         "document_intelligence_artifacts",
-        ["document_id", "kind"],
+        ["document_id", "kind", "artifact_key"],
         unique=True,
         postgresql_where=sa.text(
             "status = 'accepted' AND validation_state = 'passed' "
@@ -153,7 +157,7 @@ def upgrade() -> None:
         ),
         sa.Column("source_ref", sa.String(8), nullable=False),
         sa.Column("source_kind", sa.String(32), nullable=False),
-        sa.Column("source_entity_id", sa.BigInteger()),
+        sa.Column("source_entity_id", sa.String(100), nullable=False),
         sa.Column("page_number", sa.Integer()),
         sa.Column("source_checksum", sa.String(64), nullable=False),
         sa.Column("excerpt_sha256", sa.String(64)),
@@ -204,6 +208,9 @@ def upgrade() -> None:
             nullable=False,
             server_default="assistant-runs-v2",
         ),
+        sa.Column("orchestrator_version", sa.String(40), nullable=False),
+        sa.Column("evidence_contract_version", sa.String(40), nullable=False),
+        sa.Column("policy_generation", sa.String(64), nullable=False),
         sa.Column("input_fingerprint", sa.String(64), nullable=False),
         sa.Column("request_payload", sa.JSON(), nullable=False),
         sa.Column("target_scope", sa.JSON(), nullable=False),
@@ -211,7 +218,9 @@ def upgrade() -> None:
         sa.Column("status", sa.String(40), nullable=False, server_default="created"),
         sa.Column("current_stage", sa.String(40)),
         sa.Column("plan", sa.JSON()),
+        sa.Column("plan_sha256", sa.String(64)),
         sa.Column("result_payload", sa.JSON()),
+        sa.Column("result_payload_sha256", sa.String(64)),
         sa.Column("sensitivity", sa.String(30), nullable=False),
         sa.Column("priority", sa.SmallInteger(), nullable=False, server_default="1"),
         sa.Column(
@@ -241,8 +250,16 @@ def upgrade() -> None:
             name="ck_assistant_runs_status",
         ),
         sa.CheckConstraint(
-            f"current_stage IS NULL OR current_stage IN ({_RUN_STATES})",
+            f"current_stage IS NULL OR current_stage IN ({_STAGE_TYPES})",
             name="ck_assistant_runs_current_stage",
+        ),
+        sa.CheckConstraint(
+            "status NOT IN ('completed','review_required','failed','cancelled') OR current_stage IS NULL",
+            name="ck_assistant_runs_terminal_stage",
+        ),
+        sa.CheckConstraint(
+            "status != 'completed' OR (result_payload IS NOT NULL AND result_payload_sha256 IS NOT NULL)",
+            name="ck_assistant_runs_completed_result",
         ),
         sa.CheckConstraint(
             "complexity IN ('fast','standard','deep','visual','external_candidate')",
@@ -309,10 +326,12 @@ def upgrade() -> None:
         sa.Column("lease_owner", sa.String(100)),
         sa.Column("lease_expires_at", sa.DateTime(timezone=True)),
         sa.Column("heartbeat_at", sa.DateTime(timezone=True)),
+        sa.Column("last_progress_at", sa.DateTime(timezone=True)),
         sa.Column("inactivity_timeout_seconds", sa.Integer(), nullable=False),
         sa.Column("absolute_cap_seconds", sa.Integer(), nullable=False),
         sa.Column("error_code", sa.String(100)),
         sa.Column("result_kind", sa.String(32)),
+        sa.Column("result_manifest", sa.JSON()),
         sa.Column(
             "analysis_job_id",
             sa.String(36),
@@ -392,7 +411,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_assistant_run_stages_lease",
         "assistant_run_stages",
-        ["status", "lease_expires_at", "heartbeat_at", "id"],
+        ["status", "lease_expires_at", "heartbeat_at", "last_progress_at", "id"],
         postgresql_where=sa.text("status = 'running'"),
     )
 
