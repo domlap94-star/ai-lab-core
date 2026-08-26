@@ -544,6 +544,7 @@ class UnifiedAssistantService:
         question = cls._fold_intent(request.question)
         system_patterns = (
             r"\bczym\s+(?:sie\s+)?(?:tu\s+)?zajmujesz\b",
+            r"\bczym\s+zajmuje\s+sie\s+(?:ten\s+)?asystent(?:\s+ai)?\b",
             r"\bco\s+potrafisz\b",
             r"\bjak\s+mozesz\s+mi\s+pomoc\b",
             r"\bco\s+moge\s+(?:tu|tutaj)\s+zrobic\b",

@@ -453,11 +453,15 @@ async def _execute_run(run_id: str) -> None:
             run, "retrieving_case_evidence",
             result_manifest={"source_count": case_count},
         )
-        stage_service.start(run, "retrieving_knowledge_base")
-        stage_service.complete(
-            run, "retrieving_knowledge_base",
-            result_manifest={"source_count": kb_count, "fail_open": True},
-        )
+        # GENERAL_KNOWLEDGE deliberately has no KB stage.  The dispatcher must
+        # execute the deterministic plan rather than assume every non-fast run
+        # includes every optional evidence domain.
+        if stage_service.latest(run.id, "retrieving_knowledge_base") is not None:
+            stage_service.start(run, "retrieving_knowledge_base")
+            stage_service.complete(
+                run, "retrieving_knowledge_base",
+                result_manifest={"source_count": kb_count, "fail_open": True},
+            )
 
         analysis_stage = stage_service.start(run, "analyzing_local")
         db.commit()

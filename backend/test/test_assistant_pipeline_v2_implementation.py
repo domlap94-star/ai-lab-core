@@ -20,6 +20,7 @@ from app.schemas.assistant_pipeline import (
     AssistantRunCreateRequest,
     validate_bounded_json,
 )
+from app.schemas.unified_assistant import UnifiedAssistantRequest
 from app.services.assistant_run_dispatcher import StageStreamingOllamaClient, _execute_run
 from app.services.assistant_run_planner import AssistantRunPlanner
 from app.services.assistant_run_service import (
@@ -87,6 +88,19 @@ class PlannerContractTests(unittest.TestCase):
             advanced_external_hard_seconds=1800,
         )
         self.assertFalse(service._expire_advanced(job))
+
+    def test_capability_phrase_is_fast_and_general_plan_has_no_kb_stage(self) -> None:
+        request = UnifiedAssistantRequest(
+            question="Czym zajmuje się Asystent AI?", conversation=[]
+        )
+        self.assertEqual(
+            UnifiedAssistantService._query_mode(request), "SYSTEM_META"
+        )
+        general = AssistantRunPlanner._stages("general_knowledge", "standard")
+        self.assertNotIn(
+            "retrieving_knowledge_base",
+            [item["stage_type"] for item in general],
+        )
 
 
 class IntelligenceContractTests(unittest.TestCase):
