@@ -8,7 +8,8 @@ import '../../../core/network/friendly_api_error.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../clients/presentation/searchable_client_picker.dart';
-import '../application/unified_assistant_providers.dart';
+import '../application/assistant_run_controller.dart';
+import '../domain/assistant_run.dart';
 import '../domain/unified_assistant.dart';
 
 class UnifiedAssistantPage extends ConsumerStatefulWidget {
@@ -34,7 +35,8 @@ class UnifiedAssistantPage extends ConsumerStatefulWidget {
 
 class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   static const _storage = FlutterSecureStorage();
-  static const _pendingRequestKey = 'unified_assistant_pending_request_v1';
+  static const _pendingRequestKey = 'unified_assistant_pending_run_v2';
+  static const _latestRequestKey = 'unified_assistant_latest_run_v2';
   static const quickActions = <String>[
     'Podsumuj ten przypadek',
     'Co sprawdzić podczas wizji lokalnej?',
@@ -47,6 +49,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   final conversation = <Map<String, String>>[];
   CancelToken? cancelToken;
   String? activeRequestId;
+  AssistantRunSnapshot? activeRun;
   UnifiedAssistantAnswer? result;
   String? error;
   String progress = '';
@@ -160,6 +163,10 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
                             Text(
                               progress,
                               key: const Key('unified-ai-progress'),
+                            ),
+                            const Text(
+                              'Możesz opuścić ten ekran. Analiza będzie kontynuowana.',
+                              key: Key('unified-ai-durable-hint'),
                             ),
                             OutlinedButton(
                               onPressed: () => unawaited(cancel()),
@@ -311,85 +318,65 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     if (_hasResetIntent(question)) {
       conversation.clear();
     }
-    final localDelayTimer = Timer(const Duration(seconds: 30), () {
-      if (mounted && loading && result == null && !token.isCancelled) {
-        setState(() => progress = 'Analiza trwa dłużej niż zwykle.');
-      }
-    });
     setState(() {
       loading = true;
       error = null;
       result = null;
+      activeRun = null;
       activeRequestId = null;
-      progress = 'Zbieram dane';
+      progress = 'Tworzę trwałą analizę.';
     });
     try {
-      UnifiedAssistantAnswer next;
-      DateTime? advancedStartedAt;
-      do {
+      var run = await ref
+          .read(assistantRunRepositoryProvider)
+          .create(
+            session: session,
+            question: question,
+            attemptId: attemptId,
+            conversation: List.unmodifiable(
+              conversation.length <= 8
+                  ? conversation
+                  : conversation.sublist(conversation.length - 8),
+            ),
+            clientId: clientId,
+            candidateId: widget.initialCandidateId,
+            documentId: widget.initialDocumentId,
+            mailSourceId: widget.initialMailSourceId,
+            inspectionId: widget.initialInspectionId,
+          );
+      activeRequestId = run.runId;
+      await _storage.write(key: _pendingRequestKey, value: run.runId);
+      await _storage.write(key: _latestRequestKey, value: run.runId);
+      while (!run.isTerminal) {
         if (!mounted || token.isCancelled) return;
-        setState(
-          () => progress = result?.isPending == true
-              ? _advancedProgress(result!)
-              : 'Analizuję lokalnie',
-        );
-        next = result?.isDocumentPreparationPending == true &&
-                activeRequestId != null
-            ? await ref.read(unifiedAssistantApiProvider).status(
-                session: session,
-                requestId: activeRequestId!,
-                cancelToken: token,
-              )
-            : await ref.read(unifiedAssistantApiProvider).ask(
-              session: session,
-              question: question,
-              conversation: List.unmodifiable(
-                conversation.length <= 8
-                    ? conversation
-                    : conversation.sublist(conversation.length - 8),
-              ),
-              clientId: clientId,
-              candidateId: widget.initialCandidateId,
-              documentId: widget.initialDocumentId,
-              mailSourceId: widget.initialMailSourceId,
-              inspectionId: widget.initialInspectionId,
-              attemptId: attemptId,
-              cancelToken: token,
-            );
-        if (!mounted || token.isCancelled) return;
-        localDelayTimer.cancel();
         setState(() {
-          result = next;
-          activeRequestId = next.requestId;
-          progress = next.isPending
-              ? _advancedProgress(next)
-              : 'Weryfikuję wynik';
+          activeRun = run;
+          progress = run.progress.display;
         });
-        if (next.isDocumentPreparationPending) {
-          await _storage.write(key: _pendingRequestKey, value: next.requestId);
-        }
-        if (next.isPending) {
-          final started = advancedStartedAt ??= DateTime.now();
-          if (!next.isDocumentPreparationPending &&
-              DateTime.now().difference(started) >=
-              const Duration(seconds: 185)) {
-            await cancel();
-            throw TimeoutException('advanced_analysis_timeout');
-          }
-          await pollDelay(token);
-        }
-      } while (next.isPending);
+        await pollDelay(token, milliseconds: run.pollAfterMs);
+        if (!mounted || token.isCancelled) return;
+        run = await ref
+            .read(assistantRunRepositoryProvider)
+            .get(session: session, runId: run.runId, cancelToken: token);
+      }
+      if (!mounted || token.isCancelled) return;
       await _storage.delete(key: _pendingRequestKey);
-      if (next.status == 'accepted_local' ||
-          next.status == 'accepted_advanced') {
+      final answer = run.result;
+      setState(() {
+        activeRun = run;
+        result = answer;
+        progress = run.progress.display;
+      });
+      if (run.status == 'completed' && answer != null) {
         conversation
           ..add(<String, String>{'role': 'user', 'content': question})
-          ..add(<String, String>{'role': 'assistant', 'content': next.answer});
+          ..add(<String, String>{
+            'role': 'assistant',
+            'content': answer.answer,
+          });
       } else {
         setState(
-          () => error =
-              next.errorMessage ??
-              'Wynik wymaga bezpiecznej weryfikacji. Doprecyzuj pytanie.',
+          () => error = answer?.errorMessage ?? _terminalRunMessage(run),
         );
       }
     } on DioException catch (exception) {
@@ -402,43 +389,23 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
                 fallback: 'Nie udało się uzyskać odpowiedzi AI.',
               ),
       );
-    } on TimeoutException {
-      if (mounted) {
-        setState(
-          () => error =
-              'Analiza rozszerzona nie zakończyła się w wymaganym czasie. Możesz spróbować ponownie.',
-        );
-      }
     } catch (_) {
       if (mounted) {
         setState(() => error = 'Nie udało się uzyskać odpowiedzi AI.');
       }
     } finally {
-      localDelayTimer.cancel();
       if (mounted && identical(token, cancelToken)) {
         setState(() => loading = false);
       }
     }
   }
 
-  String _advancedProgress(UnifiedAssistantAnswer answer) {
-    if (answer.isDocumentPreparationPending) {
-      return switch (answer.currentStage) {
-        'received' || 'queued' => 'W kolejce do przygotowania.',
-        'validating' => 'Sprawdzam plik.',
-        'extracting' => 'Wyodrębniam treść.',
-        'rendering' => 'Przygotowuję strony dokumentu.',
-        'ocr_required' || 'ocr_processing' => 'Rozpoznaję skan.',
-        'vision_processing' => 'Analizuję materiał.',
-        'local_analysis' || 'resume_queued' =>
-          'Dokument jest gotowy. Przygotowuję odpowiedź.',
-        _ => 'Znalazłem dokument. Przygotowuję go do analizy.',
-      };
+  String _terminalRunMessage(AssistantRunSnapshot run) {
+    if (run.status == 'cancelled') return 'Analiza została anulowana.';
+    if (run.status == 'review_required') {
+      return 'Wynik wymaga bezpiecznej weryfikacji. Doprecyzuj pytanie.';
     }
-    if (answer.delayed) return 'Analiza trwa dłużej niż zwykle.';
-    return answer.currentStage == 'QUEUED'
-        ? 'Oczekiwanie na analizę rozszerzoną'
-        : 'Analiza rozszerzona';
+    return 'Nie udało się zakończyć analizy. Możesz spróbować ponownie.';
   }
 
   bool _hasResetIntent(String value) {
@@ -473,6 +440,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     cancelToken = null;
     activeRequestId = null;
     await _storage.delete(key: _pendingRequestKey);
+    await _storage.delete(key: _latestRequestKey);
     if (mounted) {
       setState(() {
         loading = false;
@@ -485,45 +453,64 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   }
 
   Future<void> _restorePendingRequest() async {
-    final requestId = await _storage.read(key: _pendingRequestKey);
-    if (requestId == null || requestId.isEmpty || !mounted) return;
     final session = (await ref.read(authControllerProvider.future)).session;
     if (session == null || !mounted) return;
+    var requestId = await _storage.read(key: _pendingRequestKey);
+    if (requestId == null || requestId.isEmpty) {
+      requestId = await _storage.read(key: _latestRequestKey);
+    }
+    if (requestId == null || requestId.isEmpty) {
+      try {
+        final active = await ref
+            .read(assistantRunRepositoryProvider)
+            .listActive(session: session);
+        if (active.isEmpty || !mounted) return;
+        requestId = active.first.runId;
+        await _storage.write(key: _pendingRequestKey, value: requestId);
+        await _storage.write(key: _latestRequestKey, value: requestId);
+      } catch (_) {
+        return;
+      }
+    }
     final token = CancelToken();
     cancelToken = token;
     setState(() {
       loading = true;
       activeRequestId = requestId;
-      progress = 'Sprawdzam stan przygotowania dokumentu.';
+      progress = 'Przywracam trwającą analizę.';
     });
     try {
       while (mounted && !token.isCancelled) {
-        final next = await ref.read(unifiedAssistantApiProvider).status(
-          session: session,
-          requestId: requestId,
-          cancelToken: token,
-        );
+        final next = await ref
+            .read(assistantRunRepositoryProvider)
+            .get(session: session, runId: requestId, cancelToken: token);
         if (!mounted || token.isCancelled) return;
         setState(() {
-          result = next;
-          progress = next.isPending ? _advancedProgress(next) : 'Weryfikuję wynik';
-          error = next.isPending ? null : next.errorMessage;
+          activeRun = next;
+          result = next.result;
+          progress = next.progress.display;
+          error = next.isTerminal && next.status != 'completed'
+              ? next.result?.errorMessage ?? _terminalRunMessage(next)
+              : null;
         });
-        if (!next.isPending) {
+        if (next.isTerminal) {
           await _storage.delete(key: _pendingRequestKey);
           break;
         }
-        await pollDelay(token);
+        await pollDelay(token, milliseconds: next.pollAfterMs);
       }
     } on DioException catch (exception) {
       if (mounted && !CancelToken.isCancel(exception)) {
         if (exception.response?.statusCode == 404) {
           await _storage.delete(key: _pendingRequestKey);
+          await _storage.delete(key: _latestRequestKey);
         }
-        setState(() => error = friendlyApiError(
-          exception,
-          fallback: 'Nie udało się odczytać stanu analizy.',
-        ));
+        setState(
+          () => error = friendlyApiError(
+            exception,
+            fallback: 'Nie udało się odczytać stanu analizy.',
+          ),
+        );
       }
     } finally {
       if (mounted && identical(token, cancelToken)) {
@@ -537,17 +524,17 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     if (session == null) return;
     try {
       await ref
-          .read(unifiedAssistantApiProvider)
-          .cancel(session: session, requestId: requestId);
+          .read(assistantRunRepositoryProvider)
+          .cancel(session: session, runId: requestId);
     } catch (_) {
       // HTTP cancellation already detached the local request and blocks stale binding.
     }
   }
 
-  Future<void> pollDelay(CancelToken token) async {
+  Future<void> pollDelay(CancelToken token, {int milliseconds = 2500}) async {
     final completer = Completer<void>();
     late final Timer timer;
-    timer = Timer(const Duration(seconds: 3), () {
+    timer = Timer(Duration(milliseconds: milliseconds.clamp(500, 30000)), () {
       if (!completer.isCompleted) completer.complete();
     });
     unawaited(

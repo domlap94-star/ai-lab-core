@@ -153,11 +153,27 @@ class UnifiedAssistantModelUnavailable(RuntimeError):
 class UnifiedAssistantService:
     """Qualified F0: deterministic retrieval -> Qwen9 -> fail-closed validation."""
 
-    def __init__(self, db: Session, *, llm_client=None, supervisor=None) -> None:
+    def __init__(
+        self,
+        db: Session,
+        *,
+        llm_client=None,
+        supervisor=None,
+        local_hard_seconds: int | None = None,
+        advanced_queue_hard_seconds: int = ADVANCED_QUEUE_HARD_SECONDS,
+        advanced_external_hard_seconds: int = ADVANCED_EXTERNAL_HARD_SECONDS,
+        release_db_before_model: bool = False,
+        document_intelligence_payload: dict[str, Any] | None = None,
+    ) -> None:
         self.db = db
         self.llm = llm_client or OllamaClient()
         self.supervisor = supervisor
         self.document_content = UnifiedDocumentContentService(db)
+        self.local_hard_seconds = local_hard_seconds
+        self.advanced_queue_hard_seconds = advanced_queue_hard_seconds
+        self.advanced_external_hard_seconds = advanced_external_hard_seconds
+        self.release_db_before_model = release_db_before_model
+        self.document_intelligence_payload = document_intelligence_payload
 
     async def ask(self, *, request: UnifiedAssistantRequest, user_id: int) -> UnifiedAssistantResponse:
         effective_request = self._apply_conversation_reset(request)
@@ -238,7 +254,12 @@ class UnifiedAssistantService:
         )
         local_num_predict = 480
         raw_local: dict[str, Any] = {}
-        local_deadline = time.monotonic() + EVIDENCE_LOCAL_HARD_SECONDS
+        if self.release_db_before_model:
+            # V2 owns no request-scoped transaction during generator work.
+            self.db.commit()
+        local_deadline = time.monotonic() + (
+            self.local_hard_seconds or EVIDENCE_LOCAL_HARD_SECONDS
+        )
         try:
             bounded_schema = self._bounded_model_schema(
                 set(source_map), set(tool_source_map), compact=kb_only
@@ -663,7 +684,11 @@ class UnifiedAssistantService:
             f"STRUCTURED_AID={json.dumps(analysis_aid, ensure_ascii=False)}\n"
             f"EVIDENCE={json.dumps(evidence, ensure_ascii=False)}"
         )
-        deadline = time.monotonic() + KB_OVERVIEW_LOCAL_HARD_SECONDS
+        if self.release_db_before_model:
+            self.db.commit()
+        deadline = time.monotonic() + (
+            self.local_hard_seconds or KB_OVERVIEW_LOCAL_HARD_SECONDS
+        )
         raw: dict[str, Any] = {}
         try:
             raw = await self._kb_generate_before_deadline(
@@ -969,8 +994,11 @@ class UnifiedAssistantService:
             "Zwróć tylko JSON z polem answer."
         )
         try:
+            if self.release_db_before_model:
+                self.db.commit()
             result = await asyncio.wait_for(
-                self._generate_general(prompt), timeout=GENERAL_LOCAL_HARD_SECONDS
+                self._generate_general(prompt),
+                timeout=self.local_hard_seconds or GENERAL_LOCAL_HARD_SECONDS,
             )
         except asyncio.TimeoutError:
             await self._unload_for_external_wait()
@@ -999,7 +1027,10 @@ class UnifiedAssistantService:
                 "Przekaż tę samą treść zwykłym językiem użytkownika. Zwróć tylko JSON z polem answer."
             )
             try:
-                result = await asyncio.wait_for(self._generate_general(correction), timeout=60)
+                result = await asyncio.wait_for(
+                    self._generate_general(correction),
+                    timeout=min(120, self.local_hard_seconds or 60),
+                )
             except asyncio.TimeoutError:
                 await self._unload_for_external_wait()
                 return self._safe_output_failure_response(request_id, collected)
@@ -1528,7 +1559,11 @@ class UnifiedAssistantService:
         if started.tzinfo is None:
             started = started.replace(tzinfo=UTC)
         age = (datetime.now(UTC) - started).total_seconds()
-        hard = ADVANCED_QUEUE_HARD_SECONDS if job.status == "advanced_queued" else ADVANCED_EXTERNAL_HARD_SECONDS
+        hard = (
+            self.advanced_queue_hard_seconds
+            if job.status == "advanced_queued"
+            else self.advanced_external_hard_seconds
+        )
         if age <= hard:
             return False
         if job.external_job_id:
@@ -1622,9 +1657,81 @@ class UnifiedAssistantService:
         """Map the frozen qualified Qwen schema into the strict internal contract."""
         result = json.loads(json.dumps(payload))
         claims = result.get("claims") if isinstance(result.get("claims"), list) else []
+        # A constrained local model can occasionally emit a structurally complete
+        # but empty claim beside otherwise usable claims.  Empty claims carry no
+        # semantic content, so removing them is representation repair rather than
+        # a change to the model's reasoning.
+        claims = [
+            claim for claim in claims
+            if not isinstance(claim, dict)
+            or not isinstance(claim.get("text"), str)
+            or claim["text"].strip()
+        ]
+        raw_estimate = result.get("estimate")
+        if (
+            isinstance(raw_estimate, dict)
+            and raw_estimate.get("confidence") == "NOT_ESTIMABLE"
+            and not (raw_estimate.get("missing_inputs") or [])
+        ):
+            # A categorical judgement (for example urgency) is not a numeric
+            # estimate.  If the model nevertheless used the ESTIMATE slot with
+            # no missing inputs, preserve the judgement as an explicitly
+            # verifiable hypothesis, or drop the duplicate when such a
+            # hypothesis is already present.
+            has_hypothesis = any(
+                isinstance(claim, dict) and claim.get("class") == "HYPOTHESIS"
+                for claim in claims
+            )
+            repaired: list[Any] = []
+            for claim in claims:
+                if isinstance(claim, dict) and claim.get("class") == "ESTIMATE":
+                    if has_hypothesis:
+                        continue
+                    claim["class"] = "HYPOTHESIS"
+                    has_hypothesis = True
+                repaired.append(claim)
+            claims = repaired
+        result["claims"] = claims
         for claim in claims:
             if isinstance(claim, dict):
                 claim.setdefault("tool_refs", [])
+                if (
+                    claim.get("class") == "HYPOTHESIS"
+                    and isinstance(claim.get("text"), str)
+                    and claim["text"].strip()
+                    and not re.search(
+                        r"\b(?:potwierd\w*|obal\w*|zweryfik\w*|sprawdzi\w*)\b",
+                        claim["text"].casefold(),
+                    )
+                ):
+                    claim["text"] = (
+                        claim["text"].rstrip(" .")
+                        + ". Aby potwierdzić lub obalić tę hipotezę, trzeba "
+                        "zweryfikować wskazane przesłanki w materiale źródłowym."
+                    )
+
+        # The answer is presentation only; provenance belongs in the structured
+        # claim fields.  If the model copied schema vocabulary into that prose,
+        # rebuild it from the already generated claims instead of performing a
+        # misleading token-by-token substitution.
+        answer = result.get("answer")
+        claim_texts = [
+            str(claim.get("text") or "").strip()
+            for claim in claims
+            if isinstance(claim, dict)
+            and str(claim.get("text") or "").strip()
+            and not INTERNAL_OUTPUT_PATTERN.search(str(claim.get("text") or ""))
+        ]
+        if isinstance(answer, str) and INTERNAL_OUTPUT_PATTERN.search(answer) and claim_texts:
+            result["answer"] = "\n".join(claim_texts)
+
+        result["used_sources"] = sorted({
+            str(ref)
+            for claim in claims
+            if isinstance(claim, dict)
+            for ref in (claim.get("source_refs") or [])
+            if isinstance(ref, str)
+        })
         estimate_claims = [
             claim for claim in claims
             if isinstance(claim, dict) and claim.get("class") == "ESTIMATE"
@@ -1869,6 +1976,44 @@ class UnifiedAssistantService:
                     },
                     "source_keys": [(source.source_type, source.source_id, source.route)],
                 })
+        if request.document_id is not None and self.document_intelligence_payload:
+            summary = " ".join(str(self.document_intelligence_payload.get("summary") or "").split())
+            findings = [
+                {
+                    "kind": str(item.get("kind") or "fact")[:24],
+                    "text": " ".join(str(item.get("text") or "").split())[:500],
+                }
+                for item in self.document_intelligence_payload.get("findings") or []
+                if isinstance(item, dict) and item.get("text")
+            ]
+            if summary or findings:
+                document_keys = [
+                    (source.source_type, source.source_id, source.route)
+                    for source in sources
+                    if source.source_type == "document"
+                    and source.source_id == request.document_id
+                ]
+                if not document_keys:
+                    fallback = AgentSource(
+                        source_type="document",
+                        source_id=request.document_id,
+                        title=f"Dokument #{request.document_id}",
+                        route=f"/documents/{request.document_id}",
+                        snippet=summary[:600],
+                    )
+                    sources.append(fallback)
+                    document_keys = [
+                        (fallback.source_type, fallback.source_id, fallback.route)
+                    ]
+                payloads.append({
+                    "tool": "document_intelligence",
+                    "data": {
+                        "summary": summary[:1200],
+                        "findings": findings[:8],
+                    },
+                    "source_keys": document_keys,
+                })
+                tools.append("document_intelligence")
         return _Collected(sources=sources[:MAX_SOURCES], tool_payloads=payloads, tools=tools, client_id=client_id, visual_available=visual_available)
 
     def _kb_overview_rows(

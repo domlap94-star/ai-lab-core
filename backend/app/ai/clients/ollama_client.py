@@ -1,5 +1,8 @@
 ﻿from __future__ import annotations
 
+import inspect
+import json
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -47,9 +50,17 @@ class OllamaClient:
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
 
-        async with httpx.AsyncClient(
-            timeout=self.timeout
-        ) as client:
+        if stream:
+            return await self.generate_streaming(
+                model=model,
+                prompt=prompt,
+                format=format,
+                options=options,
+                think=think,
+                keep_alive=keep_alive,
+            )
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
@@ -58,6 +69,68 @@ class OllamaClient:
             response.raise_for_status()
 
             return response.json()
+
+    async def generate_streaming(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        format: str | dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+        think: bool | None = None,
+        keep_alive: str | int | None = None,
+        on_progress: Callable[[dict[str, int | bool]], Awaitable[None] | None] | None = None,
+    ) -> dict[str, Any]:
+        """Consume Ollama NDJSON without retaining partial reasoning.
+
+        Only aggregate output is returned to the caller.  The callback receives
+        bounded counters/durations and never generated text.
+        """
+        payload: dict[str, Any] = {"model": model, "prompt": prompt, "stream": True}
+        if format is not None:
+            payload["format"] = format
+        if options is not None:
+            payload["options"] = options
+        if think is not None:
+            payload["think"] = think
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
+
+        chunks: list[str] = []
+        last: dict[str, Any] = {}
+        received_chunks = 0
+        async with httpx.AsyncClient(timeout=httpx.Timeout(1200.0)) as client:
+            async with client.stream(
+                "POST", f"{self.base_url}/api/generate", json=payload
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    event = json.loads(line)
+                    received_chunks += 1
+                    fragment = event.get("response")
+                    if isinstance(fragment, str):
+                        chunks.append(fragment)
+                    last = event
+                    if on_progress is not None:
+                        telemetry: dict[str, int | bool] = {
+                            "chunks": received_chunks,
+                            "done": bool(event.get("done", False)),
+                        }
+                        for key in (
+                            "load_duration", "prompt_eval_count", "prompt_eval_duration",
+                            "eval_count", "eval_duration", "total_duration",
+                        ):
+                            value = event.get(key)
+                            if isinstance(value, int) and value >= 0:
+                                telemetry[key] = value
+                        callback_result = on_progress(telemetry)
+                        if inspect.isawaitable(callback_result):
+                            await callback_result
+        if not last.get("done"):
+            raise RuntimeError("OLLAMA_STREAM_INCOMPLETE")
+        return {**last, "response": "".join(chunks)}
 
     async def unload(self, model: str) -> None:
         """Release one exact model without changing the installed inventory."""

@@ -18,6 +18,8 @@ services:
       KNOWLEDGE_BASE_VECTOR_WRITES_ENABLED: "true"
       ADVANCED_ANALYSIS_ENABLED: "true"
       DOCUMENT_PREPARATION_ENABLED: "true"
+      # Additive durable API; stable +29 remains on the unchanged legacy routes.
+      ASSISTANT_PIPELINE_V2_ENABLED: "true"
 
     ports:
       - "127.0.0.1:8000:8000"

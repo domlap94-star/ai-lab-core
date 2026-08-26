@@ -13,6 +13,7 @@ from app.services.vision_dispatcher import start_vision_dispatcher
 from app.services.knowledge_base_dispatcher import start_knowledge_base_dispatcher
 from app.services.backup_plan_reconciler import start_backup_plan_reconciler
 from app.services.document_preparation_dispatcher import start_document_preparation_dispatcher
+from app.services.assistant_run_dispatcher import start_assistant_run_dispatcher
 
 
 logger = logging.getLogger("ai_lab")
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI):
     knowledge_base_task = start_knowledge_base_dispatcher()
     backup_plan_task = start_backup_plan_reconciler()
     document_preparation_task = start_document_preparation_dispatcher()
+    assistant_run_task = start_assistant_run_dispatcher()
     logger.info("Application started.")
     yield
     if vision_task is not None:
@@ -75,6 +77,12 @@ async def lifespan(app: FastAPI):
         await backup_plan_task
     except asyncio.CancelledError:
         pass
+    if assistant_run_task is not None:
+        assistant_run_task.cancel()
+        try:
+            await assistant_run_task
+        except asyncio.CancelledError:
+            pass
     if document_preparation_task is not None:
         document_preparation_task.cancel()
         try:

@@ -9,13 +9,19 @@ import zipfile
 from pathlib import Path
 
 from app.database.session import SessionLocal
+from app.core.config import settings
 from app.models.document_preparation_job import DocumentPreparationJob
+from app.models.assistant_pipeline import AssistantRunMaterial
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.unified_assistant import UnifiedAssistantRequest, UnifiedAssistantResponse
+from app.schemas.assistant_pipeline import AssistantRunCreateRequest
+from app.services.assistant_run_dispatcher import _execute_run
+from app.services.assistant_run_service import AssistantRunService
 from app.services.document_preparation_dispatcher import _next_waiting_id, resume_waiting_analysis
 from app.services.document_file_safety_service import DocumentFileSafetyService
 from app.services.document_preparation_service import DocumentPreparationService
+from app.services.document_intelligence_service import DocumentIntelligenceService
 from app.services.document_service import DocumentService
 from app.services.unified_assistant_service import UnifiedAssistantService
 from test.support.database_safety import require_test_database_environment
@@ -53,6 +59,11 @@ class FileSafetyTests(unittest.TestCase):
 
 def integration_main() -> None:
     require_test_database_environment()
+    previous_data_dir = settings.data_dir
+    previous_v2 = settings.assistant_pipeline_v2_enabled
+    isolated_storage = tempfile.TemporaryDirectory()
+    settings.data_dir = isolated_storage.name
+    settings.assistant_pipeline_v2_enabled = True
     db = SessionLocal()
     try:
         role = Role(id=900026, name="fileprep-test", description="isolated")
@@ -95,6 +106,33 @@ def integration_main() -> None:
         DocumentPreparationService(db).process_claimed(claimed)
         db.expire_all()
         ready = db.get(DocumentPreparationJob, claimed)
+        assert ready.status == "running" and ready.stage == "local_analysis"
+        intelligence = DocumentIntelligenceService(db)
+        build_input = intelligence.collect_input(
+            document_id=stored.document.id, preparation_job_id=claimed
+        )
+        source_ref = build_input.evidence[0].source_ref
+        artifact = intelligence.persist(
+            build_input=build_input,
+            kind="baseline_document",
+            artifact_key="default",
+            payload={
+                "document_class": "synthetic",
+                "language": "pl",
+                "summary": "Syntetyczny materiał testowy.",
+                "topics": ["test"],
+                "findings": [{
+                    "kind": "fact",
+                    "text": "Materiał zawiera syntetyczny dowód techniczny.",
+                    "source_refs": [source_ref],
+                }],
+                "limitations": [],
+            },
+        )
+        DocumentPreparationService(db).complete_intelligence(claimed, artifact.id)
+        db.commit()
+        db.expire_all()
+        ready = db.get(DocumentPreparationJob, claimed)
         assert ready.status == "ready" and ready.stage == "ready_for_ai"
         assert db.query(DocumentPreparationJob).filter_by(document_id=stored.document.id).count() == 1
 
@@ -113,11 +151,87 @@ def integration_main() -> None:
         completed = asyncio.run(UnifiedAssistantService(db).status(request_id=waiting_id, user_id=user.id))
         assert completed.status == "accepted_local" and completed.answer
 
+        # The V2 owner-failure class returns immediately, waits durably for one
+        # exact historical material generation, then resumes without another
+        # client request after the accepted artifact is available.
+        v2_stored = DocumentService(db).store_document(
+            content=b"synthetic two page soil report evidence",
+            original_filename="synthetic-soil-report.txt",
+            content_type="text/plain",
+            source_type="manual_upload",
+            intake_metadata={"actor_user_id": user.id},
+        )
+        v2_created = AssistantRunService(db).create(
+            request=AssistantRunCreateRequest(
+                question="Znajdź ten raport gruntu i podaj wnioski.",
+                document_id=v2_stored.document.id,
+                attempt_id="assistant_v2_material_20260826",
+            ),
+            user_id=user.id,
+        )
+        assert v2_created.status == "queued"
+        asyncio.run(_execute_run(v2_created.run_id))
+        db.expire_all()
+        v2_waiting = AssistantRunService(db).get(
+            run_id=v2_created.run_id, user_id=user.id
+        )
+        assert v2_waiting.status == "waiting"
+        assert v2_waiting.current_stage == "waiting_for_material"
+
+        v2_job = db.query(DocumentPreparationJob).filter_by(
+            document_id=v2_stored.document.id
+        ).one()
+        assert DocumentPreparationService(db).claim_next() == v2_job.id
+        db.commit()
+        DocumentPreparationService(db).process_claimed(v2_job.id)
+        db.expire_all()
+        v2_input = DocumentIntelligenceService(db).collect_input(
+            document_id=v2_stored.document.id,
+            preparation_job_id=v2_job.id,
+        )
+        v2_ref = v2_input.evidence[0].source_ref
+        v2_artifact = DocumentIntelligenceService(db).persist(
+            build_input=v2_input,
+            kind="baseline_document",
+            artifact_key="default",
+            payload={
+                "document_class": "soil_report",
+                "language": "pl",
+                "summary": "Syntetyczny raport gruntu.",
+                "topics": ["grunt"],
+                "findings": [{
+                    "kind": "fact",
+                    "text": "Materiał jest syntetycznym raportem gruntu.",
+                    "source_refs": [v2_ref],
+                }],
+                "limitations": [],
+            },
+        )
+        DocumentPreparationService(db).complete_intelligence(v2_job.id, v2_artifact.id)
+        db.commit()
+        with patch.object(UnifiedAssistantService, "ask", new=accepted):
+            asyncio.run(_execute_run(v2_created.run_id))
+        db.expire_all()
+        v2_completed = AssistantRunService(db).get(
+            run_id=v2_created.run_id, user_id=user.id
+        )
+        assert v2_completed.status == "completed"
+        assert v2_completed.result is not None
+        bound_materials = db.query(AssistantRunMaterial).filter_by(
+            assistant_run_id=v2_created.run_id
+        ).all()
+        assert bound_materials
+        assert all(row.source_ref.startswith("S") for row in bound_materials)
+
         print("DOCUMENT_PREPARATION_PIPELINE_ISOLATED=PASS")
         print("DOCUMENT_PREPARATION_GENERATIONS=1")
+        print("ASSISTANT_V2_MATERIAL_WAIT_AUTO_RESUME=PASS")
         print("HISTORICAL_BACKFILL=0")
     finally:
         db.close()
+        settings.data_dir = previous_data_dir
+        settings.assistant_pipeline_v2_enabled = previous_v2
+        isolated_storage.cleanup()
 
 
 if __name__ == "__main__":

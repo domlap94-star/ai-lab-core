@@ -2,6 +2,7 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Query,
     status,
 )
 from sqlalchemy.orm import Session
@@ -43,6 +44,19 @@ from app.services.unified_assistant_service import (
     UnifiedAssistantContextError, UnifiedAssistantModelUnavailable,
     UnifiedAssistantService,
 )
+from app.schemas.assistant_pipeline import (
+    AssistantRunCreateRequest,
+    AssistantRunListResponse,
+    AssistantRunResponse,
+)
+from app.services.assistant_run_planner import AssistantRunScopeError
+from app.services.assistant_run_service import (
+    AssistantRunActiveConflict,
+    AssistantPipelineDisabled,
+    AssistantRunIdempotencyConflict,
+    AssistantRunNotFound,
+    AssistantRunService,
+)
 
 router = APIRouter(
     prefix="/ai",
@@ -64,6 +78,74 @@ async def ask_unified_assistant(
         raise HTTPException(status_code=503, detail="Asystent AI jest chwilowo niedostępny. Spróbuj ponownie.") from error
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Nie udało się odczytać danych CRM. Spróbuj ponownie.") from error
+
+
+@router.post(
+    "/assistant/runs",
+    response_model=AssistantRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_assistant_run(
+    request: AssistantRunCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantRunResponse:
+    try:
+        return AssistantRunService(db).create(request=request, user_id=current_user.id)
+    except AssistantPipelineDisabled as error:
+        raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
+    except AssistantRunScopeError as error:
+        raise HTTPException(status_code=422, detail="Wskazany kontekst nie należy do bieżącego zakresu.") from error
+    except AssistantRunIdempotencyConflict as error:
+        raise HTTPException(status_code=409, detail="Identyfikator próby został już użyty dla innego żądania.") from error
+    except AssistantRunActiveConflict as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Masz już aktywną analizę. Otwórz ją lub anuluj przed rozpoczęciem następnej.",
+        ) from error
+
+
+@router.get("/assistant/runs", response_model=AssistantRunListResponse)
+def list_assistant_runs(
+    active: bool = Query(default=True),
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantRunListResponse:
+    try:
+        return AssistantRunService(db).list_owned(
+            user_id=current_user.id, active=active, limit=limit
+        )
+    except AssistantPipelineDisabled as error:
+        raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
+
+
+@router.get("/assistant/runs/{run_id}", response_model=AssistantRunResponse)
+def get_assistant_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantRunResponse:
+    try:
+        return AssistantRunService(db).get(run_id=run_id, user_id=current_user.id)
+    except AssistantPipelineDisabled as error:
+        raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
+    except AssistantRunNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono analizy.") from error
+
+
+@router.post("/assistant/runs/{run_id}/cancel", response_model=AssistantRunResponse)
+def cancel_assistant_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantRunResponse:
+    try:
+        return AssistantRunService(db).cancel(run_id=run_id, user_id=current_user.id)
+    except AssistantPipelineDisabled as error:
+        raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
+    except AssistantRunNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono analizy.") from error
 
 
 @router.post("/assistant/{request_id}/cancel", response_model=UnifiedAssistantResponse)

@@ -356,6 +356,51 @@ def test_qualified_model_estimate_is_normalized_to_internal_status():
     assert normalized["estimate"]["basis"] == ["S01"]
 
 
+def test_model_normalization_repairs_representation_without_adding_facts():
+    raw = {
+        "answer": 'Wynik (FACT, source_refs=["S01"]).',
+        "claims": [
+            {"class": "FACT", "text": "Udokumentowany fakt.", "source_refs": ["S01"]},
+            {"class": "HYPOTHESIS", "text": "Możliwa zależność.", "source_refs": ["S01"]},
+            {"class": "ESTIMATE", "text": "", "source_refs": []},
+        ],
+        "used_sources": ["S01"],
+        "tool_plan": [],
+        "estimate": {"value_or_range": "", "confidence": "NOT_ESTIMABLE",
+                     "basis": [], "assumptions": [], "missing_inputs": ["pomiar"]},
+    }
+
+    normalized = UnifiedAssistantService._normalize_model_result(raw)
+
+    assert len(normalized["claims"]) == 2
+    assert normalized["answer"].startswith("Udokumentowany fakt.")
+    assert "source_refs" not in normalized["answer"]
+    assert "potwierdzić lub obalić" in normalized["claims"][1]["text"]
+    assert normalized["used_sources"] == ["S01"]
+    assert normalized["estimate"] is None
+
+
+def test_non_numeric_not_estimable_judgement_is_not_kept_as_estimate():
+    raw = {
+        "answer": "Pilność jest wysoka.",
+        "claims": [
+            {"class": "FACT", "text": "Uszkodzenie postępuje.", "source_refs": ["S01"]},
+            {"class": "ESTIMATE", "text": "Pilność jest wysoka.", "source_refs": ["S01"]},
+            {"class": "HYPOTHESIS", "text": "Potrzebne jest pilne sprawdzenie.", "source_refs": ["S01"]},
+        ],
+        "used_sources": ["S01"],
+        "tool_plan": [],
+        "estimate": {"value_or_range": "", "confidence": "NOT_ESTIMABLE",
+                     "basis": [], "assumptions": [], "missing_inputs": []},
+    }
+
+    normalized = UnifiedAssistantService._normalize_model_result(raw)
+
+    assert [claim["class"] for claim in normalized["claims"]] == ["FACT", "HYPOTHESIS"]
+    assert normalized["estimate"] is None
+    assert "zweryfik" in normalized["claims"][1]["text"].casefold()
+
+
 def test_material_claims_require_provenance_and_used_sources_match_claims():
     source = type("Source", (), {})()
     source_map = {"S01": source}

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.document import Document
 from app.models.document_preparation_job import DocumentPreparationJob
+from app.models.assistant_pipeline import DocumentIntelligenceArtifact
 from app.services.document_file_safety_service import DocumentFileSafetyService
 from app.services.document_processing_service import DocumentProcessingService
 from app.services.document_service import resolve_document_storage_path
@@ -26,7 +27,7 @@ from app.services.unified_document_content_service import (
 )
 
 
-PROCESSOR_GENERATION = "document-preparation-v1"
+PROCESSOR_GENERATION = "document-preparation-v2"
 LEASE_MINUTES = 45
 
 
@@ -153,17 +154,59 @@ class DocumentPreparationService:
             return
         content = UnifiedDocumentContentService(self.db).access(document)
         if result.status == "processed" and content.state in {FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE}:
-            self._terminal(job, "ready", "ready_for_ai", None, None)
+            # CONTENT_READY is not INTELLIGENCE_READY.  The async dispatcher
+            # builds and validates the checksum-bound baseline artifact before
+            # this generation may become ready.
+            job.status = "running"
+            job.stage = "local_analysis"
+            job.error_code = None
+            job.retryability = None
         elif content.state == INTEGRITY_MISMATCH:
             self._terminal(job, "integrity_failed", "integrity_failed", "DOCUMENT_STORAGE_INTEGRITY_MISMATCH", "integrity")
         elif content.state == FILE_FOUND_REQUIRES_OCR:
-            self._terminal(job, "failed", "ocr_required", "DOCUMENT_REQUIRES_CONTROLLED_VISION", "owner_action")
+            # OCR did not yield usable text.  Keep this generation active so
+            # the dispatcher can use the existing controlled Vision route.
+            job.status = "running"
+            job.stage = "vision_processing"
+            job.error_code = None
+            job.retryability = None
+            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
         else:
             if job.attempt_count < job.max_attempts:
                 self._requeue(job, "DOCUMENT_PREPARATION_FAILED")
             else:
                 self._terminal(job, "failed", "failed", "DOCUMENT_PREPARATION_FAILED", "owner_action")
         self.db.commit()
+
+    def complete_intelligence(self, job_id: str, artifact_id: str) -> None:
+        job = self.db.get(DocumentPreparationJob, job_id)
+        if job is None or job.status != "running" or job.stage != "local_analysis":
+            return
+        if not artifact_id:
+            raise ValueError("intelligence_artifact_required")
+        artifact = self.db.get(DocumentIntelligenceArtifact, artifact_id)
+        if (
+            artifact is None
+            or artifact.document_id != job.document_id
+            or artifact.input_checksum != job.input_checksum
+            or artifact.preparation_job_id != job.id
+            or artifact.status != "accepted"
+            or artifact.validation_state != "passed"
+            or artifact.superseded_at is not None
+        ):
+            raise ValueError("intelligence_artifact_binding_invalid")
+        self._terminal(job, "ready", "ready_for_ai", None, None)
+        self.db.flush()
+
+    def fail_intelligence(self, job_id: str, error_code: str) -> None:
+        job = self.db.get(DocumentPreparationJob, job_id)
+        if job is None or job.status == "cancelled":
+            return
+        if job.attempt_count < job.max_attempts:
+            self._requeue(job, error_code[:100])
+        else:
+            self._terminal(job, "failed", "failed", error_code[:100], "owner_action")
+        self.db.flush()
 
     @staticmethod
     def _terminal(job: DocumentPreparationJob, status: str, stage: str, error: str | None, retryability: str | None) -> None:

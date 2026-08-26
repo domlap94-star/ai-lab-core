@@ -4,6 +4,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from PIL import Image
@@ -49,6 +50,7 @@ class _StoreRepository:
     def __init__(self, existing=None):
         self.existing = existing
         self.created = []
+        self.db = object()
 
     def get_by_external_id(self, **kwargs):
         return None
@@ -157,7 +159,7 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
                 self.assertLessEqual(max(bounded.size), 2048)
             self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), original_hash)
 
-    def test_genuinely_new_document_is_eligible_but_deduplicated_history_is_unchanged(self):
+    def test_new_document_queues_local_preparation_without_auto_external_vision(self):
         with tempfile.TemporaryDirectory() as temporary:
             original_data_dir = settings.data_dir
             settings.data_dir = temporary
@@ -165,15 +167,20 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
                 service = DocumentService(object())
                 repository = _StoreRepository()
                 service.repository = repository
-                result = service.store_document(
-                    content=b"new synthetic document",
-                    original_filename="fixture.txt",
-                    content_type="text/plain",
-                    source_type="manual_upload",
-                )
+                with patch(
+                    "app.services.document_preparation_service."
+                    "DocumentPreparationService.get_or_create"
+                ) as prepare:
+                    result = service.store_document(
+                        content=b"new synthetic document",
+                        original_filename="fixture.txt",
+                        content_type="text/plain",
+                        source_type="manual_upload",
+                    )
                 self.assertTrue(result.created)
-                self.assertTrue(result.document.vision_auto_eligible)
+                self.assertFalse(result.document.vision_auto_eligible)
                 self.assertEqual(result.document.vision_status, "not_evaluated")
+                prepare.assert_called_once()
 
                 historical = Document(
                     id=99, filename="old.txt", original_filename="old.txt",

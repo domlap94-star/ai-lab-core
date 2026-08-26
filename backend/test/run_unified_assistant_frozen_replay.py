@@ -105,6 +105,7 @@ async def run(
     case_ids: set[str] | None = None,
     saved_local: Path | None = None,
     supersede_paths: list[Path] | None = None,
+    streaming_v2: bool = False,
 ) -> dict:
     llm = OllamaClient()
     advanced = _latest(advanced_paths)
@@ -114,6 +115,20 @@ async def run(
     accepted: list[tuple[QualificationCase, dict]] = []
     local_count = advanced_count = review_count = failed_count = 0
     selected_cases = [case for case in cases() if not case_ids or case.case_id in case_ids]
+
+    async def generate(prompt: str, schema: dict) -> dict:
+        if not streaming_v2:
+            return await service._generate_local(prompt, schema)
+        raw = await llm.generate_streaming(
+            model=MODEL,
+            prompt=prompt,
+            format=schema,
+            options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 480},
+            think=False,
+            keep_alive="5m",
+        )
+        return json.loads(str(raw.get("response") or "{}"))
+
     for case in selected_cases:
         collected = _collected(case)
         request = UnifiedAssistantRequest(question=case.question)
@@ -132,7 +147,7 @@ async def run(
             )
         else:
             try:
-                raw_response = await service._generate_local(prompt, bounded_schema)
+                raw_response = await generate(prompt, bounded_schema)
                 response = service._resolve_tool_provenance(
                     service._normalize_model_result(raw_response), tool_source_map
                 )
@@ -156,7 +171,7 @@ async def run(
         }:
             correction = service._format_correction_prompt(prompt, validation, raw_response)
             try:
-                raw_response = await service._generate_local(correction, bounded_schema)
+                raw_response = await generate(correction, bounded_schema)
                 response = service._resolve_tool_provenance(
                     service._normalize_model_result(raw_response), tool_source_map
                 )
@@ -223,6 +238,7 @@ async def run(
     scores = [item for _, item in accepted]
     technical = [(case, item) for case, item in accepted if case.category in {"technical", "document"}]
     summary = {
+        "execution_path": "assistant_pipeline_v2_streaming_adapter" if streaming_v2 else "legacy_non_streaming_adapter",
         "cases": len(selected_cases),
         "auto_local": local_count,
         "auto_advanced": advanced_count,
@@ -277,6 +293,7 @@ def main() -> None:
     parser.add_argument("--case", action="append", default=[])
     parser.add_argument("--saved-local", type=Path)
     parser.add_argument("--supersede", type=Path, nargs="*", default=[])
+    parser.add_argument("--streaming-v2", action="store_true")
     args = parser.parse_args()
     asyncio.run(
         run(
@@ -285,6 +302,7 @@ def main() -> None:
             set(args.case) or None,
             saved_local=args.saved_local,
             supersede_paths=args.supersede,
+            streaming_v2=args.streaming_v2,
         )
     )
 

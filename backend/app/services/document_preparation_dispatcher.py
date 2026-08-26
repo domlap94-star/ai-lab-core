@@ -11,7 +11,9 @@ from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.knowledge_base import AnalysisJob
 from app.models.user import User
 from app.schemas.unified_assistant import UnifiedAssistantRequest
-from app.services.document_preparation_service import DocumentPreparationService
+from app.services.document_preparation_service import DocumentPreparationService, PROCESSOR_GENERATION
+from app.services.document_intelligence_service import build_document_intelligence
+from app.services.vision_dispatcher import process_explicit_vision_document
 
 
 logger = logging.getLogger("ai_lab.document_preparation")
@@ -34,6 +36,107 @@ def process_one_preparation() -> str | None:
         return None
     finally:
         db.close()
+
+
+async def process_preparation_intelligence(job_id: str) -> str | None:
+    db = SessionLocal()
+    try:
+        job = db.get(DocumentPreparationJob, job_id)
+        if job is None or job.status != "running" or job.stage != "local_analysis":
+            return None
+        document_id = job.document_id
+    finally:
+        db.close()
+
+    last_persisted = datetime.min.replace(tzinfo=UTC)
+
+    async def progress(_: dict) -> None:
+        nonlocal last_persisted
+        now = datetime.now(UTC)
+        if now - last_persisted < timedelta(seconds=2):
+            return
+        progress_db = SessionLocal()
+        try:
+            progress_job = progress_db.get(DocumentPreparationJob, job_id)
+            if progress_job is None or progress_job.status != "running":
+                raise asyncio.CancelledError
+            progress_job.lease_expires_at = now + timedelta(minutes=45)
+            progress_job.updated_at = now
+            progress_db.commit()
+            last_persisted = now
+        finally:
+            progress_db.close()
+
+    try:
+        artifact_id = await build_document_intelligence(
+            document_id=document_id,
+            preparation_job_id=job_id,
+            progress_callback=progress,
+        )
+        finish_db = SessionLocal()
+        try:
+            DocumentPreparationService(finish_db).complete_intelligence(job_id, artifact_id)
+            finish_db.commit()
+        finally:
+            finish_db.close()
+        return artifact_id
+    except asyncio.CancelledError:
+        recovery_db = SessionLocal()
+        try:
+            DocumentPreparationService(recovery_db).fail_intelligence(
+                job_id, "WORKER_INTERRUPTED"
+            )
+            recovery_db.commit()
+        finally:
+            recovery_db.close()
+        raise
+    except Exception as error:
+        finish_db = SessionLocal()
+        try:
+            DocumentPreparationService(finish_db).fail_intelligence(
+                job_id, f"INTELLIGENCE_{error.__class__.__name__.upper()}"
+            )
+            finish_db.commit()
+        finally:
+            finish_db.close()
+        logger.warning("Document intelligence failed: %s", error.__class__.__name__)
+        return None
+
+
+async def process_preparation_vision(job_id: str) -> bool:
+    """Advance one exact preparation through the existing private Vision route."""
+    db = SessionLocal()
+    try:
+        job = db.get(DocumentPreparationJob, job_id)
+        if job is None or job.status != "running":
+            return False
+        if job.stage != "vision_processing":
+            return job.stage == "local_analysis"
+        document_id = job.document_id
+    finally:
+        db.close()
+
+    await asyncio.to_thread(process_explicit_vision_document, document_id)
+    finish_db = SessionLocal()
+    try:
+        job = finish_db.get(DocumentPreparationJob, job_id)
+        document = finish_db.get(Document, document_id)
+        if job is None or document is None or job.status == "cancelled":
+            return False
+        if document.vision_status in {"complete", "partial"}:
+            job.stage = "local_analysis"
+            job.status = "running"
+            job.error_code = None
+            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=45)
+            finish_db.commit()
+            return True
+        DocumentPreparationService(finish_db).fail_intelligence(
+            job_id, f"VISION_{(document.vision_error_code or document.vision_status or 'FAILED').upper()}"
+        )
+        finish_db.commit()
+        return False
+    finally:
+        finish_db.close()
 
 
 def _next_waiting_id() -> str | None:
@@ -85,7 +188,7 @@ async def resume_waiting_analysis(job_id: str) -> None:
             preparation is None or preparation.status != "ready" or document is None
             or document.trashed_at is not None or document.purged_at is not None
             or document.checksum_sha256 != preparation.input_checksum
-            or preparation.processor_generation != "document-preparation-v1"
+            or preparation.processor_generation != PROCESSOR_GENERATION
             or user is None or not user.is_active or user.trashed_at is not None or user.purged_at is not None
         ):
             job.status = "failed"; job.error_code = "PREPARATION_RESUME_REVALIDATION_FAILED"
@@ -140,6 +243,9 @@ class DocumentPreparationDispatcher:
         while True:
             try:
                 prepared = await asyncio.to_thread(process_one_preparation)
+                if prepared is not None:
+                    if await process_preparation_vision(prepared):
+                        await process_preparation_intelligence(prepared)
                 waiting = await asyncio.to_thread(_next_waiting_id)
                 if waiting is not None:
                     await resume_waiting_analysis(waiting)

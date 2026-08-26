@@ -16,6 +16,13 @@ from app.models.document_asset import DocumentAsset
 from app.models.document_chunk import DocumentChunk
 from app.models.document_page import DocumentPage
 from app.models.document_preparation_job import DocumentPreparationJob
+from app.models.assistant_pipeline import (
+    AssistantRun,
+    AssistantRunMaterial,
+    AssistantRunStage,
+    DocumentIntelligenceArtifact,
+    DocumentIntelligenceSource,
+)
 from app.models.import_run import ImportRun
 from app.models.import_source import ImportSource
 from app.models.ignored_mail_source import IgnoredMailSource
@@ -57,6 +64,11 @@ __all__ = [
     "DocumentChunk",
     "DocumentPage",
     "DocumentPreparationJob",
+    "AssistantRun",
+    "AssistantRunMaterial",
+    "AssistantRunStage",
+    "DocumentIntelligenceArtifact",
+    "DocumentIntelligenceSource",
     "ImportRun",
     "ImportSource",
     "IgnoredMailSource",
