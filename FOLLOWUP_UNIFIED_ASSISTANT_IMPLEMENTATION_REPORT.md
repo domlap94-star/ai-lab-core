@@ -362,6 +362,34 @@ Owner physical retest remains required; PRE-CHUNK23 is not complete and
 CHUNK23 remains blocked. Evidence:
 `FOLLOWUP_P0_KB_SYNTHESIS_AND_DOCUMENT_DISCOVERY_REPORT.md`.
 
+## 2026-08-26 Assistant Pipeline V2 architecture reset
+
+The owner rejected non-stable +40 as the final Unified Assistant architecture.
+Production forensics prove that its Document preparation job completed in
+approximately 3.7 seconds, but the durable waiter then called the same
+synchronous `UnifiedAssistantService.ask()` and persisted
+`timed_out/local_analysis_timeout` approximately 106.6 seconds after material
+READY. The selected file was validated, processed and text/OCR ready, but no
+reusable Document intelligence artifact existed. Thus +40 moved extraction out
+of the request without making intelligence and final reasoning durable.
+
+The replacement design introduces first-class `AssistantRun`, auditable stage
+attempts/heartbeats, run-local material/source dependencies and normalized,
+checksum/generation-bound Document intelligence artifacts. Existing
+DocumentPreparationJobs remain material children; existing AnalysisJobs remain
+local/advanced compute children; KB remains on its CHUNK16 pipeline. The new
+additive V2 API will preserve stable +29 and current consumer contracts.
+
+Exact revision `followup_assistant_pipeline_v2_20260826`, parent
+`followup_assistant_file_pipeline_20260826`, passed isolated upgrade,
+downgrade and re-upgrade with zero run/artifact/historical backfill and no
+existing-job mutation. Production was not migrated, no V2 runtime/API/Flutter
+worker was enabled, and no APK was built. The exact next gate is
+`FOLLOWUP_ASSISTANT_PIPELINE_V2_SCHEMA_APPROVAL_REQUIRED`. PRE-CHUNK23 physical
+acceptance remains blocked and CHUNK23 remains blocked/not started. Full proof
+and schema:
+`FOLLOWUP_PRECHUNK23_ASSISTANT_PIPELINE_V2_REDESIGN_REPORT.md`.
+
 ## 2026-08-26 canonical file preparation / auto-resume design gate
 
 The owner replaced synchronous analysis of unprepared historical files with a
@@ -410,3 +438,14 @@ SHA-256 `F774D2D07C69EDFF0E398B13A163A0C1EEC479B36F3DBD36E942521EC33B1FFD`.
 No historical file was guessed or processed; the owner physical flow will
 identify the single authorized Document. Status is SOURCE/RUNTIME PASS /
 OWNER PHYSICAL RETEST REQUIRED. CHUNK23 remains blocked.
+
+## Current authoritative status
+
+The immediately preceding +40 physical-retest status is superseded by the
+owner's Pipeline V2 architecture reset. +40 is rejected/superseded and must not
+be published. Production remains on
+`followup_assistant_file_pipeline_20260826`; the V2 migration exists only as an
+isolated-proved source checkpoint. Required next gate:
+`FOLLOWUP_ASSISTANT_PIPELINE_V2_SCHEMA_APPROVAL_REQUIRED`. No new APK is to be
+built before the approved V2 source/runtime implementation reaches a coherent
+acceptance checkpoint. PRE-CHUNK23 and CHUNK23 remain blocked.

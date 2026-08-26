@@ -1897,7 +1897,7 @@ The same acceptance found the current Business/Technical/Agent user-facing
 split and local answer quality unacceptable. This is not recorded as a passing
 AI physical test and is handled by the owner-inserted pre-CHUNK23 item below.
 
-## [~] PRE-CHUNK23 — UNIFIED ASSISTANT IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED
+## [~] PRE-CHUNK23 — ASSISTANT PIPELINE V2 SCHEMA APPROVAL REQUIRED
 
 **Priority: P1 / BLOCKS CHUNK23**
 
@@ -2659,6 +2659,37 @@ BLOCKED`; CHUNK23 remains BLOCKED / NOT STARTED; stable remains `1.0.2+29`.
 Evidence and complete ingress/format/queue/rollback design:
 `FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.
 
+**PRE-CHUNK23 ASSISTANT PIPELINE V2 REDESIGN — SCHEMA SOURCE PASS / OWNER
+APPROVAL REQUIRED — 2026-08-26.** Owner physical +40 evidence rejects the
+current preparation/auto-resume architecture as the final Assistant design.
+Read-only production forensics prove that the exact selected Document reached
+`ready_for_ai` after extraction/OCR, then `resume_waiting_analysis()` called the
+same synchronous `UnifiedAssistantService.ask()` and ended as
+`timed_out/local_analysis_timeout` after approximately 110 seconds. +40 made
+file text durable; it did not make document intelligence or final reasoning a
+durable stage. Consequently `CONTENT_READY != INTELLIGENCE_READY !=
+QUERY_READY`.
+
+Exact additive revision `followup_assistant_pipeline_v2_20260826` (parent
+`followup_assistant_file_pipeline_20260826`) now defines empty first-class
+`assistant_runs`, auditable `assistant_run_stages`, run-local
+`assistant_run_materials`, checksum/generation-bound
+`document_intelligence_artifacts` and normalized
+`document_intelligence_sources`. Existing AnalysisJobs remain compute/advanced
+children and existing DocumentPreparationJobs remain material jobs. Stable
++29 and old endpoints remain compatibility requirements.
+
+The isolated upgrade/downgrade/re-upgrade proof is PASS with zero AssistantRun,
+artifact or historical job backfill and no existing-job mutation. Production
+was **not** migrated and remains at
+`followup_assistant_file_pipeline_20260826`; no runtime/API/Flutter change, APK
+build or production write occurred. The exact next gate is
+`FOLLOWUP_ASSISTANT_PIPELINE_V2_SCHEMA_APPROVAL_REQUIRED`. PRE-CHUNK23 physical
+acceptance remains blocked; CHUNK23 remains BLOCKED / NOT STARTED; +40 remains
+superseded/unpublished; stable remains `1.0.2+29`. Release F Ignore Mail
+address/domain remains required and unimplemented. Evidence:
+`FOLLOWUP_PRECHUNK23_ASSISTANT_PIPELINE_V2_REDESIGN_REPORT.md`.
+
 **P0 CANONICAL FILE PREPARATION + ASSISTANT AUTO-RESUME — SOURCE/RUNTIME PASS /
 OWNER PHYSICAL RETEST REQUIRED — 2026-08-26.** The owner consumed the exact
 schema approval for revision `followup_assistant_file_pipeline_20260826`.
@@ -2686,3 +2717,14 @@ IMPLEMENTED / PHYSICAL ACCEPTANCE REQUIRED`; CHUNK23 remains BLOCKED / NOT
 STARTED; stable remains `1.0.2+29`. Release F Ignore Mail address/domain remains
 required and was not implemented here. Evidence:
 `FOLLOWUP_P0_CANONICAL_FILE_PREPARATION_AND_AUTO_RESUME_REPORT.md`.
+
+**CURRENT SUPERSESSION — PRE-CHUNK23 ASSISTANT PIPELINE V2 SCHEMA APPROVAL
+REQUIRED — 2026-08-26.** The owner-rejected +40 physical architecture and its
+older physical-retest instruction above are historical only. The current
+authoritative state is the V2 redesign and exact additive revision
+`followup_assistant_pipeline_v2_20260826`, proved only in isolation and not
+applied to production. Required gate:
+`FOLLOWUP_ASSISTANT_PIPELINE_V2_SCHEMA_APPROVAL_REQUIRED`. PRE-CHUNK23 physical
+acceptance is blocked; CHUNK23 is BLOCKED / NOT STARTED; no new candidate is to
+be built before a coherent V2 source/runtime checkpoint. Stable remains
+`1.0.2+29`.
