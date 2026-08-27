@@ -160,6 +160,7 @@ class UnifiedAssistantService:
         llm_client=None,
         supervisor=None,
         local_hard_seconds: int | None = None,
+        local_num_thread: int | None = None,
         advanced_queue_hard_seconds: int = ADVANCED_QUEUE_HARD_SECONDS,
         advanced_external_hard_seconds: int = ADVANCED_EXTERNAL_HARD_SECONDS,
         release_db_before_model: bool = False,
@@ -170,6 +171,7 @@ class UnifiedAssistantService:
         self.supervisor = supervisor
         self.document_content = UnifiedDocumentContentService(db)
         self.local_hard_seconds = local_hard_seconds
+        self.local_num_thread = local_num_thread
         self.advanced_queue_hard_seconds = advanced_queue_hard_seconds
         self.advanced_external_hard_seconds = advanced_external_hard_seconds
         self.release_db_before_model = release_db_before_model
@@ -267,6 +269,10 @@ class UnifiedAssistantService:
             # V2 owns no request-scoped transaction during generator work.
             self.db.commit()
             self.db.close()
+        # Resource waiting is durable scheduler time, not active model time.
+        # Acquire the guarded generator lease before starting the local stage
+        # deadline; the phase watchdog remains authoritative after admission.
+        await self._ensure_model_resource_stage()
         local_deadline = time.monotonic() + (
             self.local_hard_seconds or EVIDENCE_LOCAL_HARD_SECONDS
         )
@@ -698,6 +704,7 @@ class UnifiedAssistantService:
         if self.release_db_before_model:
             self.db.commit()
             self.db.close()
+        await self._ensure_model_resource_stage()
         deadline = time.monotonic() + (
             self.local_hard_seconds or KB_OVERVIEW_LOCAL_HARD_SECONDS
         )
@@ -925,7 +932,7 @@ class UnifiedAssistantService:
         await self._ensure_model_resource_stage()
         return await asyncio.wait_for(self.llm.generate(
                 model=MODEL, prompt=prompt, stream=False, format=schema,
-                options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 200},
+                options=self._local_options(num_ctx=4096, num_predict=200),
                 think=False, keep_alive="5m",
             ), timeout=remaining)
 
@@ -1010,6 +1017,7 @@ class UnifiedAssistantService:
             if self.release_db_before_model:
                 self.db.commit()
                 self.db.close()
+            await self._ensure_model_resource_stage()
             result = await asyncio.wait_for(
                 self._generate_general(prompt),
                 timeout=self.local_hard_seconds or GENERAL_LOCAL_HARD_SECONDS,
@@ -1601,7 +1609,7 @@ class UnifiedAssistantService:
             prompt=prompt,
             stream=False,
             format=schema or MODEL_SCHEMA,
-            options={"temperature": 0.1, "num_ctx": 4096, "num_predict": num_predict},
+            options=self._local_options(num_ctx=4096, num_predict=num_predict),
             think=False,
             keep_alive="5m",
         )
@@ -1614,11 +1622,24 @@ class UnifiedAssistantService:
             prompt=prompt,
             stream=False,
             format=GENERAL_MODEL_SCHEMA,
-            options={"temperature": 0.1, "num_ctx": 2048, "num_predict": 160},
+            options=self._local_options(
+                num_ctx=4096 if self.local_num_thread is not None else 2048,
+                num_predict=160,
+            ),
             think=False,
             keep_alive="3m",
         )
         return json.loads(str(raw.get("response") or "{}"))
+
+    def _local_options(self, *, num_ctx: int, num_predict: int) -> dict[str, int | float]:
+        options: dict[str, int | float] = {
+            "temperature": 0.1,
+            "num_ctx": num_ctx,
+            "num_predict": num_predict,
+        }
+        if self.local_num_thread is not None:
+            options["num_thread"] = self.local_num_thread
+        return options
 
     async def _ensure_model_resource_stage(self) -> None:
         if self._model_resource_context is not None:

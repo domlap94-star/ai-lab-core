@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.assistant_pipeline import AssistantRun, AssistantRunStage
 from app.schemas.assistant_pipeline import validate_bounded_json
+from app.services.local_model_time_policy import phase_timeout_code
 
 
 LEASE_SECONDS = 90
@@ -48,10 +49,13 @@ class AssistantRunStageService:
         if stage.status == "completed":
             return stage
         now = datetime.now(UTC)
+        resumed_from_wait = stage.status == "waiting"
         stage.status = "running"
-        stage.started_at = stage.started_at or now
+        # Durable resource/material waiting is not active compute. Restart the
+        # active-stage clocks when this stage resumes after a wait.
+        stage.started_at = now if resumed_from_wait else (stage.started_at or now)
         stage.heartbeat_at = now
-        stage.last_progress_at = stage.last_progress_at or now
+        stage.last_progress_at = now if resumed_from_wait else (stage.last_progress_at or now)
         stage.lease_owner = f"{socket.gethostname()}:{os.getpid()}"
         stage.lease_expires_at = now + timedelta(seconds=LEASE_SECONDS)
         run.status = "running"
@@ -246,10 +250,22 @@ class AssistantRunStageService:
         now = datetime.now(UTC)
         started = stage.started_at or stage.created_at
         progress = stage.last_progress_at or started
-        if (now - progress).total_seconds() > stage.inactivity_timeout_seconds:
-            return "STAGE_INACTIVITY_TIMEOUT"
         if (now - started).total_seconds() > stage.absolute_cap_seconds:
             return "STAGE_ABSOLUTE_TIMEOUT"
+        if stage.stage_type in {"analyzing_local", "reducing_findings", "synthesizing"}:
+            phase_code = phase_timeout_code(
+                manifest=stage.result_manifest,
+                last_progress_at=stage.last_progress_at,
+                now=now,
+            )
+            if phase_code is not None:
+                return phase_code
+            phase_state = (stage.result_manifest or {}).get("local_model_phase")
+            phase = phase_state.get("phase") if isinstance(phase_state, dict) else None
+            if phase in {"model_load", "prompt_evaluation"}:
+                return None
+        if (now - progress).total_seconds() > stage.inactivity_timeout_seconds:
+            return "STAGE_INACTIVITY_TIMEOUT"
         return None
 
     def retry_or_fail(self, run: AssistantRun, stage_type: str, error_code: str) -> bool:

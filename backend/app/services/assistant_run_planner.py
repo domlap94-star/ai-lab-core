@@ -11,6 +11,11 @@ from app.models.document import Document
 from app.models.inspection import Inspection
 from app.schemas.assistant_pipeline import AssistantRunCreateRequest, validate_bounded_json
 from app.schemas.unified_assistant import UnifiedAssistantRequest
+from app.services.local_model_time_policy import (
+    DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS,
+    GENERATION_INACTIVITY_SECONDS,
+    STANDARD_LOCAL_ABSOLUTE_SECONDS,
+)
 from app.services.unified_assistant_service import UnifiedAssistantService
 
 
@@ -177,9 +182,26 @@ class AssistantRunPlanner:
                 definitions += [("retrieving_knowledge_base", 30, 120)]
             if complexity == "visual":
                 definitions += [("waiting_for_vision", 180, 3600), ("analyzing_vision", 180, 3600)]
-            definitions += [("analyzing_local", 120, 1200 if complexity == "deep" else 300)]
+            definitions += [(
+                "analyzing_local",
+                GENERATION_INACTIVITY_SECONDS,
+                DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS
+                if complexity == "deep"
+                else STANDARD_LOCAL_ABSOLUTE_SECONDS,
+            )]
             if complexity == "deep":
-                definitions += [("reducing_findings", 120, 1200), ("synthesizing", 120, 1200)]
+                definitions += [
+                    (
+                        "reducing_findings",
+                        GENERATION_INACTIVITY_SECONDS,
+                        DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS,
+                    ),
+                    (
+                        "synthesizing",
+                        GENERATION_INACTIVITY_SECONDS,
+                        DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS,
+                    ),
+                ]
             definitions += [
                 ("validating_local", 60, 300),
                 ("waiting_for_advanced", 180, 1800),

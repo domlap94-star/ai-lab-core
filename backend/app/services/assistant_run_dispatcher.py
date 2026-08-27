@@ -38,6 +38,12 @@ from app.services.document_preparation_service import (
     PROCESSOR_GENERATION,
 )
 from app.services.local_model_resource_coordinator import LocalModelEmergencyAbort
+from app.services.local_model_time_policy import (
+    DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS,
+    STANDARD_LOCAL_ABSOLUTE_SECONDS,
+    V2_LOCAL_NUM_THREAD,
+    utc_iso,
+)
 from app.services.unified_assistant_service import UnifiedAssistantService
 
 
@@ -60,11 +66,16 @@ class StageStreamingOllamaClient:
         self.base = OllamaClient()
         self._progress_lock = asyncio.Lock()
         self._last_progress_persisted_at = 0.0
+        self._model: str | None = None
+        self._phase: str | None = None
+        self._phase_started_at: str | None = None
 
     async def generate(self, **kwargs) -> dict[str, Any]:
+        self._model = str(kwargs["model"])
+        await self._transition_phase("model_load")
         heartbeat = asyncio.create_task(self._heartbeat_loop())
         try:
-            return await self.base.generate_streaming(
+            result = await self.base.generate_streaming(
                 model=kwargs["model"],
                 prompt=kwargs["prompt"],
                 format=kwargs.get("format"),
@@ -73,6 +84,8 @@ class StageStreamingOllamaClient:
                 keep_alive=kwargs.get("keep_alive"),
                 on_progress=self._progress,
             )
+            await self._transition_phase("validation")
+            return result
         finally:
             heartbeat.cancel()
             try:
@@ -143,6 +156,15 @@ class StageStreamingOllamaClient:
     async def _heartbeat_loop(self) -> None:
         while True:
             await asyncio.sleep(15)
+            if self._phase == "model_load" and self._model:
+                try:
+                    residents = await self.base.resource_coordinator.provider.resident_models()
+                    if any(item.name == self._model for item in residents):
+                        await self._transition_phase("prompt_evaluation")
+                except Exception:
+                    # The independent resource monitor remains fail-closed. A
+                    # transient residency probe cannot fabricate model progress.
+                    pass
             await asyncio.to_thread(self._persist, None, False)
 
     async def _progress(self, telemetry: dict[str, int | bool]) -> None:
@@ -150,6 +172,9 @@ class StageStreamingOllamaClient:
         # progress must be fresh, but a database transaction per token would
         # create avoidable pool/IO pressure.  Persist at a bounded cadence and
         # always persist the terminal event.
+        if self._phase != "generation":
+            self._phase = "generation"
+            self._phase_started_at = utc_iso()
         now = time.monotonic()
         if not telemetry.get("done") and now - self._last_progress_persisted_at < 2.0:
             return
@@ -160,6 +185,34 @@ class StageStreamingOllamaClient:
             await asyncio.to_thread(self._persist, telemetry, True)
             self._last_progress_persisted_at = now
 
+    async def _transition_phase(self, phase: str) -> None:
+        if self._phase == phase:
+            return
+        self._phase = phase
+        self._phase_started_at = utc_iso()
+        await asyncio.to_thread(self._persist_phase, phase)
+
+    def _persist_phase(self, phase: str) -> None:
+        db = SessionLocal()
+        try:
+            run = db.get(AssistantRun, self.run_id)
+            stage = db.get(AssistantRunStage, self.stage_id)
+            if run is None or stage is None or run.status == "cancelled" or run.cancel_requested_at:
+                raise asyncio.CancelledError
+            manifest = dict(stage.result_manifest or {})
+            manifest["local_model_phase"] = {
+                "phase": phase,
+                "started_at": self._phase_started_at or utc_iso(),
+            }
+            AssistantRunStageService(db).progress(
+                stage,
+                manifest=manifest,
+                substantive=True,
+            )
+            db.commit()
+        finally:
+            db.close()
+
     def _persist(self, telemetry: dict[str, int | bool] | None, substantive: bool) -> None:
         db = SessionLocal()
         try:
@@ -168,6 +221,11 @@ class StageStreamingOllamaClient:
             if run is None or stage is None or run.status == "cancelled" or run.cancel_requested_at:
                 raise asyncio.CancelledError
             manifest = dict(stage.result_manifest or {})
+            if self._phase and self._phase_started_at:
+                manifest["local_model_phase"] = {
+                    "phase": self._phase,
+                    "started_at": self._phase_started_at,
+                }
             if telemetry:
                 manifest["ollama"] = {
                     key: value for key, value in telemetry.items()
@@ -544,7 +602,12 @@ async def _execute_run(run_id: str) -> None:
         reasoner = UnifiedAssistantService(
             db,
             llm_client=streaming,
-            local_hard_seconds=1200 if run.complexity == "deep" else 300,
+            local_hard_seconds=(
+                DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS
+                if run.complexity == "deep"
+                else STANDARD_LOCAL_ABSOLUTE_SECONDS
+            ),
+            local_num_thread=V2_LOCAL_NUM_THREAD,
             advanced_queue_hard_seconds=600,
             advanced_external_hard_seconds=1800,
             release_db_before_model=True,
@@ -566,6 +629,7 @@ async def _execute_run(run_id: str) -> None:
                 "model_identity": response.model or "deterministic_local",
                 "model_contract": {
                     "num_ctx": 4096,
+                    "num_thread": V2_LOCAL_NUM_THREAD,
                     "think": False,
                     "streaming": True,
                 },
