@@ -171,6 +171,33 @@ class LocalModelTelemetryProvider:
             resident_models=models,
         )
 
+    async def resource_snapshot(self) -> LocalResourceSnapshot:
+        """Read the safety envelope without querying the busy generator API.
+
+        Residency is required during admission, but it is not an input to the
+        mid-run Windows/WSL emergency floors.  Ollama's `/api/ps` may be slow
+        while CPU inference is active, so coupling it to the memory monitor can
+        falsely abort a healthy owned generation.
+        """
+        try:
+            windows, meminfo = await asyncio.gather(
+                asyncio.to_thread(self.supervisor.snapshot),
+                asyncio.to_thread(_parse_meminfo),
+            )
+        except SupervisorResourceTelemetryUnavailable as error:
+            raise LocalModelResourceUnavailable(
+                "LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE"
+            ) from error
+        return LocalResourceSnapshot(
+            windows_total_bytes=windows.physical_total_bytes,
+            windows_available_bytes=windows.physical_available_bytes,
+            wsl_total_bytes=meminfo[0],
+            wsl_available_bytes=meminfo[1],
+            wsl_swap_total_bytes=meminfo[2],
+            wsl_swap_used_bytes=meminfo[3],
+            resident_models=(),
+        )
+
     async def unload(self, model: str) -> None:
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
@@ -370,7 +397,10 @@ class LocalModelResourceCoordinator:
         while True:
             await asyncio.sleep(MONITOR_SECONDS)
             try:
-                snapshot = await self.provider.snapshot()
+                snapshot_factory = getattr(
+                    self.provider, "resource_snapshot", self.provider.snapshot
+                )
+                snapshot = await snapshot_factory()
                 reason = None
                 if snapshot.windows_available_bytes < EMERGENCY_FLOOR_BYTES:
                     reason = "LOCAL_RESOURCE_WINDOWS_EMERGENCY"

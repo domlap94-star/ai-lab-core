@@ -67,6 +67,23 @@ class FailingProvider(FakeProvider):
         raise LocalModelResourceUnavailable("LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE")
 
 
+class SplitMonitorProvider(FakeProvider):
+    def __init__(self, snapshots: list[LocalResourceSnapshot]) -> None:
+        super().__init__(snapshots)
+        self.admission_calls = 0
+        self.monitor_calls = 0
+
+    async def snapshot(self) -> LocalResourceSnapshot:
+        self.admission_calls += 1
+        if self.admission_calls > 1:
+            raise LocalModelResourceUnavailable("LOCAL_OLLAMA_RESIDENCY_UNAVAILABLE")
+        return await super().snapshot()
+
+    async def resource_snapshot(self) -> LocalResourceSnapshot:
+        self.monitor_calls += 1
+        return self.current
+
+
 @pytest.mark.asyncio
 async def test_generator_admission_preserves_projected_four_gib_reserve() -> None:
     provider = FakeProvider([snapshot()])
@@ -278,3 +295,18 @@ async def test_external_resident_model_is_not_force_unloaded() -> None:
             pytest.fail("unsafe generator admission")
 
     assert "other-model:latest" not in provider.unloaded
+
+
+@pytest.mark.asyncio
+async def test_mid_run_monitor_does_not_require_ollama_residency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resource_module, "MONITOR_SECONDS", 0.01)
+    provider = SplitMonitorProvider([snapshot()])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+
+    async with coordinator.generator_session("qwen3.5:9b", wait_timeout=0.2):
+        await asyncio.sleep(0.04)
+
+    assert provider.admission_calls == 1
+    assert provider.monitor_calls >= 1
