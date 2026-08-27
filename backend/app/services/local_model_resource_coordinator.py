@@ -39,6 +39,7 @@ CONSERVATIVE_GENERATOR_WINDOWS_INCREMENT_BYTES = QWEN9_WINDOWS_INCREMENT_BYTES
 CONSERVATIVE_GENERATOR_WSL_INCREMENT_BYTES = QWEN9_WSL_INCREMENT_BYTES
 
 MONITOR_SECONDS = 2.0
+MAX_CONSECUTIVE_MONITOR_FAILURES = 3
 RESOURCE_RETRY_SECONDS = 5.0
 LEGACY_RESOURCE_WAIT_SECONDS = 10.0
 
@@ -394,6 +395,7 @@ class LocalModelResourceCoordinator:
         lease: LocalModelLease,
     ) -> None:
         baseline_swap = lease.admitted_snapshot.wsl_swap_used_bytes
+        telemetry_failures = 0
         while True:
             await asyncio.sleep(MONITOR_SECONDS)
             try:
@@ -409,7 +411,12 @@ class LocalModelResourceCoordinator:
                 elif snapshot.wsl_swap_used_bytes - baseline_swap > MAX_SWAP_GROWTH_BYTES:
                     reason = "LOCAL_RESOURCE_SWAP_EMERGENCY"
             except LocalModelResourceUnavailable:
+                telemetry_failures += 1
+                if telemetry_failures < MAX_CONSECUTIVE_MONITOR_FAILURES:
+                    continue
                 reason = "LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE"
+            else:
+                telemetry_failures = 0
             if reason is None:
                 continue
             lease.emergency_reason = reason

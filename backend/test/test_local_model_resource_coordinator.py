@@ -84,6 +84,23 @@ class SplitMonitorProvider(FakeProvider):
         return self.current
 
 
+class TransientMonitorProvider(FakeProvider):
+    def __init__(self, snapshots: list[LocalResourceSnapshot]) -> None:
+        super().__init__(snapshots)
+        self.monitor_calls = 0
+
+    async def resource_snapshot(self) -> LocalResourceSnapshot:
+        self.monitor_calls += 1
+        if self.monitor_calls <= 2:
+            raise LocalModelResourceUnavailable("LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE")
+        return self.current
+
+
+class FailedMonitorProvider(FakeProvider):
+    async def resource_snapshot(self) -> LocalResourceSnapshot:
+        raise LocalModelResourceUnavailable("LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE")
+
+
 @pytest.mark.asyncio
 async def test_generator_admission_preserves_projected_four_gib_reserve() -> None:
     provider = FakeProvider([snapshot()])
@@ -310,3 +327,31 @@ async def test_mid_run_monitor_does_not_require_ollama_residency(
 
     assert provider.admission_calls == 1
     assert provider.monitor_calls >= 1
+
+
+@pytest.mark.asyncio
+async def test_mid_run_monitor_tolerates_two_transient_telemetry_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resource_module, "MONITOR_SECONDS", 0.01)
+    provider = TransientMonitorProvider([snapshot()])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+
+    async with coordinator.generator_session("qwen3.5:9b", wait_timeout=0.2):
+        await asyncio.sleep(0.05)
+
+    assert provider.monitor_calls >= 3
+
+
+@pytest.mark.asyncio
+async def test_mid_run_monitor_fails_closed_after_three_telemetry_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resource_module, "MONITOR_SECONDS", 0.01)
+    coordinator = LocalModelResourceCoordinator(
+        provider=FailedMonitorProvider([snapshot()])
+    )
+
+    with pytest.raises(LocalModelEmergencyAbort, match="LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE"):
+        async with coordinator.generator_session("qwen3.5:9b", wait_timeout=0.2):
+            await asyncio.sleep(1)
