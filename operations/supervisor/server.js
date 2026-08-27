@@ -7,6 +7,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { VisionQueue, MAX_BODY_BYTES } = require('./vision_queue');
 const { AnalysisQueue } = require('./analysis_queue');
+const { resourceTelemetry } = require('./resource_telemetry');
 const { TemporaryChatArbiter } = require('./temporary_chat_arbiter');
 const { validateQdrantSnapshot } = require('./qdrant_snapshot_validator');
 const { previewSchedules, reconcileSchedules } = require('./backup_scheduler');
@@ -106,6 +107,10 @@ const BACKUP_BRIDGE_KEY = crypto
   .createHmac('sha256', SECRET_KEY)
   .update('next-stabil-backup-supervisor-v1')
   .digest('hex');
+const RESOURCE_BRIDGE_KEY = crypto
+  .createHmac('sha256', SECRET_KEY)
+  .update('next-stabil-resource-supervisor-v1')
+  .digest('hex');
 const BACKUP_SCRIPT = path.join(PROJECT_DIR, 'operations', 'hardening', 'backup-production.ps1');
 const DEFAULT_BACKUP_ROOT = 'C:\\ai-lab-core-backups';
 const BACKUP_SCOPES = new Set(['full', 'database', 'documents', 'qdrant', 'n8n_config']);
@@ -146,6 +151,14 @@ function authorizeAnalysis(req) {
 function authorizeBackup(req) {
   const supplied = Buffer.from(String(req.headers['x-next-stabil-backup-key'] || ''), 'utf8');
   const expected = Buffer.from(BACKUP_BRIDGE_KEY, 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    throw new Error('Unauthorized');
+  }
+}
+
+function authorizeResource(req) {
+  const supplied = Buffer.from(String(req.headers['x-next-stabil-resource-key'] || ''), 'utf8');
+  const expected = Buffer.from(RESOURCE_BRIDGE_KEY, 'utf8');
   if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
     throw new Error('Unauthorized');
   }
@@ -726,6 +739,24 @@ async function handle(req, res) {
   }
 
   const requestUrl = new URL(req.url, `http://${HOST}:${PORT}`);
+  if (requestUrl.pathname === '/resource/telemetry') {
+    try {
+      authorizeResource(req);
+    } catch (_) {
+      sendJson(res, 401, { detail: 'Unauthorized' });
+      return;
+    }
+    if (req.method !== 'GET') {
+      sendJson(res, 404, { detail: 'Not found' });
+      return;
+    }
+    try {
+      sendJson(res, 200, resourceTelemetry());
+    } catch (_) {
+      sendJson(res, 503, { detail: 'Resource telemetry unavailable' });
+    }
+    return;
+  }
   if (requestUrl.pathname.startsWith('/vision/')) {
     try {
       authorizeVision(req);

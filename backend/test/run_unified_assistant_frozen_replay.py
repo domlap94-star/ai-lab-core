@@ -108,6 +108,28 @@ async def run(
     streaming_v2: bool = False,
 ) -> dict:
     llm = OllamaClient()
+    async with llm.resource_session(MODEL, wait_timeout=None):
+        return await _run_with_model(
+            output=output,
+            advanced_paths=advanced_paths,
+            case_ids=case_ids,
+            saved_local=saved_local,
+            supersede_paths=supersede_paths,
+            streaming_v2=streaming_v2,
+            llm=llm,
+        )
+
+
+async def _run_with_model(
+    *,
+    output: Path,
+    advanced_paths: list[Path],
+    case_ids: set[str] | None,
+    saved_local: Path | None,
+    supersede_paths: list[Path] | None,
+    streaming_v2: bool,
+    llm: OllamaClient,
+) -> dict:
     advanced = _latest(advanced_paths)
     saved = _latest([saved_local]) if saved_local else {}
     superseding = _latest(supersede_paths or [])

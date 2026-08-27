@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import logging
 import time
@@ -36,6 +37,7 @@ from app.services.document_preparation_service import (
     DocumentPreparationService,
     PROCESSOR_GENERATION,
 )
+from app.services.local_model_resource_coordinator import LocalModelEmergencyAbort
 from app.services.unified_assistant_service import UnifiedAssistantService
 
 
@@ -80,6 +82,63 @@ class StageStreamingOllamaClient:
 
     async def unload(self, model: str) -> None:
         await self.base.unload(model)
+
+    def resource_session(
+        self,
+        model: str,
+        *,
+        wait_timeout: float | None = None,
+        on_wait=None,
+        on_ready=None,
+    ):
+        async def combined_wait(reason: str) -> None:
+            await self._resource_wait(reason)
+            if on_wait is not None:
+                result = on_wait(reason)
+                if inspect.isawaitable(result):
+                    await result
+
+        async def combined_ready(reason: str) -> None:
+            await self._resource_ready(reason)
+            if on_ready is not None:
+                result = on_ready(reason)
+                if inspect.isawaitable(result):
+                    await result
+
+        return self.base.resource_session(
+            model,
+            wait_timeout=wait_timeout,
+            on_wait=combined_wait,
+            on_ready=combined_ready,
+        )
+
+    async def _resource_wait(self, reason: str) -> None:
+        await asyncio.to_thread(self._persist_resource_state, reason, False)
+
+    async def _resource_ready(self, reason: str) -> None:
+        await asyncio.to_thread(self._persist_resource_state, reason, True)
+
+    def _persist_resource_state(self, reason: str, ready: bool) -> None:
+        db = SessionLocal()
+        try:
+            run = db.get(AssistantRun, self.run_id)
+            stage = db.get(AssistantRunStage, self.stage_id)
+            if run is None or stage is None or run.status == "cancelled" or run.cancel_requested_at:
+                raise asyncio.CancelledError
+            stages = AssistantRunStageService(db)
+            manifest = dict(stage.result_manifest or {})
+            manifest["local_resource"] = {
+                "state": "admitted" if ready else "waiting",
+                "reason": reason[:80],
+            }
+            if ready:
+                stages.start(run, stage.stage_type)
+                stages.progress(stage, manifest=manifest, substantive=False)
+            else:
+                stages.wait(run, stage.stage_type, manifest=manifest)
+            db.commit()
+        finally:
+            db.close()
 
     async def _heartbeat_loop(self) -> None:
         while True:
@@ -168,6 +227,21 @@ def _record_interruption(run_id: str, error_code: str) -> None:
             db.rollback()
             return
         AssistantRunStageService(db).retry_or_fail(run, run.current_stage, error_code)
+        db.commit()
+    finally:
+        db.close()
+
+
+def _record_resource_abort(run_id: str, error_code: str) -> None:
+    db = SessionLocal()
+    try:
+        run = db.get(AssistantRun, run_id)
+        if run is None or run.status == "cancelled" or not run.current_stage:
+            db.rollback()
+            return
+        AssistantRunStageService(db).retry_or_fail(
+            run, run.current_stage, error_code
+        )
         db.commit()
     finally:
         db.close()
@@ -553,6 +627,16 @@ async def _execute_run(run_id: str) -> None:
         )
         AssistantRunService(db).finish(run=run, response=response)
         db.commit()
+    except LocalModelEmergencyAbort as error:
+        db.rollback()
+        db.close()
+        await asyncio.to_thread(
+            _record_resource_abort,
+            run_id,
+            str(error)[:100] or "LOCAL_RESOURCE_EMERGENCY",
+        )
+        logger.warning("Assistant Pipeline V2 resource abort: %s", str(error))
+        return
     except asyncio.CancelledError:
         db.rollback()
         run = db.get(AssistantRun, run_id)

@@ -199,7 +199,9 @@ async def resume_waiting_analysis(job_id: str) -> None:
         db.commit()
 
         from app.services.unified_assistant_service import UnifiedAssistantService
-        response = await UnifiedAssistantService(db).ask(request=request, user_id=user.id)
+        response = await UnifiedAssistantService(
+            db, release_db_before_model=True
+        ).ask(request=request, user_id=user.id)
         db.expire_all()
         job = db.get(AnalysisJob, job_id)
         if job is None or job.cancel_requested_at is not None or job.status == "cancelled":

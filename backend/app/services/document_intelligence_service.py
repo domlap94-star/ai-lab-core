@@ -398,6 +398,28 @@ async def build_document_intelligence(
         db.close()
 
     model = client or OllamaClient()
+    resource_session = getattr(model, "resource_session", None)
+    if callable(resource_session):
+        async with resource_session(MODEL, wait_timeout=None):
+            return await _build_document_intelligence_with_model(
+                build_input=build_input,
+                model=model,
+                progress_callback=progress_callback,
+            )
+    return await _build_document_intelligence_with_model(
+        build_input=build_input,
+        model=model,
+        progress_callback=progress_callback,
+    )
+
+
+async def _build_document_intelligence_with_model(
+    *,
+    build_input: IntelligenceBuildInput,
+    model: OllamaClient,
+    progress_callback=None,
+) -> str:
+    document_id = build_input.document_id
     evidence = build_input.evidence
     section_payloads: list[dict] = []
     if len(evidence) > PAGES_PER_SECTION:

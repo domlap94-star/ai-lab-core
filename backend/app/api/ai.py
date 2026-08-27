@@ -71,7 +71,9 @@ async def ask_unified_assistant(
     current_user: User = Depends(get_current_user),
 ) -> UnifiedAssistantResponse:
     try:
-        return await UnifiedAssistantService(db).ask(request=request, user_id=current_user.id)
+        return await UnifiedAssistantService(
+            db, release_db_before_model=True
+        ).ask(request=request, user_id=current_user.id)
     except UnifiedAssistantContextError as error:
         raise HTTPException(status_code=422, detail="Wskazany kontekst nie należy do bieżącego zakresu.") from error
     except UnifiedAssistantModelUnavailable as error:

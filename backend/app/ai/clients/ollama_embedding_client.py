@@ -5,6 +5,10 @@ from dataclasses import dataclass
 import httpx
 
 from app.core.config import settings
+from app.services.local_model_resource_coordinator import (
+    LocalModelResourceCoordinator,
+    local_model_resource_coordinator,
+)
 
 
 @dataclass(frozen=True)
@@ -17,7 +21,11 @@ class EmbeddingResponse:
 
 
 class OllamaEmbeddingClient:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        resource_coordinator: LocalModelResourceCoordinator | None = None,
+    ) -> None:
         self.base_url = (
             settings.ollama_url.rstrip("/")
         )
@@ -32,6 +40,9 @@ class OllamaEmbeddingClient:
 
         self.timeout = httpx.Timeout(
             300.0
+        )
+        self.resource_coordinator = (
+            resource_coordinator or local_model_resource_coordinator
         )
 
     def embed(
@@ -53,17 +64,18 @@ class OllamaEmbeddingClient:
             "truncate": True,
         }
 
-        with httpx.Client(
-            timeout=self.timeout,
-        ) as client:
-            response = client.post(
-                f"{self.base_url}/api/embed",
-                json=payload,
-            )
+        with self.resource_coordinator.embedding_session():
+            with httpx.Client(
+                timeout=self.timeout,
+            ) as client:
+                response = client.post(
+                    f"{self.base_url}/api/embed",
+                    json=payload,
+                )
 
-            response.raise_for_status()
+                response.raise_for_status()
 
-            data = response.json()
+                data = response.json()
 
         embeddings = data.get(
             "embeddings",

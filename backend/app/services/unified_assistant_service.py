@@ -174,8 +174,17 @@ class UnifiedAssistantService:
         self.advanced_external_hard_seconds = advanced_external_hard_seconds
         self.release_db_before_model = release_db_before_model
         self.document_intelligence_payload = document_intelligence_payload
+        self._model_resource_context = None
 
     async def ask(self, *, request: UnifiedAssistantRequest, user_id: int) -> UnifiedAssistantResponse:
+        try:
+            return await self._ask_impl(request=request, user_id=user_id)
+        finally:
+            await self._close_model_resource_stage()
+
+    async def _ask_impl(
+        self, *, request: UnifiedAssistantRequest, user_id: int
+    ) -> UnifiedAssistantResponse:
         effective_request = self._apply_conversation_reset(request)
         query_mode = self._query_mode(effective_request)
         empty = _Collected([], [], [], effective_request.client_id, False)
@@ -257,6 +266,7 @@ class UnifiedAssistantService:
         if self.release_db_before_model:
             # V2 owns no request-scoped transaction during generator work.
             self.db.commit()
+            self.db.close()
         local_deadline = time.monotonic() + (
             self.local_hard_seconds or EVIDENCE_LOCAL_HARD_SECONDS
         )
@@ -687,6 +697,7 @@ class UnifiedAssistantService:
         )
         if self.release_db_before_model:
             self.db.commit()
+            self.db.close()
         deadline = time.monotonic() + (
             self.local_hard_seconds or KB_OVERVIEW_LOCAL_HARD_SECONDS
         )
@@ -911,6 +922,7 @@ class UnifiedAssistantService:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise asyncio.TimeoutError
+        await self._ensure_model_resource_stage()
         return await asyncio.wait_for(self.llm.generate(
                 model=MODEL, prompt=prompt, stream=False, format=schema,
                 options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 200},
@@ -997,6 +1009,7 @@ class UnifiedAssistantService:
         try:
             if self.release_db_before_model:
                 self.db.commit()
+                self.db.close()
             result = await asyncio.wait_for(
                 self._generate_general(prompt),
                 timeout=self.local_hard_seconds or GENERAL_LOCAL_HARD_SECONDS,
@@ -1582,6 +1595,7 @@ class UnifiedAssistantService:
     async def _generate_local(
         self, prompt: str, schema: dict[str, Any] | None = None, *, num_predict: int = 480
     ) -> dict[str, Any]:
+        await self._ensure_model_resource_stage()
         raw = await self.llm.generate(
             model=MODEL,
             prompt=prompt,
@@ -1594,6 +1608,7 @@ class UnifiedAssistantService:
         return json.loads(str(raw.get("response") or "{}"))
 
     async def _generate_general(self, prompt: str) -> dict[str, Any]:
+        await self._ensure_model_resource_stage()
         raw = await self.llm.generate(
             model=MODEL,
             prompt=prompt,
@@ -1604,6 +1619,22 @@ class UnifiedAssistantService:
             keep_alive="3m",
         )
         return json.loads(str(raw.get("response") or "{}"))
+
+    async def _ensure_model_resource_stage(self) -> None:
+        if self._model_resource_context is not None:
+            return
+        factory = getattr(self.llm, "resource_session", None)
+        if not callable(factory):
+            return
+        context = factory(MODEL)
+        await context.__aenter__()
+        self._model_resource_context = context
+
+    async def _close_model_resource_stage(self) -> None:
+        context = self._model_resource_context
+        self._model_resource_context = None
+        if context is not None:
+            await context.__aexit__(None, None, None)
 
     @staticmethod
     def _bounded_model_schema(

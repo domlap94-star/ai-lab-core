@@ -6,6 +6,7 @@ import os
 import re
 import time
 import unittest
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -312,6 +313,15 @@ class _FakeAsyncClient:
         return _FakeStreamContext()
 
 
+class _NoopResourceCoordinator:
+    @asynccontextmanager
+    async def generator_session(self, *_args, **_kwargs):
+        yield None
+
+    async def unload_owned_model(self, _model):
+        return True
+
+
 class _CancelableStreamResponse:
     closed = False
 
@@ -348,7 +358,9 @@ class OllamaStreamingTests(unittest.IsolatedAsyncioTestCase):
             telemetry.append(value)
 
         with patch("app.ai.clients.ollama_client.httpx.AsyncClient", _FakeAsyncClient):
-            result = await OllamaClient().generate_streaming(
+            result = await OllamaClient(
+                resource_coordinator=_NoopResourceCoordinator()
+            ).generate_streaming(
                 model="synthetic", prompt="safe", on_progress=progress
             )
         self.assertEqual(result["response"], '{"answer":"ok"}')
@@ -359,7 +371,9 @@ class OllamaStreamingTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelling_stream_closes_the_http_context(self) -> None:
         with patch("app.ai.clients.ollama_client.httpx.AsyncClient", _CancelableAsyncClient):
             task = asyncio.create_task(
-                OllamaClient().generate_streaming(model="synthetic", prompt="safe")
+                OllamaClient(
+                    resource_coordinator=_NoopResourceCoordinator()
+                ).generate_streaming(model="synthetic", prompt="safe")
             )
             await asyncio.sleep(0)
             task.cancel()
