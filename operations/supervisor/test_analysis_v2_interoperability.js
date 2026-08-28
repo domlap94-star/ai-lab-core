@@ -50,7 +50,11 @@ const prompt = promptForV2(m);
 assert(prompt.lastIndexOf('OSTATECZNY KONTRAKT ODPOWIEDZI') > prompt.lastIndexOf('PAKIET_DANYCH_END'));
 assert.match(prompt, /WYŁĄCZNIE jeden maszynowo czytelny obiekt JSON/);
 assert.match(prompt, /struktury V1, claim_id/);
+assert.match(prompt, /"description":"\.\.\.","fact_handles":\["F1","F2"\]/);
+assert.match(prompt, /analysis_type=consistency_check/);
 assert.doesNotMatch(retryPromptV2(), /NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1/);
+assert.match(retryPromptV2(), /"class":"HYPOTHESIS"/);
+assert.match(retryPromptV2(), /"description":"\.\.\.","fact_handles":\["F1","F2"\]/);
 
 assert.deepStrictEqual(parseV2(JSON.stringify(result()), m), result());
 assert.deepStrictEqual(parseV2(`\`\`\`json\n${JSON.stringify(result())}\n\`\`\``, m), result());
@@ -61,6 +65,24 @@ assert.throws(() => parseV2WithRetry('legacy prose', 'still invalid', m), /V2_MA
 assert.throws(() => parseV2(JSON.stringify({ ...result(), schema: 'NEXT_STABIL_ADVANCED_ANALYSIS_RESULT_V1' }), m), /V2_SCHEMA/);
 assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', fact_handles: ['F9'], tool_handles: [], visual_handles: [] }] }, m), /V2_UNKNOWN_FACT/);
 assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', claim_id: 'external', fact_handles: ['F1'], tool_handles: [], visual_handles: [] }] }, m), /V2_EXTERNAL_CLAIM_ID/);
+const validContradiction = { ...result(), contradictions: [{ description: 'Materialna sprzeczność.', fact_handles: ['F1'] }] };
+assert.deepStrictEqual(validateV2Result(validContradiction, m), validContradiction);
+assert.throws(() => validateV2Result({ ...result(), contradictions: [{ description: 'Błędny kształt.', handles: ['F1'] }] }, m), /V2_CONTRADICTION/);
+
+const consistencyPackage = packageFor(m.analysis_id);
+consistencyPackage.analysis_type = 'consistency_check';
+consistencyPackage.claims = [
+  { kind: 'FACT', fact_handle: 'F1', source_handle: 'S1', statement: 'Obserwacja pierwsza.', comparison_group: 'C1' },
+  { kind: 'FACT', fact_handle: 'F2', source_handle: 'S1', statement: 'Obserwacja druga.', comparison_group: 'C1' },
+];
+const consistencyManifest = { ...m, package: consistencyPackage };
+const consistencyHypothesis = {
+  schema: CONTRACT_V2,
+  claims: [{ class: 'HYPOTHESIS', statement: 'Obserwacje są różne.', support_fact_handles: ['F1', 'F2'], contradiction_fact_handles: [], confirm_or_refute: 'Porównać warunki obserwacji.' }],
+  contradictions: [],
+};
+assert.deepStrictEqual(validateV2Result(consistencyHypothesis, consistencyManifest), consistencyHypothesis);
+assert.throws(() => validateV2Result({ ...result(), claims: [{ class: 'FACT', fact_handles: ['F1', 'F2'], tool_handles: [], visual_handles: [] }] }, consistencyManifest), /V2_CONSISTENCY_RELATIONSHIP/);
 
 const scoped = packageFor(m.analysis_id);
 scoped.sources.push({ source_ref: 'S2', source_sha256: 'd'.repeat(64), technical_excerpt: 'Fact two.', page: 1 });

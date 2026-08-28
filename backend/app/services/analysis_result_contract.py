@@ -72,6 +72,32 @@ class TemporaryChatResultContractV2:
             normalized_contradictions.append({"description": item["description"], "fact_handles": sorted(handles)})
         selected_facts = {handle for item in normalized for handle in item.get("fact_handles", [])}
         contradiction_handles = {handle for item in normalized_contradictions for handle in item["fact_handles"]}
+        relationship_coverages = [
+            set(item.get("support_fact_handles", [])) | set(item.get("contradiction_fact_handles", []))
+            for item in normalized
+            if item.get("class") == "HYPOTHESIS"
+        ]
+        relationship_coverages.extend(set(item["fact_handles"]) for item in normalized_contradictions)
+        comparison_selected_facts = selected_facts | {
+            handle
+            for coverage in relationship_coverages
+            for handle in coverage
+        }
+        if request.analysis_type == "consistency_check":
+            groups = {item.get("comparison_group") for item in manifest["facts"].values()} - {None}
+            for group in groups:
+                members = {
+                    handle
+                    for handle, item in manifest["facts"].items()
+                    if item.get("comparison_group") == group
+                }
+                if len(comparison_selected_facts & members) >= 2 and not any(
+                    members.issubset(coverage) for coverage in relationship_coverages
+                ):
+                    return self._reject(
+                        "analysis_result_consistency_relationship_missing",
+                        "consistency_relationship_missing",
+                    )
         for group in {item.get("contradiction_group") for item in manifest["facts"].values()} - {None}:
             members = {handle for handle, item in manifest["facts"].items() if item.get("contradiction_group") == group}
             if len(selected_facts & members) >= 2 and not members.issubset(contradiction_handles):
@@ -227,6 +253,7 @@ class TemporaryChatResultContractV2:
             if item.get("kind") == "FACT" and item.get("fact_handle") and item.get("source_handle") in sources:
                 facts[str(item["fact_handle"])] = {
                     "statement": str(item.get("statement") or ""), "source_ref": str(item["source_handle"]),
+                    "comparison_group": item.get("comparison_group"),
                     "contradiction_group": item.get("contradiction_group"),
                 }
             elif item.get("kind") == "TOOL_RESULT" and item.get("tool_handle"):

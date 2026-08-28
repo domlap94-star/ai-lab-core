@@ -14,7 +14,7 @@ from test.local_llm_qualification_cases import cases
 FIXTURE = Path(__file__).parent / "fixtures" / "temp_chat_result_contract_v2_regression.json"
 
 
-def request_for(case, *, claims=None) -> AnalysisRequest:
+def request_for(case, *, claims=None, analysis_type="technical_interpretation") -> AnalysisRequest:
     refs = []
     manifest = []
     for index, (_, excerpt) in enumerate(case.evidence.items(), 1):
@@ -22,7 +22,7 @@ def request_for(case, *, claims=None) -> AnalysisRequest:
         refs.append(AnalysisSourceRef(source_ref=source, checksum_sha256=hashlib.sha256(excerpt.encode()).hexdigest(), excerpt=excerpt))
         manifest.append({"kind": "FACT", "fact_handle": f"F{index}", "source_handle": source, "statement": excerpt})
     return AnalysisRequest(
-        analysis_id=uuid4(), analysis_type="technical_interpretation", source_domain="technical",
+        analysis_id=uuid4(), analysis_type=analysis_type, source_domain="technical",
         source_refs=refs, problem_statement=case.question,
         structured_inputs={"claims": claims if claims is not None else manifest},
         evidence=list(case.evidence), sensitivity="public_reference", allowed_methods=["local_llm", "temporary_chat"],
@@ -206,6 +206,89 @@ def test_material_contradiction_cannot_be_silently_suppressed() -> None:
     assert disclosed.status == "accepted_advanced"
 
 
+def consistency_request(*, member_count: int = 2, analysis_type: str = "consistency_check") -> AnalysisRequest:
+    manifest = [
+        {
+            "kind": "FACT",
+            "fact_handle": f"F{index}",
+            "source_handle": "S1",
+            "statement": f"obserwacja {index}",
+            "comparison_group": "C1",
+        }
+        for index in range(1, member_count + 1)
+    ]
+    return request_for(cases()[0], claims=manifest, analysis_type=analysis_type)
+
+
+def test_consistency_group_accepts_covering_hypothesis() -> None:
+    request = consistency_request()
+    manifest = TemporaryChatResultContractV2._manifest(request)
+    assert manifest["facts"]["F1"]["comparison_group"] == "C1"
+    outcome = TemporaryChatResultContractV2().validate(
+        request=request,
+        result=result_for(request, [{
+            "class": "HYPOTHESIS",
+            "statement": "Obserwacje są materialnie różne.",
+            "support_fact_handles": ["F1", "F2"],
+            "contradiction_fact_handles": [],
+            "confirm_or_refute": "Porównać warunki i metodę obu obserwacji.",
+        }]),
+    )
+    assert outcome.status == "accepted_advanced"
+    assert outcome.artifact["claims"][0]["class"] == "HYPOTHESIS"
+
+
+def test_consistency_group_accepts_covering_contradiction() -> None:
+    request = consistency_request()
+    outcome = TemporaryChatResultContractV2().validate(
+        request=request,
+        result=result_for(
+            request,
+            [{"class": "FACT", "fact_handles": ["F1", "F2"]}],
+            contradictions=[{"description": "Obserwacje są sprzeczne.", "fact_handles": ["F1", "F2"]}],
+        ),
+    )
+    assert outcome.status == "accepted_advanced"
+
+
+def test_consistency_group_without_relationship_fails_closed() -> None:
+    request = consistency_request()
+    outcome = TemporaryChatResultContractV2().validate(
+        request=request,
+        result=result_for(request, [{"class": "FACT", "fact_handles": ["F1", "F2"]}]),
+    )
+    assert outcome.status == "rejected"
+    assert outcome.code == "analysis_result_consistency_relationship_missing"
+
+
+def test_consistency_group_partial_relationship_coverage_fails_closed() -> None:
+    request = consistency_request(member_count=3)
+    outcome = TemporaryChatResultContractV2().validate(
+        request=request,
+        result=result_for(request, [
+            {"class": "FACT", "fact_handles": ["F1", "F2", "F3"]},
+            {
+                "class": "HYPOTHESIS",
+                "statement": "Dwie obserwacje są różne.",
+                "support_fact_handles": ["F1", "F2"],
+                "contradiction_fact_handles": [],
+                "confirm_or_refute": "Porównać wszystkie obserwacje.",
+            },
+        ]),
+    )
+    assert outcome.status == "rejected"
+    assert outcome.code == "analysis_result_consistency_relationship_missing"
+
+
+def test_comparison_metadata_does_not_change_non_consistency_results() -> None:
+    request = consistency_request(analysis_type="technical_interpretation")
+    outcome = TemporaryChatResultContractV2().validate(
+        request=request,
+        result=result_for(request, [{"class": "FACT", "fact_handles": ["F1", "F2"]}]),
+    )
+    assert outcome.status == "accepted_advanced"
+
+
 def test_privacy_violation_remains_rejected_before_contract() -> None:
     request = request_for(cases()[0])
     result = result_for(request, [{"class": "FACT", "fact_handles": ["F1"]}])
@@ -227,6 +310,11 @@ def main() -> None:
         test_unknown_tool_and_visual_handles_fail_closed,
         test_out_of_scope_tool_manifest_cannot_create_authority,
         test_material_contradiction_cannot_be_silently_suppressed,
+        test_consistency_group_accepts_covering_hypothesis,
+        test_consistency_group_accepts_covering_contradiction,
+        test_consistency_group_without_relationship_fails_closed,
+        test_consistency_group_partial_relationship_coverage_fails_closed,
+        test_comparison_metadata_does_not_change_non_consistency_results,
         test_privacy_violation_remains_rejected_before_contract,
     ]
     for test in tests:

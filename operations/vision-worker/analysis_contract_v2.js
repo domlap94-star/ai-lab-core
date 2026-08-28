@@ -76,6 +76,8 @@ function validateV2Result(value, manifest) {
       || value.claims.length < 1 || value.claims.length > 64
       || !Array.isArray(value.contradictions)) throw new Error('V2_SCHEMA');
   const allowed = manifestHandles(manifest.package);
+  const selectedFacts = new Set();
+  const relationshipCoverages = [];
   for (const claim of value.claims) {
     object(claim, 'V2_CLAIM_SCHEMA');
     if ('claim_id' in claim) throw new Error('V2_EXTERNAL_CLAIM_ID');
@@ -85,6 +87,7 @@ function validateV2Result(value, manifest) {
       handles(claim.tool_handles || [], allowed.tools, 'V2_UNKNOWN_TOOL');
       handles(claim.visual_handles || [], allowed.visuals, 'V2_UNKNOWN_VISUAL');
       if (!(claim.fact_handles.length || claim.tool_handles.length || claim.visual_handles.length)) throw new Error('V2_MISSING_PROVENANCE');
+      claim.fact_handles.forEach((handle) => selectedFacts.add(handle));
     } else if (claim.class === 'ESTIMATE') {
       const status = claim.estimate_status || (claim.confidence === 'NOT_ESTIMABLE' ? 'NOT_ESTIMABLE' : 'ESTIMABLE');
       const legacy = !Object.prototype.hasOwnProperty.call(claim, 'estimate_status');
@@ -95,6 +98,7 @@ function validateV2Result(value, manifest) {
       handles(claim.basis_fact_handles || [], allowed.facts, 'V2_UNKNOWN_FACT');
       handles(claim.basis_tool_handles || [], allowed.tools, 'V2_UNKNOWN_TOOL');
       if (!(claim.basis_fact_handles.length || claim.basis_tool_handles.length)) throw new Error('V2_ESTIMATE');
+      claim.basis_fact_handles.forEach((handle) => selectedFacts.add(handle));
       stringList(claim.missing_inputs, 32, 'V2_ESTIMATE');
       if (status === 'NOT_ESTIMABLE' && !legacy) {
         if (typeof claim.reason !== 'string' || !claim.reason || !claim.missing_inputs.length) throw new Error('V2_ESTIMATE');
@@ -109,6 +113,9 @@ function validateV2Result(value, manifest) {
           || typeof claim.confirm_or_refute !== 'string' || !claim.confirm_or_refute) throw new Error('V2_HYPOTHESIS');
       handles(claim.support_fact_handles, allowed.facts, 'V2_UNKNOWN_FACT', true);
       handles(claim.contradiction_fact_handles || [], allowed.facts, 'V2_UNKNOWN_FACT');
+      const coverage = new Set([...claim.support_fact_handles, ...(claim.contradiction_fact_handles || [])]);
+      coverage.forEach((handle) => selectedFacts.add(handle));
+      relationshipCoverages.push(coverage);
     } else if (claim.class === 'MISSING') {
       exactKeys(claim, new Set(['class', 'item', 'why_relevant', 'estimable']), 'V2_CLAIM_SCHEMA');
       if (typeof claim.item !== 'string' || !claim.item
@@ -120,6 +127,23 @@ function validateV2Result(value, manifest) {
     exactKeys(item, new Set(['description', 'fact_handles']), 'V2_CONTRADICTION');
     if (typeof item.description !== 'string' || !item.description) throw new Error('V2_CONTRADICTION');
     handles(item.fact_handles, allowed.facts, 'V2_UNKNOWN_FACT', true);
+    const coverage = new Set(item.fact_handles);
+    coverage.forEach((handle) => selectedFacts.add(handle));
+    relationshipCoverages.push(coverage);
+  }
+  if (manifest.package.analysis_type === 'consistency_check') {
+    const groups = new Map();
+    for (const item of manifest.package.claims || []) {
+      if (!item || item.kind !== 'FACT' || typeof item.fact_handle !== 'string'
+          || typeof item.comparison_group !== 'string' || !allowed.facts.has(item.fact_handle)) continue;
+      if (!groups.has(item.comparison_group)) groups.set(item.comparison_group, new Set());
+      groups.get(item.comparison_group).add(item.fact_handle);
+    }
+    for (const members of groups.values()) {
+      const selectedCount = [...members].filter((handle) => selectedFacts.has(handle)).length;
+      const covered = relationshipCoverages.some((coverage) => [...members].every((handle) => coverage.has(handle)));
+      if (selectedCount >= 2 && !covered) throw new Error('V2_CONSISTENCY_RELATIONSHIP');
+    }
   }
   return value;
 }
@@ -138,7 +162,7 @@ function schemaTemplate() {
       { class: 'ESTIMATE', estimate_status: 'ESTIMABLE', value_or_range: 'wartość lub zakres', confidence: 'LOW', basis_fact_handles: ['F1'], basis_tool_handles: [], assumptions: [], missing_inputs: [] },
       { class: 'ESTIMATE', estimate_status: 'NOT_ESTIMABLE', reason: 'dlaczego nie można oszacować', basis_fact_handles: ['F1'], basis_tool_handles: [], missing_inputs: ['brakujący parametr'] },
     ],
-    contradictions: [],
+    contradictions: [{ description: 'opis materialnej sprzeczności', fact_handles: ['F1', 'F2'] }],
   };
 }
 
