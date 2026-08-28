@@ -129,6 +129,58 @@ class OutputBudgetClassificationTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(service._generate_before_deadline.await_count, 2)
 
+    async def test_semantic_correction_can_consume_unused_shared_retry(self) -> None:
+        service = _service()
+        exhausted = LocalOutputBudgetExhausted(
+            requested_num_predict=480, eval_count=480, done_reason="length"
+        )
+        service._generate_before_deadline = AsyncMock(side_effect=[
+            {"answer": "initial-complete"}, exhausted, {"answer": "corrected-complete"},
+        ])
+        initial = await service._generate_standard_with_truncation_retry(
+            "ORIGINAL", {}, time.monotonic() + 10
+        )
+        corrected = await service._generate_with_shared_truncation_retry(
+            "SEMANTIC_CORRECTION",
+            {},
+            time.monotonic() + 10,
+            num_predict=V2_STANDARD_SEMANTIC_CORRECTION_NUM_PREDICT,
+        )
+        self.assertEqual(initial, {"answer": "initial-complete"})
+        self.assertEqual(corrected, {"answer": "corrected-complete"})
+        self.assertEqual(
+            [call.kwargs["num_predict"] for call in service._generate_before_deadline.await_args_list],
+            [480, 480, 768],
+        )
+        self.assertIn(
+            "SEMANTIC_CORRECTION",
+            service._generate_before_deadline.await_args_list[2].args[0],
+        )
+
+    async def test_consumed_initial_retry_blocks_later_semantic_retry(self) -> None:
+        service = _service()
+        exhausted = LocalOutputBudgetExhausted(
+            requested_num_predict=480, eval_count=480, done_reason="length"
+        )
+        service._generate_before_deadline = AsyncMock(side_effect=[
+            exhausted, {"answer": "initial-recovered"}, exhausted,
+        ])
+        await service._generate_standard_with_truncation_retry(
+            "ORIGINAL", {}, time.monotonic() + 10
+        )
+        with self.assertRaises(LocalOutputBudgetExhausted):
+            await service._generate_with_shared_truncation_retry(
+                "SEMANTIC_CORRECTION",
+                {},
+                time.monotonic() + 10,
+                num_predict=V2_STANDARD_SEMANTIC_CORRECTION_NUM_PREDICT,
+            )
+        self.assertEqual(service._generate_before_deadline.await_count, 3)
+        self.assertEqual(
+            [call.kwargs["num_predict"] for call in service._generate_before_deadline.await_args_list],
+            [480, 768, 480],
+        )
+
     def test_second_exhaustion_has_fail_closed_response(self) -> None:
         response = UnifiedAssistantService._local_output_budget_exhausted_response(
             "run-id", _Collected([], [], ["document_read"], None, False)

@@ -6,6 +6,7 @@ import json
 import re
 import statistics
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,6 +20,11 @@ from app.services.unified_assistant_service import (
     MODEL_SCHEMA,
     _Collected,
     UnifiedAssistantService,
+)
+from app.services.local_model_time_policy import (
+    LocalOutputBudgetExhausted,
+    STANDARD_LOCAL_ABSOLUTE_SECONDS,
+    V2_STANDARD_INITIAL_NUM_PREDICT,
 )
 from local_llm_qualification_cases import QualificationCase, cases
 from run_local_llm_qualification import score
@@ -108,16 +114,15 @@ async def run(
     streaming_v2: bool = False,
 ) -> dict:
     llm = OllamaClient()
-    async with llm.resource_session(MODEL, wait_timeout=None):
-        return await _run_with_model(
-            output=output,
-            advanced_paths=advanced_paths,
-            case_ids=case_ids,
-            saved_local=saved_local,
-            supersede_paths=supersede_paths,
-            streaming_v2=streaming_v2,
-            llm=llm,
-        )
+    return await _run_with_model(
+        output=output,
+        advanced_paths=advanced_paths,
+        case_ids=case_ids,
+        saved_local=saved_local,
+        supersede_paths=supersede_paths,
+        streaming_v2=streaming_v2,
+        llm=llm,
+    )
 
 
 async def _run_with_model(
@@ -139,23 +144,23 @@ async def _run_with_model(
     selected_cases = [case for case in cases() if not case_ids or case.case_id in case_ids]
 
     async def generate(prompt: str, schema: dict) -> dict:
-        if not streaming_v2:
-            return await service._generate_local(prompt, schema)
-        raw = await llm.generate_streaming(
-            model=MODEL,
-            prompt=prompt,
-            format=schema,
-            options={"temperature": 0.1, "num_ctx": 4096, "num_predict": 480},
-            think=False,
-            keep_alive="5m",
+        # Qualification uses the same bounded sequence-wide output recovery as
+        # production instead of bypassing it with a direct Ollama call.
+        return await service._generate_with_shared_truncation_retry(
+            prompt,
+            schema,
+            time.monotonic() + STANDARD_LOCAL_ABSOLUTE_SECONDS,
+            num_predict=V2_STANDARD_INITIAL_NUM_PREDICT,
         )
-        return json.loads(str(raw.get("response") or "{}"))
 
     for case in selected_cases:
         collected = _collected(case)
         request = UnifiedAssistantRequest(question=case.question)
         prompt, source_map, tool_source_map = UnifiedAssistantService._prompt(request, collected)
         service = UnifiedAssistantService(SimpleNamespace(), llm_client=llm)
+        # Production resets this allowance at the start of each independent
+        # Assistant request. Frozen cases are independent requests too.
+        service.local_truncation_retry_used = False
         bounded_schema = service._bounded_model_schema(
             set(source_map), set(tool_source_map)
         )
@@ -173,7 +178,7 @@ async def _run_with_model(
                 response = service._resolve_tool_provenance(
                     service._normalize_model_result(raw_response), tool_source_map
                 )
-            except (json.JSONDecodeError, TypeError, ValueError):
+            except (json.JSONDecodeError, LocalOutputBudgetExhausted, TypeError, ValueError):
                 raw_response = {}
                 response = {}
         evidence_aliases = {
@@ -185,7 +190,8 @@ async def _run_with_model(
             response, set(source_map) | set(tool_source_map) | evidence_aliases
         )
         validation = UnifiedAssistantService._validate(
-            response, source_map, collected.visual_available, tool_source_map
+            response, source_map, collected.visual_available, tool_source_map,
+            require_calculation_estimate=service._calculation_contract_required(collected),
         )
         if not saved_local and validation in {
             "invalid_schema", "estimate_contract", "hypothesis_contract",
@@ -197,13 +203,14 @@ async def _run_with_model(
                 response = service._resolve_tool_provenance(
                     service._normalize_model_result(raw_response), tool_source_map
                 )
-            except (json.JSONDecodeError, TypeError, ValueError):
+            except (json.JSONDecodeError, LocalOutputBudgetExhausted, TypeError, ValueError):
                 response = {}
             response = service._strip_known_output_handles(
                 response, set(source_map) | set(tool_source_map) | evidence_aliases
             )
             validation = UnifiedAssistantService._validate(
-                response, source_map, collected.visual_available, tool_source_map
+                response, source_map, collected.visual_available, tool_source_map,
+                require_calculation_estimate=service._calculation_contract_required(collected),
             )
         frozen_response = _for_frozen_score(response, case)
         local_score = score(case, frozen_response)
@@ -246,9 +253,14 @@ async def _run_with_model(
                 "decision": decision,
                 "score": final_score,
                 "local_score": local_score,
+                "truncation_retry_used": service.local_truncation_retry_used,
                 "response": response,
             }
         )
+        # Each frozen case is an independent run. Unload while its owned lease
+        # is still active so the next case must pass a fresh >=4 GiB admission.
+        await service._unload_for_external_wait()
+        await service._close_model_resource_stage()
         print(
             f"{case.case_id}: {decision}; validation={validation}; "
             f"difficulty={difficulty}; gate={local_gate}",

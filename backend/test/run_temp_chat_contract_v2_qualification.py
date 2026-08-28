@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -17,6 +16,7 @@ if os.environ.get("TEMP_CHAT_CONTRACT_V2_QUALIFICATION") != "1":
 from app.database.session import SessionLocal
 from app.schemas.analysis import AdvancedAnalysisResult, AnalysisProvenance, AnalysisQualitySignals, AnalysisRequest, AnalysisSourceRef, DeterministicCheck, LocalAnalysisResult
 from app.services.advanced_analysis_orchestrator import AdvancedAnalysisOrchestrator
+from app.services.assistant_advanced_manifest import build_advanced_manifest
 from app.services.analysis_result_contract import TemporaryChatResultContractV2
 from app.services.analysis_sanitizer import AnalysisSanitizer
 from local_llm_qualification_cases import cases
@@ -25,33 +25,34 @@ from run_multi_model_pipeline_qualification import deterministic_tool_results, d
 from run_temp_chat_pipeline_qualification import GATED_CASES, analysis_type
 
 
-REQUESTED_OUTPUT = """Zwróć dokładnie NEXT_STABIL_TEMP_CHAT_RESULT_V2: {schema,claims,contradictions}. Nie zwracaj answer, claim_id ani decyzji accept/review/reject. target_scope jest niezmienny; używaj tylko uchwytów target/global. FACT wybiera fact/tool/visual handles. MISSING opisuje brak. HYPOTHESIS wymaga podstawy i sposobu weryfikacji. ESTIMATE ze statusem ESTIMABLE wymaga value_or_range, HIGH/MEDIUM/LOW, podstawy, założeń i braków. ESTIMATE ze statusem NOT_ESTIMABLE wymaga reason, podstawy i missing_inputs oraz nie może zawierać wartości, confidence ani założeń. Braków i źródeł nie zgaduj. Lokalny deterministyczny walidator sam wybiera dyspozycję."""
 FIXTURE = Path(__file__).parent / "fixtures" / "temp_chat_result_contract_v2_regression.json"
 TARGET_SCOPES = json.loads(FIXTURE.read_text(encoding="utf-8")).get("target_scopes", {})
 
 
-def atomize(value: str) -> list[str]:
-    return [item.strip() for item in re.split(r"(?<=[.!?])\s+|;\s*", value) if item.strip()]
-
-
 def request_for(case) -> tuple[AnalysisRequest, dict[str, str]]:
-    refs, aliases, manifest = [], {}, []
-    fact_index = 0
+    refs, aliases, source_rows = [], {}, []
     for source_index, (internal_ref, excerpt) in enumerate(case.evidence.items(), 1):
         source = f"S{source_index}"
         aliases[source] = internal_ref
         refs.append(AnalysisSourceRef(source_ref=source, checksum_sha256=hashlib.sha256(excerpt.encode()).hexdigest(), excerpt=excerpt, extraction_confidence=100))
-        statements = atomize(excerpt)
-        for statement in statements:
-            fact_index += 1
-            item = {"kind": "FACT", "fact_handle": f"F{fact_index}", "source_handle": source, "statement": statement}
-            if case.case_id == "B09-conflict":
-                item["contradiction_group"] = "G1"
-            manifest.append(item)
-    for index, tool in enumerate(deterministic_tool_results(case), 1):
-        source = next((alias for alias, internal in aliases.items() if internal in tool.get("source_refs", [])), "S1")
-        manifest.append({"kind": "TOOL_RESULT", "tool_handle": f"T{index}", "source_handle": source,
-                         "statement": f"{tool['value']} {tool['unit']}", "value": tool["value"], "unit": tool["unit"]})
+        source_rows.append((source, internal_ref, excerpt))
+    tool_payloads = [
+        {
+            "tool": tool.get("tool"),
+            "data": {
+                key: value for key, value in tool.items()
+                if key not in {"source_refs", "tool_result_id", "tool"}
+            },
+            "source_keys": list(tool.get("source_refs") or []),
+        }
+        for tool in deterministic_tool_results(case)
+    ]
+    advanced_manifest = build_advanced_manifest(
+        question=case.question,
+        sources=source_rows,
+        tool_payloads=tool_payloads,
+        default_analysis_type=analysis_type(case.category),
+    )
     target_scope = None
     if case.case_id in TARGET_SCOPES:
         definition = TARGET_SCOPES[case.case_id]
@@ -63,12 +64,13 @@ def request_for(case) -> tuple[AnalysisRequest, dict[str, str]]:
         }
     source_checksum = hashlib.sha256(json.dumps(case.evidence, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     structured = {"contract_version": TemporaryChatResultContractV2.SCHEMA,
-                  "claims": manifest, "requested_output": REQUESTED_OUTPUT,
-                  "validation_requirements": ["strict handle binding", "local claim IDs", "privacy minimization"]}
+                  "claims": advanced_manifest.claims,
+                  "requested_output": advanced_manifest.requested_output,
+                  "validation_requirements": advanced_manifest.validation_requirements}
     if target_scope:
         structured["target_scope"] = target_scope
     request = AnalysisRequest(
-        analysis_id=uuid4(), analysis_type=analysis_type(case.category), source_domain="technical", source_refs=refs,
+        analysis_id=uuid4(), analysis_type=advanced_manifest.analysis_type, source_domain="technical", source_refs=refs,
         problem_statement=case.question,
         structured_inputs=structured,
         evidence=list(aliases), sensitivity="customer_sanitizable" if case.case_id == "A05-privacy" else "public_reference",

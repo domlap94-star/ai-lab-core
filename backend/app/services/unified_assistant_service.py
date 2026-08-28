@@ -37,6 +37,7 @@ from app.schemas.unified_assistant import (
     UnifiedAssistantRequest, UnifiedAssistantResponse, UnifiedClaim, UnifiedSource,
 )
 from app.services.advanced_analysis_orchestrator import AdvancedAnalysisOrchestrator
+from app.services.assistant_advanced_manifest import build_advanced_manifest
 from app.services.analysis_result_contract import TemporaryChatResultContractV2
 from app.core.config import settings
 from app.services.agent_tool_registry import AgentToolRegistry, ScopeViolation, ToolDenied
@@ -210,6 +211,9 @@ class UnifiedAssistantService:
     async def _ask_impl(
         self, *, request: UnifiedAssistantRequest, user_id: int
     ) -> UnifiedAssistantResponse:
+        # One bounded 768-token recovery is shared by the complete local
+        # reasoning sequence, including semantic/task-completion corrections.
+        self.local_truncation_retry_used = False
         effective_request = self._apply_conversation_reset(request)
         query_mode = self._query_mode(effective_request)
         empty = _Collected([], [], [], effective_request.client_id, False)
@@ -294,6 +298,7 @@ class UnifiedAssistantService:
         kb_only = bool(collected.sources) and all(
             source.source_type == "knowledge_base" for source in collected.sources
         )
+        calculation_contract_required = self._calculation_contract_required(collected)
         raw_local: dict[str, Any] = {}
         if self.release_db_before_model:
             # V2 owns no request-scoped transaction during generator work.
@@ -337,6 +342,7 @@ class UnifiedAssistantService:
             parsed, source_map, collected.visual_available, tool_source_map,
             allow_general_knowledge=query_mode == QUERY_MODE_GENERAL_KNOWLEDGE,
             blocked_scope_segments=blocked_scope_segments,
+            require_calculation_estimate=calculation_contract_required,
         )
         if validation in {
             "invalid_schema", "estimate_contract", "hypothesis_contract",
@@ -345,7 +351,7 @@ class UnifiedAssistantService:
         }:
             correction = self._format_correction_prompt(prompt, validation, raw_local)
             try:
-                retried = await self._generate_before_deadline(
+                retried = await self._generate_with_shared_truncation_retry(
                     correction,
                     bounded_schema,
                     local_deadline,
@@ -361,6 +367,7 @@ class UnifiedAssistantService:
                     parsed, source_map, collected.visual_available, tool_source_map,
                     allow_general_knowledge=query_mode == QUERY_MODE_GENERAL_KNOWLEDGE,
                     blocked_scope_segments=blocked_scope_segments,
+                    require_calculation_estimate=calculation_contract_required,
                 )
             except LocalOutputBudgetExhausted:
                 await self._unload_for_external_wait()
@@ -377,7 +384,7 @@ class UnifiedAssistantService:
         if validation is None and resolution and not self._payload_uses_document(parsed, source_map, resolution.document_id):
             correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
             try:
-                retried = await self._generate_before_deadline(
+                retried = await self._generate_with_shared_truncation_retry(
                     correction,
                     bounded_schema,
                     local_deadline,
@@ -393,6 +400,7 @@ class UnifiedAssistantService:
                     parsed, source_map, collected.visual_available, tool_source_map,
                     allow_general_knowledge=query_mode == QUERY_MODE_GENERAL_KNOWLEDGE,
                     blocked_scope_segments=blocked_scope_segments,
+                    require_calculation_estimate=calculation_contract_required,
                 )
             except LocalOutputBudgetExhausted:
                 await self._unload_for_external_wait()
@@ -413,7 +421,7 @@ class UnifiedAssistantService:
         ):
             correction = self._format_correction_prompt(prompt, "task_completion_fail", raw_local)
             try:
-                retried = await self._generate_before_deadline(
+                retried = await self._generate_with_shared_truncation_retry(
                     correction,
                     bounded_schema,
                     local_deadline,
@@ -429,6 +437,7 @@ class UnifiedAssistantService:
                     parsed, source_map, collected.visual_available, tool_source_map,
                     allow_general_knowledge=False,
                     blocked_scope_segments=blocked_scope_segments,
+                    require_calculation_estimate=calculation_contract_required,
                 )
             except LocalOutputBudgetExhausted:
                 await self._unload_for_external_wait()
@@ -1341,15 +1350,31 @@ class UnifiedAssistantService:
     async def _generate_standard_with_truncation_retry(
         self, prompt: str, schema: dict[str, Any], deadline: float
     ) -> dict[str, Any]:
-        self.local_truncation_retry_used = False
+        return await self._generate_with_shared_truncation_retry(
+            prompt,
+            schema,
+            deadline,
+            num_predict=V2_STANDARD_INITIAL_NUM_PREDICT,
+        )
+
+    async def _generate_with_shared_truncation_retry(
+        self,
+        prompt: str,
+        schema: dict[str, Any],
+        deadline: float,
+        *,
+        num_predict: int,
+    ) -> dict[str, Any]:
         try:
             return await self._generate_before_deadline(
                 prompt,
                 schema,
                 deadline,
-                num_predict=V2_STANDARD_INITIAL_NUM_PREDICT,
+                num_predict=num_predict,
             )
         except LocalOutputBudgetExhausted:
+            if self.local_truncation_retry_used:
+                raise
             self.local_truncation_retry_used = True
             return await self._generate_before_deadline(
                 self._format_truncation_retry_prompt(prompt),
@@ -2790,6 +2815,18 @@ class UnifiedAssistantService:
         return manifest
 
     @staticmethod
+    def _calculation_contract_required(collected: _Collected) -> bool:
+        return any(
+            "calcul" in str(item.get("tool") or "").casefold()
+            and isinstance(item.get("data"), dict)
+            and isinstance(item["data"].get("value"), (int, float))
+            and not isinstance(item["data"].get("value"), bool)
+            and isinstance(item["data"].get("unit"), str)
+            and bool(item["data"]["unit"])
+            for item in collected.tool_payloads
+        )
+
+    @staticmethod
     def _strip_internal_provenance(value: Any) -> Any:
         """Only the canonical outer Sxx/Txx manifest may carry provenance."""
         if isinstance(value, dict):
@@ -2814,6 +2851,7 @@ class UnifiedAssistantService:
         *,
         allow_general_knowledge: bool = False,
         blocked_scope_segments: tuple[str, ...] = (),
+        require_calculation_estimate: bool = False,
     ) -> str | None:
         if not isinstance(payload, dict) or not isinstance(payload.get("answer"), str) or not payload["answer"].strip():
             return "invalid_schema"
@@ -2865,6 +2903,8 @@ class UnifiedAssistantService:
             return "source_binding"
         estimate = payload.get("estimate")
         estimate_claims = [claim for claim in claims if claim.get("class") == "ESTIMATE"]
+        if require_calculation_estimate and estimate is None:
+            return "estimate_contract"
         if (estimate is None) != (not estimate_claims):
             return "estimate_contract"
         if estimate is not None:
@@ -2949,7 +2989,7 @@ class UnifiedAssistantService:
     def _advanced_request(self, request: UnifiedAssistantRequest, collected: _Collected, user_id: int, request_id: str):
         refs = []
         entities: dict[str, tuple[str, str, int | None]] = {}
-        claim_rows = []
+        manifest_sources: list[tuple[str, tuple[str, int | None, str | None], str]] = []
         for index, source in enumerate(collected.sources[:MAX_SOURCES], 1):
             handle = f"S{index}"
             excerpt = " ".join((source.snippet or source.title).split())[:2000] or source.title
@@ -2958,12 +2998,21 @@ class UnifiedAssistantService:
             page = int(page_match.group(1)) if page_match else None
             refs.append(AnalysisSourceRef(source_ref=handle, checksum_sha256=checksum, excerpt=excerpt, page=page))
             entities[handle] = (source.source_type, str(source.source_id or 0), page)
-            claim_rows.append({"kind": "FACT", "fact_handle": f"F{index:02d}", "statement": excerpt, "source_handle": handle})
+            manifest_sources.append((
+                handle,
+                (source.source_type, source.source_id, source.route),
+                excerpt,
+            ))
         if not refs:
             excerpt = "Brak danych źródłowych klienta; wymagane jest bezpieczne rozstrzygnięcie braku danych."
             refs = [AnalysisSourceRef(source_ref="S1", checksum_sha256=hashlib.sha256(excerpt.encode()).hexdigest(), excerpt=excerpt)]
             entities["S1"] = ("technical", "0", None)
-            claim_rows = [{"kind": "FACT", "fact_handle": "F01", "statement": excerpt, "source_handle": "S1"}]
+            manifest_sources = [("S1", ("technical", 0, None), excerpt)]
+        manifest = build_advanced_manifest(
+            question=request.question,
+            sources=manifest_sources,
+            tool_payloads=collected.tool_payloads,
+        )
         source_checksum = hashlib.sha256("".join(item.checksum_sha256 for item in refs).encode()).hexdigest()
         global_handles = [
             f"S{index}" for index, source in enumerate(collected.sources[:MAX_SOURCES], 1)
@@ -2976,11 +3025,13 @@ class UnifiedAssistantService:
         if not allowed_handles:
             allowed_handles, global_handles = [item.source_ref for item in refs], []
         analysis_request = AnalysisRequest(
-            analysis_id=uuid.UUID(request_id), analysis_type="technical_interpretation", source_domain="technical",
+            analysis_id=uuid.UUID(request_id), analysis_type=manifest.analysis_type, source_domain="technical",
             source_refs=refs, problem_statement=request.question,
             structured_inputs={"contract_version": TEMP_CHAT_RESULT_CONTRACT_V2,
                 "target_scope": {"scope_handle": TARGET, "allowed_source_handles": allowed_handles, "global_source_handles": global_handles},
-                "claims": claim_rows},
+                "claims": manifest.claims,
+                "requested_output": manifest.requested_output,
+                "validation_requirements": manifest.validation_requirements},
             sensitivity="customer_sanitizable" if collected.client_id is not None else "public_reference",
             allowed_methods=["local_llm", "temporary_chat"], context_limits=AnalysisContextLimits(max_sources=len(refs)),
             provenance=AnalysisProvenance(requested_by_user_id=user_id, source_checksum=source_checksum, processor_policy_version="unified-f0-v1"),
