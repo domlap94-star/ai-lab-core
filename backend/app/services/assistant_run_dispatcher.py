@@ -42,6 +42,8 @@ from app.services.local_model_time_policy import (
     DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS,
     STANDARD_LOCAL_ABSOLUTE_SECONDS,
     V2_LOCAL_NUM_THREAD,
+    V2_STANDARD_INITIAL_NUM_PREDICT,
+    V2_STANDARD_TRUNCATION_RETRY_NUM_PREDICT,
     utc_iso,
 )
 from app.services.unified_assistant_service import UnifiedAssistantService
@@ -167,7 +169,7 @@ class StageStreamingOllamaClient:
                     pass
             await asyncio.to_thread(self._persist, None, False)
 
-    async def _progress(self, telemetry: dict[str, int | bool]) -> None:
+    async def _progress(self, telemetry: dict[str, int | bool | str]) -> None:
         # Ollama commonly emits one NDJSON event per generated token.  Durable
         # progress must be fresh, but a database transaction per token would
         # create avoidable pool/IO pressure.  Persist at a bounded cadence and
@@ -213,7 +215,9 @@ class StageStreamingOllamaClient:
         finally:
             db.close()
 
-    def _persist(self, telemetry: dict[str, int | bool] | None, substantive: bool) -> None:
+    def _persist(
+        self, telemetry: dict[str, int | bool | str] | None, substantive: bool
+    ) -> None:
         db = SessionLocal()
         try:
             run = db.get(AssistantRun, self.run_id)
@@ -232,6 +236,7 @@ class StageStreamingOllamaClient:
                     if key in {
                         "chunks", "done", "load_duration", "prompt_eval_count",
                         "prompt_eval_duration", "eval_count", "eval_duration", "total_duration",
+                        "done_reason",
                     }
                 }
             AssistantRunStageService(db).progress(
@@ -607,6 +612,7 @@ async def _execute_run(run_id: str) -> None:
                 if run.complexity == "deep"
                 else STANDARD_LOCAL_ABSOLUTE_SECONDS
             ),
+            local_num_ctx=4096,
             local_num_thread=V2_LOCAL_NUM_THREAD,
             advanced_queue_hard_seconds=600,
             advanced_external_hard_seconds=1800,
@@ -629,9 +635,16 @@ async def _execute_run(run_id: str) -> None:
                 "model_identity": response.model or "deterministic_local",
                 "model_contract": {
                     "num_ctx": 4096,
-                    "num_thread": V2_LOCAL_NUM_THREAD,
+                    **(
+                        {"num_thread": V2_LOCAL_NUM_THREAD}
+                        if V2_LOCAL_NUM_THREAD is not None
+                        else {"thread_policy": "ollama_auto"}
+                    ),
                     "think": False,
                     "streaming": True,
+                    "initial_num_predict": V2_STANDARD_INITIAL_NUM_PREDICT,
+                    "truncation_retry_num_predict": V2_STANDARD_TRUNCATION_RETRY_NUM_PREDICT,
+                    "truncation_retry_used": reasoner.local_truncation_retry_used,
                 },
             },
             analysis_job_id=(
@@ -686,6 +699,9 @@ async def _execute_run(run_id: str) -> None:
                     "num_ctx": 4096,
                     "think": False,
                     "streaming": True,
+                    "initial_num_predict": V2_STANDARD_INITIAL_NUM_PREDICT,
+                    "truncation_retry_num_predict": V2_STANDARD_TRUNCATION_RETRY_NUM_PREDICT,
+                    "truncation_retry_used": reasoner.local_truncation_retry_used,
                 },
             },
         )

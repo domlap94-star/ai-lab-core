@@ -3,7 +3,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 
-V2_LOCAL_NUM_THREAD = 10
+# Preserve Ollama's automatic CPU-thread selection unless an explicit,
+# separately qualified override is supplied.
+V2_LOCAL_NUM_THREAD: int | None = None
+V2_STANDARD_INITIAL_NUM_PREDICT = 480
+V2_STANDARD_TRUNCATION_RETRY_NUM_PREDICT = 768
+V2_STANDARD_SEMANTIC_CORRECTION_NUM_PREDICT = 480
+V2_STANDARD_TASK_COMPLETION_CORRECTION_NUM_PREDICT = 480
+V2_GENERAL_NUM_PREDICT = 160
+V2_KB_OVERVIEW_INITIAL_NUM_PREDICT = 200
+V2_KB_OVERVIEW_CORRECTION_NUM_PREDICT = 200
+LOCAL_OUTPUT_BUDGET_EXHAUSTED = "LOCAL_OUTPUT_BUDGET_EXHAUSTED"
 MODEL_LOAD_ABSOLUTE_SECONDS = 180
 PROMPT_EVALUATION_ABSOLUTE_SECONDS = 300
 GENERATION_INACTIVITY_SECONDS = 120
@@ -18,6 +28,41 @@ LOCAL_MODEL_PHASES = frozenset({
     "validation",
     "cleanup",
 })
+
+
+class LocalOutputBudgetExhausted(RuntimeError):
+    """The local generator stopped because its configured output budget ended."""
+
+    def __init__(
+        self,
+        *,
+        requested_num_predict: int,
+        eval_count: int | None,
+        done_reason: str | None,
+    ) -> None:
+        super().__init__(LOCAL_OUTPUT_BUDGET_EXHAUSTED)
+        self.requested_num_predict = requested_num_predict
+        self.eval_count = eval_count
+        self.done_reason = done_reason
+
+
+def local_output_budget_exhausted(
+    *,
+    done_reason: object,
+    eval_count: object,
+    requested_num_predict: int,
+    parse_failed: bool,
+) -> bool:
+    """Classify only explicit or strongly evidenced output-limit termination."""
+
+    if done_reason == "length":
+        return True
+    return (
+        (done_reason is None or done_reason == "")
+        and parse_failed
+        and isinstance(eval_count, int)
+        and eval_count >= requested_num_predict
+    )
 
 
 def utc_iso(now: datetime | None = None) -> str:

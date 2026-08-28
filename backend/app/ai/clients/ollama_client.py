@@ -104,7 +104,9 @@ class OllamaClient:
         options: dict[str, Any] | None = None,
         think: bool | None = None,
         keep_alive: str | int | None = None,
-        on_progress: Callable[[dict[str, int | bool]], Awaitable[None] | None] | None = None,
+        on_progress: Callable[
+            [dict[str, int | bool | str]], Awaitable[None] | None
+        ] | None = None,
         resource_wait_timeout: float | None = LEGACY_RESOURCE_WAIT_SECONDS,
         on_resource_wait: ResourceCallback | None = None,
         on_resource_ready: ResourceCallback | None = None,
@@ -148,10 +150,13 @@ class OllamaClient:
                             chunks.append(fragment)
                         last = event
                         if on_progress is not None:
-                            telemetry: dict[str, int | bool] = {
+                            telemetry: dict[str, int | bool | str] = {
                                 "chunks": received_chunks,
                                 "done": bool(event.get("done", False)),
                             }
+                            done_reason = event.get("done_reason")
+                            if isinstance(done_reason, str) and done_reason:
+                                telemetry["done_reason"] = done_reason
                             for key in (
                                 "load_duration", "prompt_eval_count", "prompt_eval_duration",
                                 "eval_count", "eval_duration", "total_duration",

@@ -315,6 +315,116 @@ async def test_external_resident_model_is_not_force_unloaded() -> None:
 
 
 @pytest.mark.asyncio
+async def test_owned_warm_qwen_with_five_gib_is_readmitted() -> None:
+    model = "qwen3.5:9b"
+    warm = ResidentModel(model, 1, 0)
+    provider = FakeProvider([
+        snapshot(windows_available=5 * GIB, wsl_available=5 * GIB, models=(warm,))
+    ])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+    coordinator._owned_resident_models.add(model)
+
+    async with coordinator.generator_session(model, wait_timeout=0.2):
+        assert coordinator.state()["heavy_active"] is True
+
+    assert provider.unloaded == [model]
+
+
+@pytest.mark.asyncio
+async def test_owned_warm_qwen_below_four_gib_does_not_generate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resource_module, "MONITOR_SECONDS", 0.01)
+    monkeypatch.setattr(resource_module, "RESOURCE_RETRY_SECONDS", 0.01)
+    model = "qwen3.5:9b"
+    warm = ResidentModel(model, 1, 0)
+    provider = FakeProvider([
+        snapshot(
+            windows_available=int(3.8 * GIB),
+            wsl_available=5 * GIB,
+            models=(warm,),
+        )
+    ])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+    coordinator._owned_resident_models.add(model)
+
+    with pytest.raises(LocalModelResourceUnavailable, match="LOCAL_RESOURCE_RESERVE_WAIT"):
+        async with coordinator.generator_session(model, wait_timeout=0):
+            pytest.fail("warm model bypassed normal reserve")
+
+    assert provider.unloaded == [model]
+
+
+@pytest.mark.asyncio
+async def test_owned_warm_qwen_waits_for_safe_post_unload_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resource_module, "MONITOR_SECONDS", 0.01)
+    monkeypatch.setattr(resource_module, "RESOURCE_RETRY_SECONDS", 0.01)
+    model = "qwen3.5:9b"
+    warm = ResidentModel(model, 1, 0)
+    provider = FakeProvider([
+        snapshot(
+            windows_available=int(3.8 * GIB),
+            wsl_available=5 * GIB,
+            models=(warm,),
+        ),
+        snapshot(windows_available=12 * GIB, wsl_available=12 * GIB),
+    ])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+    coordinator._owned_resident_models.add(model)
+
+    async with coordinator.generator_session(model, wait_timeout=0.2):
+        assert provider.current.windows_available_bytes == 12 * GIB
+
+    assert provider.unloaded == [model, model]
+
+
+@pytest.mark.asyncio
+async def test_owned_warm_qwen_below_emergency_floor_aborts_and_unloads() -> None:
+    model = "qwen3.5:9b"
+    warm = ResidentModel(model, 1, 0)
+    provider = FakeProvider([
+        snapshot(
+            windows_available=EMERGENCY_FLOOR_BYTES - 1,
+            wsl_available=5 * GIB,
+            models=(warm,),
+        )
+    ])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+    coordinator._owned_resident_models.add(model)
+
+    with pytest.raises(LocalModelEmergencyAbort, match="LOCAL_RESOURCE_WINDOWS_EMERGENCY"):
+        async with coordinator.generator_session(model, wait_timeout=0.2):
+            pytest.fail("emergency resource state was admitted")
+
+    assert provider.unloaded == [model]
+
+
+@pytest.mark.asyncio
+async def test_nested_generation_rechecks_normal_reserve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resource_module, "MONITOR_SECONDS", 0.01)
+    model = "qwen3.5:9b"
+    warm = ResidentModel(model, 1, 0)
+    provider = FakeProvider([snapshot()])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+
+    async with coordinator.generator_session(model, wait_timeout=0.2):
+        provider.current = snapshot(
+            windows_available=int(3.8 * GIB),
+            wsl_available=5 * GIB,
+            models=(warm,),
+        )
+        with pytest.raises(
+            LocalModelResourceUnavailable, match="LOCAL_RESOURCE_RESERVE_WAIT"
+        ):
+            async with coordinator.generator_session(model, wait_timeout=0):
+                pytest.fail("nested warm generation bypassed normal reserve")
+
+
+@pytest.mark.asyncio
 async def test_mid_run_monitor_does_not_require_ollama_residency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

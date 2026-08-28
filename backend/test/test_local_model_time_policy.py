@@ -15,6 +15,7 @@ from app.services.local_model_time_policy import (
     utc_iso,
 )
 from app.services.assistant_run_stage_service import AssistantRunStageService
+from app.services.unified_assistant_service import UnifiedAssistantService
 
 
 class _NoopDb:
@@ -51,13 +52,31 @@ class LocalModelTimePolicyTests(unittest.TestCase):
         }
 
     def test_qualification_constants_are_bounded(self) -> None:
-        self.assertEqual(V2_LOCAL_NUM_THREAD, 10)
+        self.assertIsNone(V2_LOCAL_NUM_THREAD)
         self.assertEqual(MODEL_LOAD_ABSOLUTE_SECONDS, 180)
         self.assertEqual(PROMPT_EVALUATION_ABSOLUTE_SECONDS, 300)
         self.assertEqual(GENERATION_INACTIVITY_SECONDS, 120)
         self.assertEqual(GENERATION_ABSOLUTE_SECONDS, 600)
         self.assertEqual(STANDARD_LOCAL_ABSOLUTE_SECONDS, 900)
         self.assertEqual(DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS, 900)
+
+    def test_default_local_options_omit_num_thread(self) -> None:
+        service = UnifiedAssistantService.__new__(UnifiedAssistantService)
+        service.local_num_thread = None
+
+        self.assertEqual(
+            service._local_options(num_ctx=4096, num_predict=480),
+            {"temperature": 0.1, "num_ctx": 4096, "num_predict": 480},
+        )
+
+    def test_explicit_local_thread_override_is_emitted(self) -> None:
+        service = UnifiedAssistantService.__new__(UnifiedAssistantService)
+        service.local_num_thread = 6
+
+        self.assertEqual(
+            service._local_options(num_ctx=4096, num_predict=480)["num_thread"],
+            6,
+        )
 
     def test_load_and_prompt_evaluation_use_absolute_phase_caps(self) -> None:
         old_progress = self.now - timedelta(seconds=500)

@@ -235,6 +235,10 @@ class LocalModelResourceCoordinator:
         self._heavy_queue: deque[str] = deque()
         self._active_heavy_id: str | None = None
         self._active_embeddings = 0
+        # A model is considered owned only after admission occurred with no
+        # external generator resident.  This permits a failed/delayed unload to
+        # be re-admitted safely without treating an Open WebUI model as ours.
+        self._owned_resident_models: set[str] = set()
 
     @staticmethod
     async def _callback(callback: ResourceCallback | None, value: str) -> None:
@@ -354,6 +358,30 @@ class LocalModelResourceCoordinator:
                 await asyncio.sleep(MONITOR_SECONDS)
                 continue
 
+            if (
+                snapshot.windows_available_bytes < EMERGENCY_FLOOR_BYTES
+                or snapshot.wsl_available_bytes < EMERGENCY_FLOOR_BYTES
+            ):
+                if (
+                    self._resident(snapshot, model)
+                    and model in self._owned_resident_models
+                ):
+                    try:
+                        await self.provider.unload(model)
+                        self._owned_resident_models.discard(model)
+                    except LocalModelResourceUnavailable:
+                        pass
+                raise LocalModelEmergencyAbort(
+                    "LOCAL_RESOURCE_WINDOWS_EMERGENCY"
+                    if snapshot.windows_available_bytes < EMERGENCY_FLOOR_BYTES
+                    else "LOCAL_RESOURCE_WSL_EMERGENCY"
+                )
+
+            requested_resident = self._resident(snapshot, model)
+            if not requested_resident:
+                self._owned_resident_models.discard(model)
+            owned_warm = requested_resident and model in self._owned_resident_models
+
             # A generator already resident before NEXT Stabil acquires its
             # lease has unknown ownership (for example Open WebUI).  Do not
             # overlap it and never unload it.  The request remains queued until
@@ -361,6 +389,7 @@ class LocalModelResourceCoordinator:
             external_generators = tuple(
                 item for item in snapshot.resident_models
                 if item.name != settings.embedding_model
+                and not (item.name == model and owned_warm)
             )
             if external_generators:
                 reason = "LOCAL_EXTERNAL_GENERATOR_RESIDENT"
@@ -379,12 +408,86 @@ class LocalModelResourceCoordinator:
                 and windows_projected >= WINDOWS_TARGET_RESERVE_BYTES
                 and wsl_projected >= WSL_TARGET_RESERVE_BYTES
             ):
+                self._owned_resident_models.add(model)
                 return snapshot, self._resident(snapshot, model)
 
             reason = "LOCAL_RESOURCE_RESERVE_WAIT"
             if reason != last_reason:
                 await self._callback(on_wait, reason)
                 last_reason = reason
+            if owned_warm:
+                try:
+                    await self.provider.unload(model)
+                    self._owned_resident_models.discard(model)
+                    await self._callback(
+                        on_wait, "LOCAL_OWNED_MODEL_UNLOAD_RECOVERY"
+                    )
+                    await asyncio.sleep(MONITOR_SECONDS)
+                    continue
+                except LocalModelResourceUnavailable:
+                    pass
+            if self._timed_out(deadline):
+                raise LocalModelResourceUnavailable(reason)
+            await asyncio.sleep(RESOURCE_RETRY_SECONDS)
+
+    async def _readmit_active_lease(
+        self,
+        lease: LocalModelLease,
+        *,
+        deadline: float | None,
+        on_wait: ResourceCallback | None,
+    ) -> None:
+        """Recheck normal reserve before every nested generation.
+
+        A Unified Assistant run holds one outer lease across bounded local
+        retries.  Each actual Ollama call nests through this method, so a warm
+        resident model cannot bypass the four-GiB normal admission floor.
+        """
+        last_reason: str | None = None
+        while True:
+            try:
+                snapshot = await self.provider.snapshot()
+            except LocalModelResourceUnavailable as error:
+                reason = str(error) or "LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE"
+                if reason != last_reason:
+                    await self._callback(on_wait, reason)
+                    last_reason = reason
+                if self._timed_out(deadline):
+                    raise
+                await asyncio.sleep(RESOURCE_RETRY_SECONDS)
+                continue
+
+            if snapshot.windows_available_bytes < EMERGENCY_FLOOR_BYTES:
+                raise LocalModelEmergencyAbort("LOCAL_RESOURCE_WINDOWS_EMERGENCY")
+            if snapshot.wsl_available_bytes < EMERGENCY_FLOOR_BYTES:
+                raise LocalModelEmergencyAbort("LOCAL_RESOURCE_WSL_EMERGENCY")
+
+            windows_projected, wsl_projected = self._projected_reserve(
+                snapshot, lease.model
+            )
+            if (
+                windows_projected >= WINDOWS_TARGET_RESERVE_BYTES
+                and wsl_projected >= WSL_TARGET_RESERVE_BYTES
+            ):
+                lease.admitted_snapshot = snapshot
+                lease.model_unloaded = False
+                self._owned_resident_models.add(lease.model)
+                return
+
+            reason = "LOCAL_RESOURCE_RESERVE_WAIT"
+            if reason != last_reason:
+                await self._callback(on_wait, reason)
+                last_reason = reason
+            if self._resident(snapshot, lease.model) and lease.unload_on_release:
+                try:
+                    await self.provider.unload(lease.model)
+                    lease.model_unloaded = True
+                    self._owned_resident_models.discard(lease.model)
+                    await self._callback(on_wait, "LOCAL_OWNED_MODEL_UNLOAD_RECOVERY")
+                    await asyncio.sleep(MONITOR_SECONDS)
+                    continue
+                except LocalModelResourceUnavailable:
+                    pass
             if self._timed_out(deadline):
                 raise LocalModelResourceUnavailable(reason)
             await asyncio.sleep(RESOURCE_RETRY_SECONDS)
@@ -424,6 +527,7 @@ class LocalModelResourceCoordinator:
                 try:
                     await self.provider.unload(lease.model)
                     lease.model_unloaded = True
+                    self._owned_resident_models.discard(lease.model)
                 except LocalModelResourceUnavailable:
                     pass
             owner_task.cancel()
@@ -442,6 +546,12 @@ class LocalModelResourceCoordinator:
         if current is not None:
             if current.model != model:
                 raise LocalModelResourceBusy("LOCAL_MODEL_NESTED_MODEL_CONFLICT")
+            await self._readmit_active_lease(
+                current,
+                deadline=self._deadline(wait_timeout),
+                on_wait=on_wait,
+            )
+            await self._callback(on_ready, "LOCAL_RESOURCE_READMITTED")
             yield current
             return
 
@@ -463,7 +573,10 @@ class LocalModelResourceCoordinator:
                 lease_id=lease_id,
                 model=model,
                 admitted_snapshot=admitted,
-                unload_on_release=not preexisting,
+                # `_admit` never permits an unknown external generator.  A
+                # pre-existing admitted model is therefore a known owned warm
+                # model and remains safe to unload on release.
+                unload_on_release=True,
             )
             token = _ACTIVE_LOCAL_MODEL_LEASE.set(lease)
             await self._callback(on_ready, "LOCAL_RESOURCE_ADMITTED")
@@ -491,6 +604,7 @@ class LocalModelResourceCoordinator:
                 try:
                     await self.provider.unload(model)
                     lease.model_unloaded = True
+                    self._owned_resident_models.discard(model)
                 except LocalModelResourceUnavailable:
                     # Admission remains blocked by actual residency on the next
                     # request.  Never release safety by pretending unload passed.
@@ -509,6 +623,7 @@ class LocalModelResourceCoordinator:
             return False
         await self.provider.unload(model)
         current.model_unloaded = True
+        self._owned_resident_models.discard(model)
         return True
 
     def _event_loop_thread(self) -> bool:
