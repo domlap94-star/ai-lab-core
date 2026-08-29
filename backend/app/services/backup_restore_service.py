@@ -1193,13 +1193,20 @@ class BackupRestoreService:
                 predicted_backup_bytes=predicted_backup_bytes,
                 exclude_backup_run_id=exclude_backup_run_id,
             )
+            cleanup_required = (
+                int(preview["current_free_bytes"])
+                - int(preview["predicted_backup_bytes"])
+                < int(preview["required_free_bytes"])
+            )
+            if cleanup_required and not plan.auto_delete:
+                raise BackupRestoreValidation(
+                    "backup_retention_operator_action_required"
+                )
             if preview["blocked_reason"]:
                 raise BackupRestoreValidation(preview["blocked_reason"])
             proposed = preview["proposed_deletions"]
             if not proposed:
                 return preview
-            if not plan.auto_delete:
-                raise BackupRestoreValidation("backup_retention_operator_action_required")
             if not self.allow_retention_delete:
                 raise BackupRestoreValidation("backup_retention_delete_approval_required")
             candidate = self.db.query(ManagedBackup).filter(

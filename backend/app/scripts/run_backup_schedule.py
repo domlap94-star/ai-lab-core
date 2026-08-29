@@ -86,15 +86,11 @@ def start_due_schedule(db: Session, schedule_id: int) -> int:
         .scalar()
         or 0
     )
-    retention = service.retention_preview(schedule, predicted_backup_bytes=int(predicted_bytes))
-    if retention["blocked_reason"]:
-        raise RuntimeError(retention["blocked_reason"])
-    if retention["proposed_deletions"]:
-        if not schedule.auto_delete:
-            raise RuntimeError("backup_retention_operator_action_required")
-        # Selection is implemented, but deletion of real managed backups stays
-        # fail-closed until its separate owner approval is consumed.
-        raise RuntimeError("backup_retention_delete_approval_required")
+    service.enforce_drive_retention(
+        schedule,
+        actor,
+        predicted_backup_bytes=int(predicted_bytes),
+    )
     run = service.start_backup(
         scope=schedule.scope,
         destination=schedule.destination,
@@ -124,6 +120,29 @@ def wait_for_run(run_id: int, timeout_seconds: int = 21600) -> BackupRun:
         time.sleep(5)
 
 
+def enforce_post_backup_retention(db: Session, run: BackupRun) -> None:
+    current = db.get(BackupRun, run.id)
+    if (
+        current is None
+        or current.status != "completed"
+        or not current.verified
+        or current.schedule_id is None
+    ):
+        return
+    schedule = db.get(BackupSchedule, current.schedule_id)
+    if schedule is None:
+        return
+    actor = db.get(User, current.created_by_user_id)
+    if actor is None:
+        raise RuntimeError("backup_schedule_actor_missing")
+    BackupRestoreService(db).enforce_drive_retention(
+        schedule,
+        actor,
+        predicted_backup_bytes=0,
+        exclude_backup_run_id=current.id,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--schedule-id", type=int, required=True)
@@ -135,23 +154,7 @@ def main() -> None:
     run = wait_for_run(run_id)
     if run.status == "completed" and run.verified and run.schedule_id is not None:
         with SessionLocal() as db:
-            schedule = db.get(BackupSchedule, run.schedule_id)
-            if schedule is not None:
-                retention = BackupRestoreService(db).retention_preview(
-                    schedule,
-                    exclude_backup_run_id=run.id,
-                )
-                if retention["blocked_reason"]:
-                    raise RuntimeError(retention["blocked_reason"])
-                if retention["proposed_deletions"]:
-                    # Real automatic deletion remains behind the separately
-                    # unconsumed owner approval.  The post-backup check still
-                    # reports the fresh drive-level plan truthfully.
-                    raise RuntimeError(
-                        "backup_retention_delete_approval_required"
-                        if schedule.auto_delete
-                        else "backup_retention_operator_action_required"
-                    )
+            enforce_post_backup_retention(db, run)
     print(
         f"SCHEDULED_BACKUP_RUN={run.id} status={run.status} "
         f"verified={str(run.verified).lower()} checkpoint={run.checkpoint_path or ''}"
