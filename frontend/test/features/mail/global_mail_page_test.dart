@@ -34,6 +34,22 @@ class _AuthController extends AuthController {
   );
 }
 
+class _AdminAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async => const AuthState(
+    session: _session,
+    user: CurrentUser(
+      id: 2,
+      username: 'mail.admin',
+      email: 'mail.admin@example.invalid',
+      role: 'Administrator',
+      isActive: true,
+      mustChangePassword: false,
+      passwordResetRequested: false,
+    ),
+  );
+}
+
 class _FakeMailApi extends GlobalMailApi {
   _FakeMailApi({this.imageAttachment = false, this.missingCount = 0})
     : super(Dio());
@@ -45,6 +61,7 @@ class _FakeMailApi extends GlobalMailApi {
   int sendCalls = 0;
   int reconciliationDryRuns = 0;
   int reconciliationApplies = 0;
+  final List<(String, String)> ignoredCreates = <(String, String)>[];
 
   GlobalMailItem get item => GlobalMailItem(
     sourceId: 2,
@@ -154,12 +171,30 @@ class _FakeMailApi extends GlobalMailApi {
       canonicalSourceId: 99,
     );
   }
+
+  @override
+  Future<IgnoredMailSourceRule> ignoreSender(
+    AuthSession session, {
+    required String value,
+    String ruleType = 'email',
+  }) async {
+    ignoredCreates.add((ruleType, value));
+    return IgnoredMailSourceRule(
+      id: 1,
+      ruleType: ruleType,
+      normalizedValue: value,
+      isActive: true,
+      createdAt: DateTime(2026, 8, 29),
+      updatedAt: DateTime(2026, 8, 29),
+    );
+  }
 }
 
 Future<void> _pump(
   WidgetTester tester,
   _FakeMailApi api, {
   double width = 1200,
+  bool admin = false,
 }) async {
   tester.view.physicalSize = Size(width, 1000);
   tester.view.devicePixelRatio = 1;
@@ -167,7 +202,9 @@ Future<void> _pump(
   addTearDown(tester.view.resetDevicePixelRatio);
   final container = ProviderContainer(
     overrides: [
-      authControllerProvider.overrideWith(_AuthController.new),
+      authControllerProvider.overrideWith(
+        admin ? _AdminAuthController.new : _AuthController.new,
+      ),
       globalMailApiProvider.overrideWithValue(api),
       if (api.imageAttachment)
         documentThumbnailProvider(55).overrideWith(
@@ -267,6 +304,36 @@ void main() {
     expect(find.text('Pokaż wątek'), findsOneWidget);
     expect(find.text('Odpowiedz'), findsOneWidget);
     expect(find.text('Przekaż dalej'), findsOneWidget);
+  });
+
+  testWidgets('admin can choose domain from the per-message overflow action', (
+    WidgetTester tester,
+  ) async {
+    final _FakeMailApi api = _FakeMailApi();
+    await _pump(tester, api, admin: true);
+    expect(
+      find.byKey(const Key('manage-ignored-mail-sources')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('mail-ignore-menu-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ignoruj nadawcę').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ignore-mail-choice-domain')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-ignore-mail-rule')));
+    await tester.pumpAndSettle();
+    expect(api.ignoredCreates, <(String, String)>[
+      ('domain', 'example.invalid'),
+    ]);
+  });
+
+  testWidgets('ordinary user cannot see ignore-rule controls', (
+    WidgetTester tester,
+  ) async {
+    await _pump(tester, _FakeMailApi());
+    expect(find.byKey(const Key('manage-ignored-mail-sources')), findsNothing);
+    expect(find.byKey(const Key('mail-ignore-menu-2')), findsNothing);
   });
 
   testWidgets('Global Mail image attachment uses shared thumbnail', (

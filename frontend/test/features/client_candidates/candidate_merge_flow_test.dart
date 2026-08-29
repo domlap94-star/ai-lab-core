@@ -7,6 +7,8 @@ import 'package:ai_lab/features/client_candidates/application/client_candidates_
 import 'package:ai_lab/features/client_candidates/data/client_candidates_api.dart';
 import 'package:ai_lab/features/client_candidates/domain/client_candidate_context.dart';
 import 'package:ai_lab/features/client_candidates/presentation/client_candidate_details_page.dart';
+import 'package:ai_lab/features/mail/data/global_mail_api.dart';
+import 'package:ai_lab/features/mail/domain/global_mail.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -88,6 +90,45 @@ class _AuthController extends AuthController {
   );
 }
 
+class _AdminAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async => const AuthState(
+    session: AuthSession(accessToken: 'token', tokenType: 'Bearer'),
+    user: CurrentUser(
+      id: 2,
+      username: 'candidate-admin',
+      email: 'candidate-admin@example.invalid',
+      role: 'Administrator',
+      isActive: true,
+      mustChangePassword: false,
+      passwordResetRequested: false,
+    ),
+  );
+}
+
+class _IgnoreApi extends GlobalMailApi {
+  _IgnoreApi() : super(Dio());
+
+  final List<(String, String)> created = <(String, String)>[];
+
+  @override
+  Future<IgnoredMailSourceRule> ignoreSender(
+    AuthSession session, {
+    required String value,
+    String ruleType = 'email',
+  }) async {
+    created.add((ruleType, value));
+    return IgnoredMailSourceRule(
+      id: 1,
+      ruleType: ruleType,
+      normalizedValue: value,
+      isActive: true,
+      createdAt: DateTime(2026, 8, 29),
+      updatedAt: DateTime(2026, 8, 29),
+    );
+  }
+}
+
 class _Repository extends ClientCandidatesRepository {
   _Repository() : super(ClientCandidatesApi(Dio()));
 
@@ -140,6 +181,9 @@ Future<void> _pump(
   WidgetTester tester,
   _Repository repository, {
   required Size size,
+  ClientCandidateContext? contextData,
+  GlobalMailApi? mailApi,
+  bool admin = false,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -166,9 +210,14 @@ Future<void> _pump(
   addTearDown(router.dispose);
   final container = ProviderContainer(
     overrides: [
-      authControllerProvider.overrideWith(_AuthController.new),
+      authControllerProvider.overrideWith(
+        admin ? _AdminAuthController.new : _AuthController.new,
+      ),
       clientCandidatesRepositoryProvider.overrideWithValue(repository),
-      clientCandidateContextProvider.overrideWith((_, _) async => _context),
+      clientCandidateContextProvider.overrideWith(
+        (_, _) async => contextData ?? _context,
+      ),
+      if (mailApi != null) globalMailApiProvider.overrideWithValue(mailApi),
     ],
   );
   addTearDown(container.dispose);
@@ -273,4 +322,64 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('Candidate Details ignores only the candidate source sender', (
+    tester,
+  ) async {
+    final _Repository repository = _Repository();
+    final _IgnoreApi api = _IgnoreApi();
+    final ClientCandidateContext contextData = ClientCandidateContext(
+      candidate: const <String, dynamic>{
+        'id': 7,
+        'name': 'Kandydat testowy',
+        'client_type': 'company',
+        'primary_email': 'sender@example.com',
+        'status': 'pending',
+        'confidence': 0.9,
+      },
+      gmailMessages: const <Map<String, dynamic>>[
+        <String, dynamic>{
+          'source_id': 71,
+          'subject': 'Wiadomość przychodząca',
+          'from': <String, dynamic>{'address': 'Sender@Example.COM'},
+        },
+        <String, dynamic>{
+          'source_id': 72,
+          'subject': 'Wiadomość wychodząca',
+          'from': <String, dynamic>{'address': 'our-mail@example.invalid'},
+        },
+      ],
+      sheetsRows: const <Map<String, dynamic>>[],
+      documents: const <Map<String, dynamic>>[],
+      otherSources: const <Map<String, dynamic>>[],
+      metadata: const <String, dynamic>{
+        'gmail_message_count': 2,
+        'sheets_row_count': 0,
+        'document_count': 0,
+        'source_count': 2,
+      },
+    );
+    await _pump(
+      tester,
+      repository,
+      size: const Size(390, 1000),
+      contextData: contextData,
+      mailApi: api,
+      admin: true,
+    );
+    expect(find.text('Ignoruj ten mail'), findsOneWidget);
+    expect(find.byKey(const Key('candidate-ignore-mail-71')), findsOneWidget);
+    expect(find.byKey(const Key('candidate-ignore-mail-72')), findsNothing);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('candidate-ignore-mail-71')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('candidate-ignore-mail-71')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-ignore-mail-rule')));
+    await tester.pumpAndSettle();
+    expect(api.created, <(String, String)>[('email', 'sender@example.com')]);
+  });
 }

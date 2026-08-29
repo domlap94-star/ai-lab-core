@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
+import 'package:ai_lab/features/auth/domain/current_user.dart';
 import 'package:ai_lab/features/clients/application/client_emails_provider.dart';
 import 'package:ai_lab/features/clients/application/client_emails_repository.dart';
 import 'package:ai_lab/features/clients/domain/client_email.dart';
@@ -203,6 +204,27 @@ void main() {
     expect(repository.calls.last.clientId, 7);
     expect(repository.calls.last.ignored, isTrue);
   });
+
+  testWidgets('admin can ignore a received Client Email sender', (
+    WidgetTester tester,
+  ) async {
+    final _EmailRepository repository = _EmailRepository();
+    final _IgnoreApi api = _IgnoreApi();
+    await _pumpPanel(tester, repository, admin: true, mailApi: api);
+    await tester.tap(find.byKey(const Key('client-emails-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('client-email-ignore-menu-1')), findsNothing);
+    await tester.ensureVisible(
+      find.byKey(const Key('client-email-ignore-menu-2')),
+    );
+    await tester.tap(find.byKey(const Key('client-email-ignore-menu-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ignoruj nadawcę').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-ignore-mail-rule')));
+    await tester.pumpAndSettle();
+    expect(api.created, <(String, String)>[('email', 'nadawca2@example.com')]);
+  });
 }
 
 Future<void> _pumpPanel(
@@ -214,6 +236,8 @@ Future<void> _pumpPanel(
   int clientId = 7,
   int? focusedSourceId,
   _ReconciliationApi? reconciliationApi,
+  GlobalMailApi? mailApi,
+  bool admin = false,
 }) async {
   tester.view.physicalSize = const Size(390, 900);
   tester.view.devicePixelRatio = 1;
@@ -223,13 +247,17 @@ Future<void> _pumpPanel(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        authControllerProvider.overrideWith(_TestAuthController.new),
+        authControllerProvider.overrideWith(
+          admin ? _AdminTestAuthController.new : _TestAuthController.new,
+        ),
         clientEmailsRepositoryProvider.overrideWithValue(repository),
         if (documentRepository != null)
           documentsRepositoryProvider.overrideWithValue(documentRepository),
         if (openService != null)
           documentOpenServiceProvider.overrideWithValue(openService),
-        if (reconciliationApi != null)
+        if (mailApi != null)
+          globalMailApiProvider.overrideWithValue(mailApi)
+        else if (reconciliationApi != null)
           globalMailApiProvider.overrideWithValue(reconciliationApi),
       ],
       child: MaterialApp(
@@ -295,6 +323,45 @@ class _TestAuthController extends AuthController {
   @override
   Future<AuthState> build() async =>
       const AuthState(session: _session, user: null);
+}
+
+class _AdminTestAuthController extends AuthController {
+  @override
+  Future<AuthState> build() async => const AuthState(
+    session: _session,
+    user: CurrentUser(
+      id: 1,
+      username: 'client-mail-admin',
+      email: 'client-mail-admin@example.invalid',
+      role: 'Administrator',
+      isActive: true,
+      mustChangePassword: false,
+      passwordResetRequested: false,
+    ),
+  );
+}
+
+class _IgnoreApi extends GlobalMailApi {
+  _IgnoreApi() : super(Dio());
+
+  final List<(String, String)> created = <(String, String)>[];
+
+  @override
+  Future<IgnoredMailSourceRule> ignoreSender(
+    AuthSession session, {
+    required String value,
+    String ruleType = 'email',
+  }) async {
+    created.add((ruleType, value));
+    return IgnoredMailSourceRule(
+      id: 1,
+      ruleType: ruleType,
+      normalizedValue: value,
+      isActive: true,
+      createdAt: DateTime(2026, 8, 29),
+      updatedAt: DateTime(2026, 8, 29),
+    );
+  }
 }
 
 class _EmailCall {

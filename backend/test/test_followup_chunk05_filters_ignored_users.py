@@ -7,6 +7,14 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from test.support.database_safety import (
+    assert_isolated_database,
+    require_test_database_environment,
+)
+
+
+TEST_DATABASE_NAME = require_test_database_environment()
+
 from app.core.security import hash_password
 from app.database.engine import engine
 from app.database.session import get_db
@@ -52,6 +60,7 @@ def rollback_database():
         join_transaction_mode="create_savepoint",
     )
     try:
+        assert_isolated_database(db, TEST_DATABASE_NAME)
         yield db
     finally:
         db.close()
@@ -66,6 +75,18 @@ def login(client: TestClient, username: str) -> str:
     )
     require(result.status_code == 200, result.text)
     return result.json()["access_token"]
+
+
+def seed_isolated_roles() -> None:
+    with Session(bind=engine) as db:
+        assert_isolated_database(db, TEST_DATABASE_NAME)
+        for name, description in (
+            ("Administrator", "Synthetic isolated-test administrator"),
+            ("User", "Synthetic isolated-test user"),
+        ):
+            if db.query(Role).filter(Role.name == name).first() is None:
+                db.add(Role(name=name, description=description))
+        db.commit()
 
 
 def main() -> None:
@@ -86,7 +107,15 @@ def main() -> None:
             pass
         else:
             raise AssertionError(f"invalid domain accepted: {invalid}")
+    for invalid in ("", "missing-at.example.com", "two@@example.com", "x@localhost"):
+        try:
+            normalize_ignored_mail_value("email", invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid email accepted: {invalid}")
 
+    seed_isolated_roles()
     suffix = uuid4().hex[:10]
     with rollback_database() as db:
         admin_role = db.query(Role).filter(Role.name == "Administrator").one()
@@ -150,6 +179,11 @@ def main() -> None:
         require(len(one_excluded.items) == 1, "pagination applied before filtering")
 
         ignored = IgnoredMailSourceService(db)
+        historical_counts = (
+            db.query(Client).count(),
+            db.query(ClientCandidate).count(),
+            db.query(CandidateSource).count(),
+        )
         email_rule = ignored.ignore(
             rule_type="email",
             value="Sender@Example.com",
@@ -171,7 +205,17 @@ def main() -> None:
             actor_user_id=admin.id,
         )
         require(same.id == email_rule.id, "duplicate rule was not reused")
+        overlap_domain = ignored.ignore(
+            rule_type="domain",
+            value="example.com",
+            actor_user_id=admin.id,
+        )
         ignored.unignore(rule_id=email_rule.id, actor_user_id=admin.id)
+        require(
+            ignored.matches("sender@example.com"),
+            "domain overlap was incorrectly removed with exact email",
+        )
+        ignored.unignore(rule_id=overlap_domain.id, actor_user_id=admin.id)
         require(not ignored.matches("sender@example.com"), "unignore failed")
         reactivated = ignored.ignore(
             rule_type="email",
@@ -199,6 +243,15 @@ def main() -> None:
             "raw ignored email leaked into Change History",
         )
         require(domain_rule.is_active, "domain rule unexpectedly changed")
+        require(
+            historical_counts
+            == (
+                db.query(Client).count(),
+                db.query(ClientCandidate).count(),
+                db.query(CandidateSource).count(),
+            ),
+            "ignore rule lifecycle mutated historical business rows",
+        )
 
         gmail_source = (
             db.query(ImportSource)
@@ -208,7 +261,15 @@ def main() -> None:
             )
             .first()
         )
-        require(gmail_source is not None, "active Gmail import source required")
+        if gmail_source is None:
+            gmail_source = ImportSource(
+                source_type="gmail",
+                display_name=f"Synthetic ignored-mail source {suffix}",
+                status="active",
+                is_enabled=True,
+            )
+            db.add(gmail_source)
+            db.flush()
 
         def gmail_request(address: str, external_id: str) -> ImportIngestRequest:
             return ImportIngestRequest(
@@ -333,6 +394,60 @@ def main() -> None:
                     "/api/v1/admin/ignored-mail-sources", headers=user_headers
                 )
                 require(user_rules.status_code == 403, "ignored rules admin guard")
+                anonymous_rule = client.post(
+                    "/api/v1/admin/ignored-mail-sources",
+                    json={"rule_type": "email", "value": "x@example.invalid"},
+                )
+                require(anonymous_rule.status_code == 401, "anonymous ignore must be 401")
+                user_rule = client.post(
+                    "/api/v1/admin/ignored-mail-sources",
+                    json={"rule_type": "email", "value": "x@example.invalid"},
+                    headers=user_headers,
+                )
+                require(user_rule.status_code == 403, "non-admin ignore must be 403")
+                user_unignore = client.delete(
+                    f"/api/v1/admin/ignored-mail-sources/{email_rule.id}",
+                    headers=user_headers,
+                )
+                require(
+                    user_unignore.status_code == 403,
+                    "non-admin unignore must be 403",
+                )
+                api_rule_value = f"api-{suffix}@example.invalid"
+                api_create = client.post(
+                    "/api/v1/admin/ignored-mail-sources",
+                    json={"rule_type": "email", "value": api_rule_value.upper()},
+                    headers=admin_headers,
+                )
+                require(api_create.status_code == 200, api_create.text)
+                require(
+                    api_create.json()["normalized_value"] == api_rule_value,
+                    "API create did not return normalized value",
+                )
+                api_rule_id = int(api_create.json()["id"])
+                api_duplicate = client.post(
+                    "/api/v1/admin/ignored-mail-sources",
+                    json={"rule_type": "email", "value": api_rule_value},
+                    headers=admin_headers,
+                )
+                require(api_duplicate.status_code == 200, api_duplicate.text)
+                require(
+                    int(api_duplicate.json()["id"]) == api_rule_id,
+                    "API duplicate created another rule",
+                )
+                api_delete = client.delete(
+                    f"/api/v1/admin/ignored-mail-sources/{api_rule_id}",
+                    headers=admin_headers,
+                )
+                require(api_delete.status_code == 204, api_delete.text)
+                api_rules_after = client.get(
+                    "/api/v1/admin/ignored-mail-sources", headers=admin_headers
+                )
+                require(api_rules_after.status_code == 200, api_rules_after.text)
+                require(
+                    all(row["id"] != api_rule_id for row in api_rules_after.json()),
+                    "deactivated API rule remained in active list",
+                )
                 rollback_value = f"rollback-{suffix}@example.invalid"
                 with patch.object(
                     ChangeHistoryService,

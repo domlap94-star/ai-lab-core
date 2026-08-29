@@ -76,6 +76,8 @@ class IgnoredMailSourceRule {
     required this.ruleType,
     required this.normalizedValue,
     required this.isActive,
+    required this.createdAt,
+    required this.updatedAt,
   });
   factory IgnoredMailSourceRule.fromJson(Map<String, dynamic> json) =>
       IgnoredMailSourceRule(
@@ -83,11 +85,15 @@ class IgnoredMailSourceRule {
         ruleType: json['rule_type']?.toString() ?? 'email',
         normalizedValue: json['normalized_value']?.toString() ?? '',
         isActive: json['is_active'] == true,
+        createdAt: DateTime.parse(json['created_at'].toString()).toLocal(),
+        updatedAt: DateTime.parse(json['updated_at'].toString()).toLocal(),
       );
   final int id;
   final String ruleType;
   final String normalizedValue;
   final bool isActive;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 }
 
 class GlobalMailAttachment {

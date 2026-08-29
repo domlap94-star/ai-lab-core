@@ -9,6 +9,8 @@ import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/application/auth_state.dart';
 import '../../auth/domain/auth_session.dart';
+import '../../mail/data/global_mail_api.dart';
+import '../../mail/presentation/ignored_mail_source_controls.dart';
 import '../application/client_candidates_providers.dart';
 import '../application/client_candidates_repository.dart';
 import '../domain/client_candidate_context.dart';
@@ -26,6 +28,9 @@ class ClientCandidateDetailsPage extends ConsumerStatefulWidget {
 class _ClientCandidateDetailsPageState
     extends ConsumerState<ClientCandidateDetailsPage> {
   bool _mutating = false;
+
+  bool get _isAdmin =>
+      ref.read(authControllerProvider).value?.user?.role == 'Administrator';
 
   @override
   Widget build(BuildContext context) {
@@ -122,10 +127,34 @@ class _ClientCandidateDetailsPageState
                   _Section(
                     title: 'Gmail',
                     children: data.gmailMessages
-                        .map<Widget>(
-                          (Map<String, dynamic> message) =>
-                              _PayloadView(value: message),
-                        )
+                        .map<Widget>((Map<String, dynamic> message) {
+                          final String? sender = _candidateMailSender(
+                            message,
+                            candidate,
+                          );
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                _PayloadView(value: message),
+                                if (_isAdmin && sender != null) ...<Widget>[
+                                  const SizedBox(height: 8),
+                                  OutlinedButton.icon(
+                                    key: ValueKey<String>(
+                                      'candidate-ignore-mail-${message['source_id']}',
+                                    ),
+                                    onPressed: _mutating
+                                        ? null
+                                        : () => _ignoreMail(sender),
+                                    icon: const Icon(Icons.block_outlined),
+                                    label: const Text('Ignoruj ten mail'),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        })
                         .toList(growable: false),
                   ),
                 ],
@@ -183,6 +212,36 @@ class _ClientCandidateDetailsPageState
     }
 
     return session;
+  }
+
+  static String? _candidateMailSender(
+    Map<String, dynamic> message,
+    Map<String, dynamic> candidate,
+  ) {
+    final Object? from = message['from'];
+    final String? sender = canonicalIgnoredMailAddress(
+      from is Map ? from['address']?.toString() : null,
+    );
+    final String? candidateAddress = canonicalIgnoredMailAddress(
+      candidate['primary_email']?.toString(),
+    );
+    return sender != null && sender == candidateAddress ? sender : null;
+  }
+
+  Future<void> _ignoreMail(String sender) async {
+    setState(() => _mutating = true);
+    try {
+      final AuthSession session = await _session();
+      if (!mounted) return;
+      await showIgnoreMailSenderDialog(
+        context: context,
+        api: ref.read(globalMailApiProvider),
+        session: session,
+        sender: sender,
+      );
+    } finally {
+      if (mounted) setState(() => _mutating = false);
+    }
   }
 
   Future<void> _accept(ClientCandidateContext data) async {

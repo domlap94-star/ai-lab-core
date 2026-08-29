@@ -11,6 +11,7 @@ import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
 import '../../mail/data/global_mail_api.dart';
 import '../../mail/domain/global_mail.dart';
+import '../../mail/presentation/ignored_mail_source_controls.dart';
 import '../../mail/presentation/mail_reconciliation_dialog.dart';
 import '../application/client_emails_provider.dart';
 import '../domain/client_email.dart';
@@ -40,6 +41,9 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
   final Set<int> _openingDocumentIds = <int>{};
   bool _reconciling = false;
   bool? _ignored;
+
+  bool get _isAdmin =>
+      ref.read(authControllerProvider).value?.user?.role == 'Administrator';
 
   @override
   void initState() {
@@ -277,6 +281,28 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
                       label: Text('Ignorowany nadawca'),
                       visualDensity: VisualDensity.compact,
                     ),
+                  if (_isAdmin &&
+                      email.direction == ClientEmailDirection.received &&
+                      canonicalIgnoredMailAddress(email.fromAddress) != null)
+                    PopupMenuButton<String>(
+                      key: ValueKey<String>(
+                        'client-email-ignore-menu-${email.id}',
+                      ),
+                      tooltip: 'Opcje nadawcy',
+                      onSelected: (_) => email.ignored
+                          ? _manageIgnoredRules()
+                          : _ignoreSender(email.fromAddress!),
+                      itemBuilder: (_) => <PopupMenuEntry<String>>[
+                        PopupMenuItem<String>(
+                          value: 'ignore',
+                          child: Text(
+                            email.ignored
+                                ? 'Zarządzaj ignorowaniem'
+                                : 'Ignoruj nadawcę',
+                          ),
+                        ),
+                      ],
+                    ),
                   Text(_formatDate(email.messageAt)),
                 ],
               ),
@@ -418,6 +444,35 @@ class _ClientEmailsPanelState extends ConsumerState<ClientEmailsPanel> {
 
   void _refresh() {
     ref.invalidate(clientEmailsPageProvider(_request));
+  }
+
+  Future<void> _ignoreSender(String sender) async {
+    final AuthSession? session = ref
+        .read(authControllerProvider)
+        .value
+        ?.session;
+    if (session == null || !session.isAuthenticated) return;
+    final bool changed = await showIgnoreMailSenderDialog(
+      context: context,
+      api: ref.read(globalMailApiProvider),
+      session: session,
+      sender: sender,
+    );
+    if (changed && mounted) _refresh();
+  }
+
+  Future<void> _manageIgnoredRules() async {
+    final AuthSession? session = ref
+        .read(authControllerProvider)
+        .value
+        ?.session;
+    if (session == null || !session.isAuthenticated) return;
+    await showIgnoredMailSourcesDialog(
+      context: context,
+      api: ref.read(globalMailApiProvider),
+      session: session,
+    );
+    if (mounted) _refresh();
   }
 
   Future<void> _reconcile() async {

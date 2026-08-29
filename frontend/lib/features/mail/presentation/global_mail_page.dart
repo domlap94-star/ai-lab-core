@@ -16,6 +16,7 @@ import '../../documents/presentation/document_media_preview.dart';
 import '../../documents/presentation/document_presentation.dart';
 import '../data/global_mail_api.dart';
 import '../domain/global_mail.dart';
+import 'ignored_mail_source_controls.dart';
 import 'mail_reconciliation_dialog.dart';
 
 class GlobalMailPage extends ConsumerStatefulWidget {
@@ -44,6 +45,8 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
 
   GlobalMailApi get _api => ref.read(globalMailApiProvider);
   AuthSession? get _session => ref.read(authControllerProvider).value?.session;
+  bool get _isAdmin =>
+      ref.read(authControllerProvider).value?.user?.role == 'Administrator';
 
   @override
   void initState() {
@@ -176,6 +179,13 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
               : BackButton(onPressed: () => setState(() => _selected = null)),
           title: const Text('Maile'),
           actions: <Widget>[
+            if (_isAdmin)
+              IconButton(
+                key: const Key('manage-ignored-mail-sources'),
+                tooltip: 'Ignorowani nadawcy',
+                onPressed: _manageIgnoredRules,
+                icon: const Icon(Icons.block_outlined),
+              ),
             IconButton(
               key: const Key('mail-reconcile'),
               tooltip: 'Odśwież skrzynkę',
@@ -436,6 +446,26 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
                     : Icons.help_outline,
                 size: 18,
               ),
+              if (_isAdmin &&
+                  item.direction == 'received' &&
+                  canonicalIgnoredMailAddress(item.sender) != null)
+                PopupMenuButton<String>(
+                  key: ValueKey<String>('mail-ignore-menu-${item.sourceId}'),
+                  tooltip: 'Opcje nadawcy',
+                  onSelected: (_) => item.ignored
+                      ? _manageIgnoredRules()
+                      : _ignoreSender(item.sender!),
+                  itemBuilder: (_) => <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(
+                      value: 'ignore',
+                      child: Text(
+                        item.ignored
+                            ? 'Zarządzaj ignorowaniem'
+                            : 'Ignoruj nadawcę',
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
           onTap: () => _open(item),
@@ -444,70 +474,27 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
     );
   }
 
-  Future<void> _confirmIgnore(String sender) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ignoruj nadawcę?'),
-        content: Text(
-          '$sender\n\nNowe nierozstrzygnięte wiadomości tego nadawcy nie będą trafiać do kolejki przeglądu. Historia pozostanie bez zmian.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton(
-            key: const Key('confirm-ignore-mail-sender'),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Ignoruj nadawcę'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
+  Future<void> _ignoreSender(String sender) async {
     final session = _session;
     if (session == null) return;
-    await _api.ignoreSender(session, value: sender);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Nadawca $sender został zignorowany.')),
+    final bool changed = await showIgnoreMailSenderDialog(
+      context: context,
+      api: _api,
+      session: session,
+      sender: sender,
     );
-    await _reload();
+    if (changed && mounted) await _reload();
   }
 
-  Future<void> _confirmUnignore(String sender) async {
-    final session = _session;
+  Future<void> _manageIgnoredRules() async {
+    final AuthSession? session = _session;
     if (session == null) return;
-    final rules = await _api.ignoredRules(session);
-    final normalized = sender.trim().toLowerCase();
-    final matches = rules.where(
-      (rule) =>
-          rule.isActive &&
-          rule.ruleType == 'email' &&
-          rule.normalizedValue == normalized,
-    );
-    if (matches.isEmpty || !mounted) return;
-    final confirmed = await showDialog<bool>(
+    await showIgnoredMailSourcesDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Przestać ignorować?'),
-        content: Text(sender),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Anuluj'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Przestań ignorować'),
-          ),
-        ],
-      ),
+      api: _api,
+      session: session,
     );
-    if (confirmed != true) return;
-    await _api.unignoreSender(session, matches.first.id);
-    await _reload();
+    if (mounted) await _reload();
   }
 
   Widget _detail(GlobalMailItem item) {
@@ -566,21 +553,21 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
                 avatar: Icon(Icons.block, size: 18),
                 label: Text('Ignorowany nadawca'),
               ),
-            if (item.sender != null &&
-                ref.read(authControllerProvider).value?.user?.role ==
-                    'Administrator')
+            if (_isAdmin &&
+                item.direction == 'received' &&
+                canonicalIgnoredMailAddress(item.sender) != null)
               ActionChip(
                 key: const Key('ignore-mail-sender'),
                 avatar: Icon(
-                  item.ignored ? Icons.undo : Icons.block_outlined,
+                  item.ignored ? Icons.rule_outlined : Icons.block_outlined,
                   size: 18,
                 ),
                 label: Text(
-                  item.ignored ? 'Przestań ignorować' : 'Ignoruj nadawcę',
+                  item.ignored ? 'Zarządzaj ignorowaniem' : 'Ignoruj nadawcę',
                 ),
                 onPressed: () => item.ignored
-                    ? _confirmUnignore(item.sender!)
-                    : _confirmIgnore(item.sender!),
+                    ? _manageIgnoredRules()
+                    : _ignoreSender(item.sender!),
               ),
           ],
         ),
