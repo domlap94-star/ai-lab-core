@@ -45,6 +45,7 @@ from app.services.backup_restore_service import (
     BackupRestoreService,
     BackupRestoreValidation,
 )
+from app.services.backup_plan_reconciler import wake_backup_plan_reconciler
 from app.services.backup_supervisor_client import (
     BackupSupervisorRejected,
     BackupSupervisorUnavailable,
@@ -74,6 +75,18 @@ def list_schedules(
     return [BackupScheduleRead.model_validate(item) for item in BackupRestoreService(db).schedule_views()]
 
 
+@router.get("/schedules/host-status")
+def schedule_host_status(
+    _: User = Depends(require_admin), db: Session = Depends(get_db)
+) -> dict:
+    """Return an advisory live Task Scheduler projection independently."""
+
+    try:
+        return BackupRestoreService(db).schedule_host_status()
+    except (BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
+        raise map_error(error) from error
+
+
 @router.post("/schedules", response_model=BackupScheduleRead, status_code=status.HTTP_201_CREATED)
 def create_schedule(
     payload: BackupScheduleWrite,
@@ -84,6 +97,7 @@ def create_schedule(
         service = BackupRestoreService(db)
         item = service.create_schedule(payload, actor)
         db.commit(); db.refresh(item)
+        wake_backup_plan_reconciler()
         return BackupScheduleRead.model_validate(next(view for view in service.schedule_views() if view["id"] == item.id))
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
@@ -105,6 +119,7 @@ def update_schedule(
         service = BackupRestoreService(db)
         item = service.update_schedule(item, payload, actor)
         db.commit(); db.refresh(item)
+        wake_backup_plan_reconciler()
         return BackupScheduleRead.model_validate(next(view for view in service.schedule_views() if view["id"] == item.id))
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
@@ -125,6 +140,7 @@ def delete_schedule(
     try:
         service.delete_schedule(item)
         db.commit()
+        wake_backup_plan_reconciler()
     except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
         db.rollback(); raise map_error(error) from error
 
@@ -133,10 +149,8 @@ def delete_schedule(
 def reconcile_schedules(
     _: User = Depends(require_admin), db: Session = Depends(get_db),
 ) -> BackupReconcileResult:
-    try:
-        return BackupReconcileResult.model_validate(BackupRestoreService(db).reconcile_pending())
-    except (BackupRestoreConflict, BackupRestoreValidation, BackupSupervisorUnavailable, BackupSupervisorRejected) as error:
-        db.rollback(); raise map_error(error) from error
+    wake_backup_plan_reconciler()
+    return BackupReconcileResult(processed=0, succeeded=0, failed=0, superseded=0)
 
 
 @router.post("/run", response_model=BackupRunRead, status_code=status.HTTP_202_ACCEPTED)

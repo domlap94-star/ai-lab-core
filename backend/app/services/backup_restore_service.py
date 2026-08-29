@@ -185,91 +185,133 @@ class BackupRestoreService:
                 ),
             )
         ).order_by(BackupPlanSyncEvent.created_at, BackupPlanSyncEvent.id).limit(limit).all()
-        result = {"processed": 0, "succeeded": 0, "failed": 0, "superseded": 0}
+        result = {"processed": len(events), "succeeded": 0, "failed": 0, "superseded": 0}
+        selected: dict[int, BackupPlanSyncEvent] = {}
+        now = datetime.now(timezone.utc)
         for event in events:
             item = self.db.get(BackupSchedule, event.plan_id)
-            result["processed"] += 1
-            if item is None or item.plan_revision != event.plan_revision:
+            current = selected.get(event.plan_id)
+            if (
+                item is None
+                or item.plan_revision != event.plan_revision
+            ):
                 event.status = "superseded"
-                event.finished_at = datetime.now(timezone.utc)
+                event.finished_at = now
                 result["superseded"] += 1
-                self.db.commit()
                 continue
+            if current is not None:
+                current.status = "superseded"
+                current.finished_at = now
+                result["superseded"] += 1
+            selected[event.plan_id] = event
+
+        active = list(selected.values())
+        for event in active:
             event.status = "running"
             event.attempt_count += 1
-            event.started_at = datetime.now(timezone.utc)
-            self.db.commit()
-            try:
-                current = self.list_schedules()
-                self.supervisor.reconcile_schedules([self.schedule_host_payload(plan) for plan in current])
-                self.db.refresh(item)
-                if item.plan_revision != event.plan_revision:
+            event.started_at = now
+            event.finished_at = None
+            event.error_code = None
+        self.db.commit()
+        if not active:
+            return result
+
+        try:
+            current = self.list_schedules()
+            self.supervisor.reconcile_schedules(
+                [self.schedule_host_payload(plan) for plan in current]
+            )
+            finished = datetime.now(timezone.utc)
+            for original in active:
+                event = self.db.get(BackupPlanSyncEvent, original.id)
+                item = self.db.get(BackupSchedule, original.plan_id)
+                if event is None:
+                    continue
+                if item is None or item.plan_revision != event.plan_revision:
                     event.status = "superseded"
                     result["superseded"] += 1
                 else:
                     event.status = "succeeded"
                     item.last_reconciled_revision = event.plan_revision
-                    item.sync_status = "disabled" if item.deleted_at is not None or not item.enabled else "synced"
-                    item.last_sync_at = datetime.now(timezone.utc)
+                    item.sync_status = (
+                        "disabled"
+                        if item.deleted_at is not None or not item.enabled
+                        else "synced"
+                    )
+                    item.last_sync_at = finished
                     item.last_sync_error_code = None
                     result["succeeded"] += 1
-                event.finished_at = datetime.now(timezone.utc)
+                event.finished_at = finished
                 event.error_code = None
-                self.db.commit()
-            except Exception as error:
-                self.db.rollback()
-                event = self.db.get(BackupPlanSyncEvent, event.id)
-                item = self.db.get(BackupSchedule, event.plan_id) if event else None
-                code = str(error)[:100] or "backup_scheduler_host_failure"
-                if event:
+            self.db.commit()
+        except Exception as error:
+            self.db.rollback()
+            finished = datetime.now(timezone.utc)
+            code = str(error)[:100] or "backup_scheduler_host_failure"
+            for original in active:
+                event = self.db.get(BackupPlanSyncEvent, original.id)
+                item = self.db.get(BackupSchedule, original.plan_id)
+                if event is None:
+                    continue
+                if item is None or item.plan_revision != event.plan_revision:
+                    event.status = "superseded"
+                    result["superseded"] += 1
+                else:
                     event.status = "failed"
                     event.error_code = code
-                    event.finished_at = datetime.now(timezone.utc)
-                if item and item.plan_revision == event.plan_revision:
                     item.sync_status = "error"
                     item.last_sync_error_code = code
-                self.db.commit()
-                result["failed"] += 1
+                    result["failed"] += 1
+                event.finished_at = finished
+            self.db.commit()
         return result
 
     def schedule_views(self) -> list[dict]:
         items = self.list_schedules()
-        try:
-            response = self.supervisor.preview_schedules(
-                [self.schedule_host_payload(item) for item in items]
-            )
-            host = {
-                str(item.get("task_name")): item
-                for item in response.get("items", [])
+        schedule_ids = [item.id for item in items]
+        latest_runs: dict[int, tuple[datetime, str]] = {}
+        if schedule_ids:
+            ranked = self.db.query(
+                BackupRun.schedule_id.label("schedule_id"),
+                BackupRun.started_at.label("started_at"),
+                BackupRun.status.label("status"),
+                func.row_number().over(
+                    partition_by=BackupRun.schedule_id,
+                    order_by=(BackupRun.started_at.desc(), BackupRun.id.desc()),
+                ).label("rank"),
+            ).filter(BackupRun.schedule_id.in_(schedule_ids)).subquery()
+            latest_runs = {
+                int(row.schedule_id): (row.started_at, row.status)
+                for row in self.db.query(ranked).filter(ranked.c.rank == 1).all()
             }
-        except Exception:
-            host = {}
         views = []
         for item in items:
             task_name = f"NEXT Stabil - Backup - {item.id}"
-            status = host.get(task_name)
-            actual = status.get("actual") if status else None
-            last_run = (
-                self.db.query(BackupRun)
-                .filter(BackupRun.schedule_id == item.id)
-                .order_by(BackupRun.started_at.desc(), BackupRun.id.desc())
-                .first()
-            )
+            last_run = latest_runs.get(item.id)
             values = {
                 column.name: getattr(item, column.name)
                 for column in BackupSchedule.__table__.columns
             }
             values.update({
                 "host_task_name": task_name,
-                "host_enabled": bool(actual and actual.get("enabled")),
-                "host_next_run_at": actual.get("next_run_at") if actual else None,
-                "host_last_run_at": actual.get("last_run_at") if actual else None,
-                "host_last_result": actual.get("last_result") if actual else None,
-                "last_backup_at": last_run.started_at if last_run else None,
-                "last_backup_result": last_run.status if last_run else None,
+                # Compatibility projection from durable database truth.  A live
+                # Task Scheduler snapshot is available separately and never
+                # blocks the canonical schedule list.
+                "host_enabled": bool(item.enabled and item.sync_status == "synced"),
+                "host_next_run_at": item.next_run_at if item.enabled else None,
+                "host_last_run_at": None,
+                "host_last_result": None,
+                "last_backup_at": last_run[0] if last_run else None,
+                "last_backup_result": last_run[1] if last_run else None,
             })
             views.append(values)
         return views
+
+    def schedule_host_status(self) -> dict:
+        items = self.list_schedules()
+        return self.supervisor.preview_schedules(
+            [self.schedule_host_payload(item) for item in items]
+        )
 
     def create_schedule(self, payload: BackupScheduleWrite, actor: User) -> BackupSchedule:
         self._lock()
@@ -997,31 +1039,122 @@ class BackupRestoreService:
         *,
         exclude_backup_run_id: int | None = None,
     ) -> dict:
+        return self.drive_retention_preview(
+            plan,
+            predicted_backup_bytes=predicted_backup_bytes,
+            exclude_backup_run_id=exclude_backup_run_id,
+        )
+
+    def drive_retention_preview(
+        self,
+        plan: BackupSchedule,
+        predicted_backup_bytes: int = 0,
+        *,
+        exclude_backup_run_id: int | None = None,
+    ) -> dict:
         if plan.deleted_at is not None:
             raise BackupRestoreValidation("backup_plan_deleted")
-        host = self.destination_preflight(plan.destination)
-        total = int(host.get("total_bytes") or 0)
-        free = int(host.get("free_bytes") or 0)
-        percent = int(plan.minimum_free_percent or 0)
-        required = max((total * percent + 99) // 100, int(plan.minimum_free_bytes or 0))
+        plans = self.list_schedules()
+        destinations = list(dict.fromkeys(item.destination for item in plans))
+        host_items = self.supervisor.inspect_storage(destinations).get("items", [])
+        host_by_destination = {
+            ntpath.normcase(ntpath.normpath(str(item.get("normalized_destination") or ""))): item
+            for item in host_items
+        }
+        selected_host = host_by_destination.get(
+            ntpath.normcase(ntpath.normpath(plan.destination))
+        )
+        if not selected_host or not selected_host.get("available"):
+            raise BackupRestoreValidation("backup_destination_unavailable")
+        volume_identity = str(selected_host.get("destination_identity") or "").strip()
+        if not volume_identity:
+            raise BackupRestoreValidation("backup_destination_identity_unavailable")
+        volume_plans = [
+            item
+            for item in plans
+            if str(
+                host_by_destination.get(
+                    ntpath.normcase(ntpath.normpath(item.destination)), {}
+                ).get("destination_identity")
+                or ""
+            ).casefold()
+            == volume_identity.casefold()
+        ]
+        if not volume_plans:
+            raise BackupRestoreValidation("backup_volume_plan_not_found")
+        total = int(selected_host.get("total_bytes") or 0)
+        free = int(selected_host.get("free_bytes") or 0)
+        percent = max(int(item.minimum_free_percent or 0) for item in volume_plans)
+        byte_reserve = max(int(item.minimum_free_bytes or 0) for item in volume_plans)
+        required = max((total * percent + 99) // 100, byte_reserve)
+        cleanup_percent = min(100, percent + 2) if percent else 0
+        cleanup_target = max(
+            (total * cleanup_percent + 99) // 100,
+            byte_reserve,
+        )
+        plan_by_id = {item.id: item for item in volume_plans}
+        plan_ids = list(plan_by_id)
         backups = self.db.query(ManagedBackup).filter(
-            ManagedBackup.plan_id == plan.id, ManagedBackup.lifecycle == "available"
+            ManagedBackup.plan_id.in_(plan_ids),
+            ManagedBackup.lifecycle == "available",
         ).order_by(ManagedBackup.created_at.asc(), ManagedBackup.id.asc()).all()
-        floor = max(plan.minimum_backups_to_keep, int(plan.keep_last_n or 0))
-        keep_ids = {item.id for item in backups[-floor:]} if floor else set()
-        age_cutoff = datetime.now(timezone.utc) - timedelta(days=plan.keep_days) if plan.keep_days is not None else None
+        keep_ids: set[int] = set()
+        now = datetime.now(timezone.utc)
+        for current_plan in volume_plans:
+            owned = [item for item in backups if item.plan_id == current_plan.id]
+            floor = max(
+                1,
+                int(current_plan.minimum_backups_to_keep or 0),
+                int(current_plan.keep_last_n or 0),
+            )
+            keep_ids.update(item.id for item in owned[-floor:])
+        active_run_ids = {
+            row[0]
+            for row in self.db.query(BackupRun.id).filter(
+                BackupRun.status.in_(("queued", "running"))
+            ).all()
+        }
+        active_restore_paths = {
+            ntpath.normcase(ntpath.normpath(row[0]))
+            for row in self.db.query(RestoreRun.checkpoint_path).filter(
+                RestoreRun.status.in_(("queued", "running"))
+            ).all()
+        }
         eligible = []
         ineligible = []
         for item in backups:
+            item_plan = plan_by_id.get(item.plan_id)
             reason = None
-            if exclude_backup_run_id is not None and item.backup_run_id == exclude_backup_run_id: reason = "current_backup"
-            elif item.protected: reason = "protected"
-            elif item.id in keep_ids: reason = "minimum_keep"
-            elif item.integrity_status != "verified": reason = "not_verified"
-            elif age_cutoff is not None and item.created_at >= age_cutoff: reason = "keep_days"
+            if item_plan is None:
+                reason = "retention_authority_missing"
+            elif ntpath.normcase(ntpath.normpath(item.destination_root)) != ntpath.normcase(
+                ntpath.normpath(item_plan.destination)
+            ):
+                reason = "managed_root_mismatch"
+            elif not item_plan.auto_delete or item_plan.keep_days is None:
+                reason = "retention_authority_missing"
+            elif exclude_backup_run_id is not None and item.backup_run_id == exclude_backup_run_id:
+                reason = "current_backup"
+            elif item.backup_run_id in active_run_ids:
+                reason = "active_backup"
+            elif ntpath.normcase(ntpath.normpath(item.checkpoint_path)) in active_restore_paths:
+                reason = "active_restore"
+            elif item.protected:
+                reason = "protected"
+            elif item.id in keep_ids:
+                reason = "minimum_keep"
+            elif item.integrity_status != "verified":
+                reason = "not_verified"
+            elif item.created_at > now - timedelta(days=int(item_plan.keep_days)):
+                reason = "keep_days"
             target = ineligible if reason else eligible
             target.append({"backup_id": item.backup_id, "created_at": item.created_at, "total_bytes": item.total_bytes, "protected": item.protected, "eligible": reason is None, "reason": reason})
-        need = max(0, required + int(predicted_backup_bytes) - free)
+        hard_shortfall = max(0, required + int(predicted_backup_bytes) - free)
+        need = (
+            max(0, cleanup_target + int(predicted_backup_bytes) - free)
+            if hard_shortfall
+            else 0
+        )
         proposed = []
         reclaimed = 0
         for item in eligible:
@@ -1029,12 +1162,59 @@ class BackupRestoreService:
             proposed.append(item); reclaimed += int(item["total_bytes"])
         blocked = "RETENTION_BLOCKED_INSUFFICIENT_SPACE" if reclaimed < need else None
         return {
-            "plan_id": plan.id, "current_total_bytes": total, "current_free_bytes": free,
-            "required_free_bytes": required, "predicted_backup_bytes": int(predicted_backup_bytes),
+            "plan_id": plan.id, "volume_identity": volume_identity,
+            "current_total_bytes": total, "current_free_bytes": free,
+            "required_free_bytes": required,
+            "cleanup_target_free_bytes": cleanup_target,
+            "predicted_backup_bytes": int(predicted_backup_bytes),
             "eligible_backups": eligible, "ineligible_backups": ineligible,
             "proposed_deletions": proposed, "predicted_reclaimed_bytes": reclaimed,
             "predicted_final_free_bytes": free + reclaimed - int(predicted_backup_bytes), "blocked_reason": blocked,
         }
+
+    def enforce_drive_retention(
+        self,
+        plan: BackupSchedule,
+        actor: User,
+        *,
+        predicted_backup_bytes: int = 0,
+        exclude_backup_run_id: int | None = None,
+    ) -> dict:
+        """Revalidate and delete one canonical candidate at a time.
+
+        Production remains fail-closed while the separate retention deletion
+        approval is unconsumed.  Tests may explicitly inject an enabled gate.
+        """
+
+        while True:
+            self._lock()
+            preview = self.drive_retention_preview(
+                plan,
+                predicted_backup_bytes=predicted_backup_bytes,
+                exclude_backup_run_id=exclude_backup_run_id,
+            )
+            if preview["blocked_reason"]:
+                raise BackupRestoreValidation(preview["blocked_reason"])
+            proposed = preview["proposed_deletions"]
+            if not proposed:
+                return preview
+            if not plan.auto_delete:
+                raise BackupRestoreValidation("backup_retention_operator_action_required")
+            if not self.allow_retention_delete:
+                raise BackupRestoreValidation("backup_retention_delete_approval_required")
+            candidate = self.db.query(ManagedBackup).filter(
+                ManagedBackup.backup_id == proposed[0]["backup_id"],
+                ManagedBackup.lifecycle == "available",
+            ).one_or_none()
+            if candidate is None:
+                raise BackupRestoreValidation("managed_backup_candidate_changed")
+            self.delete_managed_backup(
+                candidate,
+                actor,
+                automatic=True,
+                reason="drive_free_space",
+            )
+            self.db.commit()
 
     def delete_managed_backup(self, item: ManagedBackup, actor: User, *, automatic: bool = False, reason: str = "manual_delete") -> BackupDeletionEvent:
         if not self.allow_retention_delete:

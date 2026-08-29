@@ -77,6 +77,8 @@ function destinationMetadata(value, projectDir) {
     writable,
     total_bytes: Number(stats.blocks) * Number(stats.bsize),
     free_bytes: Number(stats.bavail) * Number(stats.bsize),
+    destination_identity: path.win32.parse(destination).root.toUpperCase(),
+    destination_filesystem: null,
     path_type: destination.startsWith('\\\\') ? 'network_path' : 'local_path',
   };
 }

@@ -185,9 +185,11 @@ class RetentionCandidate(BaseModel):
 
 class RetentionPreview(BaseModel):
     plan_id: int
+    volume_identity: str | None = None
     current_total_bytes: int
     current_free_bytes: int
     required_free_bytes: int
+    cleanup_target_free_bytes: int | None = None
     predicted_backup_bytes: int
     eligible_backups: list[RetentionCandidate]
     ineligible_backups: list[RetentionCandidate]

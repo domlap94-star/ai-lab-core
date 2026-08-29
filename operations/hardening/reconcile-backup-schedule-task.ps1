@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Preview", "Apply", "Remove", "Prune")]
+    [ValidateSet("Preview", "Apply", "Remove", "Prune", "PreviewBatch", "ApplyBatch")]
     [string]$Mode,
     [ValidateRange(1, 9223372036854775807)]
     [long]$ScheduleId = 1,
@@ -19,6 +19,8 @@ param(
     [int]$MonthDay = 0,
     [ValidatePattern('^[0-9]+(,[0-9]+)*$|^$')]
     [string]$ExpectedScheduleIds = "",
+    [ValidatePattern('^[A-Za-z0-9+/=]*$')]
+    [string]$SchedulesPayloadBase64 = "",
     [string]$RepositoryRoot = "C:\ai-lab-core"
 )
 
@@ -141,6 +143,237 @@ function New-TaskXml([string]$PrincipalUser) {
   <Actions Context="Author"><Exec><Command>$command</Command><Arguments>$arguments</Arguments><WorkingDirectory>$workDir</WorkingDirectory></Exec></Actions>
 </Task>
 "@
+}
+
+function ConvertFrom-ScheduleBatch {
+    if ([string]::IsNullOrWhiteSpace($SchedulesPayloadBase64)) {
+        throw "backup_schedule_batch_missing"
+    }
+    try {
+        $json = [System.Text.Encoding]::UTF8.GetString(
+            [Convert]::FromBase64String($SchedulesPayloadBase64)
+        )
+        if ($json.Trim() -notmatch '^\[') { throw "backup_schedule_batch_invalid" }
+        $parsed = $json | ConvertFrom-Json
+        $raw = @($parsed | Where-Object { $null -ne $_ })
+    } catch {
+        throw "backup_schedule_batch_invalid"
+    }
+    if ($raw.Count -gt 10) { throw "backup_schedule_list_invalid" }
+    $seen = @{}
+    $normalized = @()
+    foreach ($item in $raw) {
+        $id = [long]$item.id
+        $revision = [int]$item.plan_revision
+        $enabledValue = [bool]$item.enabled
+        $cadenceValue = [string]$item.cadence
+        $timeValue = [string]$item.local_time
+        $weekdayValue = [int]$item.weekday
+        $monthDayValue = [int]$item.month_day
+        if ($id -le 0 -or $revision -le 0 -or $seen.ContainsKey($id)) {
+            throw "backup_schedule_batch_identity_invalid"
+        }
+        if ($cadenceValue -notin @("daily", "weekly", "monthly")) {
+            throw "backup_schedule_cadence_invalid"
+        }
+        if ($timeValue -notmatch '^([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$') {
+            throw "backup_schedule_time_invalid"
+        }
+        if ($timeValue -ge "02:00:00" -and $timeValue -lt "03:00:00") {
+            throw "backup_schedule_dst_unsafe_time"
+        }
+        $fieldsValid =
+            ($cadenceValue -eq "daily" -and $weekdayValue -eq 0 -and $monthDayValue -eq 0) -or
+            ($cadenceValue -eq "weekly" -and $weekdayValue -ge 1 -and $weekdayValue -le 7 -and $monthDayValue -eq 0) -or
+            ($cadenceValue -eq "monthly" -and $weekdayValue -eq 0 -and $monthDayValue -ge 1 -and $monthDayValue -le 28)
+        if (-not $fieldsValid -or [string]$item.timezone_name -ne "Europe/Warsaw") {
+            throw "backup_schedule_cadence_fields_invalid"
+        }
+        $seen[$id] = $true
+        $normalized += [pscustomobject]@{
+            id = $id
+            plan_revision = $revision
+            enabled = $enabledValue
+            cadence = $cadenceValue
+            local_time = $timeValue
+            weekday = $weekdayValue
+            month_day = $monthDayValue
+        }
+    }
+    return @($normalized)
+}
+
+function Get-BatchExpectedDescription($Schedule) {
+    return "$managedMarker schedule_id=$($Schedule.id) revision=$($Schedule.plan_revision) cadence=$($Schedule.cadence) time=$($Schedule.local_time) weekday=$($Schedule.weekday) month_day=$($Schedule.month_day)"
+}
+
+function Get-BatchExpectedArguments($Schedule) {
+    return "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$runner`" -ScheduleId $($Schedule.id) -RepositoryRoot `"$repo`""
+}
+
+function Test-BatchOwnedTask($Task) {
+    $action = @($Task.Actions) | Select-Object -First 1
+    $description = [string]$Task.Description
+    return ($description -like "$managedMarker*" -or $description -like "$legacyManagedMarker*") -and
+        [string]$action.Execute -ieq $powerShell -and
+        [string]$action.Arguments -like "*-File `"$runner`" -ScheduleId *"
+}
+
+function Get-BatchTaskSnapshot($Task, $Schedule) {
+    if ($null -eq $Task) { return $null }
+    $taskNameValue = [string]$Task.TaskName
+    $action = @($Task.Actions) | Select-Object -First 1
+    $info = Get-ScheduledTaskInfo -TaskName $taskNameValue -TaskPath "\"
+    [xml]$taskXml = Export-ScheduledTask -TaskName $taskNameValue -TaskPath "\"
+    $ns = New-Object System.Xml.XmlNamespaceManager($taskXml.NameTable)
+    $ns.AddNamespace("t", $taskXml.DocumentElement.NamespaceURI)
+    $calendar = $taskXml.SelectSingleNode("//t:CalendarTrigger", $ns)
+    if ($null -eq $calendar) { throw "backup_scheduler_trigger_invalid" }
+    $actualCadence = $null
+    $actualWeekday = 0
+    $actualMonthDay = 0
+    if ($null -ne $calendar.SelectSingleNode("t:ScheduleByDay", $ns)) {
+        $actualCadence = "daily"
+    } elseif ($null -ne $calendar.SelectSingleNode("t:ScheduleByWeek", $ns)) {
+        $actualCadence = "weekly"
+        $dayNode = $calendar.SelectSingleNode("t:ScheduleByWeek/t:DaysOfWeek/*", $ns)
+        $names = @("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+        $actualWeekday = [array]::IndexOf($names, $dayNode.LocalName) + 1
+    } elseif ($null -ne $calendar.SelectSingleNode("t:ScheduleByMonth", $ns)) {
+        $actualCadence = "monthly"
+        $actualMonthDay = [int]$calendar.SelectSingleNode("t:ScheduleByMonth/t:DaysOfMonth/t:Day", $ns).InnerText
+    }
+    return [ordered]@{
+        task_name = $taskNameValue
+        state = [string]$Task.State
+        enabled = [string]$Task.State -ne "Disabled"
+        description = [string]$Task.Description
+        execute = [string]$action.Execute
+        arguments = [string]$action.Arguments
+        working_directory = [string]$action.WorkingDirectory
+        cadence = $actualCadence
+        local_time = ([datetime]$calendar.StartBoundary).ToString("HH:mm:ss")
+        weekday = $actualWeekday
+        month_day = $actualMonthDay
+        last_run_at = if ($info.LastRunTime.Year -gt 2000) { $info.LastRunTime.ToString("o") } else { $null }
+        last_result = [int64]$info.LastTaskResult
+        next_run_at = if ($info.NextRunTime.Year -gt 2000) { $info.NextRunTime.ToString("o") } else { $null }
+    }
+}
+
+function Test-BatchSnapshotMatches($Snapshot, $Schedule) {
+    if ($null -eq $Snapshot) { return $false }
+    return $Snapshot.description -eq (Get-BatchExpectedDescription $Schedule) -and
+        $Snapshot.execute -ieq $powerShell -and
+        $Snapshot.arguments -eq (Get-BatchExpectedArguments $Schedule) -and
+        $Snapshot.working_directory -ieq $repo -and
+        $Snapshot.cadence -eq $Schedule.cadence -and
+        $Snapshot.local_time -eq $Schedule.local_time -and
+        [int]$Snapshot.weekday -eq [int]$Schedule.weekday -and
+        [int]$Snapshot.month_day -eq [int]$Schedule.month_day -and
+        $Snapshot.enabled -eq $true
+}
+
+function New-BatchTaskXml($Schedule, [string]$PrincipalUser) {
+    $dayNames = @("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    $scheduleXml = if ($Schedule.cadence -eq "daily") {
+        "<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>"
+    } elseif ($Schedule.cadence -eq "weekly") {
+        "<ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><$($dayNames[[int]$Schedule.weekday - 1]) /></DaysOfWeek></ScheduleByWeek>"
+    } else {
+        $months = "<January/><February/><March/><April/><May/><June/><July/><August/><September/><October/><November/><December/>"
+        "<ScheduleByMonth><DaysOfMonth><Day>$($Schedule.month_day)</Day></DaysOfMonth><Months>$months</ScheduleByMonth>"
+    }
+    $startDate = (Get-Date).Date.ToString("yyyy-MM-dd")
+    $description = ConvertTo-SafeXml (Get-BatchExpectedDescription $Schedule)
+    $command = ConvertTo-SafeXml $powerShell
+    $arguments = ConvertTo-SafeXml (Get-BatchExpectedArguments $Schedule)
+    $workDir = ConvertTo-SafeXml $repo
+    $user = ConvertTo-SafeXml $PrincipalUser
+    return @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>$description</Description></RegistrationInfo>
+  <Triggers><CalendarTrigger><StartBoundary>${startDate}T$($Schedule.local_time)</StartBoundary><Enabled>true</Enabled>$scheduleXml</CalendarTrigger></Triggers>
+  <Principals><Principal id="Author"><UserId>$user</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>true</AllowHardTerminate><StartWhenAvailable>true</StartWhenAvailable><RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable><IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><RunOnlyIfIdle>false</RunOnlyIfIdle><DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteAppSession><UseUnifiedSchedulingEngine>true</UseUnifiedSchedulingEngine><WakeToRun>false</WakeToRun><ExecutionTimeLimit>PT6H</ExecutionTimeLimit><Priority>7</Priority></Settings>
+  <Actions Context="Author"><Exec><Command>$command</Command><Arguments>$arguments</Arguments><WorkingDirectory>$workDir</WorkingDirectory></Exec></Actions>
+</Task>
+"@
+}
+
+if ($Mode -in @("PreviewBatch", "ApplyBatch")) {
+    $batch = @(ConvertFrom-ScheduleBatch)
+    $inventory = @{}
+    $unmanaged = @()
+    foreach ($task in @(Get-ScheduledTask -TaskName "$managedPrefix*" -TaskPath "\" -ErrorAction SilentlyContinue)) {
+        if ($task.TaskName -notmatch '^NEXT Stabil - Backup - ([0-9]+)$' -or -not (Test-BatchOwnedTask $task)) {
+            $unmanaged += [string]$task.TaskName
+            continue
+        }
+        $inventory[[string]$task.TaskName] = $task
+    }
+    if ($unmanaged.Count -gt 0) { throw "backup_scheduler_unmanaged_task_detected" }
+
+    $expected = @{}
+    foreach ($schedule in $batch) { $expected[[long]$schedule.id] = $true }
+    $principalUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if ($principalUser -notmatch '^S-1-[0-9-]+$') { throw "backup_scheduler_principal_invalid" }
+    $items = @()
+    foreach ($schedule in $batch) {
+        $taskNameValue = "$managedPrefix$($schedule.id)"
+        $task = $inventory[$taskNameValue]
+        $before = Get-BatchTaskSnapshot $task $schedule
+        $matches = if ([bool]$schedule.enabled) {
+            Test-BatchSnapshotMatches $before $schedule
+        } else {
+            $null -eq $before
+        }
+        $mutation = if ($matches) {
+            "none"
+        } elseif ([bool]$schedule.enabled -and $null -eq $before) {
+            "create"
+        } elseif ([bool]$schedule.enabled) {
+            "update"
+        } else {
+            "remove"
+        }
+        if ($Mode -eq "ApplyBatch" -and -not $matches) {
+            if (-not [bool]$schedule.enabled) {
+                Unregister-ScheduledTask -TaskName $taskNameValue -TaskPath "\" -Confirm:$false
+                $before = $null
+            } else {
+                $xml = New-BatchTaskXml $schedule $principalUser
+                Register-ScheduledTask -TaskName $taskNameValue -TaskPath "\" -Xml $xml -Force | Out-Null
+                $postTask = Get-ScheduledTask -TaskName $taskNameValue -TaskPath "\"
+                if (-not (Test-BatchOwnedTask $postTask)) { throw "backup_scheduler_postcondition_failed" }
+                $before = Get-BatchTaskSnapshot $postTask $schedule
+                if (-not (Test-BatchSnapshotMatches $before $schedule)) { throw "backup_scheduler_postcondition_failed" }
+            }
+        }
+        $items += [ordered]@{
+            task_name = $taskNameValue
+            sync_status = if ($Mode -eq "ApplyBatch" -or $matches) { "synced" } else { "pending_sync" }
+            mutation = $mutation
+            actual = $before
+        }
+    }
+
+    $removed = @()
+    foreach ($entry in @($inventory.GetEnumerator())) {
+        if ($entry.Key -notmatch '^NEXT Stabil - Backup - ([0-9]+)$') { continue }
+        $taskId = [long]$Matches[1]
+        if ($expected.ContainsKey($taskId)) { continue }
+        if ($Mode -eq "ApplyBatch") {
+            Unregister-ScheduledTask -TaskName $entry.Key -TaskPath "\" -Confirm:$false
+            $removed += $entry.Key
+        }
+    }
+    [ordered]@{
+        items = $items
+        prune = [ordered]@{ removed = $removed; unmanaged = @() }
+    } | ConvertTo-Json -Depth 7 -Compress
+    return
 }
 
 if ($Mode -eq "Prune") {

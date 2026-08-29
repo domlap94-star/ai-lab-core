@@ -53,6 +53,22 @@ class _FakeBackupApi extends BackupApi {
   int restoreRequests = 0;
   int adoptionRequests = 0;
   int manualBackups = 0;
+  int reconcileRequests = 0;
+  Map<String, dynamic>? savedSchedulePayload;
+
+  @override
+  Future<void> saveSchedule({
+    required AuthSession session,
+    int? id,
+    required Map<String, dynamic> payload,
+  }) async {
+    savedSchedulePayload = Map<String, dynamic>.from(payload);
+  }
+
+  @override
+  Future<void> reconcileSchedules(AuthSession session) async {
+    reconcileRequests += 1;
+  }
 
   @override
   Future<ManagedBackup> adoptLegacyBackup({
@@ -441,6 +457,50 @@ void main() {
     expect(find.textContaining('Ostatni backup:'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'schedule edit preserves retention and does not await reconcile',
+    (tester) async {
+      final api = await _pump(
+        tester,
+        width: 600,
+        schedules: <BackupSchedule>[
+          BackupSchedule(
+            id: 7,
+            name: 'Archiwum',
+            enabled: true,
+            scope: BackupScope.full,
+            destination: r'E:\backup',
+            cadence: 'weekly',
+            localTime: '03:00:00',
+            nextRunAt: DateTime(2026, 8, 30, 3),
+            weekday: 7,
+            syncStatus: 'synced',
+            autoDelete: true,
+            minimumFreePercent: 10,
+            minimumBackupsToKeep: 2,
+            keepLastN: 4,
+            keepDays: 60,
+            preserveWeeklyCount: 5,
+            preserveMonthlyCount: 12,
+          ),
+        ],
+      );
+      await tester.tap(find.byTooltip('Edytuj'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Bezwzględny okres ochronny (pełne dni)'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Zapisz'));
+      await tester.pumpAndSettle();
+      expect(api.savedSchedulePayload?['keep_days'], 60);
+      expect(api.savedSchedulePayload?['keep_last_n'], 4);
+      expect(api.savedSchedulePayload?['preserve_weekly_count'], 5);
+      expect(api.savedSchedulePayload?['preserve_monthly_count'], 12);
+      expect(api.reconcileRequests, 0);
+    },
+  );
 
   testWidgets(
     'legacy candidate requires explicit verify-and-add confirmation',

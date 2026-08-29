@@ -572,11 +572,6 @@ class _SchedulesSection extends ConsumerWidget {
           requireBackupSessionFromAuth(ref.read(authControllerProvider)),
           item.id,
         );
-    await ref
-        .read(backupApiProvider)
-        .reconcileSchedules(
-          requireBackupSessionFromAuth(ref.read(authControllerProvider)),
-        );
     ref.invalidate(backupSchedulesProvider);
   }
 
@@ -649,6 +644,9 @@ class _SchedulesSection extends ConsumerWidget {
     );
     final minimumKeep = TextEditingController(
       text: item?.minimumBackupsToKeep.toString() ?? '3',
+    );
+    final keepDays = TextEditingController(
+      text: item?.keepDays?.toString() ?? '',
     );
     BackupScope scope = item?.scope ?? BackupScope.full;
     String cadence = item?.cadence ?? 'daily';
@@ -857,6 +855,15 @@ class _SchedulesSection extends ConsumerWidget {
                   ),
                 ),
                 TextField(
+                  controller: keepDays,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Bezwzględny okres ochronny (pełne dni)',
+                    helperText:
+                        'Młodsze backupy nigdy nie kwalifikują się do usunięcia.',
+                  ),
+                ),
+                TextField(
                   controller: minimumKeep,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
@@ -906,13 +913,15 @@ class _SchedulesSection extends ConsumerWidget {
               'minimum_free_bytes': int.tryParse(minimumFreeBytes.text.trim()),
               'minimum_backups_to_keep':
                   int.tryParse(minimumKeep.text.trim()) ?? 3,
-              'retention_trigger': 'after_successful_backup',
+              'keep_last_n': item?.keepLastN,
+              'keep_days': int.tryParse(keepDays.text.trim()),
+              'preserve_weekly_count': item?.preserveWeeklyCount,
+              'preserve_monthly_count': item?.preserveMonthlyCount,
+              'retention_trigger':
+                  item?.retentionTrigger ?? 'after_successful_backup',
+              'retention_local_time': item?.retentionLocalTime,
+              'retention_weekday': item?.retentionWeekday,
             },
-          );
-      await ref
-          .read(backupApiProvider)
-          .reconcileSchedules(
-            requireBackupSessionFromAuth(ref.read(authControllerProvider)),
           );
       ref.invalidate(backupSchedulesProvider);
     } on DioException catch (error) {
@@ -920,7 +929,7 @@ class _SchedulesSection extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _apiError(error, 'Nie udało się zsynchronizować harmonogramu.'),
+              _apiError(error, 'Nie udało się zapisać harmonogramu.'),
             ),
           ),
         );
@@ -1548,7 +1557,7 @@ String _cadenceLabel(String value) => switch (value) {
 String _syncLabel(BackupSchedule item) {
   if (!item.enabled && item.syncStatus == 'synced') return 'Wyłączony';
   return switch (item.syncStatus) {
-    'synced' => item.hostEnabled ? 'Aktywny' : 'Wyłączony',
+    'synced' => item.enabled ? 'Aktywny' : 'Wyłączony',
     'error' => 'Błąd synchronizacji',
     'disabled' => 'Wyłączony',
     'destination_unavailable' => 'Miejsce docelowe niedostępne',

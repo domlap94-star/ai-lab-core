@@ -42,7 +42,11 @@ class BackupSchedule {
     this.minimumBackupsToKeep = 3,
     this.keepLastN,
     this.keepDays,
+    this.preserveWeeklyCount,
+    this.preserveMonthlyCount,
     this.retentionTrigger = 'after_successful_backup',
+    this.retentionLocalTime,
+    this.retentionWeekday,
     this.planRevision = 1,
     this.lastReconciledRevision = 0,
     this.lastSyncErrorCode,
@@ -73,7 +77,11 @@ class BackupSchedule {
   final int minimumBackupsToKeep;
   final int? keepLastN;
   final int? keepDays;
+  final int? preserveWeeklyCount;
+  final int? preserveMonthlyCount;
   final String retentionTrigger;
+  final String? retentionLocalTime;
+  final int? retentionWeekday;
   final int planRevision;
   final int lastReconciledRevision;
   final String? lastSyncErrorCode;
@@ -110,8 +118,12 @@ class BackupSchedule {
     minimumBackupsToKeep: json['minimum_backups_to_keep'] as int? ?? 3,
     keepLastN: json['keep_last_n'] as int?,
     keepDays: json['keep_days'] as int?,
+    preserveWeeklyCount: json['preserve_weekly_count'] as int?,
+    preserveMonthlyCount: json['preserve_monthly_count'] as int?,
     retentionTrigger:
         json['retention_trigger'] as String? ?? 'after_successful_backup',
+    retentionLocalTime: json['retention_local_time'] as String?,
+    retentionWeekday: json['retention_weekday'] as int?,
     planRevision: json['plan_revision'] as int? ?? 1,
     lastReconciledRevision: json['last_reconciled_revision'] as int? ?? 0,
     lastSyncErrorCode: json['last_sync_error_code'] as String?,
