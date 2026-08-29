@@ -55,6 +55,7 @@ class AssistantRunCreateRequest(BaseModel):
     document_id: int | None = Field(default=None, gt=0)
     mail_source_id: int | None = Field(default=None, gt=0)
     inspection_id: int | None = Field(default=None, gt=0)
+    conversation_id: int | None = Field(default=None, gt=0)
     conversation: list[UnifiedConversationMessage] = Field(default_factory=list, max_length=8)
 
     @field_validator("question")
@@ -90,6 +91,8 @@ class AssistantRunResponse(BaseModel):
 
     run_id: str
     attempt_id: str
+    conversation_id: int | None = None
+    conversation_deleted: bool = False
     status: Literal[
         "created", "queued", "running", "waiting", "completed",
         "review_required", "failed", "cancelled",

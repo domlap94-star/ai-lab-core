@@ -55,7 +55,9 @@ class AssistantRunPlanner:
         self.db = db
 
     def plan(self, request: AssistantRunCreateRequest) -> AssistantRunPlan:
-        unified = UnifiedAssistantRequest.model_validate(request.model_dump(mode="json"))
+        unified = UnifiedAssistantRequest.model_validate(
+            request.model_dump(mode="json", exclude={"conversation_id"})
+        )
         unified = UnifiedAssistantService._apply_conversation_reset(unified)
         self._validate_scope(unified)
         query_mode = UnifiedAssistantService._query_mode(unified)

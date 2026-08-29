@@ -40,6 +40,8 @@ class AssistantRunSnapshot {
     required this.createdAt,
     required this.updatedAt,
     this.currentStage,
+    this.conversationId,
+    this.conversationDeleted = false,
     this.result,
     this.errorCode,
   });
@@ -48,6 +50,8 @@ class AssistantRunSnapshot {
       AssistantRunSnapshot(
         runId: json['run_id'] as String,
         attemptId: json['attempt_id'] as String,
+        conversationId: (json['conversation_id'] as num?)?.toInt(),
+        conversationDeleted: json['conversation_deleted'] as bool? ?? false,
         status: json['status'] as String,
         currentStage: json['current_stage'] as String?,
         complexity: json['complexity'] as String,
@@ -76,6 +80,8 @@ class AssistantRunSnapshot {
 
   final String runId;
   final String attemptId;
+  final int? conversationId;
+  final bool conversationDeleted;
   final String status;
   final String? currentStage;
   final String complexity;

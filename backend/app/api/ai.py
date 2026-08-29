@@ -49,6 +49,17 @@ from app.schemas.assistant_pipeline import (
     AssistantRunListResponse,
     AssistantRunResponse,
 )
+from app.schemas.assistant_conversation import (
+    AssistantConversationCreateRequest,
+    AssistantConversationDeleteResponse,
+    AssistantConversationDetail,
+    AssistantConversationListResponse,
+    AssistantConversationRenameRequest,
+)
+from app.services.assistant_conversation_service import (
+    AssistantConversationNotFound,
+    AssistantConversationService,
+)
 from app.services.assistant_run_planner import AssistantRunScopeError
 from app.services.assistant_run_service import (
     AssistantRunActiveConflict,
@@ -105,6 +116,97 @@ def create_assistant_run(
             status_code=409,
             detail="Masz już aktywną analizę. Otwórz ją lub anuluj przed rozpoczęciem następnej.",
         ) from error
+    except AssistantConversationNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono rozmowy.") from error
+
+
+@router.post(
+    "/assistant/conversations",
+    response_model=AssistantConversationDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_assistant_conversation(
+    request: AssistantConversationCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantConversationDetail:
+    return AssistantConversationService(db).create(
+        request=request,
+        user_id=current_user.id,
+    )
+
+
+@router.get(
+    "/assistant/conversations",
+    response_model=AssistantConversationListResponse,
+)
+def list_assistant_conversations(
+    limit: int = Query(default=20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantConversationListResponse:
+    return AssistantConversationService(db).list_owned(
+        user_id=current_user.id,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/assistant/conversations/{conversation_id}",
+    response_model=AssistantConversationDetail,
+)
+def get_assistant_conversation(
+    conversation_id: int,
+    message_limit: int = Query(default=100, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantConversationDetail:
+    try:
+        return AssistantConversationService(db).get_owned_detail(
+            conversation_id=conversation_id,
+            user_id=current_user.id,
+            message_limit=message_limit,
+        )
+    except AssistantConversationNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono rozmowy.") from error
+
+
+@router.patch(
+    "/assistant/conversations/{conversation_id}",
+    response_model=AssistantConversationDetail,
+)
+def rename_assistant_conversation(
+    conversation_id: int,
+    request: AssistantConversationRenameRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantConversationDetail:
+    try:
+        return AssistantConversationService(db).rename(
+            conversation_id=conversation_id,
+            user_id=current_user.id,
+            request=request,
+        )
+    except AssistantConversationNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono rozmowy.") from error
+
+
+@router.delete(
+    "/assistant/conversations/{conversation_id}",
+    response_model=AssistantConversationDeleteResponse,
+)
+def delete_assistant_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantConversationDeleteResponse:
+    try:
+        return AssistantConversationService(db).soft_delete(
+            conversation_id=conversation_id,
+            user_id=current_user.id,
+        )
+    except AssistantConversationNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono rozmowy.") from error
 
 
 @router.get("/assistant/runs", response_model=AssistantRunListResponse)

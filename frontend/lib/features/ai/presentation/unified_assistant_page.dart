@@ -7,10 +7,14 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/friendly_api_error.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../auth/domain/auth_session.dart';
 import '../../clients/presentation/searchable_client_picker.dart';
 import '../application/assistant_run_controller.dart';
+import '../application/assistant_conversation_controller.dart';
+import '../domain/assistant_conversation.dart';
 import '../domain/assistant_run.dart';
 import '../domain/unified_assistant.dart';
+import 'assistant_chat_history_sheet.dart';
 
 class UnifiedAssistantPage extends ConsumerStatefulWidget {
   const UnifiedAssistantPage({
@@ -37,6 +41,8 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   static const _storage = FlutterSecureStorage();
   static const _pendingRequestKey = 'unified_assistant_pending_run_v2';
   static const _latestRequestKey = 'unified_assistant_latest_run_v2';
+  static const _selectedConversationKey =
+      'unified_assistant_selected_conversation_v2';
   static const quickActions = <String>[
     'Podsumuj ten przypadek',
     'Co sprawdzić podczas wizji lokalnej?',
@@ -46,10 +52,12 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     'Podsumuj ostatnią aktywność',
   ];
   final controller = TextEditingController();
-  final conversation = <Map<String, String>>[];
   CancelToken? cancelToken;
+  Timer? hiddenRunTimer;
   String? activeRequestId;
   AssistantRunSnapshot? activeRun;
+  AssistantRunSnapshot? hiddenActiveRun;
+  AssistantConversationDetail? activeConversation;
   UnifiedAssistantAnswer? result;
   String? error;
   String progress = '';
@@ -62,12 +70,13 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     clientId = widget.initialClientId;
     clientName = clientId == null ? null : 'Klient #$clientId';
     controller.text = widget.initialQuestion ?? '';
-    unawaited(_restorePendingRequest());
+    unawaited(_restoreAssistantState());
   }
 
   @override
   void dispose() {
     cancelToken?.cancel();
+    hiddenRunTimer?.cancel();
     controller.dispose();
     super.dispose();
   }
@@ -77,7 +86,15 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     appBar: AppBar(
       leading: AppShell.mobileNavigationLeading(context),
       title: const Text('Asystent AI'),
-      actions: <Widget>[AppShell.globalSearchAction(context)],
+      actions: <Widget>[
+        IconButton(
+          key: const Key('assistant-history-menu'),
+          tooltip: 'Historia rozmów',
+          onPressed: _openHistory,
+          icon: const Icon(Icons.more_vert),
+        ),
+        AppShell.globalSearchAction(context),
+      ],
     ),
     body: SafeArea(
       child: Align(
@@ -89,6 +106,17 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
+                if (hiddenActiveRun != null) _hiddenActiveRunCard(),
+                if (activeConversation != null) ...<Widget>[
+                  Text(
+                    activeConversation!.title,
+                    key: const Key('assistant-active-conversation-title'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  _conversationView(activeConversation!),
+                  const SizedBox(height: 12),
+                ],
                 Text(
                   'Jeden asystent, pełny kontekst',
                   style: Theme.of(context).textTheme.titleMedium,
@@ -106,7 +134,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
                   onChanged: (selection) => setState(() {
                     clientId = selection?.id;
                     clientName = selection?.name;
-                    conversation.clear();
                     result = null;
                   }),
                 ),
@@ -182,7 +209,9 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
                         ),
                 ),
                 if (error != null) errorCard(),
-                if (result != null && _hasRenderableAnswer(result!))
+                if (activeConversation == null &&
+                    result != null &&
+                    _hasRenderableAnswer(result!))
                   answerView(result!),
               ],
             ),
@@ -191,6 +220,148 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       ),
     ),
   );
+
+  Widget _conversationView(AssistantConversationDetail detail) {
+    final assistantMessages = detail.messages
+        .where((message) => message.role == 'assistant')
+        .toList(growable: false);
+    final latestAssistantId = assistantMessages.isEmpty
+        ? null
+        : assistantMessages.last.id;
+    return Column(
+      key: ValueKey<String>('assistant-conversation-${detail.id}'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: detail.messages
+          .map((message) {
+            final isUser = message.role == 'user';
+            final isLatestAssistant = message.id == latestAssistantId;
+            return Align(
+              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 760),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    SelectableText(
+                      message.content,
+                      key: isLatestAssistant
+                          ? const Key('unified-ai-answer')
+                          : ValueKey<String>('assistant-message-${message.id}'),
+                    ),
+                    if (!isUser && message.runResult != null) ...<Widget>[
+                      Material(
+                        color: Colors.transparent,
+                        child: ExpansionTile(
+                          key: isLatestAssistant
+                              ? const Key('unified-ai-sources')
+                              : ValueKey<String>(
+                                  'assistant-message-sources-${message.id}',
+                                ),
+                          tilePadding: EdgeInsets.zero,
+                          title: const Text('Źródła'),
+                          subtitle: Text(
+                            message.runResult!.sources.isEmpty
+                                ? 'Odpowiedź oparta na wiedzy ogólnej.'
+                                : '${message.runResult!.sources.length} użytych źródeł',
+                          ),
+                          children: message.runResult!.sources
+                              .map(
+                                (source) => ListTile(
+                                  key: isLatestAssistant
+                                      ? ValueKey<String>(
+                                          'unified-source-${source.sourceRef}',
+                                        )
+                                      : ValueKey<String>(
+                                          'assistant-source-${message.id}-${source.sourceRef}',
+                                        ),
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(source.title),
+                                  subtitle: Text(
+                                    '${source.excerpt}\n${source.whyUsed}',
+                                  ),
+                                  onTap: source.route == null
+                                      ? null
+                                      : () => context.push(source.route!),
+                                ),
+                              )
+                              .toList(growable: false),
+                        ),
+                      ),
+                      ...message.runResult!.claims
+                          .where((claim) => claim.claimClass != 'FACT')
+                          .map(
+                            (claim) => claimCard(
+                              claim,
+                              keyPrefix: isLatestAssistant
+                                  ? 'unified'
+                                  : 'assistant-${message.id}',
+                            ),
+                          ),
+                    ],
+                    if (message.runStatus != null &&
+                        message.runStatus != 'completed')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          _runStatusLabel(message.runStatus!),
+                          key: ValueKey<String>(
+                            'assistant-message-status-${message.id}',
+                          ),
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  Widget _hiddenActiveRunCard() => Card(
+    key: const Key('assistant-hidden-active-run'),
+    color: Theme.of(context).colorScheme.tertiaryContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.pending_outlined),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('Analiza z usuniętej rozmowy nadal trwa.'),
+                Text(hiddenActiveRun!.progress.display),
+              ],
+            ),
+          ),
+          TextButton(
+            key: const Key('assistant-hidden-active-cancel'),
+            onPressed: _cancelHiddenRun,
+            child: const Text('Anuluj'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  String _runStatusLabel(String status) => switch (status) {
+    'review_required' => 'Wymaga bezpiecznej weryfikacji',
+    'failed' => 'Analiza nie powiodła się',
+    'cancelled' => 'Analiza anulowana',
+    'created' || 'queued' || 'running' || 'waiting' => 'Analiza trwa',
+    _ => status,
+  };
 
   Widget errorCard() => Padding(
     padding: const EdgeInsets.only(top: 16),
@@ -246,7 +417,10 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
           answer.status == 'accepted_advanced') &&
       answer.answer.trim().isNotEmpty;
 
-  Widget claimCard(UnifiedAssistantClaim claim) {
+  Widget claimCard(
+    UnifiedAssistantClaim claim, {
+    String keyPrefix = 'unified',
+  }) {
     final label = switch (claim.claimClass) {
       'ESTIMATE' =>
         claim.estimateStatus == 'NOT_ESTIMABLE'
@@ -257,7 +431,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       _ => claim.claimClass,
     };
     return Card(
-      key: ValueKey<String>('unified-claim-${claim.claimId}'),
+      key: ValueKey<String>('$keyPrefix-claim-${claim.claimId}'),
       margin: const EdgeInsets.only(top: 12),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -311,13 +485,19 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     if (loading || question.length < 2) return;
     final session = (await ref.read(authControllerProvider.future)).session;
     if (session == null || !mounted) return;
+    late final AssistantConversationDetail chat;
+    try {
+      chat = await _ensureConversation(session);
+    } catch (_) {
+      if (mounted) {
+        setState(() => error = 'Nie udało się utworzyć rozmowy.');
+      }
+      return;
+    }
     final token = CancelToken();
     final attemptId = 'android-${DateTime.now().microsecondsSinceEpoch}';
     cancelToken?.cancel('superseded');
     cancelToken = token;
-    if (_hasResetIntent(question)) {
-      conversation.clear();
-    }
     setState(() {
       loading = true;
       error = null;
@@ -333,11 +513,8 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
             session: session,
             question: question,
             attemptId: attemptId,
-            conversation: List.unmodifiable(
-              conversation.length <= 8
-                  ? conversation
-                  : conversation.sublist(conversation.length - 8),
-            ),
+            conversation: const <Map<String, String>>[],
+            conversationId: chat.id,
             clientId: clientId,
             candidateId: widget.initialCandidateId,
             documentId: widget.initialDocumentId,
@@ -347,19 +524,30 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       activeRequestId = run.runId;
       await _storage.write(key: _pendingRequestKey, value: run.runId);
       await _storage.write(key: _latestRequestKey, value: run.runId);
+      await _reloadConversationIfSelected(chat.id);
       while (!run.isTerminal) {
-        if (!mounted || token.isCancelled) return;
+        if (!mounted ||
+            token.isCancelled ||
+            activeConversation?.id != chat.id) {
+          return;
+        }
         setState(() {
           activeRun = run;
           progress = run.progress.display;
         });
         await pollDelay(token, milliseconds: run.pollAfterMs);
-        if (!mounted || token.isCancelled) return;
+        if (!mounted ||
+            token.isCancelled ||
+            activeConversation?.id != chat.id) {
+          return;
+        }
         run = await ref
             .read(assistantRunRepositoryProvider)
             .get(session: session, runId: run.runId, cancelToken: token);
       }
-      if (!mounted || token.isCancelled) return;
+      if (!mounted || token.isCancelled || activeConversation?.id != chat.id) {
+        return;
+      }
       await _storage.delete(key: _pendingRequestKey);
       final answer = run.result;
       setState(() {
@@ -367,14 +555,8 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         result = answer;
         progress = run.progress.display;
       });
-      if (run.status == 'completed' && answer != null) {
-        conversation
-          ..add(<String, String>{'role': 'user', 'content': question})
-          ..add(<String, String>{
-            'role': 'assistant',
-            'content': answer.answer,
-          });
-      } else {
+      await _reloadConversationIfSelected(chat.id);
+      if (run.status != 'completed' || answer == null) {
         setState(
           () => error = answer?.errorMessage ?? _terminalRunMessage(run),
         );
@@ -394,10 +576,258 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         setState(() => error = 'Nie udało się uzyskać odpowiedzi AI.');
       }
     } finally {
-      if (mounted && identical(token, cancelToken)) {
+      if (mounted &&
+          identical(token, cancelToken) &&
+          activeConversation?.id == chat.id) {
         setState(() => loading = false);
       }
     }
+  }
+
+  Future<AssistantConversationDetail> _ensureConversation(
+    AuthSession session,
+  ) async {
+    final current = activeConversation;
+    if (current != null) return current;
+    final created = await ref
+        .read(assistantConversationRepositoryProvider)
+        .createChat(session: session);
+    if (mounted) {
+      setState(() {
+        activeConversation = created;
+        result = null;
+        error = null;
+      });
+    }
+    await _storage.write(
+      key: _selectedConversationKey,
+      value: created.id.toString(),
+    );
+    return created;
+  }
+
+  Future<void> _openHistory() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => AssistantChatHistorySheet(
+        onOpen: _selectConversation,
+        onNewChat: _selectConversation,
+        onRenamed: _conversationRenamed,
+        onDeleted: _conversationDeleted,
+      ),
+    );
+  }
+
+  Future<void> _selectConversation(
+    AssistantConversationDetail conversation,
+  ) async {
+    cancelToken?.cancel('conversation switched');
+    cancelToken = null;
+    if (mounted) {
+      setState(() {
+        activeConversation = conversation;
+        activeRequestId = conversation.latestRunId;
+        activeRun = null;
+        result = null;
+        error = null;
+        progress = '';
+        loading = false;
+      });
+    }
+    await _storage.write(
+      key: _selectedConversationKey,
+      value: conversation.id.toString(),
+    );
+    if (conversation.active && conversation.latestRunId != null) {
+      unawaited(
+        _pollSelectedRun(
+          conversation.latestRunId!,
+          conversationId: conversation.id,
+        ),
+      );
+    }
+  }
+
+  Future<void> _conversationDeleted(
+    AssistantConversationSummary conversation,
+    AssistantConversationDeleteResult deletion,
+  ) async {
+    if (activeConversation?.id == conversation.id) {
+      cancelToken?.cancel('conversation hidden');
+      cancelToken = null;
+      await _storage.delete(key: _selectedConversationKey);
+      if (mounted) {
+        setState(() {
+          activeConversation = null;
+          activeRequestId = null;
+          activeRun = null;
+          result = null;
+          error = null;
+          progress = '';
+          loading = false;
+        });
+      }
+    }
+    if (deletion.activeRunId != null) {
+      await _refreshHiddenActiveRun(preferredRunId: deletion.activeRunId);
+    }
+  }
+
+  Future<void> _conversationRenamed(
+    AssistantConversationDetail conversation,
+  ) async {
+    if (mounted && activeConversation?.id == conversation.id) {
+      setState(() => activeConversation = conversation);
+    }
+  }
+
+  Future<void> _reloadConversationIfSelected(int conversationId) async {
+    if (activeConversation?.id != conversationId) return;
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null) return;
+    final detail = await ref
+        .read(assistantConversationRepositoryProvider)
+        .getChat(session: session, conversationId: conversationId);
+    if (mounted && activeConversation?.id == conversationId) {
+      setState(() => activeConversation = detail);
+    }
+  }
+
+  Future<void> _restoreAssistantState() async {
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null || !mounted) return;
+    AssistantConversationDetail? detail;
+    final stored = await _storage.read(key: _selectedConversationKey);
+    final selectedId = int.tryParse(stored ?? '');
+    try {
+      if (selectedId != null) {
+        detail = await ref
+            .read(assistantConversationRepositoryProvider)
+            .getChat(session: session, conversationId: selectedId);
+      } else {
+        final chats = await ref
+            .read(assistantConversationRepositoryProvider)
+            .listChats(session: session);
+        if (chats.isNotEmpty) {
+          detail = await ref
+              .read(assistantConversationRepositoryProvider)
+              .getChat(session: session, conversationId: chats.first.id);
+        }
+      }
+    } catch (_) {
+      await _storage.delete(key: _selectedConversationKey);
+    }
+    if (detail != null && mounted) {
+      await _selectConversation(detail);
+    } else {
+      await _restorePendingRequest();
+    }
+    await _refreshHiddenActiveRun();
+  }
+
+  Future<void> _pollSelectedRun(
+    String requestId, {
+    required int conversationId,
+  }) async {
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null || !mounted) return;
+    final token = CancelToken();
+    cancelToken = token;
+    activeRequestId = requestId;
+    await _storage.write(key: _pendingRequestKey, value: requestId);
+    if (mounted && activeConversation?.id == conversationId) {
+      setState(() {
+        loading = true;
+        progress = 'Przywracam trwającą analizę.';
+      });
+    }
+    try {
+      while (mounted &&
+          !token.isCancelled &&
+          activeConversation?.id == conversationId) {
+        final next = await ref
+            .read(assistantRunRepositoryProvider)
+            .get(session: session, runId: requestId, cancelToken: token);
+        if (!mounted ||
+            token.isCancelled ||
+            activeConversation?.id != conversationId) {
+          return;
+        }
+        setState(() {
+          activeRun = next;
+          progress = next.progress.display;
+          error = next.isTerminal && next.status != 'completed'
+              ? next.result?.errorMessage ?? _terminalRunMessage(next)
+              : null;
+        });
+        if (next.isTerminal) {
+          await _storage.delete(key: _pendingRequestKey);
+          await _reloadConversationIfSelected(conversationId);
+          return;
+        }
+        await pollDelay(token, milliseconds: next.pollAfterMs);
+      }
+    } on DioException catch (exception) {
+      if (mounted && !CancelToken.isCancel(exception)) {
+        setState(
+          () => error = friendlyApiError(
+            exception,
+            fallback: 'Nie udało się odczytać stanu analizy.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted &&
+          identical(token, cancelToken) &&
+          activeConversation?.id == conversationId) {
+        setState(() => loading = false);
+      }
+    }
+  }
+
+  Future<void> _refreshHiddenActiveRun({String? preferredRunId}) async {
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null || !mounted) return;
+    try {
+      final active = await ref
+          .read(assistantRunRepositoryProvider)
+          .listActive(session: session);
+      final hidden = active.where((run) => run.conversationDeleted).toList();
+      AssistantRunSnapshot? selected;
+      for (final run in hidden) {
+        if (run.runId == preferredRunId) {
+          selected = run;
+          break;
+        }
+      }
+      selected ??= hidden.isEmpty ? null : hidden.first;
+      if (mounted) setState(() => hiddenActiveRun = selected);
+      hiddenRunTimer?.cancel();
+      if (selected != null) {
+        final scheduled = selected;
+        hiddenRunTimer = Timer(
+          Duration(milliseconds: scheduled.pollAfterMs),
+          () => unawaited(
+            _refreshHiddenActiveRun(preferredRunId: scheduled.runId),
+          ),
+        );
+      }
+    } catch (_) {
+      // History remains usable when the advisory active-run projection fails.
+    }
+  }
+
+  Future<void> _cancelHiddenRun() async {
+    final run = hiddenActiveRun;
+    if (run == null) return;
+    final session = (await ref.read(authControllerProvider.future)).session;
+    if (session == null) return;
+    await ref
+        .read(assistantRunRepositoryProvider)
+        .cancel(session: session, runId: run.runId);
+    hiddenRunTimer?.cancel();
+    if (mounted) setState(() => hiddenActiveRun = null);
   }
 
   String _terminalRunMessage(AssistantRunSnapshot run) {
@@ -406,32 +836,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       return 'Wynik wymaga bezpiecznej weryfikacji. Doprecyzuj pytanie.';
     }
     return 'Nie udało się zakończyć analizy. Możesz spróbować ponownie.';
-  }
-
-  bool _hasResetIntent(String value) {
-    var normalized = value.toLowerCase();
-    const replacements = <String, String>{
-      'ą': 'a',
-      'ć': 'c',
-      'ę': 'e',
-      'ł': 'l',
-      'ń': 'n',
-      'ó': 'o',
-      'ś': 's',
-      'ź': 'z',
-      'ż': 'z',
-    };
-    replacements.forEach((source, target) {
-      normalized = normalized.replaceAll(source, target);
-    });
-    return <String>[
-      'ignoruj poprzednie pytanie',
-      'ignoruj poprzednie zapytanie',
-      'ignoruj poprzedni kontekst',
-      'nie bierz pod uwage wczesniejszej rozmowy',
-      'zacznij od nowa',
-      'nowy temat',
-    ].any(normalized.contains);
   }
 
   Future<void> cancel() async {
@@ -448,7 +852,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       });
     }
     if (requestId != null) {
-      unawaited(_cancelDurable(requestId));
+      await _cancelDurable(requestId);
     }
   }
 
@@ -464,8 +868,11 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         final active = await ref
             .read(assistantRunRepositoryProvider)
             .listActive(session: session);
-        if (active.isEmpty || !mounted) return;
-        requestId = active.first.runId;
+        final visible = active
+            .where((run) => !run.conversationDeleted)
+            .toList(growable: false);
+        if (visible.isEmpty || !mounted) return;
+        requestId = visible.first.runId;
         await _storage.write(key: _pendingRequestKey, value: requestId);
         await _storage.write(key: _latestRequestKey, value: requestId);
       } catch (_) {
@@ -485,6 +892,18 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
             .read(assistantRunRepositoryProvider)
             .get(session: session, runId: requestId, cancelToken: token);
         if (!mounted || token.isCancelled) return;
+        if (next.conversationDeleted) {
+          await _storage.delete(key: _pendingRequestKey);
+          await _storage.delete(key: _latestRequestKey);
+          setState(() {
+            loading = false;
+            activeRequestId = null;
+            activeRun = null;
+            result = null;
+          });
+          await _refreshHiddenActiveRun(preferredRunId: next.runId);
+          return;
+        }
         setState(() {
           activeRun = next;
           result = next.result;
@@ -523,9 +942,13 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     final session = (await ref.read(authControllerProvider.future)).session;
     if (session == null) return;
     try {
-      await ref
+      final cancelled = await ref
           .read(assistantRunRepositoryProvider)
           .cancel(session: session, runId: requestId);
+      final conversationId = cancelled.conversationId;
+      if (conversationId != null) {
+        await _reloadConversationIfSelected(conversationId);
+      }
     } catch (_) {
       // HTTP cancellation already detached the local request and blocks stale binding.
     }

@@ -8,13 +8,14 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     SmallInteger,
     String,
     func,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 
@@ -81,10 +82,26 @@ class DocumentIntelligenceSource(Base):
 
 class AssistantRun(Base):
     __tablename__ = "assistant_runs"
+    __table_args__ = (
+        Index(
+            "ix_assistant_runs_conversation_created",
+            "conversation_id",
+            "created_at",
+            "id",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     created_by_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    conversation_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "conversations.id",
+            ondelete="SET NULL",
+            name="fk_assistant_runs_conversation_id_conversations",
+        ),
+        nullable=True,
     )
     attempt_id: Mapped[str] = mapped_column(String(80), nullable=False)
     api_version: Mapped[str] = mapped_column(
@@ -121,6 +138,15 @@ class AssistantRun(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+    conversation: Mapped["Conversation | None"] = relationship(
+        "Conversation",
+        back_populates="assistant_runs",
+    )
+    messages: Mapped[list["Message"]] = relationship(
+        "Message",
+        back_populates="assistant_run",
+        passive_deletes=True,
     )
 
 

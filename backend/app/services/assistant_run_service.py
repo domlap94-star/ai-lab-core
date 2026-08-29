@@ -7,11 +7,13 @@ from datetime import UTC, datetime
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import settings
 from app.models.assistant_pipeline import AssistantRun, AssistantRunStage
+from app.models.conversation import Conversation
 from app.models.document_preparation_job import DocumentPreparationJob
+from app.models.message import Message
 from app.schemas.assistant_pipeline import (
     AssistantRunCreateRequest,
     AssistantRunListResponse,
@@ -28,6 +30,7 @@ from app.services.assistant_run_planner import (
     POLICY_GENERATION,
 )
 from app.services.assistant_run_stage_service import AssistantRunStageService
+from app.services.assistant_conversation_service import AssistantConversationService
 
 
 class AssistantPipelineDisabled(RuntimeError):
@@ -59,26 +62,58 @@ class AssistantRunService:
         self, *, request: AssistantRunCreateRequest, user_id: int
     ) -> AssistantRunResponse:
         self.require_enabled()
-        plan = AssistantRunPlanner(self.db).plan(request)
         # One active V2 run per user is an explicit product policy.  Serialize
         # concurrent create calls without another schema change.
         self.db.execute(
             text("SELECT pg_advisory_xact_lock(:namespace, :user_id)"),
             {"namespace": 20260826, "user_id": user_id},
         )
-        request_payload = plan.request.model_dump(mode="json")
-        validate_bounded_json(request_payload, field_name="request_payload")
-        canonical = json.dumps({
-            "request": request_payload,
-            "orchestrator": ORCHESTRATOR_VERSION,
-            "evidence_contract": EVIDENCE_CONTRACT_VERSION,
-            "policy": POLICY_GENERATION,
-        }, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         existing = self.db.query(AssistantRun).filter(
             AssistantRun.created_by_user_id == user_id,
             AssistantRun.attempt_id == request.attempt_id,
         ).one_or_none()
+        if existing is not None and (
+            request.conversation_id is not None
+            or existing.conversation_id is not None
+        ):
+            if not self._threaded_request_matches(existing, request):
+                raise AssistantRunIdempotencyConflict("ATTEMPT_ID_REUSED")
+            return self.response(existing)
+
+        conversation = None
+        if request.conversation_id is not None:
+            conversation_service = AssistantConversationService(self.db)
+            conversation = conversation_service.resolve_owned(
+                conversation_id=request.conversation_id,
+                user_id=user_id,
+                lock=True,
+            )
+            request = request.model_copy(
+                update={
+                    "conversation": conversation_service.canonical_history(
+                        conversation_id=conversation.id
+                    )
+                }
+            )
+
+        plan = AssistantRunPlanner(self.db).plan(request)
+        request_payload = plan.request.model_dump(mode="json")
+        validate_bounded_json(request_payload, field_name="request_payload")
+        canonical_payload = {
+            "request": request_payload,
+            "orchestrator": ORCHESTRATOR_VERSION,
+            "evidence_contract": EVIDENCE_CONTRACT_VERSION,
+            "policy": POLICY_GENERATION,
+        }
+        if request.conversation_id is not None:
+            canonical_payload["conversation_id"] = request.conversation_id
+        canonical = json.dumps(
+            canonical_payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
         if existing is not None:
             if existing.input_fingerprint != fingerprint:
                 raise AssistantRunIdempotencyConflict("ATTEMPT_ID_REUSED")
@@ -95,6 +130,7 @@ class AssistantRunService:
         run = AssistantRun(
             id=str(uuid.uuid4()),
             created_by_user_id=user_id,
+            conversation_id=request.conversation_id,
             attempt_id=request.attempt_id,
             api_version="assistant-runs-v2",
             orchestrator_version=ORCHESTRATOR_VERSION,
@@ -112,7 +148,21 @@ class AssistantRunService:
             priority=plan.priority,
         )
         self.db.add(run)
+        # The run, its stage plan, and its user-visible message remain one
+        # transaction. Flush the parent first so PostgreSQL FK ordering is
+        # explicit even though the stage service stores scalar run IDs.
+        self.db.flush()
         AssistantRunStageService(self.db).create_plan(run, plan.stages)
+        if conversation is not None:
+            self.db.add(
+                Message(
+                    conversation_id=conversation.id,
+                    assistant_run_id=run.id,
+                    role="user",
+                    content=plan.request.question,
+                )
+            )
+            conversation.last_activity_at = datetime.now(UTC)
         try:
             self.db.commit()
         except IntegrityError:
@@ -120,7 +170,9 @@ class AssistantRunService:
             existing = self.db.query(AssistantRun).filter(
                 AssistantRun.created_by_user_id == user_id,
                 AssistantRun.attempt_id == request.attempt_id,
-            ).one()
+            ).one_or_none()
+            if existing is None:
+                raise
             if existing.input_fingerprint != fingerprint:
                 raise AssistantRunIdempotencyConflict("ATTEMPT_ID_REUSED")
             run = existing
@@ -149,7 +201,7 @@ class AssistantRunService:
         self.require_enabled()
         query = self.db.query(AssistantRun).filter(
             AssistantRun.created_by_user_id == user_id
-        )
+        ).options(joinedload(AssistantRun.conversation))
         if active:
             query = query.filter(AssistantRun.status.in_(["created", "queued", "running", "waiting"]))
         rows = query.order_by(AssistantRun.created_at.desc(), AssistantRun.id.desc()).limit(
@@ -194,6 +246,7 @@ class AssistantRunService:
         run.current_stage = None
         run.finished_at = datetime.now(UTC)
         run.heartbeat_at = run.finished_at
+        self._persist_terminal_message(run=run, response=response)
         self.db.flush()
 
     def response(self, run: AssistantRun) -> AssistantRunResponse:
@@ -215,6 +268,11 @@ class AssistantRunService:
         return AssistantRunResponse(
             run_id=run.id,
             attempt_id=run.attempt_id,
+            conversation_id=run.conversation_id,
+            conversation_deleted=(
+                run.conversation is not None
+                and run.conversation.deleted_at is not None
+            ),
             status=run.status,
             current_stage=projected_stage,
             complexity=run.complexity,
@@ -231,6 +289,54 @@ class AssistantRunService:
             error_code=stage.error_code if stage and run.status in {"failed", "review_required"} else None,
             created_at=run.created_at,
             updated_at=run.updated_at,
+        )
+
+    def _persist_terminal_message(
+        self,
+        *,
+        run: AssistantRun,
+        response: UnifiedAssistantResponse,
+    ) -> None:
+        if (
+            run.conversation_id is None
+            or not response.answer.strip()
+        ):
+            return
+        existing = self.db.query(Message.id).filter(
+            Message.assistant_run_id == run.id,
+            Message.role == "assistant",
+        ).one_or_none()
+        if existing is None:
+            self.db.add(
+                Message(
+                    conversation_id=run.conversation_id,
+                    assistant_run_id=run.id,
+                    role="assistant",
+                    content=response.answer.strip(),
+                )
+            )
+        conversation = self.db.get(Conversation, run.conversation_id)
+        if conversation is not None and conversation.deleted_at is None:
+            conversation.last_activity_at = run.finished_at or datetime.now(UTC)
+
+    @staticmethod
+    def _threaded_request_matches(
+        existing: AssistantRun,
+        request: AssistantRunCreateRequest,
+    ) -> bool:
+        if existing.conversation_id != request.conversation_id:
+            return False
+        stored = existing.request_payload if isinstance(existing.request_payload, dict) else {}
+        return all(
+            stored.get(field) == getattr(request, field)
+            for field in (
+                "question",
+                "client_id",
+                "candidate_id",
+                "document_id",
+                "mail_source_id",
+                "inspection_id",
+            )
         )
 
     @staticmethod

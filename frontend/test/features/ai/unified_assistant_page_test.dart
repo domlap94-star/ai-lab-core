@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:ai_lab/features/ai/application/assistant_run_controller.dart';
+import 'package:ai_lab/features/ai/application/assistant_conversation_controller.dart';
+import 'package:ai_lab/features/ai/data/assistant_conversation_repository.dart';
 import 'package:ai_lab/features/ai/data/assistant_run_repository.dart';
+import 'package:ai_lab/features/ai/domain/assistant_conversation.dart';
 import 'package:ai_lab/features/ai/data/unified_assistant_api.dart';
 import 'package:ai_lab/features/ai/domain/assistant_run.dart';
 import 'package:ai_lab/features/ai/domain/unified_assistant.dart';
@@ -25,6 +30,179 @@ void main() {
     expect(find.byKey(const Key('ai-mode-selector')), findsNothing);
     expect(find.text('Podsumuj ten przypadek'), findsOneWidget);
   });
+
+  for (final width in <double>[360, 390, 600, 1200]) {
+    testWidgets('chat history remains usable at width $width', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await _pump(tester);
+      await tester.tap(find.byKey(const Key('assistant-history-menu')));
+      await tester.pumpAndSettle();
+      expect(find.text('Historia rozmów'), findsOneWidget);
+      expect(
+        find.byKey(const Key('assistant-history-new-chat')),
+        findsOneWidget,
+      );
+    });
+  }
+
+  testWidgets('three-dot action opens server-backed chat history', (
+    tester,
+  ) async {
+    await _pump(tester);
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pumpAndSettle();
+    expect(find.text('Historia rozmów'), findsOneWidget);
+    expect(find.byKey(const Key('assistant-history-empty')), findsOneWidget);
+    expect(find.byKey(const Key('assistant-history-new-chat')), findsOneWidget);
+  });
+
+  testWidgets('history exposes bounded loading and error retry states', (
+    tester,
+  ) async {
+    final slow = _SlowConversationRepository();
+    await _pump(tester, conversationRepository: slow, settle: false);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pump();
+    expect(find.byKey(const Key('assistant-history-loading')), findsOneWidget);
+    slow.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-history-empty')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    final failing = _FailingConversationRepository();
+    await _pump(tester, conversationRepository: failing);
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-history-error')), findsOneWidget);
+    failing.fail = false;
+    await tester.tap(find.byKey(const Key('assistant-history-retry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('assistant-history-empty')), findsOneWidget);
+  });
+
+  testWidgets('rename is server-backed and survives history refetch', (
+    tester,
+  ) async {
+    final history = _RenameConversationRepository();
+    await _pump(tester, conversationRepository: history);
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-history-actions-41')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Zmień nazwę'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('assistant-history-rename-input')),
+      'Nowa nazwa serwerowa',
+    );
+    await tester.tap(find.byKey(const Key('assistant-history-rename-save')));
+    await tester.pumpAndSettle();
+    expect(history.renamedTitle, 'Nowa nazwa serwerowa');
+    expect(find.text('Nowa nazwa serwerowa'), findsWidgets);
+    await tester.tap(find.byTooltip('Zamknij'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('assistant-active-conversation-title')),
+      findsOneWidget,
+    );
+    expect(find.text('Nowa nazwa serwerowa'), findsOneWidget);
+  });
+
+  testWidgets('new chat is server-created and becomes selected', (
+    tester,
+  ) async {
+    final history = _ConversationRepository();
+    await _pump(tester, conversationRepository: history);
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-history-new-chat')));
+    await tester.pumpAndSettle();
+    expect(history.created, 1);
+    expect(find.text('Nowa rozmowa'), findsOneWidget);
+  });
+
+  testWidgets('switching chats never renders Chat A result in Chat B', (
+    tester,
+  ) async {
+    final history = _MultiConversationRepository();
+    await _pump(tester, conversationRepository: history);
+    expect(find.text('Odpowiedź Chat A'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-history-chat-2')));
+    await tester.pumpAndSettle();
+    expect(find.text('Odpowiedź Chat B'), findsOneWidget);
+    expect(find.text('Odpowiedź Chat A'), findsNothing);
+  });
+
+  testWidgets('deleting active chat warns and never invokes run cancel', (
+    tester,
+  ) async {
+    final runs = _PendingRepository();
+    final history = _ActiveConversationRepository();
+    await _pump(tester, repository: runs, conversationRepository: history);
+    await tester.tap(find.byKey(const Key('assistant-history-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assistant-history-actions-7')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Usuń').last);
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Usunięcie rozmowy nie anuluje trwającej analizy.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('assistant-history-delete-confirm')));
+    await tester.pumpAndSettle();
+    expect(history.deleted, 1);
+    expect(runs.cancelledRunId, isNull);
+  });
+
+  testWidgets('hidden active run stays controllable through global banner', (
+    tester,
+  ) async {
+    final runs = _HiddenRunRepository();
+    await _pump(
+      tester,
+      repository: runs,
+      conversationRepository: _EmptyConversationRepository(),
+    );
+    expect(
+      find.byKey(const Key('assistant-hidden-active-run')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('assistant-hidden-active-cancel')));
+    await tester.pumpAndSettle();
+    expect(runs.cancelledRunId, 'hidden-run');
+    expect(find.byKey(const Key('assistant-hidden-active-run')), findsNothing);
+  });
+
+  testWidgets(
+    'dispose and recreate restores the same server run without cancel',
+    (tester) async {
+      final runs = _LifecycleRunRepository();
+      final history = _LifecycleConversationRepository(runs);
+      await _pump(
+        tester,
+        repository: runs,
+        conversationRepository: history,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(runs.lastRequestedRunId, 'lifecycle-run');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      expect(runs.cancelledRunId, isNull);
+
+      runs.completed = true;
+      await _pump(tester, repository: runs, conversationRepository: history);
+      expect(find.text('Wynik po ponownym otwarciu.'), findsOneWidget);
+      expect(runs.cancelledRunId, isNull);
+    },
+  );
 
   testWidgets('renders semantics and keeps Sources collapsed by default', (
     tester,
@@ -63,6 +241,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.cancelledRunId, 'pending-run');
     expect(find.byKey(const Key('unified-ai-send')), findsOneWidget);
+    expect(find.text('Nowa rozmowa'), findsOneWidget);
   });
 
   testWidgets(
@@ -142,19 +321,31 @@ void main() {
 Future<void> _pump(
   WidgetTester tester, {
   AssistantRunRepository? repository,
+  AssistantConversationRepository? conversationRepository,
+  bool settle = true,
 }) async {
+  final runRepository = repository ?? _RunRepository();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authControllerProvider.overrideWith(_Auth.new),
-        assistantRunRepositoryProvider.overrideWithValue(
-          repository ?? _RunRepository(),
+        assistantRunRepositoryProvider.overrideWithValue(runRepository),
+        assistantConversationRepositoryProvider.overrideWithValue(
+          conversationRepository ??
+              (runRepository is _PendingRepository ||
+                      runRepository is _TerminalFailureRepository
+                  ? _EmptyConversationRepository()
+                  : _ConversationRepository()),
         ),
       ],
       child: const MaterialApp(home: UnifiedAssistantPage()),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 class _Auth extends AuthController {
@@ -446,6 +637,7 @@ class _RunRepository extends AssistantRunRepository {
     required String question,
     required String attemptId,
     required List<Map<String, String>> conversation,
+    int? conversationId,
     int? clientId,
     int? candidateId,
     int? documentId,
@@ -472,6 +664,7 @@ class _RecordingRepository extends _RunRepository {
     required String question,
     required String attemptId,
     required List<Map<String, String>> conversation,
+    int? conversationId,
     int? clientId,
     int? candidateId,
     int? documentId,
@@ -497,6 +690,7 @@ class _PendingRepository extends _RunRepository {
     required String question,
     required String attemptId,
     required List<Map<String, String>> conversation,
+    int? conversationId,
     int? clientId,
     int? candidateId,
     int? documentId,
@@ -536,6 +730,7 @@ class _TerminalFailureRepository extends _RunRepository {
     required String question,
     required String attemptId,
     required List<Map<String, String>> conversation,
+    int? conversationId,
     int? clientId,
     int? candidateId,
     int? documentId,
@@ -568,6 +763,7 @@ class _PreparationRepository extends _RunRepository {
     required String question,
     required String attemptId,
     required List<Map<String, String>> conversation,
+    int? conversationId,
     int? clientId,
     int? candidateId,
     int? documentId,
@@ -588,4 +784,314 @@ class _PreparationRepository extends _RunRepository {
     statusCalls += 1;
     return _snapshot(runId: runId, result: _completedAnswer);
   }
+}
+
+AssistantConversationDetail _chat({
+  int id = 1,
+  String title = 'Nowa rozmowa',
+  String? answer,
+  UnifiedAssistantAnswer? runResult,
+  bool active = false,
+  String? latestRunId,
+  String? latestRunStatus,
+}) => AssistantConversationDetail(
+  id: id,
+  title: title,
+  createdAt: DateTime.utc(2026, 8, 29),
+  lastActivityAt: DateTime.utc(2026, 8, 29),
+  active: active,
+  latestRunId: latestRunId,
+  latestRunStatus: latestRunStatus,
+  messages: answer == null && runResult == null
+      ? const <AssistantConversationMessage>[]
+      : <AssistantConversationMessage>[
+          AssistantConversationMessage(
+            id: id * 10,
+            role: 'assistant',
+            content: runResult?.answer ?? answer!,
+            assistantRunId: 'run-$id',
+            runStatus: 'completed',
+            runResult:
+                runResult ??
+                UnifiedAssistantAnswer(
+                  requestId: 'run-$id',
+                  answer: answer!,
+                  status: 'accepted_local',
+                  progress: 'complete',
+                  targetScope: 'TARGET_01',
+                  claims: const <UnifiedAssistantClaim>[],
+                  sources: const <UnifiedAssistantSource>[],
+                  usedTools: const <String>[],
+                  externalAnalysisUsed: false,
+                ),
+            createdAt: DateTime.utc(2026, 8, 29),
+          ),
+        ],
+  hasOlder: false,
+);
+
+class _ConversationRepository extends AssistantConversationRepository {
+  _ConversationRepository() : super(Dio());
+  int created = 0;
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async => const <AssistantConversationSummary>[];
+
+  @override
+  Future<AssistantConversationDetail> createChat({
+    required AuthSession session,
+    String? title,
+  }) async {
+    created += 1;
+    return _chat(title: title ?? 'Nowa rozmowa');
+  }
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => _chat(runResult: _completedAnswer);
+}
+
+class _EmptyConversationRepository extends _ConversationRepository {
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => _chat(id: conversationId);
+}
+
+class _SlowConversationRepository extends _ConversationRepository {
+  final Completer<List<AssistantConversationSummary>> _completer =
+      Completer<List<AssistantConversationSummary>>();
+
+  void complete() {
+    if (!_completer.isCompleted) {
+      _completer.complete(const <AssistantConversationSummary>[]);
+    }
+  }
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) => _completer.future;
+}
+
+class _FailingConversationRepository extends _ConversationRepository {
+  bool fail = true;
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async {
+    if (fail) throw StateError('synthetic history failure');
+    return const <AssistantConversationSummary>[];
+  }
+}
+
+class _RenameConversationRepository extends _ConversationRepository {
+  String title = 'Nazwa początkowa';
+  String? renamedTitle;
+
+  AssistantConversationDetail get detail =>
+      _chat(id: 41, title: title, answer: 'Zapisana odpowiedź.');
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async => <AssistantConversationSummary>[detail];
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => detail;
+
+  @override
+  Future<AssistantConversationDetail> renameChat({
+    required AuthSession session,
+    required int conversationId,
+    required String title,
+  }) async {
+    renamedTitle = title;
+    this.title = title;
+    return detail;
+  }
+}
+
+class _MultiConversationRepository extends _ConversationRepository {
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async => <AssistantConversationSummary>[
+    _chat(id: 1, title: 'Chat A', answer: 'Odpowiedź Chat A'),
+    _chat(id: 2, title: 'Chat B', answer: 'Odpowiedź Chat B'),
+  ];
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => conversationId == 1
+      ? _chat(id: 1, title: 'Chat A', answer: 'Odpowiedź Chat A')
+      : _chat(id: 2, title: 'Chat B', answer: 'Odpowiedź Chat B');
+}
+
+class _ActiveConversationRepository extends _ConversationRepository {
+  int deleted = 0;
+  int listCalls = 0;
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async {
+    listCalls += 1;
+    if (listCalls == 1) return const <AssistantConversationSummary>[];
+    return <AssistantConversationSummary>[
+      _chat(
+        id: 7,
+        title: 'Aktywna rozmowa',
+        active: true,
+        latestRunId: 'pending-run',
+        latestRunStatus: 'waiting',
+      ),
+    ];
+  }
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => _chat(
+    id: 7,
+    title: 'Aktywna rozmowa',
+    active: true,
+    latestRunId: 'pending-run',
+    latestRunStatus: 'waiting',
+  );
+
+  @override
+  Future<AssistantConversationDeleteResult> deleteChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async {
+    deleted += 1;
+    return AssistantConversationDeleteResult(
+      id: conversationId,
+      deletedAt: DateTime.utc(2026, 8, 29),
+      activeRunId: 'pending-run',
+      message: 'Usunięcie rozmowy nie anuluje trwającej analizy.',
+    );
+  }
+}
+
+class _HiddenRunRepository extends _PendingRepository {
+  @override
+  Future<List<AssistantRunSnapshot>> listActive({
+    required AuthSession session,
+  }) async => <AssistantRunSnapshot>[
+    AssistantRunSnapshot(
+      runId: 'hidden-run',
+      attemptId: 'hidden_attempt',
+      conversationId: 99,
+      conversationDeleted: true,
+      status: 'waiting',
+      currentStage: 'analyzing_local',
+      complexity: 'standard',
+      progress: const AssistantRunProgress(message: 'Analiza trwa.'),
+      canCancel: true,
+      pollAfterMs: 30000,
+      recoveryGeneration: 0,
+      createdAt: DateTime.utc(2026, 8, 29),
+      updatedAt: DateTime.utc(2026, 8, 29),
+    ),
+  ];
+}
+
+class _LifecycleRunRepository extends _PendingRepository {
+  bool completed = false;
+  String? lastRequestedRunId;
+
+  @override
+  Future<AssistantRunSnapshot> get({
+    required AuthSession session,
+    required String runId,
+    CancelToken? cancelToken,
+  }) async {
+    lastRequestedRunId = runId;
+    if (!completed) {
+      return AssistantRunSnapshot(
+        runId: runId,
+        attemptId: 'lifecycle_attempt',
+        conversationId: 51,
+        status: 'waiting',
+        currentStage: 'analyzing_local',
+        complexity: 'standard',
+        progress: const AssistantRunProgress(message: 'Analiza trwa.'),
+        canCancel: true,
+        pollAfterMs: 30000,
+        recoveryGeneration: 0,
+        createdAt: DateTime.utc(2026, 8, 29),
+        updatedAt: DateTime.utc(2026, 8, 29),
+      );
+    }
+    return AssistantRunSnapshot(
+      runId: runId,
+      attemptId: 'lifecycle_attempt',
+      conversationId: 51,
+      status: 'completed',
+      complexity: 'standard',
+      progress: const AssistantRunProgress(message: 'Analiza zakończona.'),
+      canCancel: false,
+      pollAfterMs: 500,
+      recoveryGeneration: 0,
+      result: const UnifiedAssistantAnswer(
+        requestId: 'lifecycle-run',
+        answer: 'Wynik po ponownym otwarciu.',
+        status: 'accepted_local',
+        progress: 'complete',
+        targetScope: 'TARGET_01',
+        claims: <UnifiedAssistantClaim>[],
+        sources: <UnifiedAssistantSource>[],
+        usedTools: <String>[],
+        externalAnalysisUsed: false,
+      ),
+      createdAt: DateTime.utc(2026, 8, 29),
+      updatedAt: DateTime.utc(2026, 8, 29),
+    );
+  }
+}
+
+class _LifecycleConversationRepository extends _ConversationRepository {
+  _LifecycleConversationRepository(this.runs);
+  final _LifecycleRunRepository runs;
+
+  AssistantConversationDetail get detail => _chat(
+    id: 51,
+    title: 'Rozmowa trwała',
+    active: !runs.completed,
+    latestRunId: 'lifecycle-run',
+    latestRunStatus: runs.completed ? 'completed' : 'waiting',
+    answer: runs.completed ? 'Wynik po ponownym otwarciu.' : null,
+  );
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async => <AssistantConversationSummary>[detail];
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => detail;
 }
