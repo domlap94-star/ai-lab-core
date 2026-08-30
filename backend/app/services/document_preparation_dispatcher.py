@@ -6,17 +6,156 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.config import settings
 from app.database.session import SessionLocal
+from app.models.assistant_pipeline import AssistantRunStage
 from app.models.document import Document
 from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.knowledge_base import AnalysisJob
 from app.models.user import User
 from app.schemas.unified_assistant import UnifiedAssistantRequest
-from app.services.document_preparation_service import DocumentPreparationService, PROCESSOR_GENERATION
+from app.services.document_preparation_service import (
+    LEASE_MINUTES,
+    PROCESSOR_GENERATION,
+    DocumentPreparationService,
+    document_intelligence_resource_wait_code,
+    is_document_intelligence_resource_wait,
+)
 from app.services.document_intelligence_service import build_document_intelligence
 from app.services.vision_dispatcher import process_explicit_vision_document
 
 
 logger = logging.getLogger("ai_lab.document_preparation")
+INTELLIGENCE_HEARTBEAT_SECONDS = 30.0
+_UNCHANGED = object()
+
+
+def _assistant_preparation_has_no_active_waiters(
+    db, job: DocumentPreparationJob
+) -> bool:
+    """Cancel only an Assistant-created preparation whose known consumers ended."""
+    if job.trigger != "assistant":
+        return False
+    linked = db.query(AssistantRunStage.status).filter(
+        AssistantRunStage.document_preparation_job_id == job.id,
+    ).all()
+    if not linked:
+        return False
+    if any(row[0] in {"queued", "waiting", "running"} for row in linked):
+        return False
+    legacy_active = db.query(AnalysisJob.id).filter(
+        AnalysisJob.waiting_document_preparation_job_id == job.id,
+        AnalysisJob.status.in_([
+            "document_preparation_queued",
+            "document_preparation_running",
+            "resume_queued",
+            "local_processing",
+            "local_validating",
+        ]),
+    ).first()
+    return legacy_active is None
+
+
+class _PreparationIntelligenceHeartbeat:
+    """Keep one live intelligence worker lease durable before streaming starts."""
+
+    def __init__(
+        self,
+        job_id: str,
+        *,
+        interval_seconds: float = INTELLIGENCE_HEARTBEAT_SECONDS,
+        session_factory=None,
+        now_factory=None,
+        sleep=None,
+    ) -> None:
+        self.job_id = job_id
+        self.interval_seconds = interval_seconds
+        self.session_factory = session_factory or SessionLocal
+        self.now_factory = now_factory or (lambda: datetime.now(UTC))
+        self.sleep = sleep or asyncio.sleep
+        self.owner_task: asyncio.Task | None = None
+        self.task: asyncio.Task | None = None
+
+    def start(self, owner_task: asyncio.Task) -> None:
+        self.owner_task = owner_task
+        if not self.refresh():
+            raise asyncio.CancelledError
+        self.task = asyncio.create_task(
+            self._run(), name=f"document-intelligence-heartbeat-{self.job_id}"
+        )
+
+    def refresh(
+        self,
+        *,
+        wait_reason: str | object = _UNCHANGED,
+        clear_wait: bool = False,
+    ) -> bool:
+        db = self.session_factory()
+        try:
+            job = db.get(DocumentPreparationJob, self.job_id)
+            if job is None or job.status != "running" or job.stage != "local_analysis":
+                db.rollback()
+                return False
+            if _assistant_preparation_has_no_active_waiters(db, job):
+                now = self.now_factory()
+                job.status = "cancelled"
+                job.stage = "cancelled"
+                job.error_code = "ASSISTANT_RUN_CANCELLED"
+                job.retryability = None
+                job.lease_owner = None
+                job.lease_expires_at = None
+                job.finished_at = now
+                job.updated_at = now
+                db.commit()
+                return False
+            now = self.now_factory()
+            job.updated_at = now
+            job.lease_expires_at = now + timedelta(minutes=LEASE_MINUTES)
+            if wait_reason is not _UNCHANGED:
+                job.error_code = document_intelligence_resource_wait_code(
+                    str(wait_reason)
+                )
+            elif clear_wait and is_document_intelligence_resource_wait(job.error_code):
+                job.error_code = None
+            db.commit()
+            return True
+        finally:
+            db.close()
+
+    async def resource_wait(self, reason: str) -> None:
+        if not self.refresh(wait_reason=reason):
+            raise asyncio.CancelledError
+
+    async def resource_ready(self, _reason: str) -> None:
+        if not self.refresh(clear_wait=True):
+            raise asyncio.CancelledError
+
+    async def progress(self, _telemetry: dict) -> None:
+        if not self.refresh(clear_wait=True):
+            raise asyncio.CancelledError
+
+    async def _run(self) -> None:
+        while True:
+            await self.sleep(self.interval_seconds)
+            try:
+                active = self.refresh()
+            except Exception:
+                logger.exception("Document intelligence heartbeat failed.")
+                continue
+            if active:
+                continue
+            owner = self.owner_task
+            if owner is not None and not owner.done():
+                owner.cancel()
+            return
+
+    async def stop(self) -> None:
+        if self.task is None:
+            return
+        self.task.cancel()
+        try:
+            await self.task
+        except asyncio.CancelledError:
+            pass
+        self.task = None
 
 
 def process_one_preparation() -> str | None:
@@ -48,6 +187,10 @@ async def process_preparation_intelligence(job_id: str) -> str | None:
     finally:
         db.close()
 
+    owner_task = asyncio.current_task()
+    if owner_task is None:
+        raise RuntimeError("DOCUMENT_INTELLIGENCE_TASK_UNAVAILABLE")
+    heartbeat = _PreparationIntelligenceHeartbeat(job_id)
     last_persisted = datetime.min.replace(tzinfo=UTC)
 
     async def progress(_: dict) -> None:
@@ -55,23 +198,17 @@ async def process_preparation_intelligence(job_id: str) -> str | None:
         now = datetime.now(UTC)
         if now - last_persisted < timedelta(seconds=2):
             return
-        progress_db = SessionLocal()
-        try:
-            progress_job = progress_db.get(DocumentPreparationJob, job_id)
-            if progress_job is None or progress_job.status != "running":
-                raise asyncio.CancelledError
-            progress_job.lease_expires_at = now + timedelta(minutes=45)
-            progress_job.updated_at = now
-            progress_db.commit()
-            last_persisted = now
-        finally:
-            progress_db.close()
+        await heartbeat.progress(_)
+        last_persisted = now
 
     try:
+        heartbeat.start(owner_task)
         artifact_id = await build_document_intelligence(
             document_id=document_id,
             preparation_job_id=job_id,
             progress_callback=progress,
+            on_resource_wait=heartbeat.resource_wait,
+            on_resource_ready=heartbeat.resource_ready,
         )
         finish_db = SessionLocal()
         try:
@@ -101,6 +238,8 @@ async def process_preparation_intelligence(job_id: str) -> str | None:
             finish_db.close()
         logger.warning("Document intelligence failed: %s", error.__class__.__name__)
         return None
+    finally:
+        await heartbeat.stop()
 
 
 async def process_preparation_vision(job_id: str) -> bool:
@@ -127,7 +266,7 @@ async def process_preparation_vision(job_id: str) -> bool:
             job.stage = "local_analysis"
             job.status = "running"
             job.error_code = None
-            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=45)
+            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
             finish_db.commit()
             return True
         DocumentPreparationService(finish_db).fail_intelligence(

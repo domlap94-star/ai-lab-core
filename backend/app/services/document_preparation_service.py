@@ -29,6 +29,27 @@ from app.services.unified_document_content_service import (
 
 PROCESSOR_GENERATION = "document-preparation-v2"
 LEASE_MINUTES = 45
+DOCUMENT_INTELLIGENCE_RESOURCE_WAIT_CODES = frozenset({
+    "LOCAL_RESOURCE_WAIT",
+    "LOCAL_RESOURCE_RESERVE_WAIT",
+    "LOCAL_MODEL_BUSY",
+    "LOCAL_EXTERNAL_GENERATOR_RESIDENT",
+    "LOCAL_RESOURCE_TELEMETRY_UNAVAILABLE",
+    "LOCAL_EMBEDDING_UNLOAD_RECOVERY",
+    "LOCAL_OWNED_MODEL_UNLOAD_RECOVERY",
+})
+
+
+def document_intelligence_resource_wait_code(reason: str) -> str:
+    """Bound coordinator detail before persisting an operational wait state."""
+    normalized = str(reason or "").strip().upper()
+    if normalized in DOCUMENT_INTELLIGENCE_RESOURCE_WAIT_CODES:
+        return normalized
+    return "LOCAL_RESOURCE_WAIT"
+
+
+def is_document_intelligence_resource_wait(error_code: str | None) -> bool:
+    return error_code in DOCUMENT_INTELLIGENCE_RESOURCE_WAIT_CODES
 
 
 class DocumentPreparationService:

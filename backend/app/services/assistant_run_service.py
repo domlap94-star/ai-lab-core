@@ -31,6 +31,9 @@ from app.services.assistant_run_planner import (
 )
 from app.services.assistant_run_stage_service import AssistantRunStageService
 from app.services.assistant_conversation_service import AssistantConversationService
+from app.services.document_preparation_service import (
+    is_document_intelligence_resource_wait,
+)
 
 
 class AssistantPipelineDisabled(RuntimeError):
@@ -389,6 +392,11 @@ class AssistantRunService:
         if run.status in {"failed", "review_required"}:
             return "Analiza zakończyła się bez gotowej odpowiedzi."
         if run.current_stage == "waiting_for_material" and preparation is not None:
+            if (
+                preparation.stage == "local_analysis"
+                and is_document_intelligence_resource_wait(preparation.error_code)
+            ):
+                return "Oczekuję na wolne zasoby komputera."
             preparation_messages = {
                 "received": "Znalazłem dokument. Oczekuje na przygotowanie.",
                 "queued": "Dokument czeka w kolejce do przygotowania.",

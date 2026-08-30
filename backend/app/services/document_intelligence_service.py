@@ -347,6 +347,8 @@ async def _generate_payload(
     *,
     reduce_payloads: list[dict] | None = None,
     on_progress=None,
+    on_resource_wait=None,
+    on_resource_ready=None,
 ) -> dict[str, Any]:
     prompt = _prompt(evidence, reduce_payloads=reduce_payloads)
     last_error: Exception | None = None
@@ -365,6 +367,8 @@ async def _generate_payload(
                     think=False,
                     keep_alive="2m",
                     on_progress=on_progress,
+                    on_resource_wait=on_resource_wait,
+                    on_resource_ready=on_resource_ready,
                 ),
                 timeout=300,
             )
@@ -381,6 +385,7 @@ async def _generate_payload(
 async def build_document_intelligence(
     *, document_id: int, preparation_job_id: str | None,
     client: OllamaClient | None = None, progress_callback=None,
+    on_resource_wait=None, on_resource_ready=None,
 ) -> str:
     """Build/reuse one baseline artifact using short-lived DB sessions."""
     db = SessionLocal()
@@ -400,16 +405,25 @@ async def build_document_intelligence(
     model = client or OllamaClient()
     resource_session = getattr(model, "resource_session", None)
     if callable(resource_session):
-        async with resource_session(MODEL, wait_timeout=None):
+        async with resource_session(
+            MODEL,
+            wait_timeout=None,
+            on_wait=on_resource_wait,
+            on_ready=on_resource_ready,
+        ):
             return await _build_document_intelligence_with_model(
                 build_input=build_input,
                 model=model,
                 progress_callback=progress_callback,
+                on_resource_wait=on_resource_wait,
+                on_resource_ready=on_resource_ready,
             )
     return await _build_document_intelligence_with_model(
         build_input=build_input,
         model=model,
         progress_callback=progress_callback,
+        on_resource_wait=on_resource_wait,
+        on_resource_ready=on_resource_ready,
     )
 
 
@@ -418,6 +432,8 @@ async def _build_document_intelligence_with_model(
     build_input: IntelligenceBuildInput,
     model: OllamaClient,
     progress_callback=None,
+    on_resource_wait=None,
+    on_resource_ready=None,
 ) -> str:
     document_id = build_input.document_id
     evidence = build_input.evidence
@@ -441,7 +457,11 @@ async def _build_document_intelligence_with_model(
             finally:
                 section_db.close()
             payload = await _generate_payload(
-                model, section, on_progress=progress_callback
+                model,
+                section,
+                on_progress=progress_callback,
+                on_resource_wait=on_resource_wait,
+                on_resource_ready=on_resource_ready,
             )
             section_input = IntelligenceBuildInput(
                 document_id=build_input.document_id,
@@ -466,7 +486,12 @@ async def _build_document_intelligence_with_model(
                 section_db.close()
 
     payload = await _generate_payload(
-        model, evidence, reduce_payloads=section_payloads, on_progress=progress_callback
+        model,
+        evidence,
+        reduce_payloads=section_payloads,
+        on_progress=progress_callback,
+        on_resource_wait=on_resource_wait,
+        on_resource_ready=on_resource_ready,
     )
     baseline_kind = (
         "baseline_visual"
