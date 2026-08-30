@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import unicodedata
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -24,6 +26,12 @@ ACTIVE_RUN_STATUSES = ("created", "queued", "running", "waiting")
 DEFAULT_TITLE = "Nowa rozmowa"
 MAX_CONTEXT_MESSAGES = 8
 MAX_CONTEXT_CHARACTERS = 6000
+AUTO_TITLE_MAX_CHARACTERS = 80
+_TITLE_BOILERPLATE = re.compile(
+    r"^(?:(?:proszę(?:\s+o)?|czy\s+(?:możesz|mógłbyś|mogłabyś)|"
+    r"przeanalizuj|podsumuj|jakie\s+są)\b[\s,.:;!?…\-–—]*)+",
+    re.IGNORECASE,
+)
 
 
 class AssistantConversationNotFound(RuntimeError):
@@ -137,6 +145,10 @@ class AssistantConversationService:
             lock=True,
         )
         conversation.title = request.title
+        # A rename is authoritative even when the chosen text is identical to
+        # the visible default. Persist that lifecycle decision without another
+        # schema marker so first-question auto-title can never overwrite it.
+        conversation.updated_at = datetime.now(UTC)
         self.db.commit()
         self.db.refresh(conversation)
         return self._detail(conversation, message_limit=100)
@@ -213,6 +225,77 @@ class AssistantConversationService:
             UnifiedConversationMessage(role=row.role, content=row.content)
             for row in selected
         ]
+
+    def auto_title_first_question(
+        self,
+        *,
+        conversation: Conversation,
+        question: str,
+    ) -> bool:
+        """Set the initial deterministic title before the first run is stored.
+
+        The database row is already locked by ``resolve_owned``. Existing
+        messages/runs are the durable proof that this is no longer the first
+        turn, while any non-default title is authoritative manual ownership.
+        """
+        if (
+            conversation.kind != "assistant_v2"
+            or conversation.title != DEFAULT_TITLE
+            or conversation.updated_at != conversation.created_at
+        ):
+            return False
+        has_message = (
+            self.db.query(Message.id)
+            .filter(Message.conversation_id == conversation.id)
+            .first()
+            is not None
+        )
+        has_run = (
+            self.db.query(AssistantRun.id)
+            .filter(AssistantRun.conversation_id == conversation.id)
+            .first()
+            is not None
+        )
+        if has_message or has_run:
+            return False
+        conversation.title = self.title_from_question(question)
+        return True
+
+    @staticmethod
+    def title_from_question(question: str) -> str:
+        normalized = " ".join(question.split())
+        normalized = AssistantConversationService._strip_title_noise(normalized)
+        if not normalized:
+            return DEFAULT_TITLE
+        candidate = _TITLE_BOILERPLATE.sub("", normalized)
+        candidate = AssistantConversationService._strip_title_noise(candidate)
+        if not candidate:
+            candidate = normalized
+        if len(candidate) > AUTO_TITLE_MAX_CHARACTERS:
+            boundary = candidate.rfind(" ", 40, AUTO_TITLE_MAX_CHARACTERS + 1)
+            if boundary < 0:
+                boundary = AUTO_TITLE_MAX_CHARACTERS
+            candidate = candidate[:boundary]
+        candidate = AssistantConversationService._strip_title_noise(candidate)
+        if not candidate:
+            return DEFAULT_TITLE
+        return candidate[0].upper() + candidate[1:]
+
+    @staticmethod
+    def _strip_title_noise(value: str) -> str:
+        start = 0
+        end = len(value)
+        while start < end and (
+            value[start].isspace()
+            or unicodedata.category(value[start]).startswith("P")
+        ):
+            start += 1
+        while end > start and (
+            value[end - 1].isspace()
+            or unicodedata.category(value[end - 1]).startswith("P")
+        ):
+            end -= 1
+        return value[start:end]
 
     def _detail(
         self, conversation: Conversation, *, message_limit: int

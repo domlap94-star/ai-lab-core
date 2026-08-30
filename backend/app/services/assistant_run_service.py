@@ -97,6 +97,11 @@ class AssistantRunService:
             )
 
         plan = AssistantRunPlanner(self.db).plan(request)
+        if conversation is not None:
+            conversation_service.auto_title_first_question(
+                conversation=conversation,
+                question=plan.request.question,
+            )
         request_payload = plan.request.model_dump(mode="json")
         validate_bounded_json(request_payload, field_name="request_payload")
         canonical_payload = {

@@ -12,6 +12,7 @@ import 'package:ai_lab/features/ai/presentation/unified_assistant_page.dart';
 import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
+import 'package:ai_lab/features/clients/presentation/searchable_client_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,14 +23,23 @@ void main() {
   setUp(() {
     FlutterSecureStorage.setMockInitialValues(<String, String>{});
   });
-  testWidgets('single assistant has quick actions and no mode selector', (
-    tester,
-  ) async {
-    await _pump(tester);
-    expect(find.text('Jeden asystent, pełny kontekst'), findsOneWidget);
-    expect(find.byKey(const Key('ai-mode-selector')), findsNothing);
-    expect(find.text('Podsumuj ten przypadek'), findsOneWidget);
-  });
+  testWidgets(
+    'chat-first layout removes legacy form and keeps fixed composer',
+    (tester) async {
+      await _pump(tester);
+      expect(find.text('Jeden asystent, pełny kontekst'), findsNothing);
+      expect(find.byKey(const Key('ai-mode-selector')), findsNothing);
+      expect(find.text('Podsumuj ten przypadek'), findsNothing);
+      expect(
+        find.byKey(const Key('assistant-chat-transcript')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('assistant-fixed-composer')), findsOneWidget);
+      expect(find.byKey(const Key('assistant-empty-title')), findsOneWidget);
+      expect(find.byKey(const Key('assistant-client-add')), findsOneWidget);
+      expect(find.byType(SearchableClientPicker), findsNothing);
+    },
+  );
 
   for (final width in <double>[360, 390, 600, 1200]) {
     testWidgets('chat history remains usable at width $width', (tester) async {
@@ -45,8 +55,44 @@ void main() {
         find.byKey(const Key('assistant-history-new-chat')),
         findsOneWidget,
       );
+      expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('optional Client context is compact and initialClientId clears', (
+    tester,
+  ) async {
+    await _pump(tester, page: const UnifiedAssistantPage(initialClientId: 77));
+    expect(find.byKey(const Key('assistant-client-chip')), findsOneWidget);
+    expect(find.textContaining('Klient #77'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('assistant-client-clear')));
+    await tester.pump();
+    expect(find.byKey(const Key('assistant-client-add')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('assistant-client-add')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('assistant-client-picker-modal')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('selected Client context is sent as canonical clientId', (
+    tester,
+  ) async {
+    final runs = _RecordingRepository();
+    await _pump(
+      tester,
+      repository: runs,
+      page: const UnifiedAssistantPage(initialClientId: 77),
+    );
+    await tester.enterText(
+      find.byKey(const Key('unified-ai-question')),
+      'Pytanie w wybranym kontekście klienta',
+    );
+    await tester.tap(find.byKey(const Key('unified-ai-send')));
+    await tester.pumpAndSettle();
+    expect(runs.clientIds, <int?>[77]);
+  });
 
   testWidgets('three-dot action opens server-backed chat history', (
     tester,
@@ -181,6 +227,64 @@ void main() {
   });
 
   testWidgets(
+    'active run is an Assistant bubble and user bubble has no status',
+    (tester) async {
+      final runs = _PendingRepository();
+      final history = _RunStateConversationRepository(status: 'waiting');
+      await _pump(
+        tester,
+        repository: runs,
+        conversationRepository: history,
+        settle: false,
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        find.byKey(const Key('assistant-run-status-bubble')),
+        findsOneWidget,
+      );
+      expect(find.text('Oczekuję na analizę.'), findsOneWidget);
+      expect(
+        find.byKey(const Key('assistant-message-status-701')),
+        findsNothing,
+      );
+    },
+  );
+
+  for (final status in <String>['review_required', 'failed', 'cancelled']) {
+    testWidgets('$status without answer is a terminal Assistant bubble', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        conversationRepository: _RunStateConversationRepository(status: status),
+      );
+      expect(
+        find.byKey(ValueKey<String>('assistant-run-terminal-$status')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('assistant-message-status-701')),
+        findsNothing,
+      );
+    });
+  }
+
+  testWidgets('persisted final response replaces temporary run state once', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      conversationRepository: _CompletedConversationRepository(),
+    );
+    expect(find.text('Gotowa odpowiedź rozmowy.'), findsOneWidget);
+    expect(find.byKey(const Key('assistant-run-status-bubble')), findsNothing);
+    expect(
+      find.byKey(const ValueKey<String>('assistant-run-terminal-completed')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
     'dispose and recreate restores the same server run without cancel',
     (tester) async {
       final runs = _LifecycleRunRepository();
@@ -203,6 +307,44 @@ void main() {
       expect(runs.cancelledRunId, isNull);
     },
   );
+
+  testWidgets('repeated resume refresh starts only one replacement poller', (
+    tester,
+  ) async {
+    final runs = _LifecycleRunRepository();
+    final history = _LifecycleConversationRepository(runs);
+    await _pump(
+      tester,
+      repository: runs,
+      conversationRepository: history,
+      settle: false,
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    final before = runs.getCalls;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(runs.getCalls, before + 1);
+    expect(runs.maxConcurrentGets, 1);
+    expect(runs.cancelledRunId, isNull);
+  });
+
+  testWidgets('server auto-title refreshes AppBar after first run creation', (
+    tester,
+  ) async {
+    final history = _AutoTitleConversationRepository();
+    await _pump(tester, conversationRepository: history);
+    await tester.enterText(
+      find.byKey(const Key('unified-ai-question')),
+      'Jakie są typowe przyczyny osiadania fundamentów?',
+    );
+    await tester.tap(find.byKey(const Key('unified-ai-send')));
+    await tester.pumpAndSettle();
+    expect(find.text('Typowe przyczyny osiadania fundamentów'), findsOneWidget);
+    expect(history.getCalls, greaterThanOrEqualTo(1));
+  });
 
   testWidgets('renders semantics and keeps Sources collapsed by default', (
     tester,
@@ -280,7 +422,12 @@ void main() {
       await tester.ensureVisible(find.byKey(const Key('unified-ai-send')));
       await tester.tap(find.byKey(const Key('unified-ai-send')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('unified-ai-error')), findsOneWidget);
+      expect(
+        find.byKey(
+          const ValueKey<String>('assistant-run-terminal-review_required'),
+        ),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('unified-ai-answer')), findsNothing);
       expect(find.byKey(const Key('unified-ai-sources')), findsNothing);
       expect(find.textContaining('wiedzy ogólnej'), findsNothing);
@@ -322,6 +469,7 @@ Future<void> _pump(
   WidgetTester tester, {
   AssistantRunRepository? repository,
   AssistantConversationRepository? conversationRepository,
+  UnifiedAssistantPage page = const UnifiedAssistantPage(),
   bool settle = true,
 }) async {
   final runRepository = repository ?? _RunRepository();
@@ -338,7 +486,7 @@ Future<void> _pump(
                   : _ConversationRepository()),
         ),
       ],
-      child: const MaterialApp(home: UnifiedAssistantPage()),
+      child: MaterialApp(home: page),
     ),
   );
   if (settle) {
@@ -657,6 +805,7 @@ class _CompletedRestoreRepository extends _RunRepository {
 
 class _RecordingRepository extends _RunRepository {
   final conversations = <List<Map<String, String>>>[];
+  final clientIds = <int?>[];
 
   @override
   Future<AssistantRunSnapshot> create({
@@ -674,6 +823,7 @@ class _RecordingRepository extends _RunRepository {
     conversations.add(
       conversation.map(Map<String, String>.from).toList(growable: false),
     );
+    clientIds.add(clientId);
     return _snapshot(
       runId: 'completed-${conversations.length}',
       result: _completedAnswer,
@@ -944,6 +1094,150 @@ class _MultiConversationRepository extends _ConversationRepository {
       : _chat(id: 2, title: 'Chat B', answer: 'Odpowiedź Chat B');
 }
 
+class _RunStateConversationRepository extends _ConversationRepository {
+  _RunStateConversationRepository({required this.status});
+  final String status;
+
+  AssistantConversationDetail get detail => AssistantConversationDetail(
+    id: 70,
+    title: 'Stan trwałej analizy',
+    createdAt: DateTime.utc(2026, 8, 30),
+    lastActivityAt: DateTime.utc(2026, 8, 30),
+    active: <String>{
+      'created',
+      'queued',
+      'running',
+      'waiting',
+    }.contains(status),
+    latestRunId: 'pending-run',
+    latestRunStatus: status,
+    messages: <AssistantConversationMessage>[
+      AssistantConversationMessage(
+        id: 701,
+        role: 'user',
+        content: 'Pytanie użytkownika bez etykiety stanu.',
+        assistantRunId: 'pending-run',
+        runStatus: status,
+        createdAt: DateTime.utc(2026, 8, 30),
+      ),
+    ],
+    hasOlder: false,
+  );
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async => <AssistantConversationSummary>[detail];
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => detail;
+}
+
+class _CompletedConversationRepository extends _ConversationRepository {
+  AssistantConversationDetail get detail => AssistantConversationDetail(
+    id: 71,
+    title: 'Zakończona rozmowa',
+    createdAt: DateTime.utc(2026, 8, 30),
+    lastActivityAt: DateTime.utc(2026, 8, 30),
+    active: false,
+    latestRunId: 'completed-state-run',
+    latestRunStatus: 'completed',
+    messages: <AssistantConversationMessage>[
+      AssistantConversationMessage(
+        id: 711,
+        role: 'user',
+        content: 'Pytanie zakończone.',
+        assistantRunId: 'completed-state-run',
+        runStatus: 'completed',
+        createdAt: DateTime.utc(2026, 8, 30),
+      ),
+      AssistantConversationMessage(
+        id: 712,
+        role: 'assistant',
+        content: 'Gotowa odpowiedź rozmowy.',
+        assistantRunId: 'completed-state-run',
+        runStatus: 'completed',
+        runResult: const UnifiedAssistantAnswer(
+          requestId: 'completed-state-run',
+          answer: 'Gotowa odpowiedź rozmowy.',
+          status: 'accepted_local',
+          progress: 'complete',
+          targetScope: 'TARGET_01',
+          claims: <UnifiedAssistantClaim>[],
+          sources: <UnifiedAssistantSource>[],
+          usedTools: <String>[],
+          externalAnalysisUsed: false,
+        ),
+        createdAt: DateTime.utc(2026, 8, 30),
+      ),
+    ],
+    hasOlder: false,
+  );
+
+  @override
+  Future<List<AssistantConversationSummary>> listChats({
+    required AuthSession session,
+    int limit = 20,
+  }) async => <AssistantConversationSummary>[detail];
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async => detail;
+}
+
+class _AutoTitleConversationRepository extends _ConversationRepository {
+  int getCalls = 0;
+
+  @override
+  Future<AssistantConversationDetail> createChat({
+    required AuthSession session,
+    String? title,
+  }) async => _chat(id: 81, title: 'Nowa rozmowa');
+
+  @override
+  Future<AssistantConversationDetail> getChat({
+    required AuthSession session,
+    required int conversationId,
+  }) async {
+    getCalls += 1;
+    return AssistantConversationDetail(
+      id: 81,
+      title: 'Typowe przyczyny osiadania fundamentów',
+      createdAt: DateTime.utc(2026, 8, 30),
+      lastActivityAt: DateTime.utc(2026, 8, 30),
+      active: false,
+      latestRunId: 'completed-run',
+      latestRunStatus: 'completed',
+      messages: <AssistantConversationMessage>[
+        AssistantConversationMessage(
+          id: 811,
+          role: 'user',
+          content: 'Jakie są typowe przyczyny osiadania fundamentów?',
+          assistantRunId: 'completed-run',
+          runStatus: 'completed',
+          createdAt: DateTime.utc(2026, 8, 30),
+        ),
+        AssistantConversationMessage(
+          id: 812,
+          role: 'assistant',
+          content: _completedAnswer.answer,
+          assistantRunId: 'completed-run',
+          runStatus: 'completed',
+          runResult: _completedAnswer,
+          createdAt: DateTime.utc(2026, 8, 30),
+        ),
+      ],
+      hasOlder: false,
+    );
+  }
+}
+
 class _ActiveConversationRepository extends _ConversationRepository {
   int deleted = 0;
   int listCalls = 0;
@@ -1019,6 +1313,9 @@ class _HiddenRunRepository extends _PendingRepository {
 class _LifecycleRunRepository extends _PendingRepository {
   bool completed = false;
   String? lastRequestedRunId;
+  int getCalls = 0;
+  int concurrentGets = 0;
+  int maxConcurrentGets = 0;
 
   @override
   Future<AssistantRunSnapshot> get({
@@ -1026,6 +1323,11 @@ class _LifecycleRunRepository extends _PendingRepository {
     required String runId,
     CancelToken? cancelToken,
   }) async {
+    getCalls += 1;
+    concurrentGets += 1;
+    if (concurrentGets > maxConcurrentGets) maxConcurrentGets = concurrentGets;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    concurrentGets -= 1;
     lastRequestedRunId = runId;
     if (!completed) {
       return AssistantRunSnapshot(

@@ -37,31 +37,27 @@ class UnifiedAssistantPage extends ConsumerStatefulWidget {
       _UnifiedAssistantPageState();
 }
 
-class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
+class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage>
+    with WidgetsBindingObserver {
   static const _storage = FlutterSecureStorage();
   static const _pendingRequestKey = 'unified_assistant_pending_run_v2';
   static const _latestRequestKey = 'unified_assistant_latest_run_v2';
   static const _selectedConversationKey =
       'unified_assistant_selected_conversation_v2';
-  static const quickActions = <String>[
-    'Podsumuj ten przypadek',
-    'Co sprawdzić podczas wizji lokalnej?',
-    'Jakich danych brakuje?',
-    'Co mówi dokumentacja?',
-    'Znajdź najnowsze dokumenty',
-    'Podsumuj ostatnią aktywność',
-  ];
   final controller = TextEditingController();
+  final scrollController = ScrollController();
+  final questionFocus = FocusNode();
   CancelToken? cancelToken;
   Timer? hiddenRunTimer;
+  String? pollingRunId;
   String? activeRequestId;
   AssistantRunSnapshot? activeRun;
   AssistantRunSnapshot? hiddenActiveRun;
   AssistantConversationDetail? activeConversation;
   UnifiedAssistantAnswer? result;
   String? error;
-  String progress = '';
   bool loading = false;
+  bool resumeRefreshInFlight = false;
   int? clientId;
   String? clientName;
   @override
@@ -70,13 +66,17 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     clientId = widget.initialClientId;
     clientName = clientId == null ? null : 'Klient #$clientId';
     controller.text = widget.initialQuestion ?? '';
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_restoreAssistantState());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     cancelToken?.cancel();
     hiddenRunTimer?.cancel();
+    scrollController.dispose();
+    questionFocus.dispose();
     controller.dispose();
     super.dispose();
   }
@@ -85,7 +85,12 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       leading: AppShell.mobileNavigationLeading(context),
-      title: const Text('Asystent AI'),
+      title: Text(
+        activeConversation?.title ?? 'Asystent AI',
+        key: const Key('assistant-active-conversation-title'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       actions: <Widget>[
         IconButton(
           key: const Key('assistant-history-menu'),
@@ -97,122 +102,134 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       ],
     ),
     body: SafeArea(
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 920),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                if (hiddenActiveRun != null) _hiddenActiveRunCard(),
-                if (activeConversation != null) ...<Widget>[
+      top: false,
+      child: Column(
+        children: <Widget>[
+          if (hiddenActiveRun != null)
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: _hiddenActiveRunCard(),
+              ),
+            ),
+          Expanded(child: _conversationArea()),
+          _composer(),
+        ],
+      ),
+    ),
+  );
+
+  Widget _conversationArea() => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 920),
+      child: ListView(
+        key: const Key('assistant-chat-transcript'),
+        controller: scrollController,
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        children: <Widget>[
+          if (_isEmptyChat())
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                children: <Widget>[
+                  Icon(Icons.auto_awesome_outlined, size: 28),
+                  SizedBox(height: 8),
                   Text(
-                    activeConversation!.title,
-                    key: const Key('assistant-active-conversation-title'),
-                    style: Theme.of(context).textTheme.titleLarge,
+                    'Asystent NEXT Stabil',
+                    key: Key('assistant-empty-title'),
                   ),
-                  const SizedBox(height: 12),
-                  _conversationView(activeConversation!),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 4),
+                  Text(
+                    'Zapytaj o dokumenty, klienta, pocztę lub zagadnienie techniczne.',
+                    key: Key('assistant-empty-hint'),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
-                Text(
-                  'Jeden asystent, pełny kontekst',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Zadaj pytanie naturalnie. Asystent dobierze bezpiecznie dane, dokumenty, pocztę, obliczenia i analizę obrazu.',
-                ),
-                const SizedBox(height: 16),
-                SearchableClientPicker(
-                  key: ValueKey<String>('unified-client-${clientId ?? 0}'),
-                  initialClientId: clientId,
-                  initialClientName: clientName,
-                  enabled: !loading,
-                  onChanged: (selection) => setState(() {
-                    clientId = selection?.id;
-                    clientName = selection?.name;
-                    result = null;
-                  }),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: const Key('unified-ai-question'),
-                  controller: controller,
-                  enabled: !loading,
-                  minLines: 2,
-                  maxLines: 7,
-                  maxLength: 2000,
-                  decoration: const InputDecoration(
-                    hintText:
-                        'Zapytaj o klienta, dokument, mail, wizję lub potrzebne obliczenie…',
-                    prefixIcon: Icon(Icons.auto_awesome_outlined),
-                    border: OutlineInputBorder(),
+              ),
+            ),
+          if (activeConversation != null)
+            _conversationView(activeConversation!),
+          if (activeConversation == null &&
+              result != null &&
+              _hasRenderableAnswer(result!))
+            answerView(result!),
+          if (error != null) errorCard(),
+        ],
+      ),
+    ),
+  );
+
+  bool _isEmptyChat() =>
+      (activeConversation == null || activeConversation!.messages.isEmpty) &&
+      activeRun == null &&
+      result == null &&
+      error == null;
+
+  Widget _composer() => Material(
+    key: const Key('assistant-fixed-composer'),
+    elevation: 8,
+    color: Theme.of(context).colorScheme.surface,
+    child: SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 920),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _clientContextControl(),
+                const SizedBox(height: 6),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          key: const Key('unified-ai-question'),
+                          controller: controller,
+                          focusNode: questionFocus,
+                          minLines: 1,
+                          maxLines: 5,
+                          maxLength: 2000,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            hintText: 'Napisz wiadomość…',
+                            counterText: '',
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.fromLTRB(16, 12, 8, 12),
+                          ),
+                        ),
+                      ),
+                      if (loading)
+                        IconButton.filledTonal(
+                          key: const Key('unified-ai-cancel'),
+                          tooltip: 'Anuluj analizę',
+                          onPressed: () => unawaited(cancel()),
+                          icon: const Icon(Icons.stop_rounded),
+                        )
+                      else
+                        IconButton.filled(
+                          key: const Key('unified-ai-send'),
+                          tooltip: 'Wyślij',
+                          onPressed: () => unawaited(ask()),
+                          icon: const Icon(Icons.arrow_upward_rounded),
+                        ),
+                      const SizedBox(width: 6),
+                    ],
                   ),
                 ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: quickActions
-                      .map(
-                        (question) => ActionChip(
-                          key: ValueKey<String>('unified-ai-quick-$question'),
-                          label: Text(
-                            question,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onPressed: loading
-                              ? null
-                              : () {
-                                  controller.text = question;
-                                  ask();
-                                },
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: loading
-                      ? Wrap(
-                          spacing: 12,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: <Widget>[
-                            const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 3),
-                            ),
-                            Text(
-                              progress,
-                              key: const Key('unified-ai-progress'),
-                            ),
-                            const Text(
-                              'Możesz opuścić ten ekran. Analiza będzie kontynuowana.',
-                              key: Key('unified-ai-durable-hint'),
-                            ),
-                            OutlinedButton(
-                              onPressed: () => unawaited(cancel()),
-                              child: const Text('Anuluj'),
-                            ),
-                          ],
-                        )
-                      : FilledButton.icon(
-                          key: const Key('unified-ai-send'),
-                          onPressed: ask,
-                          icon: const Icon(Icons.send_outlined),
-                          label: const Text('Wyślij'),
-                        ),
-                ),
-                if (error != null) errorCard(),
-                if (activeConversation == null &&
-                    result != null &&
-                    _hasRenderableAnswer(result!))
-                  answerView(result!),
               ],
             ),
           ),
@@ -221,6 +238,104 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     ),
   );
 
+  Widget _clientContextControl() {
+    if (clientId == null) {
+      return ActionChip(
+        key: const Key('assistant-client-add'),
+        avatar: const Icon(Icons.add, size: 18),
+        label: const Text('Klient'),
+        onPressed: loading ? null : _openClientPicker,
+      );
+    }
+    return InputChip(
+      key: const Key('assistant-client-chip'),
+      avatar: const Icon(Icons.person_outline, size: 18),
+      label: Text(
+        'Klient: ${clientName ?? '#$clientId'}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      onPressed: loading ? null : _openClientPicker,
+      onDeleted: loading
+          ? null
+          : () => setState(() {
+              clientId = null;
+              clientName = null;
+              result = null;
+            }),
+      deleteIcon: const Icon(
+        Icons.close,
+        key: Key('assistant-client-clear'),
+        size: 18,
+      ),
+    );
+  }
+
+  Future<void> _openClientPicker() async {
+    if (loading) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.62,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        'Wybierz klienta',
+                        style: Theme.of(sheetContext).textTheme.titleLarge,
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Zamknij',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: SearchableClientPicker(
+                      key: const Key('assistant-client-picker-modal'),
+                      onChanged: (selection) {
+                        if (selection == null) return;
+                        setState(() {
+                          clientId = selection.id;
+                          clientName = selection.name;
+                          result = null;
+                        });
+                        Navigator.of(sheetContext).pop();
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshOnResume());
+    }
+  }
+
   Widget _conversationView(AssistantConversationDetail detail) {
     final assistantMessages = detail.messages
         .where((message) => message.role == 'assistant')
@@ -228,104 +343,208 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     final latestAssistantId = assistantMessages.isEmpty
         ? null
         : assistantMessages.last.id;
+    final runState = _assistantRunStateBubble(detail);
     return Column(
       key: ValueKey<String>('assistant-conversation-${detail.id}'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: detail.messages
-          .map((message) {
-            final isUser = message.role == 'user';
-            final isLatestAssistant = message.id == latestAssistantId;
-            return Align(
-              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 760),
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isUser
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    SelectableText(
-                      message.content,
-                      key: isLatestAssistant
-                          ? const Key('unified-ai-answer')
-                          : ValueKey<String>('assistant-message-${message.id}'),
-                    ),
-                    if (!isUser && message.runResult != null) ...<Widget>[
-                      Material(
-                        color: Colors.transparent,
-                        child: ExpansionTile(
-                          key: isLatestAssistant
-                              ? const Key('unified-ai-sources')
-                              : ValueKey<String>(
-                                  'assistant-message-sources-${message.id}',
-                                ),
-                          tilePadding: EdgeInsets.zero,
-                          title: const Text('Źródła'),
-                          subtitle: Text(
-                            message.runResult!.sources.isEmpty
-                                ? 'Odpowiedź oparta na wiedzy ogólnej.'
-                                : '${message.runResult!.sources.length} użytych źródeł',
-                          ),
-                          children: message.runResult!.sources
-                              .map(
-                                (source) => ListTile(
-                                  key: isLatestAssistant
-                                      ? ValueKey<String>(
-                                          'unified-source-${source.sourceRef}',
-                                        )
-                                      : ValueKey<String>(
-                                          'assistant-source-${message.id}-${source.sourceRef}',
-                                        ),
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(source.title),
-                                  subtitle: Text(
-                                    '${source.excerpt}\n${source.whyUsed}',
-                                  ),
-                                  onTap: source.route == null
-                                      ? null
-                                      : () => context.push(source.route!),
-                                ),
-                              )
-                              .toList(growable: false),
-                        ),
-                      ),
-                      ...message.runResult!.claims
-                          .where((claim) => claim.claimClass != 'FACT')
-                          .map(
-                            (claim) => claimCard(
-                              claim,
-                              keyPrefix: isLatestAssistant
-                                  ? 'unified'
-                                  : 'assistant-${message.id}',
-                            ),
-                          ),
-                    ],
-                    if (message.runStatus != null &&
-                        message.runStatus != 'completed')
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          _runStatusLabel(message.runStatus!),
-                          key: ValueKey<String>(
-                            'assistant-message-status-${message.id}',
-                          ),
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
-                      ),
-                  ],
-                ),
+      children: <Widget>[
+        ...detail.messages.map((message) {
+          final isUser = message.role == 'user';
+          final isLatestAssistant = message.id == latestAssistantId;
+          return Align(
+            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 760),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(14),
               ),
-            );
-          })
-          .toList(growable: false),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  SelectableText(
+                    message.content,
+                    key: isLatestAssistant
+                        ? const Key('unified-ai-answer')
+                        : ValueKey<String>('assistant-message-${message.id}'),
+                  ),
+                  if (!isUser && message.runResult != null) ...<Widget>[
+                    Material(
+                      color: Colors.transparent,
+                      child: ExpansionTile(
+                        key: isLatestAssistant
+                            ? const Key('unified-ai-sources')
+                            : ValueKey<String>(
+                                'assistant-message-sources-${message.id}',
+                              ),
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text('Źródła'),
+                        subtitle: Text(
+                          message.runResult!.sources.isEmpty
+                              ? 'Odpowiedź oparta na wiedzy ogólnej.'
+                              : '${message.runResult!.sources.length} użytych źródeł',
+                        ),
+                        children: message.runResult!.sources
+                            .map(
+                              (source) => ListTile(
+                                key: isLatestAssistant
+                                    ? ValueKey<String>(
+                                        'unified-source-${source.sourceRef}',
+                                      )
+                                    : ValueKey<String>(
+                                        'assistant-source-${message.id}-${source.sourceRef}',
+                                      ),
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(source.title),
+                                subtitle: Text(
+                                  '${source.excerpt}\n${source.whyUsed}',
+                                ),
+                                onTap: source.route == null
+                                    ? null
+                                    : () => context.push(source.route!),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                    ),
+                    ...message.runResult!.claims
+                        .where((claim) => claim.claimClass != 'FACT')
+                        .map(
+                          (claim) => claimCard(
+                            claim,
+                            keyPrefix: isLatestAssistant
+                                ? 'unified'
+                                : 'assistant-${message.id}',
+                          ),
+                        ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }),
+        ?runState,
+      ],
     );
   }
+
+  Widget? _assistantRunStateBubble(AssistantConversationDetail detail) {
+    final runId = detail.latestRunId ?? activeRequestId;
+    if (runId == null) return null;
+    final hasAssistantMessage = detail.messages.any(
+      (message) =>
+          message.role == 'assistant' && message.assistantRunId == runId,
+    );
+    if (hasAssistantMessage) return null;
+    final snapshot = activeRun?.runId == runId ? activeRun : null;
+    final status = snapshot?.status ?? detail.latestRunStatus;
+    if (status == null) return null;
+    if (status == 'completed' &&
+        detail.messages.any((message) => message.role == 'assistant')) {
+      return null;
+    }
+    if (_isActiveRunStatus(status) || status == 'completed') {
+      return _assistantStateBubble(
+        key: const Key('assistant-run-status-bubble'),
+        icon: const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2.5),
+        ),
+        title: snapshot?.progress.display ?? 'Analiza jest w toku.',
+        secondary: 'Możesz opuścić aplikację — analiza będzie kontynuowana.',
+        action: loading
+            ? TextButton.icon(
+                key: const Key('assistant-run-status-cancel'),
+                onPressed: () => unawaited(cancel()),
+                icon: const Icon(Icons.stop_rounded),
+                label: const Text('Anuluj'),
+              )
+            : null,
+      );
+    }
+    if (!<String>{'review_required', 'failed', 'cancelled'}.contains(status)) {
+      return null;
+    }
+    final (title, secondary, icon) = switch (status) {
+      'review_required' => (
+        'Wynik wymaga bezpiecznej weryfikacji.',
+        'Analiza zakończyła się bez gotowej odpowiedzi.',
+        Icons.policy_outlined,
+      ),
+      'cancelled' => (
+        'Analiza została anulowana.',
+        null,
+        Icons.cancel_outlined,
+      ),
+      _ => (
+        'Nie udało się zakończyć analizy.',
+        snapshot?.result?.errorMessage,
+        Icons.error_outline,
+      ),
+    };
+    return _assistantStateBubble(
+      key: ValueKey<String>('assistant-run-terminal-$status'),
+      icon: Icon(icon),
+      title: title,
+      secondary: secondary,
+    );
+  }
+
+  Widget _assistantStateBubble({
+    required Key key,
+    required Widget icon,
+    required String title,
+    String? secondary,
+    Widget? action,
+  }) => Align(
+    alignment: Alignment.centerLeft,
+    child: Container(
+      key: key,
+      constraints: const BoxConstraints(maxWidth: 760),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          icon,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(title, key: const Key('unified-ai-progress')),
+                if (secondary != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Text(
+                    secondary,
+                    key: const Key('unified-ai-durable-hint'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          ?action,
+        ],
+      ),
+    ),
+  );
+
+  bool _isActiveRunStatus(String status) => const <String>{
+    'created',
+    'queued',
+    'running',
+    'waiting',
+  }.contains(status);
 
   Widget _hiddenActiveRunCard() => Card(
     key: const Key('assistant-hidden-active-run'),
@@ -354,14 +573,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       ),
     ),
   );
-
-  String _runStatusLabel(String status) => switch (status) {
-    'review_required' => 'Wymaga bezpiecznej weryfikacji',
-    'failed' => 'Analiza nie powiodła się',
-    'cancelled' => 'Analiza anulowana',
-    'created' || 'queued' || 'running' || 'waiting' => 'Analiza trwa',
-    _ => status,
-  };
 
   Widget errorCard() => Padding(
     padding: const EdgeInsets.only(top: 16),
@@ -504,7 +715,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       result = null;
       activeRun = null;
       activeRequestId = null;
-      progress = 'Tworzę trwałą analizę.';
     });
     try {
       var run = await ref
@@ -522,9 +732,17 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
             inspectionId: widget.initialInspectionId,
           );
       activeRequestId = run.runId;
+      pollingRunId = run.runId;
       await _storage.write(key: _pendingRequestKey, value: run.runId);
       await _storage.write(key: _latestRequestKey, value: run.runId);
+      controller.clear();
+      if (mounted && activeConversation?.id == chat.id) {
+        setState(() {
+          activeRun = run;
+        });
+      }
       await _reloadConversationIfSelected(chat.id);
+      _scheduleScrollToLatest(force: true);
       while (!run.isTerminal) {
         if (!mounted ||
             token.isCancelled ||
@@ -533,8 +751,8 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         }
         setState(() {
           activeRun = run;
-          progress = run.progress.display;
         });
+        _scheduleScrollToLatest();
         await pollDelay(token, milliseconds: run.pollAfterMs);
         if (!mounted ||
             token.isCancelled ||
@@ -553,14 +771,9 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       setState(() {
         activeRun = run;
         result = answer;
-        progress = run.progress.display;
       });
       await _reloadConversationIfSelected(chat.id);
-      if (run.status != 'completed' || answer == null) {
-        setState(
-          () => error = answer?.errorMessage ?? _terminalRunMessage(run),
-        );
-      }
+      _scheduleScrollToLatest();
     } on DioException catch (exception) {
       if (!mounted || CancelToken.isCancel(exception)) return;
       setState(
@@ -579,7 +792,11 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       if (mounted &&
           identical(token, cancelToken) &&
           activeConversation?.id == chat.id) {
-        setState(() => loading = false);
+        setState(() {
+          loading = false;
+          cancelToken = null;
+          pollingRunId = null;
+        });
       }
     }
   }
@@ -612,11 +829,25 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       isScrollControlled: true,
       builder: (_) => AssistantChatHistorySheet(
         onOpen: _selectConversation,
-        onNewChat: _selectConversation,
+        onNewChat: _selectNewConversation,
         onRenamed: _conversationRenamed,
         onDeleted: _conversationDeleted,
       ),
     );
+  }
+
+  Future<void> _selectNewConversation(
+    AssistantConversationDetail conversation,
+  ) async {
+    if (mounted) {
+      setState(() {
+        clientId = widget.initialClientId;
+        clientName = clientId == null ? null : 'Klient #$clientId';
+        controller.clear();
+      });
+    }
+    await _selectConversation(conversation);
+    if (mounted) questionFocus.requestFocus();
   }
 
   Future<void> _selectConversation(
@@ -624,6 +855,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   ) async {
     cancelToken?.cancel('conversation switched');
     cancelToken = null;
+    pollingRunId = null;
     if (mounted) {
       setState(() {
         activeConversation = conversation;
@@ -631,7 +863,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         activeRun = null;
         result = null;
         error = null;
-        progress = '';
         loading = false;
       });
     }
@@ -639,6 +870,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       key: _selectedConversationKey,
       value: conversation.id.toString(),
     );
+    _scheduleScrollToLatest(force: true);
     if (conversation.active && conversation.latestRunId != null) {
       unawaited(
         _pollSelectedRun(
@@ -656,6 +888,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     if (activeConversation?.id == conversation.id) {
       cancelToken?.cancel('conversation hidden');
       cancelToken = null;
+      pollingRunId = null;
       await _storage.delete(key: _selectedConversationKey);
       if (mounted) {
         setState(() {
@@ -664,7 +897,6 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
           activeRun = null;
           result = null;
           error = null;
-          progress = '';
           loading = false;
         });
       }
@@ -691,6 +923,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         .getChat(session: session, conversationId: conversationId);
     if (mounted && activeConversation?.id == conversationId) {
       setState(() => activeConversation = detail);
+      _scheduleScrollToLatest();
     }
   }
 
@@ -729,17 +962,25 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
   Future<void> _pollSelectedRun(
     String requestId, {
     required int conversationId,
+    bool restart = false,
   }) async {
     final session = (await ref.read(authControllerProvider.future)).session;
     if (session == null || !mounted) return;
+    if (!restart &&
+        pollingRunId == requestId &&
+        cancelToken != null &&
+        !cancelToken!.isCancelled) {
+      return;
+    }
+    cancelToken?.cancel('poll replaced');
     final token = CancelToken();
     cancelToken = token;
+    pollingRunId = requestId;
     activeRequestId = requestId;
     await _storage.write(key: _pendingRequestKey, value: requestId);
     if (mounted && activeConversation?.id == conversationId) {
       setState(() {
         loading = true;
-        progress = 'Przywracam trwającą analizę.';
       });
     }
     try {
@@ -756,11 +997,10 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         }
         setState(() {
           activeRun = next;
-          progress = next.progress.display;
-          error = next.isTerminal && next.status != 'completed'
-              ? next.result?.errorMessage ?? _terminalRunMessage(next)
-              : null;
+          result = next.result;
+          error = null;
         });
+        _scheduleScrollToLatest();
         if (next.isTerminal) {
           await _storage.delete(key: _pendingRequestKey);
           await _reloadConversationIfSelected(conversationId);
@@ -781,8 +1021,58 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       if (mounted &&
           identical(token, cancelToken) &&
           activeConversation?.id == conversationId) {
-        setState(() => loading = false);
+        setState(() {
+          loading = false;
+          cancelToken = null;
+          pollingRunId = null;
+        });
       }
+    }
+  }
+
+  Future<void> _refreshOnResume() async {
+    if (resumeRefreshInFlight || !mounted) return;
+    resumeRefreshInFlight = true;
+    try {
+      final session = (await ref.read(authControllerProvider.future)).session;
+      if (session == null || !mounted) return;
+      final selected = activeConversation;
+      if (selected == null) {
+        await _restoreAssistantState();
+        return;
+      }
+      final detail = await ref
+          .read(assistantConversationRepositoryProvider)
+          .getChat(session: session, conversationId: selected.id);
+      if (!mounted || activeConversation?.id != selected.id) return;
+      setState(() {
+        activeConversation = detail;
+        error = null;
+      });
+      _scheduleScrollToLatest();
+      if (detail.active && detail.latestRunId != null) {
+        unawaited(
+          _pollSelectedRun(
+            detail.latestRunId!,
+            conversationId: detail.id,
+            restart: true,
+          ),
+        );
+      } else {
+        cancelToken?.cancel('terminal state refreshed');
+        cancelToken = null;
+        pollingRunId = null;
+        setState(() {
+          loading = false;
+          activeRun = null;
+          activeRequestId = detail.latestRunId;
+        });
+      }
+      await _refreshHiddenActiveRun();
+    } catch (_) {
+      // Resume refresh is advisory; the visible retry state remains bounded.
+    } finally {
+      resumeRefreshInFlight = false;
     }
   }
 
@@ -830,25 +1120,17 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     if (mounted) setState(() => hiddenActiveRun = null);
   }
 
-  String _terminalRunMessage(AssistantRunSnapshot run) {
-    if (run.status == 'cancelled') return 'Analiza została anulowana.';
-    if (run.status == 'review_required') {
-      return 'Wynik wymaga bezpiecznej weryfikacji. Doprecyzuj pytanie.';
-    }
-    return 'Nie udało się zakończyć analizy. Możesz spróbować ponownie.';
-  }
-
   Future<void> cancel() async {
     final requestId = activeRequestId;
     cancelToken?.cancel('Anulowano przez użytkownika');
     cancelToken = null;
+    pollingRunId = null;
     activeRequestId = null;
     await _storage.delete(key: _pendingRequestKey);
     await _storage.delete(key: _latestRequestKey);
     if (mounted) {
       setState(() {
         loading = false;
-        progress = '';
       });
     }
     if (requestId != null) {
@@ -881,10 +1163,10 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     }
     final token = CancelToken();
     cancelToken = token;
+    pollingRunId = requestId;
     setState(() {
       loading = true;
       activeRequestId = requestId;
-      progress = 'Przywracam trwającą analizę.';
     });
     try {
       while (mounted && !token.isCancelled) {
@@ -907,11 +1189,9 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
         setState(() {
           activeRun = next;
           result = next.result;
-          progress = next.progress.display;
-          error = next.isTerminal && next.status != 'completed'
-              ? next.result?.errorMessage ?? _terminalRunMessage(next)
-              : null;
+          error = null;
         });
+        _scheduleScrollToLatest();
         if (next.isTerminal) {
           await _storage.delete(key: _pendingRequestKey);
           break;
@@ -933,7 +1213,11 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       }
     } finally {
       if (mounted && identical(token, cancelToken)) {
-        setState(() => loading = false);
+        setState(() {
+          loading = false;
+          cancelToken = null;
+          pollingRunId = null;
+        });
       }
     }
   }
@@ -945,6 +1229,7 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
       final cancelled = await ref
           .read(assistantRunRepositoryProvider)
           .cancel(session: session, runId: requestId);
+      if (mounted) setState(() => activeRun = cancelled);
       final conversationId = cancelled.conversationId;
       if (conversationId != null) {
         await _reloadConversationIfSelected(conversationId);
@@ -952,6 +1237,30 @@ class _UnifiedAssistantPageState extends ConsumerState<UnifiedAssistantPage> {
     } catch (_) {
       // HTTP cancellation already detached the local request and blocks stale binding.
     }
+  }
+
+  void _scheduleScrollToLatest({bool force = false}) {
+    final nearBottom =
+        !scrollController.hasClients ||
+        scrollController.position.maxScrollExtent -
+                scrollController.position.pixels <
+            180;
+    if (!force && !nearBottom) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+      final target = scrollController.position.maxScrollExtent;
+      if (force) {
+        scrollController.jumpTo(target);
+      } else {
+        unawaited(
+          scrollController.animateTo(
+            target,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+          ),
+        );
+      }
+    });
   }
 
   Future<void> pollDelay(CancelToken token, {int milliseconds = 2500}) async {

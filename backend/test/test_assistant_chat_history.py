@@ -93,6 +93,30 @@ class AssistantChatHistorySourceContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             AssistantConversationRenameRequest(title="x" * 121)
 
+    def test_first_question_title_is_deterministic_polish_safe_and_bounded(self) -> None:
+        title = AssistantConversationService.title_from_question(
+            "  Czy możesz, proszę, przeanalizuj: jakie są typowe przyczyny "
+            "osiadania fundamentów?  "
+        )
+        self.assertEqual(title, "Typowe przyczyny osiadania fundamentów")
+        multiline = AssistantConversationService.title_from_question(
+            "w dokumentach klienta znajduje się plik PDF\n"
+            "z badaniami geologicznymi. przeanalizuj i przedstaw wnioski"
+        )
+        self.assertNotEqual(multiline, "Nowa rozmowa")
+        self.assertNotIn("\n", multiline)
+        self.assertLessEqual(len(multiline), 80)
+        long_title = AssistantConversationService.title_from_question(
+            "Podsumuj " + "bardzo długie techniczne zagadnienie " * 12
+        )
+        self.assertLessEqual(len(long_title), 80)
+        self.assertFalse(long_title.endswith((" ", ".", ",", ":", ";", "?", "!")))
+
+    def test_auto_title_helper_has_no_model_or_external_runtime_dependency(self) -> None:
+        source = inspect.getsource(inspect.getmodule(AssistantConversationService))
+        for forbidden in ("Ollama", "Qwen", "Supervisor", "httpx", "requests"):
+            self.assertNotIn(forbidden, source)
+
 
 def _answer(run_id: str, text: str = "Bezpieczna odpowiedź.") -> UnifiedAssistantResponse:
     return UnifiedAssistantResponse(
@@ -167,6 +191,106 @@ def integration_main() -> None:
         db.add(legacy)
         db.commit()
 
+        empty_chat = service.create(
+            request=AssistantConversationCreateRequest(),
+            user_id=user_a_id,
+        )
+        assert empty_chat.title == "Nowa rozmowa"
+        first_title_question = (
+            "Czy możesz, proszę, przeanalizuj: jakie są typowe przyczyny "
+            "osiadania fundamentów?"
+        )
+        first_title_request = AssistantRunCreateRequest(
+            question=first_title_question,
+            attempt_id="history_title_0001",
+            conversation_id=empty_chat.id,
+        )
+        first_title_run = AssistantRunService(db).create(
+            request=first_title_request,
+            user_id=user_a_id,
+        )
+        first_title_row = db.get(AssistantRun, first_title_run.run_id)
+        generated_title = db.get(Conversation, empty_chat.id).title
+        assert generated_title == "Typowe przyczyny osiadania fundamentów"
+        assert first_title_row.request_payload["question"] == first_title_question
+        replay = AssistantRunService(db).create(
+            request=first_title_request,
+            user_id=user_a_id,
+        )
+        assert replay.run_id == first_title_run.run_id
+        assert db.get(Conversation, empty_chat.id).title == generated_title
+        AssistantRunService(db).finish(
+            run=first_title_row,
+            response=_answer(first_title_run.run_id),
+        )
+        db.commit()
+        second_title_run = AssistantRunService(db).create(
+            request=AssistantRunCreateRequest(
+                question="Drugi prompt nie może zmienić tytułu.",
+                attempt_id="history_title_0002",
+                conversation_id=empty_chat.id,
+            ),
+            user_id=user_a_id,
+        )
+        assert db.get(Conversation, empty_chat.id).title == generated_title
+        second_title_row = db.get(AssistantRun, second_title_run.run_id)
+        AssistantRunService(db).finish(
+            run=second_title_row,
+            response=_answer(second_title_run.run_id),
+        )
+        db.commit()
+
+        manual_title_chat = service.create(
+            request=AssistantConversationCreateRequest(),
+            user_id=user_a_id,
+        )
+        service.rename(
+            conversation_id=manual_title_chat.id,
+            user_id=user_a_id,
+            request=AssistantConversationRenameRequest(title="Ręcznie nazwany temat"),
+        )
+        manual_title_run = AssistantRunService(db).create(
+            request=AssistantRunCreateRequest(
+                question="Pierwsze pytanie po ręcznej nazwie.",
+                attempt_id="history_title_manual_0001",
+                conversation_id=manual_title_chat.id,
+            ),
+            user_id=user_a_id,
+        )
+        assert db.get(Conversation, manual_title_chat.id).title == "Ręcznie nazwany temat"
+        AssistantRunService(db).finish(
+            run=db.get(AssistantRun, manual_title_run.run_id),
+            response=_answer(manual_title_run.run_id),
+        )
+        db.commit()
+
+        default_manual_title_chat = service.create(
+            request=AssistantConversationCreateRequest(),
+            user_id=user_a_id,
+        )
+        service.rename(
+            conversation_id=default_manual_title_chat.id,
+            user_id=user_a_id,
+            request=AssistantConversationRenameRequest(title="Nowa rozmowa"),
+        )
+        default_manual_title_run = AssistantRunService(db).create(
+            request=AssistantRunCreateRequest(
+                question="Ręcznie zachowany domyślny tytuł też jest wiążący.",
+                attempt_id="history_title_manual_default_0001",
+                conversation_id=default_manual_title_chat.id,
+            ),
+            user_id=user_a_id,
+        )
+        assert (
+            db.get(Conversation, default_manual_title_chat.id).title
+            == "Nowa rozmowa"
+        )
+        AssistantRunService(db).finish(
+            run=db.get(AssistantRun, default_manual_title_run.run_id),
+            response=_answer(default_manual_title_run.run_id),
+        )
+        db.commit()
+
         chat_a = service.create(
             request=AssistantConversationCreateRequest(title="Chat A"),
             user_id=user_a_id,
@@ -179,10 +303,11 @@ def integration_main() -> None:
             request=AssistantConversationCreateRequest(title="Foreign"),
             user_id=user_b_id,
         )
-        assert [item.id for item in service.list_owned(user_id=user_a_id).items] == [
-            chat_b.id,
-            chat_a.id,
+        owned_ids = [
+            item.id for item in service.list_owned(user_id=user_a_id).items
         ]
+        assert owned_ids[:2] == [chat_b.id, chat_a.id]
+        assert foreign.id not in owned_ids and legacy.id not in owned_ids
         try:
             service.get_owned_detail(conversation_id=foreign.id, user_id=user_a_id)
             raise AssertionError("foreign conversation was disclosed")
