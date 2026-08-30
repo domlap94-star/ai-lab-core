@@ -52,6 +52,15 @@ def main() -> None:
             == [("Anna", "anna@example.com")],
             "Raw Gmail header normalization failed",
         )
+        require(
+            service._addresses({"address": "IMPORT-TEST@Example.COM"})
+            == [(None, "import-test@example.com")],
+            "Direct structured address normalization failed",
+        )
+        require(
+            service._addresses("missing-at.example.com") == [],
+            "Malformed sender received authority",
+        )
 
         current = service._body_text(
             {
@@ -115,6 +124,11 @@ def main() -> None:
         require(
             all(status in sql for status in ("accepted", "merged", "duplicate")),
             "Linked candidate status semantics are incomplete",
+        )
+        require(
+            "lower(client_candidates.primary_email)" not in sql
+            and "candidate_sources.raw_payload" in sql,
+            "Ignored-state matching does not use the authoritative source sender",
         )
 
         print("CLIENT EMAIL NORMALIZATION: OK")

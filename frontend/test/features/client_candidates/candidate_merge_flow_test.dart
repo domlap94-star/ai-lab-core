@@ -333,7 +333,7 @@ void main() {
         'id': 7,
         'name': 'Kandydat testowy',
         'client_type': 'company',
-        'primary_email': 'sender@example.com',
+        'primary_email': 'import-test@example.com',
         'status': 'pending',
         'confidence': 0.9,
       },
@@ -341,7 +341,7 @@ void main() {
         <String, dynamic>{
           'source_id': 71,
           'subject': 'Wiadomość przychodząca',
-          'from': <String, dynamic>{'address': 'Sender@Example.COM'},
+          'from': <String, dynamic>{'address': 'Import-Test@Example.COM'},
         },
         <String, dynamic>{
           'source_id': 72,
@@ -380,6 +380,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('confirm-ignore-mail-rule')));
     await tester.pumpAndSettle();
-    expect(api.created, <(String, String)>[('email', 'sender@example.com')]);
+    expect(api.created, <(String, String)>[
+      ('email', 'import-test@example.com'),
+    ]);
   });
 }

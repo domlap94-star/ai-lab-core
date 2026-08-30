@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.repositories.global_mail_repository import GlobalMailRepository
+from app.repositories.global_mail_repository import IGNORED_SQL
 from app.schemas.global_mail import GlobalMailListItem
 from app.services.client_email_service import ClientEmailService
 
@@ -124,6 +125,10 @@ class GlobalMailQueryContractTests(unittest.TestCase):
 
     def test_no_raw_payload_in_public_list_schema(self):
         self.assertNotIn("raw_payload", GlobalMailListItem.model_fields)
+
+    def test_ignored_state_is_bound_to_source_sender_not_candidate_email(self):
+        self.assertNotIn("cc.primary_email", IGNORED_SQL)
+        self.assertIn("cs.raw_payload", IGNORED_SQL)
 
     def test_unknown_read_state_is_publicly_supported(self):
         item = GlobalMailListItem(

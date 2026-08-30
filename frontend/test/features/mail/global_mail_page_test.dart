@@ -51,10 +51,16 @@ class _AdminAuthController extends AuthController {
 }
 
 class _FakeMailApi extends GlobalMailApi {
-  _FakeMailApi({this.imageAttachment = false, this.missingCount = 0})
-    : super(Dio());
+  _FakeMailApi({
+    this.imageAttachment = false,
+    this.missingCount = 0,
+    this.itemDirection = 'received',
+    this.itemSender = 'masked@example.invalid',
+  }) : super(Dio());
   final bool imageAttachment;
   final int missingCount;
+  final String itemDirection;
+  final String itemSender;
   int listCalls = 0;
   String? readState;
   bool? ignored;
@@ -67,9 +73,9 @@ class _FakeMailApi extends GlobalMailApi {
     sourceId: 2,
     messageId: 'technical-message',
     threadId: 'technical-thread',
-    direction: 'received',
+    direction: itemDirection,
     readState: 'unknown',
-    sender: 'masked@example.invalid',
+    sender: itemSender,
     recipients: const <String>['inbox@example.invalid'],
     subject: 'Testowy temat',
     occurredAt: DateTime.utc(2026, 8, 19, 12, 30),
@@ -326,6 +332,33 @@ void main() {
     expect(api.ignoredCreates, <(String, String)>[
       ('domain', 'example.invalid'),
     ]);
+  });
+
+  testWidgets(
+    'admin can ignore an authoritative legacy sender with unknown direction',
+    (WidgetTester tester) async {
+      final _FakeMailApi api = _FakeMailApi(
+        itemDirection: 'unknown',
+        itemSender: 'import-test@example.com',
+      );
+      await _pump(tester, api, admin: true);
+      await tester.tap(find.byKey(const Key('mail-ignore-menu-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ignoruj nadawcę').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-ignore-mail-rule')));
+      await tester.pumpAndSettle();
+      expect(api.ignoredCreates, <(String, String)>[
+        ('email', 'import-test@example.com'),
+      ]);
+    },
+  );
+
+  testWidgets('sent mail never exposes sender-ignore authority', (
+    WidgetTester tester,
+  ) async {
+    await _pump(tester, _FakeMailApi(itemDirection: 'sent'), admin: true);
+    expect(find.byKey(const Key('mail-ignore-menu-2')), findsNothing);
   });
 
   testWidgets('ordinary user cannot see ignore-rule controls', (

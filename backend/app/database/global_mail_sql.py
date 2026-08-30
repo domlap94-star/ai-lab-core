@@ -4,6 +4,43 @@ GMAIL_SOURCE_PREDICATE_SQL = (
     "source_type = 'gmail_message' AND deleted_at IS NULL"
 )
 
+_GMAIL_SENDER_RAW_SQL = """
+CASE
+  WHEN json_typeof(coalesce(raw_payload -> 'from', raw_payload -> 'From')) = 'object'
+    THEN coalesce(
+      raw_payload #>> '{from,address}',
+      raw_payload #>> '{From,address}',
+      raw_payload #>> '{from,value,0,address}',
+      raw_payload #>> '{From,value,0,address}',
+      raw_payload #>> '{from,text}',
+      raw_payload #>> '{From,text}'
+    )
+  WHEN json_typeof(coalesce(raw_payload -> 'from', raw_payload -> 'From')) = 'string'
+    THEN coalesce(raw_payload ->> 'from', raw_payload ->> 'From')
+  ELSE NULL
+END
+""".strip()
+
+_GMAIL_SENDER_CANDIDATE_SQL = f"""
+CASE
+  WHEN trim(coalesce(({_GMAIL_SENDER_RAW_SQL}), '')) ~ '<[^<>]+>[[:space:]]*$'
+    THEN substring(
+      trim(coalesce(({_GMAIL_SENDER_RAW_SQL}), ''))
+      from '<([^<>]+)>[[:space:]]*$'
+    )
+  ELSE trim(coalesce(({_GMAIL_SENDER_RAW_SQL}), ''))
+END
+""".strip()
+
+GMAIL_SENDER_EMAIL_SQL = f"""
+CASE
+  WHEN lower(({_GMAIL_SENDER_CANDIDATE_SQL})) ~
+       '^[^@[:space:]]+@([a-z0-9]([a-z0-9-]{{0,61}}[a-z0-9])?[.])+[a-z]{{2,63}}$'
+    THEN lower(({_GMAIL_SENDER_CANDIDATE_SQL}))
+  ELSE NULL
+END
+""".strip()
+
 GMAIL_DIRECTION_SQL = """
 CASE
   WHEN lower(coalesce(raw_payload ->> 'direction', ''))

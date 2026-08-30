@@ -26,7 +26,10 @@ from app.schemas.unified_assistant import (
     UnifiedClaim,
     UnifiedSource,
 )
-from app.services.assistant_run_material_service import AssistantRunMaterialService
+from app.services.assistant_run_material_service import (
+    AssistantMaterialSourceRefConflict,
+    AssistantRunMaterialService,
+)
 from app.services.assistant_run_service import AssistantRunService
 from app.services.assistant_run_stage_service import AssistantRunStageService
 from app.services.document_intelligence_service import (
@@ -735,8 +738,13 @@ async def _execute_run(run_id: str) -> None:
         run = db.get(AssistantRun, run_id)
         if run is not None and run.status != "cancelled":
             stage_type = run.current_stage or "finalizing"
+            error_code = (
+                error.error_code
+                if isinstance(error, AssistantMaterialSourceRefConflict)
+                else f"ASSISTANT_{error.__class__.__name__.upper()}"
+            )
             AssistantRunStageService(db).fail(
-                run, stage_type, f"ASSISTANT_{error.__class__.__name__.upper()}"
+                run, stage_type, error_code
             )
             response = _review_response(
                 run.id,

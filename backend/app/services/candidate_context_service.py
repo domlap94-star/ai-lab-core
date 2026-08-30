@@ -8,6 +8,10 @@ from app.repositories.candidate_context_repository import (
     CandidateContextRepository,
 )
 from app.services.email_client_matching_service import EMAIL_MATCH_METADATA_KEY
+from app.services.mail_sender_authority import (
+    canonical_mail_addresses,
+    canonical_mail_sender,
+)
 
 
 class CandidateContextNotFoundError(Exception):
@@ -240,58 +244,20 @@ class CandidateContextService:
     def _extract_mail_address(
         value: Any,
     ) -> dict[str, str | None] | None:
-        if not isinstance(value, dict):
+        sender = canonical_mail_sender(value)
+        if sender is None:
             return None
-
-        entries = value.get("value")
-
-        if not isinstance(entries, list) or not entries:
-            text_value = value.get("text")
-
-            if text_value:
-                return {
-                    "name": None,
-                    "address": str(text_value),
-                }
-
-            return None
-
-        first = entries[0]
-
-        if not isinstance(first, dict):
-            return None
-
-        return {
-            "name": first.get("name"),
-            "address": first.get("address"),
-        }
+        name, address = sender
+        return {"name": name, "address": address}
 
     @staticmethod
     def _extract_mail_addresses(
         value: Any,
     ) -> list[dict[str, str | None]]:
-        if not isinstance(value, dict):
-            return []
-
-        entries = value.get("value")
-
-        if not isinstance(entries, list):
-            return []
-
-        result: list[dict[str, str | None]] = []
-
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-
-            result.append(
-                {
-                    "name": entry.get("name"),
-                    "address": entry.get("address"),
-                }
-            )
-
-        return result
+        return [
+            {"name": name, "address": address}
+            for name, address in canonical_mail_addresses(value)
+        ]
 
     @staticmethod
     def _serialize_datetime(

@@ -447,7 +447,7 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
                 size: 18,
               ),
               if (_isAdmin &&
-                  item.direction == 'received' &&
+                  item.direction != 'sent' &&
                   canonicalIgnoredMailAddress(item.sender) != null)
                 PopupMenuButton<String>(
                   key: ValueKey<String>('mail-ignore-menu-${item.sourceId}'),
@@ -554,7 +554,7 @@ class _GlobalMailPageState extends ConsumerState<GlobalMailPage> {
                 label: Text('Ignorowany nadawca'),
               ),
             if (_isAdmin &&
-                item.direction == 'received' &&
+                item.direction != 'sent' &&
                 canonicalIgnoredMailAddress(item.sender) != null)
               ActionChip(
                 key: const Key('ignore-mail-sender'),

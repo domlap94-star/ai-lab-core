@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from sqlalchemy import DateTime, Numeric, and_, case, cast, func, or_
+from sqlalchemy import DateTime, Numeric, and_, case, cast, func, literal_column, or_
 from sqlalchemy.orm import Session
 
 from app.models.candidate_source import CandidateSource
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.models.ignored_mail_source import IgnoredMailSource
+from app.database.global_mail_sql import GMAIL_SENDER_EMAIL_SQL
 
 
 LINKED_CANDIDATE_STATUSES = (
@@ -47,6 +48,11 @@ class ClientEmailRepository:
 
     def _deduplicated_sources(self, client_id: int):
         message_at = self._message_at_expression()
+        sender_email = literal_column(
+            "(" + GMAIL_SENDER_EMAIL_SQL.replace(
+                "raw_payload", "candidate_sources.raw_payload"
+            ) + ")"
+        )
         row_number = func.row_number().over(
             partition_by=(
                 CandidateSource.import_source_id,
@@ -68,19 +74,20 @@ class ClientEmailRepository:
                 CandidateSource.raw_payload,
                 CandidateSource.created_at,
                 ClientCandidate.primary_email,
+                sender_email.label("sender_email"),
                 self.db.query(IgnoredMailSource.id).filter(
                     IgnoredMailSource.is_active.is_(True),
                     or_(
                         and_(
                             IgnoredMailSource.rule_type == "email",
                             IgnoredMailSource.normalized_value
-                            == func.lower(ClientCandidate.primary_email),
+                            == sender_email,
                         ),
                         and_(
                             IgnoredMailSource.rule_type == "domain",
                             IgnoredMailSource.normalized_value
                             == func.split_part(
-                                func.lower(ClientCandidate.primary_email),
+                                sender_email,
                                 "@",
                                 2,
                             ),

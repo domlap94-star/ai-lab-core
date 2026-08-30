@@ -10,6 +10,7 @@ from app.database.global_mail_sql import (
     GMAIL_MESSAGE_TIME_SQL,
     GMAIL_READ_STATE_SQL,
     GMAIL_SEARCH_DOCUMENT_SQL,
+    GMAIL_SENDER_EMAIL_SQL,
 )
 from app.models.document import Document
 
@@ -25,14 +26,15 @@ DIRECTION_SQL = _source_expression(GMAIL_DIRECTION_SQL)
 READ_STATE_SQL = _source_expression(GMAIL_READ_STATE_SQL)
 MESSAGE_TIME_SQL = _source_expression(GMAIL_MESSAGE_TIME_SQL)
 SEARCH_DOCUMENT_SQL = _source_expression(GMAIL_SEARCH_DOCUMENT_SQL)
-IGNORED_SQL = """
+SENDER_EMAIL_SQL = _source_expression(GMAIL_SENDER_EMAIL_SQL)
+IGNORED_SQL = f"""
 EXISTS (
   SELECT 1 FROM ignored_mail_sources ims
   WHERE ims.is_active
     AND (
-      (ims.rule_type='email' AND ims.normalized_value=lower(cc.primary_email))
+      (ims.rule_type='email' AND ims.normalized_value=({SENDER_EMAIL_SQL}))
       OR
-      (ims.rule_type='domain' AND ims.normalized_value=split_part(lower(cc.primary_email),'@',2))
+      (ims.rule_type='domain' AND ims.normalized_value=split_part(({SENDER_EMAIL_SQL}),'@',2))
     )
 )
 """

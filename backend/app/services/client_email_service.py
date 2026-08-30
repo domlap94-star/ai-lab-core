@@ -4,7 +4,6 @@ import html
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
-from email.utils import getaddresses
 from html.parser import HTMLParser
 from typing import Any
 
@@ -22,6 +21,7 @@ from app.services.client_service import ClientNotFoundError
 from app.services.gmail_message_boundary_service import (
     GmailMessageBoundaryService,
 )
+from app.services.mail_sender_authority import canonical_mail_addresses
 
 
 MAX_BODY_CHARACTERS = 100_000
@@ -168,36 +168,7 @@ class ClientEmailService:
 
     @classmethod
     def _addresses(cls, value: Any) -> list[tuple[str | None, str]]:
-        candidates: list[tuple[str, str]] = []
-        if isinstance(value, dict):
-            entries = value.get("value")
-            if isinstance(entries, list):
-                for entry in entries:
-                    if not isinstance(entry, dict):
-                        continue
-                    candidates.append(
-                        (
-                            str(entry.get("name") or ""),
-                            str(entry.get("address") or ""),
-                        )
-                    )
-            elif value.get("text"):
-                candidates.extend(getaddresses([str(value["text"])]))
-        elif isinstance(value, list):
-            for entry in value:
-                candidates.extend(cls._addresses(entry))
-        elif value:
-            candidates.extend(getaddresses([str(value)]))
-
-        result: list[tuple[str | None, str]] = []
-        seen: set[str] = set()
-        for raw_name, raw_address in candidates:
-            address = raw_address.strip().casefold()
-            if not address or "@" not in address or address in seen:
-                continue
-            seen.add(address)
-            result.append((cls._clean_string(raw_name), address))
-        return result
+        return canonical_mail_addresses(value)
 
     @staticmethod
     def _labels(payload: dict[str, Any]) -> set[str]:
