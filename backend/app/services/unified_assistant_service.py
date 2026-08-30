@@ -73,6 +73,9 @@ MAX_SOURCES = 8
 MAX_KB_SOURCES = 5
 MAX_EVIDENCE_CHARS = 12_000
 MAX_DOCUMENT_DISCOVERY_CANDIDATES = 12
+DOCUMENT_SEMANTIC_FILENAME_THRESHOLD = 3
+DOCUMENT_SEMANTIC_CONTENT_THRESHOLD = 7
+DOCUMENT_SEMANTIC_MARGIN = 3
 DOCUMENT_EXTENSIONS = ("pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "jpg", "jpeg", "png")
 ADVANCED_QUEUE_HARD_SECONDS = 60
 ADVANCED_EXTERNAL_HARD_SECONDS = 180
@@ -154,6 +157,20 @@ class _DocumentResolution:
     reference: str | None = None
     document_id: int | None = None
     candidate_titles: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _DocumentMetadataScore:
+    semantic: int
+    locality: int
+    type_preference: int
+    direct_matches: tuple[str, ...] = ()
+    expanded_matches: tuple[str, ...] = ()
+    address_matches: tuple[str, ...] = ()
+
+    @property
+    def auxiliary(self) -> int:
+        return self.locality + self.type_preference
 
 
 @dataclass(frozen=True)
@@ -1732,7 +1749,8 @@ class UnifiedAssistantService:
     ) -> _DocumentResolution | None:
         folded = self._fold_intent(request.question)
         describes_document = any(token in folded for token in (
-            "dokument", "pdf", "raport", "opinia", "badanie", "geotechn", "grunt",
+            "dokument", "pdf", "raport", "opinia", "badanie", "geotechn", "geolog",
+            "grunt", "podloz", "odwiert", "sondow",
         )) and any(token in folded for token in (
             "znajdz", "wyszukaj", "przeanalizuj", "zbadaj", "jest", "zawiera",
         ))
@@ -1755,7 +1773,7 @@ class UnifiedAssistantService:
             token for token in re.findall(r"[a-z0-9]+", self._fold_intent(local_address))
             if len(token) >= 2
         }
-        metadata: list[tuple[int, Document]] = [
+        metadata: list[tuple[_DocumentMetadataScore, Document]] = [
             (
                 self._document_metadata_score(
                     row, query_tokens=query_tokens, expanded_terms=expanded_terms,
@@ -1765,9 +1783,17 @@ class UnifiedAssistantService:
             )
             for row in rows
         ]
-        metadata.sort(key=lambda pair: (-pair[0], pair[1].id))
-        high = [pair for pair in metadata if pair[0] >= 6]
-        if high and (len(high) == 1 or high[0][0] >= high[1][0] + 3):
+        metadata.sort(
+            key=lambda pair: (-pair[0].semantic, -pair[0].auxiliary, pair[1].id)
+        )
+        high = [
+            pair for pair in metadata
+            if pair[0].semantic >= DOCUMENT_SEMANTIC_FILENAME_THRESHOLD
+        ]
+        if high and (
+            len(high) == 1
+            or high[0][0].semantic >= high[1][0].semantic + DOCUMENT_SEMANTIC_MARGIN
+        ):
             document = high[0][1]
             content = self.document_content.access(document, query=request.question)
             if content.state not in {
@@ -1775,7 +1801,10 @@ class UnifiedAssistantService:
             }:
                 return _DocumentResolution(content.state, "opis dokumentu", document.id)
             return _DocumentResolution("UNIQUE_MATCH", "opis dokumentu", document.id)
-        if len(high) >= 2 and high[0][0] == high[1][0] and high[0][0] >= 8:
+        if (
+            len(high) >= 2
+            and high[0][0].semantic == high[1][0].semantic
+        ):
             return _DocumentResolution(
                 "AMBIGUOUS", "opis dokumentu", candidate_titles=tuple(
                     Path(row.original_filename or row.filename).name for _, row in high[:4]
@@ -1787,47 +1816,71 @@ class UnifiedAssistantService:
         candidates = sorted(
             metadata,
             key=lambda pair: (
-                -pair[0],
+                -pair[0].semantic,
+                -pair[0].auxiliary,
                 0 if "pdf" in str(getattr(pair[1], "content_type", "") or "").casefold() else 1,
                 pair[1].id,
             ),
         )[:MAX_DOCUMENT_DISCOVERY_CANDIDATES]
         discovery_query = " ".join(sorted(expanded_terms))[:600]
-        scored: list[tuple[int, Document, Any]] = []
-        unavailable: list[tuple[int, Document, Any]] = []
+        scored: list[tuple[int, int, Document, Any]] = []
+        unavailable: list[tuple[_DocumentMetadataScore, Document, Any]] = []
         for metadata_score, row in candidates:
             content = self.document_content.access(row, query=discovery_query)
             if content.state not in {
                 FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
             }:
-                if metadata_score >= 4:
+                if metadata_score.semantic > 0 or metadata_score.auxiliary > 0:
                     unavailable.append((metadata_score, row, content))
                 continue
             text = self._fold_intent(" ".join(page.text for page in content.pages))
             content_hits = sum(1 for term in expanded_terms if term in text)
             query_hits = sum(1 for term in query_tokens if term in text)
-            score = metadata_score + min(16, content_hits * 2) + min(6, query_hits * 2)
-            if score >= 7:
-                scored.append((score, row, content))
+            semantic_score = (
+                metadata_score.semantic
+                + min(16, content_hits * 2)
+                + min(6, query_hits * 2)
+            )
+            if semantic_score >= DOCUMENT_SEMANTIC_CONTENT_THRESHOLD:
+                scored.append((semantic_score, metadata_score.auxiliary, row, content))
         if not scored:
-            unavailable.sort(key=lambda row: (-row[0], row[1].id))
-            if unavailable and (
-                len(unavailable) == 1 or unavailable[0][0] >= unavailable[1][0] + 3
-            ):
+            unavailable.sort(
+                key=lambda item: (-item[0].semantic, -item[0].auxiliary, item[1].id)
+            )
+            if unavailable:
+                if len(unavailable) == 1 or (
+                    unavailable[0][0].semantic
+                    >= unavailable[1][0].semantic + DOCUMENT_SEMANTIC_MARGIN
+                    and unavailable[0][0].semantic
+                    >= DOCUMENT_SEMANTIC_FILENAME_THRESHOLD
+                ):
+                    return _DocumentResolution(
+                        unavailable[0][2].state,
+                        "opis dokumentu",
+                        unavailable[0][1].id,
+                    )
                 return _DocumentResolution(
-                    unavailable[0][2].state, "opis dokumentu", unavailable[0][1].id
+                    "AMBIGUOUS",
+                    "opis dokumentu",
+                    candidate_titles=tuple(
+                        Path(row.original_filename or row.filename).name
+                        for _, row, _ in unavailable[:4]
+                    ),
                 )
             return _DocumentResolution("NOT_FOUND", "opis dokumentu")
-        scored.sort(key=lambda row: (-row[0], row[1].id))
-        if len(scored) > 1 and scored[0][0] < scored[1][0] + 3:
+        scored.sort(key=lambda item: (-item[0], -item[1], item[2].id))
+        if (
+            len(scored) > 1
+            and scored[0][0] < scored[1][0] + DOCUMENT_SEMANTIC_MARGIN
+        ):
             return _DocumentResolution(
                 "AMBIGUOUS", "opis dokumentu", candidate_titles=tuple(
                     Path(row.original_filename or row.filename).name
-                    for _, row, _ in scored[:4]
+                    for _, _, row, _ in scored[:4]
                 ),
             )
-        document = scored[0][1]
-        content = scored[0][2]
+        document = scored[0][2]
+        content = scored[0][3]
         if content.state not in {
             FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE,
         }:
@@ -1839,7 +1892,8 @@ class UnifiedAssistantService:
         stop = {
             "tego", "ten", "jest", "ktory", "ktorego", "klienta", "dokumentach",
             "znajdz", "wyszukaj", "przeanalizuj", "zawiera", "plik", "pdf", "podaj",
-            "wnioski", "dokument", "raport",
+            "wnioski", "dokument", "raport", "sie", "znajduje", "znajduja",
+            "przedstaw",
         }
         query_tokens = {
             token for token in re.findall(r"[a-z0-9]+", folded)
@@ -1848,7 +1902,7 @@ class UnifiedAssistantService:
         expanded = set(query_tokens)
         concepts = (
             (
-                ("grunt", "geotechn", "badanie podloza", "badanie gruntu"),
+                ("geolog", "geotechn", "grunt", "podloz", "odwiert", "sondow"),
                 {
                     "grunt", "geotechn", "geolog", "podloz", "odwiert", "sondow",
                     "warstw", "woda grunt", "zwierciadl", "nosnosc", "osiad",
@@ -1867,16 +1921,26 @@ class UnifiedAssistantService:
     def _document_metadata_score(
         cls, document: Document, *, query_tokens: set[str], expanded_terms: set[str],
         address_tokens: set[str], expects_pdf: bool,
-    ) -> int:
+    ) -> _DocumentMetadataScore:
         name = cls._fold_intent(document.original_filename or document.filename or "")
         name_tokens = set(re.findall(r"[a-z0-9]+", name))
-        direct = len(query_tokens & name_tokens)
-        expanded = sum(1 for term in expanded_terms if term in name)
-        address = len(address_tokens & name_tokens)
-        score = direct * 3 + min(8, expanded * 2) + min(6, address * 2)
-        if expects_pdf and "pdf" in str(getattr(document, "content_type", "") or "").casefold():
-            score += 1
-        return score
+        direct_matches = tuple(sorted(query_tokens & name_tokens))
+        expanded_matches = tuple(sorted(term for term in expanded_terms if term in name))
+        address_matches = tuple(sorted(address_tokens & name_tokens))
+        semantic = len(direct_matches) * 3 + min(12, len(expanded_matches) * 3)
+        locality = min(6, len(address_matches) * 2)
+        type_preference = int(
+            expects_pdf
+            and "pdf" in str(getattr(document, "content_type", "") or "").casefold()
+        )
+        return _DocumentMetadataScore(
+            semantic=semantic,
+            locality=locality,
+            type_preference=type_preference,
+            direct_matches=direct_matches,
+            expanded_matches=expanded_matches,
+            address_matches=address_matches,
+        )
 
     def _document_has_content(self, document: Document) -> bool:
         return self.document_content.access(document).state in {
