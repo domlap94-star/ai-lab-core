@@ -29,6 +29,7 @@ from app.services.unified_document_content_service import (
 
 PROCESSOR_GENERATION = "document-preparation-v2"
 LEASE_MINUTES = 45
+INGESTION_EXTERNAL_VISION_BLOCKED = "INGESTION_EXTERNAL_VISION_BLOCKED"
 DOCUMENT_INTELLIGENCE_RESOURCE_WAIT_CODES = frozenset({
     "LOCAL_RESOURCE_WAIT",
     "LOCAL_RESOURCE_RESERVE_WAIT",
@@ -185,19 +186,52 @@ class DocumentPreparationService:
         elif content.state == INTEGRITY_MISMATCH:
             self._terminal(job, "integrity_failed", "integrity_failed", "DOCUMENT_STORAGE_INTEGRITY_MISMATCH", "integrity")
         elif content.state == FILE_FOUND_REQUIRES_OCR:
-            # OCR did not yield usable text.  Keep this generation active so
-            # the dispatcher can use the existing controlled Vision route.
-            job.status = "running"
-            job.stage = "vision_processing"
-            job.error_code = None
-            job.retryability = None
-            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
+            if job.trigger == "ingestion":
+                # Normal ingestion is local-only. An explicit Assistant or
+                # operator request remains the sole compatibility authority
+                # for the legacy external Vision route.
+                self.contain_ingestion_external_vision(job.id)
+            else:
+                job.status = "running"
+                job.stage = "vision_processing"
+                job.error_code = None
+                job.retryability = None
+                job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
         else:
             if job.attempt_count < job.max_attempts:
                 self._requeue(job, "DOCUMENT_PREPARATION_FAILED")
             else:
                 self._terminal(job, "failed", "failed", "DOCUMENT_PREPARATION_FAILED", "owner_action")
         self.db.commit()
+
+    def contain_ingestion_external_vision(self, job_id: str) -> bool:
+        """Fail one ingestion generation closed before legacy external Vision."""
+        job = (
+            self.db.query(DocumentPreparationJob)
+            .filter(DocumentPreparationJob.id == job_id)
+            .with_for_update()
+            .one_or_none()
+        )
+        if job is None or job.trigger != "ingestion":
+            return False
+        if (
+            job.status == "failed"
+            and job.stage == "failed"
+            and job.error_code == INGESTION_EXTERNAL_VISION_BLOCKED
+            and job.retryability == "owner_action"
+        ):
+            return True
+        if job.status != "running":
+            return False
+        self._terminal(
+            job,
+            "failed",
+            "failed",
+            INGESTION_EXTERNAL_VISION_BLOCKED,
+            "owner_action",
+        )
+        self.db.flush()
+        return True
 
     def complete_intelligence(self, job_id: str, artifact_id: str) -> None:
         job = self.db.get(DocumentPreparationJob, job_id)
