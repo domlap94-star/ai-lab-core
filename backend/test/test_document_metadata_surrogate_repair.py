@@ -567,7 +567,7 @@ class DocumentMetadataProductionGuardTests(unittest.TestCase):
         for relative in repair_module._CRITICAL_RUNTIME_PATHS:
             path = repository / relative
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(("synthetic:" + relative).encode())
+            path.write_bytes(("synthetic:" + relative + "\n").encode())
         subprocess.run(
             ["git", "init"], cwd=repository, check=True,
             capture_output=True,
@@ -621,6 +621,10 @@ class DocumentMetadataProductionGuardTests(unittest.TestCase):
         repository, script, head = self._git_repository()
         (repository / "unrelated.txt").write_text(
             "synthetic dirty", encoding="utf-8"
+        )
+        normalized = repository / repair_module._CRITICAL_RUNTIME_PATHS[2]
+        normalized.write_bytes(
+            normalized.read_bytes().replace(b"\n", b"\r\n")
         )
         _verify_runtime_source_identity(head, script_path=script)
 

@@ -264,18 +264,26 @@ def _verify_runtime_source_identity(
             raise DocumentMetadataRepairError(
                 REPAIR_RUNTIME_SOURCE_MISMATCH
             )
-        committed = _git_output(
-            ["show", f"{expected_git_sha}:{relative}"],
-            cwd=repository,
-            text_output=False,
+        committed_hash = str(
+            _git_output(
+                ["rev-parse", f"{expected_git_sha}:{relative}"],
+                cwd=repository,
+                text_output=True,
+            )
         )
-        try:
-            working_bytes = working.read_bytes()
-        except OSError as error:
-            raise DocumentMetadataRepairError(
-                REPAIR_RUNTIME_SOURCE_MISMATCH
-            ) from error
-        if working_bytes != bytes(committed):
+        working_hash = str(
+            _git_output(
+                [
+                    "hash-object",
+                    f"--path={relative}",
+                    "--",
+                    str(working),
+                ],
+                cwd=repository,
+                text_output=True,
+            )
+        )
+        if working_hash != committed_hash:
             raise DocumentMetadataRepairError(
                 REPAIR_RUNTIME_SOURCE_MISMATCH
             )
