@@ -150,7 +150,7 @@ commit lub zatwierdzony artefakt operacyjny.
 | DOC-01 | P0 | present today | FIXED_UNVERIFIED | Normal document ingestion can trigger explicit external Vision V1. | Canonical ingestion ends at local Material V3; no automatic external Vision. | Runtime containment | Independent source review PASS; audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; promoted main source `d69e373fc435c6a5373a256b1acd206fddd3d184`; focused `9/9` and main-based relevant regression `42/42` PASS; deployment/live verification pending. | pending |
 | DOC-02 | P0 | present today | FIXED_UNVERIFIED | OOXML/ODF media extraction uses unbounded `archive.read(member)`. | Entry count, per-entry bytes, total bytes, compression-ratio and streaming bounds. | File-safety layer | Independent source review PASS; audit `c08b55a07ac1a8b761f0c06ed70dd90085a7b944`; promoted main source `5ae13876ed4e0104a9c049e5b68d67177b0372d9`; focused T01–T24, main-based relevant regression `34/34`, and actual XLSX/PPTX/ODT promotion probes PASS; deployment/live verification pending. | pending |
 | DOC-03 | P1 | present today | FIXED_UNVERIFIED | Expired running preparation blocks eight queued jobs. | Lease recovery, fencing and queue-drain regression test. | Preparation dispatcher | Independent source review PASS; audit `b1dee3d0afff1aefb5235176502cf0256fe975ce`; promoted main source `f601c2c4cb88f58f5095b842b0135316d8721f6f`; focused T01–T18 and consolidated main-based regression `91/91` PASS; queue-drain, child-cancellation and shutdown-propagation probes PASS; deployment/live verification pending. | pending |
-| DOC-04 | P1 | present today | OPEN | Document 8903 contains an invalid lone surrogate in JSON metadata. | Separate owner-approved controlled data repair with backup and audit proof. | DOC-02 safety; owner write gate | — | — |
+| DOC-04 | P1 | present today | OPEN | Document 8903 contains two unpaired low-surrogate escapes in each of `metadata_raw` and `metadata_normalized`. | Shared recurrence hardening and isolated repair rehearsal, followed by a separate owner-approved controlled data repair with verified backup and audit proof. | DOC-02 safety; DOC-04A; owner write gate | Independent projection review PASS; audit report `9567583fcef4278b32e46d0c81e8328106332499`; promoted main report `5e2167fabf8229b703b8757853f059fc20c14f50`; 5,989 Documents scanned with one affected Document; exact minimal lexical repair candidates validated; no repair executed; source recurrence hardening and production write remain pending. `PLAN_READY_FOR_OWNER_REVIEW / BLOCKER REMAINS OPEN`. | pending |
 | AUTO-01 | P0 | target V3 design | OPEN | No durable non-Assistant owner exists for automatic Text Intelligence. | Document/material-generation-scoped durable Text Intelligence work ledger or explicitly approved equivalent. | Material V3 schema | — | — |
 | ASST-01 | P0 | present today | OPEN | Visual stages are planned but not executed; Advanced can start before required Visual. | Local-only reasoner, executable Visual branch, local re-synthesis and Advanced ordering proof. | Visual V2 + Text Intelligence V3 | — | — |
 | GMAIL-01 | P1 | present today | OPEN | Five mailbox messages are missing from PostgreSQL; six unmatched sources now resolve certainly; one current linked conflict exists. | Bounded, idempotent, owner-approved mailbox/import reconciliation and repair report. | GMAIL-02; backup gate | — | — |
@@ -319,11 +319,49 @@ Znane ograniczenia:
 
 ### 5.4 DOC-04 — controlled metadata repair
 
-- [ ] Przygotować osobny read-only projection i exact repair plan dla Document
-  `8903` bez ujawniania customer content.
-- [ ] Wymagać zweryfikowanego backupu i osobnego owner approval.
-- [ ] Naprawić wyłącznie zatwierdzony rekord; bez bulk/history rewrite.
-- [ ] Zweryfikować before/after hash, JSON correctness i audit trail.
+**Status:** `OPEN — PLAN_READY_FOR_OWNER_REVIEW`
+
+- [x] Production diagnosis wykonano read-only.
+- [x] Affected scope ograniczono do Document `8903`.
+- [x] Zidentyfikowano affected columns: `metadata_raw` i
+  `metadata_normalized`.
+- [x] Zapisano exact before hashes.
+- [x] Zapisano exact deterministic candidate hashes.
+- [x] Zweryfikowano storage size/checksum integrity.
+- [x] Wybrano minimal lexical repair.
+- [x] Isolated PostgreSQL `jsonb` candidate validation: PASS.
+- [x] Zaprojektowano compare-and-swap, backup i write gates.
+- [x] Customer-content-free projection committed.
+- [ ] Zaimplementować shared surrogate-safe metadata persistence boundary.
+- [ ] Dodać recurrence-prevention tests.
+- [ ] Zbudować exact isolated repair executable.
+- [ ] Wykonać production-shape isolated rehearsal.
+- [ ] Utworzyć fresh verified physical backup.
+- [ ] Uzyskać osobne owner approval dla production write.
+- [ ] Freshly recheck before hashes, `xmin`, `updated_at` i storage checksum.
+- [ ] Naprawić dokładnie jeden row i dwie columns.
+- [ ] Wygenerować post-repair before/after evidence.
+- [ ] Potwierdzić, że żaden inny Document się nie zmienił.
+
+The actual production repair is **NOT authorized** by the projection report or
+this roadmap update.
+
+#### 5.4.1 DOC-04A — recurrence hardening and isolated repair executable
+
+Potwierdzona luka recurrence:
+
+- `DocumentMetadataService._json_safe` przyjmuje strings bez zmian;
+- `DocumentMetadataService._clean` nie odrzuca unpaired surrogates;
+- dynamic keys są stringified bez surrogate check;
+- intake metadata może wejść do `metadata_raw`;
+- `DocumentProcessingService` zapisuje wynik bez wspólnej surrogate-safe
+  persistence boundary;
+- PostgreSQL `JSON` może przyjąć wartość odrzuconą później przez operatory
+  `jsonb`.
+
+Następny source task: **DOC-04A — implement one shared surrogate-safe metadata
+persistence boundary and an isolated repair executable.** DOC-04A musi zostać
+zakończony przed production repair.
 
 ## 6. Material V3
 
@@ -562,7 +600,9 @@ deletion jest disabled, a owner retention policy nie jest jeszcze configured.
 - [ ] DOC-01 — `FIXED_UNVERIFIED`; deployment and Material V3 closure pending.
 - [ ] DOC-02 — `FIXED_UNVERIFIED`; deployment/live verification and Material V3 finalization pending.
 - [ ] DOC-03 — `FIXED_UNVERIFIED`; deployment, live queue recovery and Material V3 finalization pending.
-- [ ] **NEXT ACTIVE: DOC-04 — read-only repair projection and owner-gated repair plan for the single invalid metadata record.**
+- [ ] **NEXT ACTIVE: DOC-04A — surrogate-safe metadata persistence boundary and isolated repair executable; NO production write.**
+- [ ] Po DOC-04A: independent audit, main promotion, verified backup i osobne
+  owner production-repair approval.
 - [ ] DOC-04 repair wymaga osobnego approval; ten krok nie autoryzuje zapisu.
 
 ### PHASE 2 — Visual V2 migration correction
@@ -717,6 +757,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-09-01 | DOC-01 | Independent source/test review and main-based promotion | audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; main `d69e373fc435c6a5373a256b1acd206fddd3d184` | SOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment and Material V3 closure pending | Owner/Assistant independent Git review |
 | 2026-09-01 | DOC-02 | Independent source/test review, main-based revalidation and bounded format probes | audit `c08b55a07ac1a8b761f0c06ed70dd90085a7b944`; main `5ae13876ed4e0104a9c049e5b68d67177b0372d9` | SOURCE RESOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment, live verification and Material V3 finalization pending | Owner/Assistant independent Git review |
 | 2026-09-01 | DOC-03 | Independent source/test review, main-based fencing and queue-drain validation | audit `b1dee3d0afff1aefb5235176502cf0256fe975ce`; main `f601c2c4cb88f58f5095b842b0135316d8721f6f` | SOURCE LEASE RECOVERY/FENCING PASS / FIXED_UNVERIFIED; deployment, live queue recovery and Material V3 finalization pending | Owner/Assistant independent Git review |
+| 2026-09-01 | DOC-04 PROJECTION | Independent Git/report review; single-row read-only projection; exact before/candidate hashes; isolated PostgreSQL validation | audit `9567583fcef4278b32e46d0c81e8328106332499`; main `5e2167fabf8229b703b8757853f059fc20c14f50`; `FOLLOWUP_PRECHUNK23_DOC04_METADATA_REPAIR_PROJECTION.md` | PLAN READY FOR OWNER REVIEW / DOC-04 REMAINS OPEN; no production repair; recurrence hardening and write gate pending | Owner/Assistant independent Git review |
 | — | — | — | — | — | — |
 
 ## 18. Decision log
@@ -730,6 +771,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-09-01 | Promote DOC-01 fail-closed containment to main | It prevents automatic external V1 Vision without changing production data or globally disabling explicit compatibility | Source accepted; no deployment; scan-only ingestion safely fails closed until Material V3/Visual V2 |
 | 2026-09-01 | Promote DOC-02 bounded Office archive extraction to main | It removes the unbounded ZIP-member RAM allocation path and adds deterministic archive/image limits without changing formats, schema or external services | Source accepted; no deployment; remaining force-atomicity and shared-resource coordination are retained as explicit future hardening |
 | 2026-09-01 | Promote DOC-03 lease recovery and attempt fencing to main | It prevents stale workers from mutating a reclaimed preparation attempt and keeps recovery active during long intelligence waits | Source accepted; no deployment or production-job recovery; structural side-effect fencing and serial throughput remain Material V3/RES-02 work |
+| 2026-09-01 | Accept DOC-04 minimal lexical repair projection, but do not execute it yet | The plan proves one-row/two-column scope and deterministic candidates, while current metadata persistence still permits recurrence | Report promoted to main; source hardening and isolated repair rehearsal must precede any owner-approved production update |
 
 ## 19. Current verdicts
 
