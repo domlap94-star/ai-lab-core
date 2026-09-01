@@ -4,6 +4,7 @@ import hashlib
 import os
 import socket
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -29,6 +30,7 @@ from app.services.unified_document_content_service import (
 
 PROCESSOR_GENERATION = "document-preparation-v2"
 LEASE_MINUTES = 45
+RECOVERY_BATCH_SIZE = 50
 INGESTION_EXTERNAL_VISION_BLOCKED = "INGESTION_EXTERNAL_VISION_BLOCKED"
 DOCUMENT_INTELLIGENCE_RESOURCE_WAIT_CODES = frozenset({
     "LOCAL_RESOURCE_WAIT",
@@ -51,6 +53,12 @@ def document_intelligence_resource_wait_code(reason: str) -> str:
 
 def is_document_intelligence_resource_wait(error_code: str | None) -> bool:
     return error_code in DOCUMENT_INTELLIGENCE_RESOURCE_WAIT_CODES
+
+
+@dataclass(frozen=True)
+class PreparationClaim:
+    job_id: str
+    lease_owner: str
 
 
 class DocumentPreparationService:
@@ -115,17 +123,27 @@ class DocumentPreparationService:
             DocumentPreparationJob.status == "running",
             DocumentPreparationJob.lease_expires_at.is_not(None),
             DocumentPreparationJob.lease_expires_at < now,
-        ).with_for_update(skip_locked=True).all()
+        ).order_by(
+            DocumentPreparationJob.lease_expires_at,
+            DocumentPreparationJob.id,
+        ).with_for_update(skip_locked=True).limit(RECOVERY_BATCH_SIZE).all()
         recovered = 0
         for job in jobs:
             if job.attempt_count >= job.max_attempts:
                 self._terminal(job, "failed", "failed", "PREPARATION_ATTEMPTS_EXHAUSTED", "owner_action")
             else:
-                job.status = "queued"; job.stage = "queued"; job.lease_owner = None; job.lease_expires_at = None
+                job.status = "queued"
+                job.stage = "queued"
+                job.error_code = "PREPARATION_LEASE_EXPIRED"
+                job.retryability = "recoverable"
+                job.lease_owner = None
+                job.lease_expires_at = None
+                job.queued_at = now
+                job.finished_at = None
             recovered += 1
         return recovered
 
-    def claim_next(self) -> str | None:
+    def claim_next(self) -> PreparationClaim | None:
         now = datetime.now(UTC)
         age = func.least(3, func.floor(func.extract("epoch", now - DocumentPreparationJob.queued_at) / 1800))
         job = self.db.query(DocumentPreparationJob).filter(
@@ -137,27 +155,28 @@ class DocumentPreparationService:
             return None
         job.status = "running"; job.stage = "validating"; job.attempt_count += 1
         job.started_at = job.started_at or now
-        job.lease_owner = f"{socket.gethostname()}:{os.getpid()}"
+        host = socket.gethostname()[:40]
+        job.lease_owner = f"{host}:{os.getpid()}:{uuid.uuid4()}"
         job.lease_expires_at = now + timedelta(minutes=LEASE_MINUTES)
         self.db.flush()
-        return job.id
+        return PreparationClaim(job_id=job.id, lease_owner=job.lease_owner)
 
-    def process_claimed(self, job_id: str) -> None:
-        job = self.db.get(DocumentPreparationJob, job_id)
-        if job is None or job.status != "running":
-            return
+    def process_claimed(self, claim: PreparationClaim) -> bool:
+        job = self._owned_job(claim, lock=True)
+        if job is None:
+            return False
         document = self.db.query(Document).filter(
             Document.id == job.document_id, Document.trashed_at.is_(None), Document.purged_at.is_(None)
         ).one_or_none()
         if document is None:
-            self._terminal(job, "failed", "failed", "DOCUMENT_NOT_FOUND", "missing_file"); self.db.commit(); return
+            self._terminal(job, "failed", "failed", "DOCUMENT_NOT_FOUND", "missing_file"); self.db.commit(); return False
         try:
             path = resolve_document_storage_path(storage_path=document.storage_path or "", data_root=Path(settings.data_dir))
         except Exception:
-            self._terminal(job, "failed", "failed", "DOCUMENT_FILE_NOT_FOUND", "missing_file"); self.db.commit(); return
+            self._terminal(job, "failed", "failed", "DOCUMENT_FILE_NOT_FOUND", "missing_file"); self.db.commit(); return False
         actual = self._sha256(path)
         if actual != job.input_checksum or actual != (document.checksum_sha256 or "").casefold():
-            self._terminal(job, "integrity_failed", "integrity_failed", "DOCUMENT_STORAGE_INTEGRITY_MISMATCH", "integrity"); self.db.commit(); return
+            self._terminal(job, "integrity_failed", "integrity_failed", "DOCUMENT_STORAGE_INTEGRITY_MISMATCH", "integrity"); self.db.commit(); return False
         safety = DocumentFileSafetyService().classify(
             path=path, original_filename=document.original_filename or document.filename,
             declared_mime=document.content_type,
@@ -165,16 +184,18 @@ class DocumentPreparationService:
         if safety.state != "supported":
             status = "integrity_failed" if safety.state == "integrity_failed" else "unsupported"
             retry = "integrity" if status == "integrity_failed" else "unsupported"
-            self._terminal(job, status, status, safety.error_code or "UNSUPPORTED_FORMAT", retry); self.db.commit(); return
+            self._terminal(job, status, status, safety.error_code or "UNSUPPORTED_FORMAT", retry); self.db.commit(); return False
         job.stage = "ocr_processing" if safety.detected_format in {"pdf", "image"} else "extracting"
         self.db.commit()
         result = DocumentProcessingService(self.db).process_document(document_id=document.id)
         self.db.expire_all()
-        job = self.db.get(DocumentPreparationJob, job_id)
         document = self.db.get(Document, document.id)
-        if job is None or job.status == "cancelled":
-            return
+        if document is None:
+            return False
         content = UnifiedDocumentContentService(self.db).access(document)
+        job = self._owned_job(claim, lock=True)
+        if job is None:
+            return False
         if result.status == "processed" and content.state in {FILE_FOUND_NATIVE_TEXT_AVAILABLE, FILE_FOUND_EPHEMERAL_TEXT_AVAILABLE}:
             # CONTENT_READY is not INTELLIGENCE_READY.  The async dispatcher
             # builds and validates the checksum-bound baseline artifact before
@@ -190,7 +211,7 @@ class DocumentPreparationService:
                 # Normal ingestion is local-only. An explicit Assistant or
                 # operator request remains the sole compatibility authority
                 # for the legacy external Vision route.
-                self.contain_ingestion_external_vision(job.id)
+                self.contain_ingestion_external_vision(claim)
             else:
                 job.status = "running"
                 job.stage = "vision_processing"
@@ -203,12 +224,13 @@ class DocumentPreparationService:
             else:
                 self._terminal(job, "failed", "failed", "DOCUMENT_PREPARATION_FAILED", "owner_action")
         self.db.commit()
+        return job.status == "running"
 
-    def contain_ingestion_external_vision(self, job_id: str) -> bool:
+    def contain_ingestion_external_vision(self, claim: PreparationClaim) -> bool:
         """Fail one ingestion generation closed before legacy external Vision."""
         job = (
             self.db.query(DocumentPreparationJob)
-            .filter(DocumentPreparationJob.id == job_id)
+            .filter(DocumentPreparationJob.id == claim.job_id)
             .with_for_update()
             .one_or_none()
         )
@@ -221,7 +243,10 @@ class DocumentPreparationService:
             and job.retryability == "owner_action"
         ):
             return True
-        if job.status != "running":
+        if (
+            job.status != "running"
+            or job.lease_owner != claim.lease_owner
+        ):
             return False
         self._terminal(
             job,
@@ -233,10 +258,12 @@ class DocumentPreparationService:
         self.db.flush()
         return True
 
-    def complete_intelligence(self, job_id: str, artifact_id: str) -> None:
-        job = self.db.get(DocumentPreparationJob, job_id)
-        if job is None or job.status != "running" or job.stage != "local_analysis":
-            return
+    def complete_intelligence(
+        self, claim: PreparationClaim, artifact_id: str
+    ) -> bool:
+        job = self._owned_job(claim, stage="local_analysis", lock=True)
+        if job is None:
+            return False
         if not artifact_id:
             raise ValueError("intelligence_artifact_required")
         artifact = self.db.get(DocumentIntelligenceArtifact, artifact_id)
@@ -252,26 +279,54 @@ class DocumentPreparationService:
             raise ValueError("intelligence_artifact_binding_invalid")
         self._terminal(job, "ready", "ready_for_ai", None, None)
         self.db.flush()
+        return True
 
-    def fail_intelligence(self, job_id: str, error_code: str) -> None:
-        job = self.db.get(DocumentPreparationJob, job_id)
-        if job is None or job.status == "cancelled":
-            return
+    def fail_intelligence(
+        self,
+        claim: PreparationClaim,
+        error_code: str,
+        *,
+        expected_stage: str = "local_analysis",
+    ) -> bool:
+        job = self._owned_job(claim, stage=expected_stage, lock=True)
+        if job is None:
+            return False
         if job.attempt_count < job.max_attempts:
             self._requeue(job, error_code[:100])
         else:
             self._terminal(job, "failed", "failed", error_code[:100], "owner_action")
         self.db.flush()
+        return True
+
+    def _owned_job(
+        self,
+        claim: PreparationClaim,
+        *,
+        stage: str | None = None,
+        lock: bool = False,
+    ) -> DocumentPreparationJob | None:
+        query = self.db.query(DocumentPreparationJob).filter(
+            DocumentPreparationJob.id == claim.job_id,
+            DocumentPreparationJob.status == "running",
+            DocumentPreparationJob.lease_owner == claim.lease_owner,
+        )
+        if stage is not None:
+            query = query.filter(DocumentPreparationJob.stage == stage)
+        if lock:
+            query = query.with_for_update()
+        return query.one_or_none()
 
     @staticmethod
     def _terminal(job: DocumentPreparationJob, status: str, stage: str, error: str | None, retryability: str | None) -> None:
         job.status = status; job.stage = stage; job.error_code = error; job.retryability = retryability
-        job.lease_owner = None; job.lease_expires_at = None; job.finished_at = datetime.now(UTC)
+        job.lease_owner = None; job.lease_expires_at = None
+        job.finished_at = job.finished_at or datetime.now(UTC)
 
     @staticmethod
     def _requeue(job: DocumentPreparationJob, error: str) -> None:
         job.status = "queued"; job.stage = "queued"; job.error_code = error
         job.retryability = "recoverable"; job.lease_owner = None; job.lease_expires_at = None
+        job.finished_at = None
         job.queued_at = datetime.now(UTC) + timedelta(seconds=15)
 
     @staticmethod

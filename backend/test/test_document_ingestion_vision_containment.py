@@ -20,6 +20,7 @@ from app.services.document_preparation_dispatcher import process_preparation_vis
 from app.services.document_preparation_service import (
     INGESTION_EXTERNAL_VISION_BLOCKED,
     DocumentPreparationService,
+    PreparationClaim,
 )
 from app.services.document_service import DocumentService
 from app.services.unified_document_content_service import (
@@ -90,7 +91,7 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         *,
         trigger: str = "ingestion",
         stage: str = "validating",
-    ) -> None:
+    ) -> PreparationClaim:
         job.trigger = trigger
         job.status = "running"
         job.stage = stage
@@ -99,9 +100,10 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         job.finished_at = None
         job.error_code = None
         job.retryability = None
-        job.lease_owner = "isolated-doc01-worker"
+        job.lease_owner = f"isolated-doc01-worker:{uuid.uuid4()}"
         job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=45)
         self.db.commit()
+        return PreparationClaim(job_id=job.id, lease_owner=job.lease_owner)
 
     @staticmethod
     def _assert_contained(test: unittest.TestCase, job: DocumentPreparationJob) -> None:
@@ -113,7 +115,9 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         test.assertIsNone(job.lease_expires_at)
         test.assertIsNotNone(job.finished_at)
 
-    def _process_claimed_with_content(self, job_id: str, state: str) -> None:
+    def _process_claimed_with_content(
+        self, claim: PreparationClaim, state: str
+    ) -> None:
         safety = SimpleNamespace(
             state="supported",
             detected_format="text",
@@ -138,7 +142,7 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
                 return_value=content,
             ),
         ):
-            DocumentPreparationService(self.db).process_claimed(job_id)
+            DocumentPreparationService(self.db).process_claimed(claim)
 
     def _complete_legacy_vision(self, document_id: int) -> None:
         db = SessionLocal()
@@ -152,7 +156,7 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
 
     def test_t01_new_ingestion_never_enters_vision(self) -> None:
         document, job = self._store(suffix="txt", content_type="text/plain")
-        self._running(job)
+        claim = self._running(job)
         original_vision = (
             document.vision_status,
             document.vision_attempt_count,
@@ -173,7 +177,9 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
                 "VisionSupervisorClient.create_job"
             ) as create_job,
         ):
-            self._process_claimed_with_content(job.id, FILE_FOUND_REQUIRES_OCR)
+            self._process_claimed_with_content(
+                claim, FILE_FOUND_REQUIRES_OCR
+            )
 
         self.db.expire_all()
         terminal = self.db.get(DocumentPreparationJob, job.id)
@@ -196,7 +202,7 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
 
     def test_t02_existing_ingestion_vision_processing_is_contained(self) -> None:
         document, job = self._store(suffix="txt", content_type="text/plain")
-        self._running(job, stage="vision_processing")
+        claim = self._running(job, stage="vision_processing")
         original_vision = (
             document.vision_status,
             document.vision_attempt_count,
@@ -208,7 +214,7 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
             "process_explicit_vision_document",
             side_effect=AssertionError("legacy Vision must not run for ingestion"),
         ) as explicit:
-            self.assertFalse(asyncio.run(process_preparation_vision(job.id)))
+            self.assertFalse(asyncio.run(process_preparation_vision(claim)))
 
         self.db.expire_all()
         terminal = self.db.get(DocumentPreparationJob, job.id)
@@ -228,16 +234,16 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
 
     def test_t03_containment_is_idempotent(self) -> None:
         _document, job = self._store(suffix="txt", content_type="text/plain")
-        self._running(job, stage="vision_processing")
+        claim = self._running(job, stage="vision_processing")
         service = DocumentPreparationService(self.db)
         attempts = job.attempt_count
-        self.assertTrue(service.contain_ingestion_external_vision(job.id))
+        self.assertTrue(service.contain_ingestion_external_vision(claim))
         self.db.commit()
         self.db.expire_all()
         first = self.db.get(DocumentPreparationJob, job.id)
         assert first is not None
         first_finished = first.finished_at
-        self.assertTrue(service.contain_ingestion_external_vision(job.id))
+        self.assertTrue(service.contain_ingestion_external_vision(claim))
         self.db.commit()
         self.db.expire_all()
         second = self.db.get(DocumentPreparationJob, job.id)
@@ -256,7 +262,12 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         other.finished_at = datetime.now(UTC)
         self.db.commit()
         other_finished = other.finished_at
-        self.assertFalse(service.contain_ingestion_external_vision(other.id))
+        self.assertFalse(service.contain_ingestion_external_vision(
+            PreparationClaim(
+                job_id=other.id,
+                lease_owner="isolated-doc01-non-owner",
+            )
+        ))
         self.db.commit()
         self.db.expire_all()
         unchanged = self.db.get(DocumentPreparationJob, other.id)
@@ -268,13 +279,15 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
 
     def _assert_explicit_compatibility(self, trigger: str) -> None:
         document, job = self._store(suffix="txt", content_type="text/plain")
-        self._running(job, trigger=trigger, stage="vision_processing")
+        claim = self._running(
+            job, trigger=trigger, stage="vision_processing"
+        )
         with patch(
             "app.services.document_preparation_dispatcher."
             "process_explicit_vision_document",
             side_effect=self._complete_legacy_vision,
         ) as explicit:
-            self.assertTrue(asyncio.run(process_preparation_vision(job.id)))
+            self.assertTrue(asyncio.run(process_preparation_vision(claim)))
         explicit.assert_called_once_with(document.id)
         self.db.expire_all()
         current = self.db.get(DocumentPreparationJob, job.id)
@@ -291,8 +304,10 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
 
     def test_t06_local_text_ingestion_still_proceeds_locally(self) -> None:
         _document, job = self._store(suffix="txt", content_type="text/plain")
-        self._running(job)
-        self._process_claimed_with_content(job.id, FILE_FOUND_NATIVE_TEXT_AVAILABLE)
+        claim = self._running(job)
+        self._process_claimed_with_content(
+            claim, FILE_FOUND_NATIVE_TEXT_AVAILABLE
+        )
         self.db.expire_all()
         current = self.db.get(DocumentPreparationJob, job.id)
         assert current is not None
