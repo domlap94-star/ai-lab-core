@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import ntpath
 import os
 import subprocess
 import sys
 
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +46,22 @@ REPAIR_PRODUCTION_GUARD = "DOCUMENT_METADATA_REPAIR_PRODUCTION_GUARD"
 REPAIR_DATABASE_MISMATCH = "DOCUMENT_METADATA_REPAIR_DATABASE_MISMATCH"
 REPAIR_ALEMBIC_MISMATCH = "DOCUMENT_METADATA_REPAIR_ALEMBIC_MISMATCH"
 REPAIR_BACKUP_INVALID = "DOCUMENT_METADATA_REPAIR_BACKUP_INVALID"
+REPAIR_BACKUP_SCOPE_INVALID = (
+    "DOCUMENT_METADATA_REPAIR_BACKUP_SCOPE_INVALID"
+)
+REPAIR_BACKUP_STALE = "DOCUMENT_METADATA_REPAIR_BACKUP_STALE"
+REPAIR_BACKUP_TIME_MISMATCH = (
+    "DOCUMENT_METADATA_REPAIR_BACKUP_TIME_MISMATCH"
+)
+REPAIR_BACKUP_PATH_INVALID = (
+    "DOCUMENT_METADATA_REPAIR_BACKUP_PATH_INVALID"
+)
+REPAIR_BACKUP_MANIFEST_MISMATCH = (
+    "DOCUMENT_METADATA_REPAIR_BACKUP_MANIFEST_MISMATCH"
+)
+REPAIR_BACKUP_DISAPPEARED = (
+    "DOCUMENT_METADATA_REPAIR_BACKUP_DISAPPEARED"
+)
 REPAIR_ACTIVE_OPERATION = "DOCUMENT_METADATA_REPAIR_ACTIVE_OPERATION"
 REPAIR_TARGET_MISSING = "DOCUMENT_METADATA_REPAIR_TARGET_MISSING"
 REPAIR_NULL_SHAPE = "DOCUMENT_METADATA_REPAIR_NULL_SHAPE"
@@ -55,10 +72,23 @@ REPAIR_STORAGE = "DOCUMENT_METADATA_REPAIR_STORAGE"
 REPAIR_SCOPE = "DOCUMENT_METADATA_REPAIR_SCOPE"
 REPAIR_ROW_COUNT = "DOCUMENT_METADATA_REPAIR_ROW_COUNT"
 REPAIR_POSTCONDITION = "DOCUMENT_METADATA_REPAIR_POSTCONDITION"
+REPAIR_RUNTIME_SOURCE_MISMATCH = (
+    "DOCUMENT_METADATA_REPAIR_RUNTIME_SOURCE_MISMATCH"
+)
+REPAIR_TARGET_ACTIVE = "DOCUMENT_METADATA_REPAIR_TARGET_ACTIVE"
 
 _HEX64 = frozenset("0123456789abcdef")
 _MAX_SCOPE_DOCUMENTS = 100_000
 _MAX_METADATA_TEXT_CHARS = 16 * 1024 * 1024
+_MAX_BACKUP_AGE_SECONDS = 86_400
+_CRITICAL_RUNTIME_PATHS = (
+    "backend/app/scripts/repair_document_metadata_surrogates.py",
+    "backend/app/services/document_metadata_unicode_safety.py",
+    "backend/app/services/document_metadata_service.py",
+    "backend/app/services/document_service.py",
+    "backend/app/services/document_processing_service.py",
+    "backend/app/repositories/document_repository.py",
+)
 
 
 class DocumentMetadataRepairError(RuntimeError):
@@ -85,6 +115,33 @@ class RepairContract:
     owner_approval_id: str | None = None
     verified_backup_run_id: int | None = None
     verified_backup_manifest_sha256: str | None = None
+    expected_backup_finished_at: datetime | None = None
+    maximum_backup_age_seconds: int | None = None
+    expected_backup_destination_root_sha256: str | None = None
+
+
+@dataclass(frozen=True)
+class BackupEvidence:
+    backup_run_id: int
+    run_scope: str
+    status: str
+    stage: str
+    verified: bool
+    schedule_id: int | None
+    started_at: datetime
+    finished_at: datetime | None
+    managed_backup_run_id: int
+    managed_scope: str
+    integrity_status: str
+    lifecycle: str
+    deleted_at: datetime | None
+    destination_root: str = field(repr=False)
+    checkpoint_path: str = field(repr=False)
+    manifest_path: str = field(repr=False)
+    manifest_sha256: str
+    source_head: str
+    db_revision: str
+    managed_created_at: datetime
 
 
 @dataclass(frozen=True)
@@ -135,27 +192,93 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _runtime_git_sha() -> str:
+def _git_output(
+    arguments: list[str],
+    *,
+    cwd: Path,
+    text_output: bool,
+) -> str | bytes:
+    try:
+        process = subprocess.run(
+            ["git", *arguments],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+            text=text_output,
+            timeout=5,
+        )
+        return (
+            process.stdout.strip()
+            if text_output
+            else process.stdout
+        )
+    except Exception as error:
+        raise DocumentMetadataRepairError(
+            REPAIR_RUNTIME_SOURCE_MISMATCH
+        ) from error
+
+
+def _verify_runtime_source_identity(
+    expected_git_sha: str,
+    *,
+    script_path: Path | None = None,
+) -> None:
     configured = os.environ.get(
         "NEXT_STABIL_RUNTIME_GIT_SHA", ""
     ).strip()
-    if configured:
-        return configured
-    try:
-        repository = Path(__file__).resolve().parents[3]
-        process = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repository,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        return process.stdout.strip()
-    except Exception as error:
+    if configured and configured != expected_git_sha:
         raise DocumentMetadataRepairError(
-            REPAIR_PRODUCTION_GUARD
+            REPAIR_RUNTIME_SOURCE_MISMATCH
+        )
+    try:
+        anchor = (script_path or Path(__file__)).resolve(strict=True)
+    except OSError as error:
+        raise DocumentMetadataRepairError(
+            REPAIR_RUNTIME_SOURCE_MISMATCH
         ) from error
+    repository_text = _git_output(
+        ["rev-parse", "--show-toplevel"],
+        cwd=anchor.parent,
+        text_output=True,
+    )
+    try:
+        repository = Path(str(repository_text)).resolve(strict=True)
+    except OSError as error:
+        raise DocumentMetadataRepairError(
+            REPAIR_RUNTIME_SOURCE_MISMATCH
+        ) from error
+    head = str(
+        _git_output(
+            ["rev-parse", "HEAD"],
+            cwd=repository,
+            text_output=True,
+        )
+    )
+    if head != expected_git_sha:
+        raise DocumentMetadataRepairError(
+            REPAIR_RUNTIME_SOURCE_MISMATCH
+        )
+    for relative in _CRITICAL_RUNTIME_PATHS:
+        working = repository / relative
+        if not working.is_file() or working.is_symlink():
+            raise DocumentMetadataRepairError(
+                REPAIR_RUNTIME_SOURCE_MISMATCH
+            )
+        committed = _git_output(
+            ["show", f"{expected_git_sha}:{relative}"],
+            cwd=repository,
+            text_output=False,
+        )
+        try:
+            working_bytes = working.read_bytes()
+        except OSError as error:
+            raise DocumentMetadataRepairError(
+                REPAIR_RUNTIME_SOURCE_MISMATCH
+            ) from error
+        if working_bytes != bytes(committed):
+            raise DocumentMetadataRepairError(
+                REPAIR_RUNTIME_SOURCE_MISMATCH
+            )
 
 
 def _relation_counts(connection: Connection) -> dict[str, int]:
@@ -179,15 +302,206 @@ def _relation_counts(connection: Connection) -> dict[str, int]:
     }
 
 
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _normalized_backup_root(value: str) -> str:
+    return ntpath.normcase(ntpath.normpath(value.strip()))
+
+
+def _backup_root_sha256(value: str) -> str:
+    return hashlib.sha256(
+        _normalized_backup_root(value).encode("utf-8")
+    ).hexdigest()
+
+
+def _load_backup_evidence(
+    connection: Connection,
+    backup_run_id: int,
+) -> BackupEvidence:
+    row = connection.execute(
+        text(
+            "SELECT br.id AS backup_run_id, br.scope AS run_scope, "
+            "br.status, br.stage, br.verified, br.schedule_id, "
+            "br.started_at, br.finished_at, "
+            "mb.backup_run_id AS managed_backup_run_id, "
+            "mb.scope AS managed_scope, mb.integrity_status, "
+            "mb.lifecycle, mb.deleted_at, mb.destination_root, "
+            "mb.checkpoint_path, mb.manifest_path, mb.manifest_sha256, "
+            "mb.source_head, mb.db_revision, "
+            "mb.created_at AS managed_created_at "
+            "FROM backup_runs br "
+            "JOIN managed_backups mb ON mb.backup_run_id=br.id "
+            "WHERE br.id=:backup_run_id "
+            "FOR SHARE OF br, mb"
+        ),
+        {"backup_run_id": backup_run_id},
+    ).mappings().one_or_none()
+    if row is None:
+        raise DocumentMetadataRepairError(REPAIR_BACKUP_INVALID)
+    try:
+        return BackupEvidence(**dict(row))
+    except Exception as error:
+        raise DocumentMetadataRepairError(
+            REPAIR_BACKUP_INVALID
+        ) from error
+
+
+def _validate_backup_evidence(
+    evidence: BackupEvidence,
+    *,
+    contract: RepairContract,
+    transaction_time: datetime,
+) -> None:
+    if (
+        evidence.run_scope not in {"database", "full"}
+        or evidence.managed_scope not in {"database", "full"}
+        or evidence.run_scope != evidence.managed_scope
+    ):
+        raise DocumentMetadataRepairError(
+            REPAIR_BACKUP_SCOPE_INVALID
+        )
+    if (
+        evidence.backup_run_id != contract.verified_backup_run_id
+        or evidence.managed_backup_run_id != evidence.backup_run_id
+        or evidence.status != "completed"
+        or evidence.stage != "completed"
+        or evidence.verified is not True
+        or evidence.integrity_status != "verified"
+        or evidence.lifecycle != "available"
+        or evidence.deleted_at is not None
+        or evidence.finished_at is None
+        or evidence.db_revision != contract.expected_alembic_head
+        or evidence.source_head != contract.expected_git_sha
+        or evidence.manifest_sha256.lower()
+        != contract.verified_backup_manifest_sha256
+    ):
+        raise DocumentMetadataRepairError(REPAIR_BACKUP_INVALID)
+    expected_finished = contract.expected_backup_finished_at
+    if (
+        expected_finished is None
+        or _as_utc(evidence.finished_at)
+        != _as_utc(expected_finished)
+    ):
+        raise DocumentMetadataRepairError(
+            REPAIR_BACKUP_TIME_MISMATCH
+        )
+    maximum_age = contract.maximum_backup_age_seconds
+    if (
+        not isinstance(maximum_age, int)
+        or isinstance(maximum_age, bool)
+        or maximum_age <= 0
+        or maximum_age > _MAX_BACKUP_AGE_SECONDS
+    ):
+        raise DocumentMetadataRepairError(REPAIR_BACKUP_STALE)
+    finished = _as_utc(evidence.finished_at)
+    transaction_started = _as_utc(transaction_time)
+    age_seconds = (transaction_started - finished).total_seconds()
+    if age_seconds <= 0 or age_seconds > maximum_age:
+        raise DocumentMetadataRepairError(REPAIR_BACKUP_STALE)
+
+
+def _physical_error(*, recheck: bool) -> str:
+    return (
+        REPAIR_BACKUP_DISAPPEARED
+        if recheck
+        else REPAIR_BACKUP_PATH_INVALID
+    )
+
+
+def _resolve_backup_member(
+    raw_path: str,
+    *,
+    root: Path,
+    recheck: bool,
+) -> Path:
+    try:
+        candidate = Path(raw_path)
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        lexical_candidate = Path(os.path.abspath(candidate))
+        lexical_relative = lexical_candidate.relative_to(root)
+        cursor = root
+        for segment in lexical_relative.parts:
+            cursor = cursor / segment
+            if cursor.is_symlink():
+                raise ValueError
+        resolved = lexical_candidate.resolve(strict=True)
+        resolved.relative_to(root)
+        return resolved
+    except (OSError, ValueError) as error:
+        raise DocumentMetadataRepairError(
+            _physical_error(recheck=recheck)
+        ) from error
+
+
+def _verify_backup_physical(
+    evidence: BackupEvidence,
+    *,
+    contract: RepairContract,
+    recheck: bool,
+) -> None:
+    if (
+        _backup_root_sha256(evidence.destination_root)
+        != contract.expected_backup_destination_root_sha256
+    ):
+        raise DocumentMetadataRepairError(
+            REPAIR_BACKUP_PATH_INVALID
+        )
+    try:
+        root_candidate = Path(evidence.destination_root)
+        if root_candidate.is_symlink():
+            raise ValueError
+        root = root_candidate.resolve(strict=True)
+        if not root.is_dir():
+            raise ValueError
+    except (OSError, ValueError) as error:
+        raise DocumentMetadataRepairError(
+            _physical_error(recheck=recheck)
+        ) from error
+    checkpoint = _resolve_backup_member(
+        evidence.checkpoint_path,
+        root=root,
+        recheck=recheck,
+    )
+    manifest = _resolve_backup_member(
+        evidence.manifest_path,
+        root=root,
+        recheck=recheck,
+    )
+    if not checkpoint.exists() or not manifest.is_file():
+        raise DocumentMetadataRepairError(
+            _physical_error(recheck=recheck)
+        )
+    try:
+        actual_manifest_sha256 = _sha256_file(manifest)
+    except OSError as error:
+        raise DocumentMetadataRepairError(
+            _physical_error(recheck=recheck)
+        ) from error
+    if (
+        actual_manifest_sha256 != evidence.manifest_sha256.lower()
+        or actual_manifest_sha256
+        != contract.verified_backup_manifest_sha256
+    ):
+        raise DocumentMetadataRepairError(
+            REPAIR_BACKUP_MANIFEST_MISMATCH
+        )
+
+
 def _validate_production_gate(
     connection: Connection,
     *,
     database: str,
     execute: bool,
     contract: RepairContract,
-) -> None:
+    transaction_time: datetime | None = None,
+) -> BackupEvidence | None:
     if database != "ai_lab":
-        return
+        return None
     required = (
         execute,
         contract.allow_production_ai_lab,
@@ -199,6 +513,11 @@ def _validate_production_gate(
         _is_sha256(contract.expected_storage_sha256),
         contract.verified_backup_run_id is not None,
         _is_sha256(contract.verified_backup_manifest_sha256),
+        isinstance(contract.expected_backup_finished_at, datetime),
+        isinstance(contract.maximum_backup_age_seconds, int),
+        _is_sha256(
+            contract.expected_backup_destination_root_sha256
+        ),
         _is_sha256(contract.expected_raw_before_sha256),
         _is_sha256(contract.expected_raw_candidate_sha256),
         _is_sha256(contract.expected_normalized_before_sha256),
@@ -221,33 +540,22 @@ def _validate_production_gate(
         raise DocumentMetadataRepairError(
             REPAIR_PRODUCTION_GUARD
         )
-    if _runtime_git_sha() != contract.expected_git_sha:
-        raise DocumentMetadataRepairError(
-            REPAIR_PRODUCTION_GUARD
-        )
-
-    backup = connection.execute(
-        text(
-            "SELECT br.status, br.verified, mb.manifest_sha256, "
-            "mb.integrity_status, mb.lifecycle "
-            "FROM backup_runs br "
-            "JOIN managed_backups mb ON mb.backup_run_id=br.id "
-            "WHERE br.id=:backup_run_id"
-        ),
-        {"backup_run_id": contract.verified_backup_run_id},
-    ).mappings().one_or_none()
-    if (
-        backup is None
-        or backup["status"] != "completed"
-        or backup["verified"] is not True
-        or backup["integrity_status"] != "verified"
-        or backup["lifecycle"] != "available"
-        or str(backup["manifest_sha256"]).lower()
-        != contract.verified_backup_manifest_sha256
-    ):
-        raise DocumentMetadataRepairError(
-            REPAIR_BACKUP_INVALID
-        )
+    _verify_runtime_source_identity(str(contract.expected_git_sha))
+    evidence = _load_backup_evidence(
+        connection,
+        int(contract.verified_backup_run_id),
+    )
+    _validate_backup_evidence(
+        evidence,
+        contract=contract,
+        transaction_time=transaction_time or datetime.now(UTC),
+    )
+    _verify_backup_physical(
+        evidence,
+        contract=contract,
+        recheck=False,
+    )
+    return evidence
 
 
 def _assert_no_active_operations(connection: Connection) -> None:
@@ -271,6 +579,42 @@ def _assert_no_active_operations(connection: Connection) -> None:
         raise DocumentMetadataRepairError(
             REPAIR_ACTIVE_OPERATION
         )
+
+
+def _assert_target_quiescent(
+    connection: Connection,
+    row: dict[str, Any],
+) -> None:
+    if (
+        row.get("processing_status") != "processed"
+        or row.get("metadata_status") != "processed"
+        or row.get("trashed_at") is not None
+        or row.get("purged_at") is not None
+    ):
+        raise DocumentMetadataRepairError(REPAIR_TARGET_ACTIVE)
+    active = connection.execute(
+        text(
+            "SELECT id, status FROM document_preparation_jobs "
+            "WHERE document_id=:id AND status IN ('queued','running') "
+            "ORDER BY id FOR SHARE"
+        ),
+        {"id": TARGET_DOCUMENT_ID},
+    ).all()
+    if active:
+        raise DocumentMetadataRepairError(REPAIR_TARGET_ACTIVE)
+
+
+def _reload_target_state(connection: Connection) -> dict[str, Any]:
+    row = connection.execute(
+        text(
+            "SELECT processing_status, metadata_status, trashed_at, "
+            "purged_at FROM documents WHERE id=:id"
+        ),
+        {"id": TARGET_DOCUMENT_ID},
+    ).mappings().one_or_none()
+    if row is None:
+        raise DocumentMetadataRepairError(REPAIR_TARGET_MISSING)
+    return dict(row)
 
 
 def _scope_scan(connection: Connection) -> tuple[int, tuple[str, ...]]:
@@ -321,6 +665,38 @@ def _assert_candidate(
         )
 
 
+def _revalidate_production_guards(
+    connection: Connection,
+    *,
+    contract: RepairContract,
+    initial_backup: BackupEvidence,
+) -> None:
+    _assert_no_active_operations(connection)
+    _assert_target_quiescent(
+        connection,
+        _reload_target_state(connection),
+    )
+    _verify_runtime_source_identity(str(contract.expected_git_sha))
+    refreshed_backup = _load_backup_evidence(
+        connection,
+        int(contract.verified_backup_run_id),
+    )
+    _validate_backup_evidence(
+        refreshed_backup,
+        contract=contract,
+        transaction_time=connection.execute(
+            text("SELECT clock_timestamp()")
+        ).scalar_one(),
+    )
+    if refreshed_backup != initial_backup:
+        raise DocumentMetadataRepairError(REPAIR_BACKUP_INVALID)
+    _verify_backup_physical(
+        refreshed_backup,
+        contract=contract,
+        recheck=True,
+    )
+
+
 def execute_repair(
     connection: Connection,
     *,
@@ -341,15 +717,19 @@ def execute_repair(
                 text("SELECT current_database()")
             ).scalar_one()
         )
+        transaction_time = connection.execute(
+            text("SELECT clock_timestamp()")
+        ).scalar_one()
         if database != contract.expected_database:
             raise DocumentMetadataRepairError(
                 REPAIR_DATABASE_MISMATCH
             )
-        _validate_production_gate(
+        initial_backup = _validate_production_gate(
             connection,
             database=database,
             execute=execute,
             contract=contract,
+            transaction_time=transaction_time,
         )
         db_head = str(
             connection.execute(
@@ -369,7 +749,8 @@ def execute_repair(
                 "metadata_normalized IS NULL AS normalized_is_null, "
                 "metadata_raw::text AS metadata_raw, "
                 "metadata_normalized::text AS metadata_normalized, "
-                "storage_path, file_size, checksum_sha256 "
+                "storage_path, file_size, checksum_sha256, "
+                "processing_status, metadata_status, trashed_at, purged_at "
                 "FROM documents WHERE id=:id FOR UPDATE"
             ),
             {"id": TARGET_DOCUMENT_ID},
@@ -380,6 +761,7 @@ def execute_repair(
             )
         if row["raw_is_null"] or row["normalized_is_null"]:
             raise DocumentMetadataRepairError(REPAIR_NULL_SHAPE)
+        _assert_target_quiescent(connection, dict(row))
         if (
             str(row["xmin"]) != contract.expected_xmin
             or row["updated_at"] != contract.expected_updated_at
@@ -436,6 +818,10 @@ def execute_repair(
         )
 
         if execute:
+            _assert_target_quiescent(
+                connection,
+                _reload_target_state(connection),
+            )
             updated = connection.execute(
                 text(
                     "UPDATE documents SET "
@@ -533,6 +919,20 @@ def execute_repair(
                         raise DocumentMetadataRepairError(
                             REPAIR_POSTCONDITION
                         )
+            _assert_target_quiescent(
+                connection,
+                _reload_target_state(connection),
+            )
+            if database == "ai_lab":
+                if initial_backup is None:
+                    raise DocumentMetadataRepairError(
+                        REPAIR_BACKUP_INVALID
+                    )
+                _revalidate_production_guards(
+                    connection,
+                    contract=contract,
+                    initial_backup=initial_backup,
+                )
             transaction.commit()
             committed = True
         else:
@@ -581,6 +981,12 @@ def _parse_datetime(value: str | None) -> datetime:
         raise DocumentMetadataRepairError(REPAIR_REFUSED) from error
 
 
+def _parse_optional_datetime(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    return _parse_datetime(value)
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Guarded one-row document metadata surrogate repair."
@@ -598,6 +1004,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-storage-sha256", required=True)
     parser.add_argument("--verified-backup-run-id", type=int)
     parser.add_argument("--verified-backup-manifest-sha256")
+    parser.add_argument("--expected-backup-finished-at")
+    parser.add_argument("--maximum-backup-age-seconds", type=int)
+    parser.add_argument(
+        "--expected-backup-destination-root-sha256"
+    )
     parser.add_argument("--expected-raw-before-sha256", required=True)
     parser.add_argument("--expected-raw-candidate-sha256", required=True)
     parser.add_argument(
@@ -641,6 +1052,17 @@ def main(argv: list[str] | None = None) -> int:
             verified_backup_manifest_sha256=(
                 args.verified_backup_manifest_sha256.lower()
                 if args.verified_backup_manifest_sha256
+                else None
+            ),
+            expected_backup_finished_at=_parse_optional_datetime(
+                args.expected_backup_finished_at
+            ),
+            maximum_backup_age_seconds=(
+                args.maximum_backup_age_seconds
+            ),
+            expected_backup_destination_root_sha256=(
+                args.expected_backup_destination_root_sha256.lower()
+                if args.expected_backup_destination_root_sha256
                 else None
             ),
         )

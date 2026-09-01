@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 
@@ -13,6 +16,8 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy import text
 
 from app.database.session import SessionLocal, engine
+from app.models.document import Document
+from app.repositories.document_repository import DocumentRepository
 from app.scripts import repair_document_metadata_surrogates as repair_module
 from app.scripts.repair_document_metadata_surrogates import (
     APPROVED_NORMALIZED_BEFORE_SHA256,
@@ -21,27 +26,46 @@ from app.scripts.repair_document_metadata_surrogates import (
     APPROVED_RAW_CANDIDATE_SHA256,
     REPAIR_ACTIVE_OPERATION,
     REPAIR_ALEMBIC_MISMATCH,
+    REPAIR_BACKUP_DISAPPEARED,
+    REPAIR_BACKUP_INVALID,
+    REPAIR_BACKUP_MANIFEST_MISMATCH,
+    REPAIR_BACKUP_PATH_INVALID,
+    REPAIR_BACKUP_SCOPE_INVALID,
+    REPAIR_BACKUP_STALE,
+    REPAIR_BACKUP_TIME_MISMATCH,
     REPAIR_BEFORE_HASH,
     REPAIR_CANDIDATE_HASH,
     REPAIR_CONCURRENCY,
     REPAIR_POSTCONDITION,
     REPAIR_PRODUCTION_GUARD,
+    REPAIR_RUNTIME_SOURCE_MISMATCH,
     REPAIR_SCOPE,
     REPAIR_STORAGE,
     REPAIR_TARGET_MISSING,
+    REPAIR_TARGET_ACTIVE,
+    BackupEvidence,
     DocumentMetadataRepairError,
     RepairContract,
     RepairResult,
     _assert_no_active_operations,
+    _assert_target_quiescent,
+    _backup_root_sha256,
     _parser,
+    _revalidate_production_guards,
+    _validate_backup_evidence,
     _validate_production_gate,
+    _verify_backup_physical,
+    _verify_runtime_source_identity,
     execute_repair,
 )
 from app.services.document_metadata_unicode_safety import (
     DOCUMENT_METADATA_JSON_INVALID,
     DOCUMENT_METADATA_UNICODE_KEY_COLLISION,
     DocumentMetadataSafetyError,
+    assert_json_compatible_safe,
     repair_json_text_surrogates,
+    sanitize_json_compatible,
+    sanitize_metadata_text,
 )
 from test.support.database_safety import (
     assert_isolated_database,
@@ -76,6 +100,84 @@ def _sha256(value: str | bytes) -> str:
     if isinstance(value, str):
         value = value.encode("utf-8")
     return hashlib.sha256(value).hexdigest()
+
+
+def _backup_evidence(
+    root: Path,
+    *,
+    scope: str = "database",
+    **changes: object,
+) -> BackupEvidence:
+    checkpoint = root / "checkpoint"
+    manifest = checkpoint / "manifest.json"
+    values: dict[str, object] = {
+        "backup_run_id": 7001,
+        "run_scope": scope,
+        "status": "completed",
+        "stage": "completed",
+        "verified": True,
+        "schedule_id": 17,
+        "started_at": UPDATED_AT - timedelta(minutes=10),
+        "finished_at": UPDATED_AT,
+        "managed_backup_run_id": 7001,
+        "managed_scope": scope,
+        "integrity_status": "verified",
+        "lifecycle": "available",
+        "deleted_at": None,
+        "destination_root": str(root),
+        "checkpoint_path": str(checkpoint),
+        "manifest_path": str(manifest),
+        "manifest_sha256": (
+            _sha256(manifest.read_bytes())
+            if manifest.is_file()
+            else "a" * 64
+        ),
+        "source_head": "c" * 40,
+        "db_revision": EXPECTED_HEAD,
+        "managed_created_at": UPDATED_AT,
+    }
+    values.update(changes)
+    return BackupEvidence(**values)
+
+
+def _guard_contract(
+    evidence: BackupEvidence | None = None,
+    **changes: object,
+) -> RepairContract:
+    contract = RepairContract(
+        expected_database="ai_lab",
+        expected_alembic_head=EXPECTED_HEAD,
+        expected_xmin="1",
+        expected_updated_at=UPDATED_AT,
+        expected_storage_sha256="b" * 64,
+        expected_raw_before_sha256=APPROVED_RAW_BEFORE_SHA256,
+        expected_raw_candidate_sha256=APPROVED_RAW_CANDIDATE_SHA256,
+        expected_normalized_before_sha256=(
+            APPROVED_NORMALIZED_BEFORE_SHA256
+        ),
+        expected_normalized_candidate_sha256=(
+            APPROVED_NORMALIZED_CANDIDATE_SHA256
+        ),
+        expected_git_sha="c" * 40,
+        allow_production_ai_lab=True,
+        owner_approval_id="synthetic-approval",
+        verified_backup_run_id=(
+            evidence.backup_run_id if evidence else 7001
+        ),
+        verified_backup_manifest_sha256=(
+            evidence.manifest_sha256 if evidence else "a" * 64
+        ),
+        expected_backup_finished_at=(
+            evidence.finished_at if evidence else UPDATED_AT
+        ),
+        maximum_backup_age_seconds=3600,
+        expected_backup_destination_root_sha256=(
+            _backup_root_sha256(evidence.destination_root)
+            if evidence
+            else "d" * 64
+        ),
+    )
+    return replace(contract, **changes)
 
 
 class DocumentMetadataLexicalRepairTests(unittest.TestCase):
@@ -175,6 +277,395 @@ class DocumentMetadataLexicalRepairTests(unittest.TestCase):
         self.assertNotIn("candidate_text", evidence)
         self.assertIn("before_sha256", evidence)
         self.assertIn("replacements", evidence)
+
+
+class DocumentMetadataProductionGuardTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name) / "backup"
+        self.checkpoint = self.root / "checkpoint"
+        self.checkpoint.mkdir(parents=True)
+        self.manifest = self.checkpoint / "manifest.json"
+        self.manifest.write_bytes(b'{"synthetic":"manifest"}')
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def _evidence(self, **changes: object) -> BackupEvidence:
+        return _backup_evidence(self.root, **changes)
+
+    def _contract(
+        self,
+        evidence: BackupEvidence | None = None,
+        **changes: object,
+    ) -> RepairContract:
+        return _guard_contract(evidence or self._evidence(), **changes)
+
+    def _validate(
+        self,
+        evidence: BackupEvidence,
+        *,
+        contract: RepairContract | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        _validate_backup_evidence(
+            evidence,
+            contract=contract or self._contract(evidence),
+            transaction_time=now or UPDATED_AT + timedelta(minutes=5),
+        )
+
+    def _expect(
+        self,
+        code: str,
+        evidence: BackupEvidence,
+        *,
+        contract: RepairContract | None = None,
+        now: datetime | None = None,
+    ) -> None:
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            self._validate(
+                evidence,
+                contract=contract,
+                now=now,
+            )
+        self.assertEqual(raised.exception.code, code)
+
+    def test_g01_database_backup_passes(self) -> None:
+        evidence = self._evidence(scope="database")
+        self._validate(evidence)
+
+    def test_g02_full_backup_passes(self) -> None:
+        evidence = self._evidence(scope="full")
+        self._validate(evidence)
+
+    def test_g03_n8n_config_backup_rejected(self) -> None:
+        evidence = self._evidence(scope="n8n_config")
+        self._expect(REPAIR_BACKUP_SCOPE_INVALID, evidence)
+
+    def test_g04_documents_backup_rejected(self) -> None:
+        evidence = self._evidence(scope="documents")
+        self._expect(REPAIR_BACKUP_SCOPE_INVALID, evidence)
+
+    def test_g05_qdrant_backup_rejected(self) -> None:
+        evidence = self._evidence(scope="qdrant")
+        self._expect(REPAIR_BACKUP_SCOPE_INVALID, evidence)
+
+    def test_g06_backup_scope_mismatch_rejected(self) -> None:
+        evidence = self._evidence(managed_scope="full")
+        self._expect(REPAIR_BACKUP_SCOPE_INVALID, evidence)
+
+    def test_g07_db_revision_mismatch_rejected(self) -> None:
+        evidence = self._evidence(db_revision="synthetic-wrong")
+        self._expect(REPAIR_BACKUP_INVALID, evidence)
+
+    def test_g08_source_head_mismatch_rejected(self) -> None:
+        evidence = self._evidence(source_head="e" * 40)
+        self._expect(REPAIR_BACKUP_INVALID, evidence)
+
+    def test_g09_finished_at_mismatch_rejected(self) -> None:
+        evidence = self._evidence()
+        contract = self._contract(
+            evidence,
+            expected_backup_finished_at=UPDATED_AT - timedelta(seconds=1),
+        )
+        self._expect(
+            REPAIR_BACKUP_TIME_MISMATCH,
+            evidence,
+            contract=contract,
+        )
+
+    def test_g10_stale_backup_rejected(self) -> None:
+        evidence = self._evidence()
+        contract = self._contract(
+            evidence,
+            maximum_backup_age_seconds=60,
+        )
+        self._expect(
+            REPAIR_BACKUP_STALE,
+            evidence,
+            contract=contract,
+            now=UPDATED_AT + timedelta(seconds=61),
+        )
+        for invalid_maximum in (0, 86_401):
+            with self.subTest(invalid_maximum=invalid_maximum):
+                self._expect(
+                    REPAIR_BACKUP_STALE,
+                    evidence,
+                    contract=self._contract(
+                        evidence,
+                        maximum_backup_age_seconds=invalid_maximum,
+                    ),
+                    now=UPDATED_AT + timedelta(seconds=1),
+                )
+
+    def test_g11_future_backup_rejected(self) -> None:
+        evidence = self._evidence()
+        for transaction_time in (
+            UPDATED_AT,
+            UPDATED_AT - timedelta(microseconds=1),
+        ):
+            with self.subTest(transaction_time=transaction_time):
+                self._expect(
+                    REPAIR_BACKUP_STALE,
+                    evidence,
+                    now=transaction_time,
+                )
+
+    def test_g12_unavailable_deleted_unverified_rejected(self) -> None:
+        variants = (
+            {"lifecycle": "deleted"},
+            {"deleted_at": UPDATED_AT},
+            {"verified": False},
+            {"integrity_status": "unverified"},
+            {"status": "failed"},
+            {"stage": "failed"},
+        )
+        for changes in variants:
+            with self.subTest(changes=changes):
+                evidence = self._evidence(**changes)
+                self._expect(REPAIR_BACKUP_INVALID, evidence)
+
+    def test_g13_missing_destination_root_rejected(self) -> None:
+        missing = Path(self.temporary.name) / "missing-root"
+        evidence = self._evidence(destination_root=str(missing))
+        contract = self._contract(
+            evidence,
+            expected_backup_destination_root_sha256=(
+                _backup_root_sha256(str(missing))
+            ),
+        )
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=contract,
+                recheck=False,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_PATH_INVALID)
+
+    def test_g14_checkpoint_outside_root_rejected(self) -> None:
+        outside = Path(self.temporary.name) / "outside-checkpoint"
+        outside.mkdir()
+        evidence = self._evidence(checkpoint_path=str(outside))
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=self._contract(evidence),
+                recheck=False,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_PATH_INVALID)
+        if os.name != "nt":
+            linked = self.root / "linked-checkpoint"
+            linked.symlink_to(self.checkpoint, target_is_directory=True)
+            evidence = self._evidence(checkpoint_path=str(linked))
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                _verify_backup_physical(
+                    evidence,
+                    contract=self._contract(evidence),
+                    recheck=False,
+                )
+            self.assertEqual(
+                raised.exception.code,
+                REPAIR_BACKUP_PATH_INVALID,
+            )
+
+    def test_g15_manifest_outside_root_rejected(self) -> None:
+        outside = Path(self.temporary.name) / "outside-manifest.json"
+        outside.write_bytes(self.manifest.read_bytes())
+        evidence = self._evidence(manifest_path=str(outside))
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=self._contract(evidence),
+                recheck=False,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_PATH_INVALID)
+
+    def test_g16_missing_checkpoint_rejected(self) -> None:
+        missing = self.root / "missing-checkpoint"
+        evidence = self._evidence(checkpoint_path=str(missing))
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=self._contract(evidence),
+                recheck=False,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_PATH_INVALID)
+
+    def test_g17_missing_manifest_rejected(self) -> None:
+        missing = self.checkpoint / "missing-manifest.json"
+        evidence = self._evidence(manifest_path=str(missing))
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=self._contract(evidence),
+                recheck=False,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_PATH_INVALID)
+
+    def test_g18_manifest_hash_mismatch_rejected(self) -> None:
+        evidence = self._evidence(manifest_sha256="0" * 64)
+        contract = self._contract(
+            evidence,
+            verified_backup_manifest_sha256="0" * 64,
+        )
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=contract,
+                recheck=False,
+            )
+        self.assertEqual(
+            raised.exception.code,
+            REPAIR_BACKUP_MANIFEST_MISMATCH,
+        )
+
+    def test_g19_lifecycle_change_before_commit_rejected(self) -> None:
+        initial = self._evidence()
+        changed = replace(initial, lifecycle="deleting")
+        connection = MagicMock()
+        connection.execute.return_value = _ScalarResult(
+            UPDATED_AT + timedelta(minutes=5)
+        )
+        with (
+            patch.object(repair_module, "_assert_no_active_operations"),
+            patch.object(repair_module, "_assert_target_quiescent"),
+            patch.object(repair_module, "_reload_target_state", return_value={}),
+            patch.object(repair_module, "_verify_runtime_source_identity"),
+            patch.object(repair_module, "_load_backup_evidence", return_value=changed),
+        ):
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                _revalidate_production_guards(
+                    connection,
+                    contract=self._contract(initial),
+                    initial_backup=initial,
+                )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_INVALID)
+
+    def test_g20_manifest_disappears_before_commit(self) -> None:
+        evidence = self._evidence()
+        contract = self._contract(evidence)
+        _verify_backup_physical(
+            evidence,
+            contract=contract,
+            recheck=False,
+        )
+        self.manifest.unlink()
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_backup_physical(
+                evidence,
+                contract=contract,
+                recheck=True,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_BACKUP_DISAPPEARED)
+
+    def _git_repository(self) -> tuple[Path, Path, str]:
+        if shutil.which("git") is None:
+            self.skipTest(
+                "git executable unavailable in the backend runtime image"
+            )
+        repository = Path(self.temporary.name) / "identity-repository"
+        for relative in repair_module._CRITICAL_RUNTIME_PATHS:
+            path = repository / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(("synthetic:" + relative).encode())
+        subprocess.run(
+            ["git", "init"], cwd=repository, check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "doc04a@test.invalid"],
+            cwd=repository, check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "DOC04A Test"],
+            cwd=repository, check=True,
+        )
+        subprocess.run(
+            ["git", "add", "--", *repair_module._CRITICAL_RUNTIME_PATHS],
+            cwd=repository, check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "synthetic identity"],
+            cwd=repository, check=True,
+            capture_output=True,
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repository,
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        script = repository / repair_module._CRITICAL_RUNTIME_PATHS[0]
+        return repository, script, head
+
+    def test_g21_dirty_critical_script_rejected(self) -> None:
+        _, script, head = self._git_repository()
+        script.write_bytes(b"synthetic-dirty-script")
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_runtime_source_identity(head, script_path=script)
+        self.assertEqual(
+            raised.exception.code,
+            REPAIR_RUNTIME_SOURCE_MISMATCH,
+        )
+
+    def test_g22_dirty_critical_unicode_module_rejected(self) -> None:
+        repository, script, head = self._git_repository()
+        unicode_module = repository / repair_module._CRITICAL_RUNTIME_PATHS[1]
+        unicode_module.write_bytes(b"synthetic-dirty-unicode")
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _verify_runtime_source_identity(head, script_path=script)
+        self.assertEqual(
+            raised.exception.code,
+            REPAIR_RUNTIME_SOURCE_MISMATCH,
+        )
+
+    def test_g23_unrelated_dirty_file_does_not_block(self) -> None:
+        repository, script, head = self._git_repository()
+        (repository / "unrelated.txt").write_text(
+            "synthetic dirty", encoding="utf-8"
+        )
+        _verify_runtime_source_identity(head, script_path=script)
+
+    def test_g24_environment_cannot_override_blob_mismatch(self) -> None:
+        _, script, head = self._git_repository()
+        script.write_bytes(b"synthetic-environment-bypass")
+        with patch.dict(
+            os.environ,
+            {"NEXT_STABIL_RUNTIME_GIT_SHA": head},
+        ):
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                _verify_runtime_source_identity(head, script_path=script)
+        self.assertEqual(
+            raised.exception.code,
+            REPAIR_RUNTIME_SOURCE_MISMATCH,
+        )
+
+    def test_g35_all_precommit_guards_are_revalidated(self) -> None:
+        initial = self._evidence()
+        connection = MagicMock()
+        connection.execute.return_value = _ScalarResult(
+            UPDATED_AT + timedelta(minutes=5)
+        )
+        with (
+            patch.object(repair_module, "_assert_no_active_operations") as operations,
+            patch.object(repair_module, "_reload_target_state", return_value={}) as target_state,
+            patch.object(repair_module, "_assert_target_quiescent") as target,
+            patch.object(repair_module, "_verify_runtime_source_identity") as identity,
+            patch.object(repair_module, "_load_backup_evidence", return_value=initial) as load,
+            patch.object(repair_module, "_validate_backup_evidence") as logical,
+            patch.object(repair_module, "_verify_backup_physical") as physical,
+        ):
+            _revalidate_production_guards(
+                connection,
+                contract=self._contract(initial),
+                initial_backup=initial,
+            )
+        operations.assert_called_once()
+        target_state.assert_called_once()
+        target.assert_called_once()
+        identity.assert_called_once()
+        load.assert_called_once()
+        logical.assert_called_once()
+        physical.assert_called_once()
+        self.assertTrue(physical.call_args.kwargs["recheck"])
 
 
 class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
@@ -335,6 +826,85 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
         with self.assertRaises(DocumentMetadataRepairError) as raised:
             self._execute(contract=contract, execute=execute)
         self.assertEqual(raised.exception.code, expected)
+
+    def _seed_preparation_job(
+        self,
+        *,
+        status: str,
+        generation: str,
+    ) -> None:
+        stage = {
+            "queued": "queued",
+            "running": "local_analysis",
+            "ready": "ready_for_ai",
+            "failed": "failed",
+        }[status]
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO document_preparation_jobs ("
+                    "id, document_id, input_checksum, processor_generation, "
+                    "trigger, priority, status, stage, attempt_count, "
+                    "max_attempts) VALUES ("
+                    ":id, :document_id, :checksum, :generation, "
+                    "'operator_retry', 2, :status, :stage, 0, 3)"
+                ),
+                {
+                    "id": f"doc04a1-{generation}",
+                    "document_id": TARGET_ID,
+                    "checksum": _sha256(FILE_CONTENT),
+                    "generation": generation,
+                    "status": status,
+                    "stage": stage,
+                },
+            )
+
+    def _store_repository_metadata(
+        self,
+        payload: dict[str, object],
+        *,
+        updated_payload: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        with SessionLocal() as session:
+            repository = DocumentRepository(session)
+            document = Document(
+                id=OTHER_ID,
+                filename="synthetic-jsonb.json",
+                original_filename="synthetic-jsonb.json",
+                content_type="application/json",
+                file_size=0,
+                source_type="manual_upload",
+                processing_status="processed",
+                metadata_status="processed",
+                metadata_raw=payload,
+                metadata_normalized=payload,
+                match_status="unmatched",
+            )
+            repository.create(document)
+            session.commit()
+            if updated_payload is not None:
+                stored = repository.get(OTHER_ID)
+                if stored is None:
+                    raise AssertionError("synthetic document missing")
+                repository.update_metadata(
+                    document=stored,
+                    status="processed",
+                    raw_metadata=updated_payload,
+                    normalized_metadata=updated_payload,
+                    error=None,
+                )
+                session.commit()
+        with engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT pg_typeof(metadata_raw)::text AS column_type, "
+                    "metadata_raw::jsonb AS as_jsonb, "
+                    "jsonb_typeof(metadata_raw::jsonb) AS jsonb_type "
+                    "FROM documents WHERE id=:id"
+                ),
+                {"id": OTHER_ID},
+            ).mappings().one()
+        return dict(row)
 
     def test_r13_default_cli_mode_rolls_back(self) -> None:
         required = [
@@ -625,25 +1195,139 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
         )
         self.assertNotEqual(TEST_DATABASE_NAME, "ai_lab")
 
+    def test_g25_active_target_preparation_queued_rejected(self) -> None:
+        self._seed_preparation_job(status="queued", generation="g25")
+        self._assert_code(REPAIR_TARGET_ACTIVE)
+
+    def test_g26_active_target_preparation_running_rejected(self) -> None:
+        self._seed_preparation_job(status="running", generation="g26")
+        self._assert_code(REPAIR_TARGET_ACTIVE)
+
+    def test_g27_historical_preparation_does_not_block(self) -> None:
+        self._seed_preparation_job(status="ready", generation="g27-ready")
+        self._seed_preparation_job(status="failed", generation="g27-failed")
+        result = self._execute(execute=False)
+        self.assertFalse(result.executed)
+
+    def test_g28_target_processing_or_metadata_mismatch_rejected(self) -> None:
+        for column, value in (
+            ("processing_status", "pending"),
+            ("metadata_status", "failed"),
+        ):
+            with self.subTest(column=column):
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            f"UPDATE documents SET {column}=:value "
+                            "WHERE id=:id"
+                        ),
+                        {"value": value, "id": TARGET_ID},
+                    )
+                self._assert_code(REPAIR_TARGET_ACTIVE)
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            f"UPDATE documents SET {column}='processed' "
+                            "WHERE id=:id"
+                        ),
+                        {"id": TARGET_ID},
+                    )
+
+    def test_g29_target_trashed_or_purged_rejected(self) -> None:
+        for column in ("trashed_at", "purged_at"):
+            with self.subTest(column=column):
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            f"UPDATE documents SET {column}=:value "
+                            "WHERE id=:id"
+                        ),
+                        {"value": UPDATED_AT, "id": TARGET_ID},
+                    )
+                self._assert_code(REPAIR_TARGET_ACTIVE)
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            f"UPDATE documents SET {column}=NULL "
+                            "WHERE id=:id"
+                        ),
+                        {"id": TARGET_ID},
+                    )
+
+    def test_g30_sanitized_isolated_surrogates_jsonb_roundtrip(self) -> None:
+        created = sanitize_json_compatible(
+            {"low": "left\udc00right", "existing": "\ufffd"}
+        )
+        updated = sanitize_json_compatible(
+            {"high": "left\ud800right", "existing": "\ufffd"}
+        )
+        row = self._store_repository_metadata(
+            created,
+            updated_payload=updated,
+        )
+        self.assertEqual(row["column_type"], "json")
+        self.assertEqual(row["jsonb_type"], "object")
+        self.assertEqual(
+            row["as_jsonb"],
+            {"high": "left\ufffdright", "existing": "\ufffd"},
+        )
+
+    def test_g31_valid_surrogate_pair_jsonb_roundtrip(self) -> None:
+        pair = "\ud83d\ude00"
+        payload = sanitize_json_compatible({"pair": pair})
+        self.assertEqual(payload["pair"], pair)
+        row = self._store_repository_metadata(payload)
+        self.assertEqual(row["as_jsonb"], {"pair": "\U0001f600"})
+
+    def test_g32_polish_and_supplementary_jsonb_roundtrip(self) -> None:
+        payload = sanitize_json_compatible(
+            {"polish": "Za\u017c\u00f3\u0142\u0107 g\u0119\u015bl\u0105 ja\u017a\u0144", "scalar": "\U0001f9ea"}
+        )
+        row = self._store_repository_metadata(payload)
+        self.assertEqual(row["as_jsonb"], payload)
+
+    def test_g33_dynamic_sanitized_key_jsonb_roundtrip(self) -> None:
+        payload = sanitize_json_compatible({"dynamic\udc00key": "safe"})
+        row = self._store_repository_metadata(payload)
+        self.assertEqual(row["as_jsonb"], {"dynamic\ufffdkey": "safe"})
+        with engine.connect() as connection:
+            present = connection.execute(
+                text(
+                    "SELECT metadata_raw::jsonb ? :key "
+                    "FROM documents WHERE id=:id"
+                ),
+                {"key": "dynamic\ufffdkey", "id": OTHER_ID},
+            ).scalar_one()
+        self.assertTrue(present)
+
+    def test_g34_nul_is_replaced_and_jsonb_operator_safe(self) -> None:
+        sanitized_text = sanitize_metadata_text("before\x00after")
+        self.assertEqual(sanitized_text.value, "before\ufffdafter")
+        self.assertEqual(sanitized_text.stats.replaced_nul, 1)
+        self.assertEqual(sanitized_text.stats.replacement_count, 1)
+        with self.assertRaises(DocumentMetadataSafetyError):
+            assert_json_compatible_safe({"nul": "before\x00after"})
+        payload = sanitize_json_compatible(
+            {"nul": "before\x00after", "key\x00": "value"}
+        )
+        row = self._store_repository_metadata(payload)
+        self.assertEqual(
+            row["as_jsonb"],
+            {"nul": "before\ufffdafter", "key\ufffd": "value"},
+        )
+        with engine.connect() as connection:
+            value = connection.execute(
+                text(
+                    "SELECT metadata_raw::jsonb ->> :key "
+                    "FROM documents WHERE id=:id"
+                ),
+                {"key": "nul", "id": OTHER_ID},
+            ).scalar_one()
+        self.assertEqual(value, "before\ufffdafter")
+
     @staticmethod
     def _production_contract(**changes: object) -> RepairContract:
-        contract = RepairContract(
-            expected_database="ai_lab",
-            expected_alembic_head=EXPECTED_HEAD,
-            expected_xmin="1",
-            expected_updated_at=UPDATED_AT,
-            expected_storage_sha256="b" * 64,
-            expected_raw_before_sha256=APPROVED_RAW_BEFORE_SHA256,
-            expected_raw_candidate_sha256=APPROVED_RAW_CANDIDATE_SHA256,
-            expected_normalized_before_sha256=(
-                APPROVED_NORMALIZED_BEFORE_SHA256
-            ),
-            expected_normalized_candidate_sha256=(
-                APPROVED_NORMALIZED_CANDIDATE_SHA256
-            ),
-            expected_git_sha="c" * 40,
-        )
-        return replace(contract, **changes)
+        return _guard_contract(**changes)
 
 
 if __name__ == "__main__":

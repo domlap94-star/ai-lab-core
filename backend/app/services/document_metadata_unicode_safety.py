@@ -41,11 +41,12 @@ class DocumentMetadataSafetyError(ValueError):
 class TextSanitizationStats:
     replaced_high: int = 0
     replaced_low: int = 0
+    replaced_nul: int = 0
     preserved_valid_pairs: int = 0
 
     @property
     def replacement_count(self) -> int:
-        return self.replaced_high + self.replaced_low
+        return self.replaced_high + self.replaced_low + self.replaced_nul
 
 
 @dataclass(frozen=True)
@@ -110,6 +111,7 @@ def sanitize_metadata_text(value: str) -> TextSanitizationResult:
     parts: list[str] = []
     high = 0
     low = 0
+    nul = 0
     pairs = 0
     index = 0
     while index < len(value):
@@ -126,6 +128,9 @@ def sanitize_metadata_text(value: str) -> TextSanitizationResult:
         elif _is_low(code):
             parts.append(_REPLACEMENT)
             low += 1
+        elif code == 0:
+            parts.append(_REPLACEMENT)
+            nul += 1
         else:
             parts.append(value[index])
         index += 1
@@ -134,6 +139,7 @@ def sanitize_metadata_text(value: str) -> TextSanitizationResult:
         TextSanitizationStats(
             replaced_high=high,
             replaced_low=low,
+            replaced_nul=nul,
             preserved_valid_pairs=pairs,
         ),
     )
@@ -143,6 +149,10 @@ def assert_metadata_text_safe(value: str) -> None:
     index = 0
     while index < len(value):
         code = ord(value[index])
+        if code == 0:
+            raise DocumentMetadataSafetyError(
+                DOCUMENT_METADATA_UNICODE_UNSAFE
+            )
         if _is_high(code):
             if index + 1 < len(value) and _is_low(ord(value[index + 1])):
                 index += 2
