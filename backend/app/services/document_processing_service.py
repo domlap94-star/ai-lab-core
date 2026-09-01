@@ -454,35 +454,21 @@ class DocumentProcessingService:
             )
         )
 
-        document.metadata_status = (
-            result.status
-        )
-
         intake_metadata = (
             document.metadata_raw.get("intake")
             if isinstance(document.metadata_raw, dict)
             else None
         )
-        document.metadata_raw = dict(result.raw_metadata or {})
+        raw_metadata = dict(result.raw_metadata or {})
         if intake_metadata is not None:
-            document.metadata_raw["intake"] = intake_metadata
+            raw_metadata["intake"] = intake_metadata
 
-        document.metadata_normalized = (
-            result.normalized_metadata
-        )
-
-        document.metadata_error = (
-            result.error
-        )
-
-        document.metadata_extracted_at = (
-            datetime.now(
-                timezone.utc
-            )
-        )
-
-        self.repository.update(
-            document
+        self.repository.update_metadata(
+            document=document,
+            status=result.status,
+            raw_metadata=raw_metadata,
+            normalized_metadata=result.normalized_metadata,
+            error=result.error,
         )
 
         self.repository.commit()

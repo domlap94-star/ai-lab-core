@@ -14,6 +14,12 @@ from app.core.config import settings
 from app.models.client_candidate import ClientCandidate
 from app.models.document import Document
 from app.repositories.document_repository import DocumentRepository
+from app.services.document_metadata_unicode_safety import (
+    DOCUMENT_METADATA_JSON_INVALID,
+    DocumentMetadataSafetyError,
+    assert_json_compatible_safe,
+    sanitize_json_compatible,
+)
 
 
 class DocumentStorageError(Exception):
@@ -120,6 +126,26 @@ class DocumentService:
             longitude=longitude,
             location_accuracy_m=location_accuracy_m,
         )
+
+        try:
+            sanitized_intake_metadata = (
+                sanitize_json_compatible(intake_metadata)
+                if intake_metadata is not None
+                else None
+            )
+            if (
+                sanitized_intake_metadata is not None
+                and not isinstance(sanitized_intake_metadata, dict)
+            ):
+                raise DocumentMetadataSafetyError(
+                    DOCUMENT_METADATA_JSON_INVALID
+                )
+            if sanitized_intake_metadata is not None:
+                assert_json_compatible_safe(
+                    sanitized_intake_metadata
+                )
+        except DocumentMetadataSafetyError as error:
+            raise DocumentStorageError(error.code) from error
 
         normalized_external_id = self._normalize_optional_string(
             external_id,
@@ -279,8 +305,8 @@ class DocumentService:
             location_source=normalized_location_source,
             inspection_session_id=normalized_inspection_session_id,
             metadata_raw=(
-                {"intake": dict(intake_metadata)}
-                if intake_metadata
+                {"intake": dict(sanitized_intake_metadata)}
+                if sanitized_intake_metadata
                 else None
             ),
             processing_status="stored",
@@ -322,7 +348,7 @@ class DocumentService:
                 document=created_document,
                 trigger="ingestion",
                 priority=2 if source_type == "gmail_attachment" else 1,
-                created_by_user_id=(intake_metadata or {}).get("actor_user_id") if isinstance((intake_metadata or {}).get("actor_user_id"), int) else None,
+                created_by_user_id=(sanitized_intake_metadata or {}).get("actor_user_id") if isinstance((sanitized_intake_metadata or {}).get("actor_user_id"), int) else None,
             )
 
             if commit:
