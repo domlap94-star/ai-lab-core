@@ -251,6 +251,12 @@ async def process_preparation_vision(job_id: str) -> bool:
             return False
         if job.stage != "vision_processing":
             return job.stage == "local_analysis"
+        if job.trigger == "ingestion":
+            contained = DocumentPreparationService(
+                db
+            ).contain_ingestion_external_vision(job_id)
+            db.commit()
+            return False if contained else job.stage == "local_analysis"
         document_id = job.document_id
     finally:
         db.close()
