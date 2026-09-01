@@ -24,6 +24,7 @@ from app.services.document_preparation_dispatcher import (
 from app.services.document_preparation_service import (
     LEASE_MINUTES,
     DocumentPreparationService,
+    PreparationClaim,
     document_intelligence_resource_wait_code,
 )
 from app.services.local_model_resource_coordinator import (
@@ -70,6 +71,18 @@ class _Session:
     def get(self, _model, job_id: str):
         return self.job if self.job.id == job_id else None
 
+    def query(self, _model):
+        return self
+
+    def filter(self, *_args):
+        return self
+
+    def with_for_update(self, **_kwargs):
+        return self
+
+    def one_or_none(self):
+        return self.job
+
     def commit(self) -> None:
         self.commits += 1
 
@@ -112,6 +125,10 @@ def _job(*, trigger: str = "ingestion") -> SimpleNamespace:
     )
 
 
+def _claim(job: SimpleNamespace) -> PreparationClaim:
+    return PreparationClaim(job_id=job.id, lease_owner=job.lease_owner)
+
+
 async def _flush_loop() -> None:
     await asyncio.sleep(0)
     await asyncio.sleep(0)
@@ -124,7 +141,7 @@ class PreparationIntelligenceHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         job = _job()
         sessions = _Sessions(job)
         heartbeat = _PreparationIntelligenceHeartbeat(
-            job.id,
+            _claim(job),
             interval_seconds=INTELLIGENCE_HEARTBEAT_SECONDS,
             session_factory=sessions,
             now_factory=clock.now,
@@ -172,7 +189,7 @@ class PreparationIntelligenceHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         owner_task = asyncio.create_task(owner())
         await owner_started.wait()
         heartbeat = _PreparationIntelligenceHeartbeat(
-            job.id,
+            _claim(job),
             session_factory=sessions,
             now_factory=clock.now,
             sleep=sleep,
@@ -227,7 +244,7 @@ class PreparationIntelligenceHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         async def acquire() -> None:
             nonlocal generation_count
             heartbeat = _PreparationIntelligenceHeartbeat(
-                job.id,
+                _claim(job),
                 session_factory=sessions,
                 now_factory=clock.now,
                 sleep=sleep,
@@ -272,7 +289,7 @@ class PreparationIntelligenceHeartbeatTests(unittest.IsolatedAsyncioTestCase):
         job = _job()
         sessions = _Sessions(job)
         heartbeat = _PreparationIntelligenceHeartbeat(
-            job.id,
+            _claim(job),
             session_factory=sessions,
             now_factory=clock.now,
             sleep=sleep,
@@ -300,14 +317,24 @@ class DocumentIntelligenceCallbackTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self, _db) -> None:
                 pass
 
-            def complete_intelligence(self, job_id: str, artifact_id: str) -> None:
-                completed.append((job_id, artifact_id))
+            def complete_intelligence(
+                self, claim: PreparationClaim, artifact_id: str
+            ) -> bool:
+                completed.append((claim.job_id, artifact_id))
                 job.status = "ready"
                 job.stage = "ready_for_ai"
                 job.error_code = None
+                return True
 
-            def fail_intelligence(self, job_id: str, error_code: str) -> None:
-                failed.append((job_id, error_code))
+            def fail_intelligence(
+                self,
+                claim: PreparationClaim,
+                error_code: str,
+                *,
+                expected_stage: str = "local_analysis",
+            ) -> bool:
+                failed.append((claim.job_id, error_code))
+                return True
 
         async def fake_build(**kwargs) -> str:
             nonlocal builds
@@ -318,9 +345,11 @@ class DocumentIntelligenceCallbackTests(unittest.IsolatedAsyncioTestCase):
             await kwargs["progress_callback"]({"chunks": 1, "done": True})
             return "artifact-42"
 
-        def heartbeat_factory(job_id: str) -> _PreparationIntelligenceHeartbeat:
+        def heartbeat_factory(
+            claim: PreparationClaim,
+        ) -> _PreparationIntelligenceHeartbeat:
             return _PreparationIntelligenceHeartbeat(
-                job_id,
+                claim,
                 interval_seconds=0.001,
                 session_factory=sessions,
                 now_factory=clock.now,
@@ -348,7 +377,7 @@ class DocumentIntelligenceCallbackTests(unittest.IsolatedAsyncioTestCase):
                 side_effect=fake_build,
             ),
         ):
-            artifact_id = await process_preparation_intelligence(job.id)
+            artifact_id = await process_preparation_intelligence(_claim(job))
 
         self.assertEqual(artifact_id, "artifact-42")
         self.assertEqual(builds, 1)
@@ -559,7 +588,13 @@ class DocumentIntelligenceProgressAndRecoveryTests(unittest.TestCase):
             def filter(self, *_args):
                 return self
 
+            def order_by(self, *_args):
+                return self
+
             def with_for_update(self, **_kwargs):
+                return self
+
+            def limit(self, _value):
                 return self
 
             def all(self):
@@ -574,19 +609,30 @@ class DocumentIntelligenceProgressAndRecoveryTests(unittest.TestCase):
         self.assertIsNone(job.lease_owner)
         self.assertIsNone(job.lease_expires_at)
         self.assertEqual(job.attempt_count, 1)
+        self.assertEqual(job.error_code, "PREPARATION_LEASE_EXPIRED")
+        self.assertEqual(job.retryability, "recoverable")
 
     def test_existing_intelligence_failure_retry_policy_is_unchanged(self) -> None:
         job = _job()
 
         class Db:
-            def get(self, _model, job_id: str):
-                return job if job_id == job.id else None
+            def query(self, _model):
+                return self
+
+            def filter(self, *_args):
+                return self
+
+            def with_for_update(self, **_kwargs):
+                return self
+
+            def one_or_none(self):
+                return job
 
             def flush(self) -> None:
                 return None
 
         DocumentPreparationService(Db()).fail_intelligence(
-            job.id, "SYNTHETIC_TRANSIENT_FAILURE"
+            _claim(job), "SYNTHETIC_TRANSIENT_FAILURE"
         )
         self.assertEqual((job.status, job.stage), ("queued", "queued"))
         self.assertEqual(job.error_code, "SYNTHETIC_TRANSIENT_FAILURE")

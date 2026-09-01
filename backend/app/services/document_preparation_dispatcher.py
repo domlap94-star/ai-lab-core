@@ -16,6 +16,7 @@ from app.services.document_preparation_service import (
     LEASE_MINUTES,
     PROCESSOR_GENERATION,
     DocumentPreparationService,
+    PreparationClaim,
     document_intelligence_resource_wait_code,
     is_document_intelligence_resource_wait,
 )
@@ -25,6 +26,7 @@ from app.services.vision_dispatcher import process_explicit_vision_document
 
 logger = logging.getLogger("ai_lab.document_preparation")
 INTELLIGENCE_HEARTBEAT_SECONDS = 30.0
+RECOVERY_POLL_SECONDS = 10.0
 _UNCHANGED = object()
 
 
@@ -59,14 +61,14 @@ class _PreparationIntelligenceHeartbeat:
 
     def __init__(
         self,
-        job_id: str,
+        claim: PreparationClaim,
         *,
         interval_seconds: float = INTELLIGENCE_HEARTBEAT_SECONDS,
         session_factory=None,
         now_factory=None,
         sleep=None,
     ) -> None:
-        self.job_id = job_id
+        self.claim = claim
         self.interval_seconds = interval_seconds
         self.session_factory = session_factory or SessionLocal
         self.now_factory = now_factory or (lambda: datetime.now(UTC))
@@ -74,13 +76,15 @@ class _PreparationIntelligenceHeartbeat:
         self.owner_task: asyncio.Task | None = None
         self.task: asyncio.Task | None = None
 
-    def start(self, owner_task: asyncio.Task) -> None:
+    def start(self, owner_task: asyncio.Task) -> bool:
         self.owner_task = owner_task
         if not self.refresh():
-            raise asyncio.CancelledError
+            return False
         self.task = asyncio.create_task(
-            self._run(), name=f"document-intelligence-heartbeat-{self.job_id}"
+            self._run(),
+            name=f"document-intelligence-heartbeat-{self.claim.job_id}",
         )
+        return True
 
     def refresh(
         self,
@@ -90,8 +94,13 @@ class _PreparationIntelligenceHeartbeat:
     ) -> bool:
         db = self.session_factory()
         try:
-            job = db.get(DocumentPreparationJob, self.job_id)
-            if job is None or job.status != "running" or job.stage != "local_analysis":
+            job = db.query(DocumentPreparationJob).filter(
+                DocumentPreparationJob.id == self.claim.job_id,
+                DocumentPreparationJob.status == "running",
+                DocumentPreparationJob.stage == "local_analysis",
+                DocumentPreparationJob.lease_owner == self.claim.lease_owner,
+            ).with_for_update().one_or_none()
+            if job is None:
                 db.rollback()
                 return False
             if _assistant_preparation_has_no_active_waiters(db, job):
@@ -158,17 +167,17 @@ class _PreparationIntelligenceHeartbeat:
         self.task = None
 
 
-def process_one_preparation() -> str | None:
+def process_one_preparation() -> PreparationClaim | None:
     db = SessionLocal()
     try:
         service = DocumentPreparationService(db)
         service.recover_expired()
-        job_id = service.claim_next()
+        claim = service.claim_next()
         db.commit()
-        if job_id is None:
+        if claim is None:
             return None
-        service.process_claimed(job_id)
-        return job_id
+        service.process_claimed(claim)
+        return claim
     except Exception:
         db.rollback()
         logger.exception("Document preparation iteration failed.")
@@ -177,20 +186,27 @@ def process_one_preparation() -> str | None:
         db.close()
 
 
-async def process_preparation_intelligence(job_id: str) -> str | None:
+async def process_preparation_intelligence(
+    claim: PreparationClaim,
+) -> str | None:
     db = SessionLocal()
     try:
-        job = db.get(DocumentPreparationJob, job_id)
-        if job is None or job.status != "running" or job.stage != "local_analysis":
+        job = db.get(DocumentPreparationJob, claim.job_id)
+        if (
+            job is None
+            or job.status != "running"
+            or job.stage != "local_analysis"
+            or job.lease_owner != claim.lease_owner
+        ):
             return None
         document_id = job.document_id
     finally:
         db.close()
 
-    owner_task = asyncio.current_task()
-    if owner_task is None:
+    parent_task = asyncio.current_task()
+    if parent_task is None:
         raise RuntimeError("DOCUMENT_INTELLIGENCE_TASK_UNAVAILABLE")
-    heartbeat = _PreparationIntelligenceHeartbeat(job_id)
+    heartbeat = _PreparationIntelligenceHeartbeat(claim)
     last_persisted = datetime.min.replace(tzinfo=UTC)
 
     async def progress(_: dict) -> None:
@@ -201,37 +217,52 @@ async def process_preparation_intelligence(job_id: str) -> str | None:
         await heartbeat.progress(_)
         last_persisted = now
 
-    try:
-        heartbeat.start(owner_task)
-        artifact_id = await build_document_intelligence(
+    intelligence_task = asyncio.create_task(
+        build_document_intelligence(
             document_id=document_id,
-            preparation_job_id=job_id,
+            preparation_job_id=claim.job_id,
             progress_callback=progress,
             on_resource_wait=heartbeat.resource_wait,
             on_resource_ready=heartbeat.resource_ready,
-        )
+        ),
+        name=f"document-intelligence-{claim.job_id}",
+    )
+    try:
+        if not heartbeat.start(intelligence_task):
+            intelligence_task.cancel()
+            try:
+                await intelligence_task
+            except asyncio.CancelledError:
+                pass
+            return None
+        artifact_id = await intelligence_task
         finish_db = SessionLocal()
         try:
-            DocumentPreparationService(finish_db).complete_intelligence(job_id, artifact_id)
+            completed = DocumentPreparationService(
+                finish_db
+            ).complete_intelligence(claim, artifact_id)
             finish_db.commit()
         finally:
             finish_db.close()
-        return artifact_id
+        return artifact_id if completed else None
     except asyncio.CancelledError:
         recovery_db = SessionLocal()
         try:
             DocumentPreparationService(recovery_db).fail_intelligence(
-                job_id, "WORKER_INTERRUPTED"
+                claim, "WORKER_INTERRUPTED"
             )
             recovery_db.commit()
         finally:
             recovery_db.close()
-        raise
+        if parent_task.cancelling():
+            raise
+        return None
     except Exception as error:
         finish_db = SessionLocal()
         try:
             DocumentPreparationService(finish_db).fail_intelligence(
-                job_id, f"INTELLIGENCE_{error.__class__.__name__.upper()}"
+                claim,
+                f"INTELLIGENCE_{error.__class__.__name__.upper()}",
             )
             finish_db.commit()
         finally:
@@ -240,21 +271,31 @@ async def process_preparation_intelligence(job_id: str) -> str | None:
         return None
     finally:
         await heartbeat.stop()
+        if not intelligence_task.done():
+            intelligence_task.cancel()
+            try:
+                await intelligence_task
+            except asyncio.CancelledError:
+                pass
 
 
-async def process_preparation_vision(job_id: str) -> bool:
+async def process_preparation_vision(claim: PreparationClaim) -> bool:
     """Advance one exact preparation through the existing private Vision route."""
     db = SessionLocal()
     try:
-        job = db.get(DocumentPreparationJob, job_id)
-        if job is None or job.status != "running":
+        job = db.query(DocumentPreparationJob).filter(
+            DocumentPreparationJob.id == claim.job_id,
+            DocumentPreparationJob.status == "running",
+            DocumentPreparationJob.lease_owner == claim.lease_owner,
+        ).with_for_update().one_or_none()
+        if job is None:
             return False
         if job.stage != "vision_processing":
             return job.stage == "local_analysis"
         if job.trigger == "ingestion":
             contained = DocumentPreparationService(
                 db
-            ).contain_ingestion_external_vision(job_id)
+            ).contain_ingestion_external_vision(claim)
             db.commit()
             return False if contained else job.stage == "local_analysis"
         document_id = job.document_id
@@ -264,9 +305,14 @@ async def process_preparation_vision(job_id: str) -> bool:
     await asyncio.to_thread(process_explicit_vision_document, document_id)
     finish_db = SessionLocal()
     try:
-        job = finish_db.get(DocumentPreparationJob, job_id)
+        job = finish_db.query(DocumentPreparationJob).filter(
+            DocumentPreparationJob.id == claim.job_id,
+            DocumentPreparationJob.status == "running",
+            DocumentPreparationJob.stage == "vision_processing",
+            DocumentPreparationJob.lease_owner == claim.lease_owner,
+        ).with_for_update().one_or_none()
         document = finish_db.get(Document, document_id)
-        if job is None or document is None or job.status == "cancelled":
+        if job is None or document is None:
             return False
         if document.vision_status in {"complete", "partial"}:
             job.stage = "local_analysis"
@@ -276,7 +322,9 @@ async def process_preparation_vision(job_id: str) -> bool:
             finish_db.commit()
             return True
         DocumentPreparationService(finish_db).fail_intelligence(
-            job_id, f"VISION_{(document.vision_error_code or document.vision_status or 'FAILED').upper()}"
+            claim,
+            f"VISION_{(document.vision_error_code or document.vision_status or 'FAILED').upper()}",
+            expected_stage="vision_processing",
         )
         finish_db.commit()
         return False
@@ -385,24 +433,68 @@ async def resume_waiting_analysis(job_id: str) -> None:
 class DocumentPreparationDispatcher:
     POLL_SECONDS = 2
 
-    async def run(self) -> None:
-        logger.info("Document preparation dispatcher started.")
+    @staticmethod
+    def _recover_expired_once() -> int:
+        db = SessionLocal()
+        try:
+            recovered = DocumentPreparationService(db).recover_expired()
+            db.commit()
+            return recovered
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    async def _recovery_loop(self) -> None:
         while True:
             try:
-                prepared = await asyncio.to_thread(process_one_preparation)
-                if prepared is not None:
-                    if await process_preparation_vision(prepared):
-                        await process_preparation_intelligence(prepared)
-                waiting = await asyncio.to_thread(_next_waiting_id)
-                if waiting is not None:
-                    await resume_waiting_analysis(waiting)
-                elif prepared is None:
-                    await asyncio.sleep(self.POLL_SECONDS)
+                recovered = await asyncio.to_thread(
+                    self._recover_expired_once
+                )
+                if recovered:
+                    logger.info(
+                        "Recovered %s expired document preparation lease(s).",
+                        recovered,
+                    )
             except asyncio.CancelledError:
                 raise
             except Exception as error:
-                logger.warning("Document preparation dispatcher failure: %s", error.__class__.__name__)
-                await asyncio.sleep(self.POLL_SECONDS)
+                logger.warning(
+                    "Document preparation recovery poll failed: %s",
+                    error.__class__.__name__,
+                )
+            await asyncio.sleep(RECOVERY_POLL_SECONDS)
+
+    async def run(self) -> None:
+        logger.info("Document preparation dispatcher started.")
+        recovery_task = asyncio.create_task(
+            self._recovery_loop(),
+            name="document-preparation-recovery",
+        )
+        try:
+            while True:
+                try:
+                    prepared = await asyncio.to_thread(process_one_preparation)
+                    if prepared is not None:
+                        if await process_preparation_vision(prepared):
+                            await process_preparation_intelligence(prepared)
+                    waiting = await asyncio.to_thread(_next_waiting_id)
+                    if waiting is not None:
+                        await resume_waiting_analysis(waiting)
+                    elif prepared is None:
+                        await asyncio.sleep(self.POLL_SECONDS)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as error:
+                    logger.warning("Document preparation dispatcher failure: %s", error.__class__.__name__)
+                    await asyncio.sleep(self.POLL_SECONDS)
+        finally:
+            recovery_task.cancel()
+            try:
+                await recovery_task
+            except asyncio.CancelledError:
+                pass
 
 
 def start_document_preparation_dispatcher() -> asyncio.Task | None:

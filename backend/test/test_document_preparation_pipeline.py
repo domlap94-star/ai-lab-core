@@ -102,14 +102,15 @@ def integration_main() -> None:
         assert cancelled.status == "cancelled"
 
         claimed = DocumentPreparationService(db).claim_next(); db.commit()
-        assert claimed == same.id
+        assert claimed is not None and claimed.job_id == same.id
+        assert claimed.lease_owner.count(":") >= 2
         DocumentPreparationService(db).process_claimed(claimed)
         db.expire_all()
-        ready = db.get(DocumentPreparationJob, claimed)
+        ready = db.get(DocumentPreparationJob, claimed.job_id)
         assert ready.status == "running" and ready.stage == "local_analysis"
         intelligence = DocumentIntelligenceService(db)
         build_input = intelligence.collect_input(
-            document_id=stored.document.id, preparation_job_id=claimed
+            document_id=stored.document.id, preparation_job_id=claimed.job_id
         )
         source_ref = build_input.evidence[0].source_ref
         artifact = intelligence.persist(
@@ -132,7 +133,7 @@ def integration_main() -> None:
         DocumentPreparationService(db).complete_intelligence(claimed, artifact.id)
         db.commit()
         db.expire_all()
-        ready = db.get(DocumentPreparationJob, claimed)
+        ready = db.get(DocumentPreparationJob, claimed.job_id)
         assert ready.status == "ready" and ready.stage == "ready_for_ai"
         assert db.query(DocumentPreparationJob).filter_by(document_id=stored.document.id).count() == 1
 
@@ -181,9 +182,11 @@ def integration_main() -> None:
         v2_job = db.query(DocumentPreparationJob).filter_by(
             document_id=v2_stored.document.id
         ).one()
-        assert DocumentPreparationService(db).claim_next() == v2_job.id
+        v2_claim = DocumentPreparationService(db).claim_next()
+        assert v2_claim is not None and v2_claim.job_id == v2_job.id
+        assert v2_claim.lease_owner.count(":") >= 2
         db.commit()
-        DocumentPreparationService(db).process_claimed(v2_job.id)
+        DocumentPreparationService(db).process_claimed(v2_claim)
         db.expire_all()
         v2_input = DocumentIntelligenceService(db).collect_input(
             document_id=v2_stored.document.id,
@@ -207,7 +210,9 @@ def integration_main() -> None:
                 "limitations": [],
             },
         )
-        DocumentPreparationService(db).complete_intelligence(v2_job.id, v2_artifact.id)
+        DocumentPreparationService(db).complete_intelligence(
+            v2_claim, v2_artifact.id
+        )
         db.commit()
         with patch.object(UnifiedAssistantService, "ask", new=accepted):
             asyncio.run(_execute_run(v2_created.run_id))
