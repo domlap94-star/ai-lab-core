@@ -149,7 +149,7 @@ commit lub zatwierdzony artefakt operacyjny.
 | VIS-10 | P1 | audit migration only | OPEN | Migration test omits critical frozen-contract invariants. | Expanded isolated PostgreSQL matrix, concurrency tests and roundtrip proof. | VIS-01..VIS-09 | — | — |
 | DOC-01 | P0 | present today | FIXED_UNVERIFIED | Normal document ingestion can trigger explicit external Vision V1. | Canonical ingestion ends at local Material V3; no automatic external Vision. | Runtime containment | Independent source review PASS; audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; promoted main source `d69e373fc435c6a5373a256b1acd206fddd3d184`; focused `9/9` and main-based relevant regression `42/42` PASS; deployment/live verification pending. | pending |
 | DOC-02 | P0 | present today | FIXED_UNVERIFIED | OOXML/ODF media extraction uses unbounded `archive.read(member)`. | Entry count, per-entry bytes, total bytes, compression-ratio and streaming bounds. | File-safety layer | Independent source review PASS; audit `c08b55a07ac1a8b761f0c06ed70dd90085a7b944`; promoted main source `5ae13876ed4e0104a9c049e5b68d67177b0372d9`; focused T01–T24, main-based relevant regression `34/34`, and actual XLSX/PPTX/ODT promotion probes PASS; deployment/live verification pending. | pending |
-| DOC-03 | P1 | present today | OPEN | Expired running preparation blocks eight queued jobs. | Lease recovery, fencing and queue-drain regression test. | Preparation dispatcher | — | — |
+| DOC-03 | P1 | present today | FIXED_UNVERIFIED | Expired running preparation blocks eight queued jobs. | Lease recovery, fencing and queue-drain regression test. | Preparation dispatcher | Independent source review PASS; audit `b1dee3d0afff1aefb5235176502cf0256fe975ce`; promoted main source `f601c2c4cb88f58f5095b842b0135316d8721f6f`; focused T01–T18 and consolidated main-based regression `91/91` PASS; queue-drain, child-cancellation and shutdown-propagation probes PASS; deployment/live verification pending. | pending |
 | DOC-04 | P1 | present today | OPEN | Document 8903 contains an invalid lone surrogate in JSON metadata. | Separate owner-approved controlled data repair with backup and audit proof. | DOC-02 safety; owner write gate | — | — |
 | AUTO-01 | P0 | target V3 design | OPEN | No durable non-Assistant owner exists for automatic Text Intelligence. | Document/material-generation-scoped durable Text Intelligence work ledger or explicitly approved equivalent. | Material V3 schema | — | — |
 | ASST-01 | P0 | present today | OPEN | Visual stages are planned but not executed; Advanced can start before required Visual. | Local-only reasoner, executable Visual branch, local re-synthesis and Advanced ordering proof. | Visual V2 + Text Intelligence V3 | — | — |
@@ -284,10 +284,38 @@ Znane ograniczenia, które nie blokują source containment:
 
 ### 5.3 DOC-03 — stale preparation recovery
 
-- [ ] Odzyskiwać expired running leases z poprawnym fencing.
-- [ ] Nie pozwalać staremu workerowi zapisać wyniku po lease takeover.
-- [ ] Udowodnić kolejkę: jeden stale running nie blokuje kolejnych jobs.
-- [ ] Przetestować restart dispatcher i drain kolejki.
+**Status: `FIXED_UNVERIFIED`.** Source lease recovery and attempt fencing are
+independently accepted; deployment, live queue recovery and Material V3 final
+replacement remain pending.
+
+- [x] Używać unikalnego claim tokenu dla każdej próby.
+- [x] Odzyskiwać retryable expired running leases z poprawnym fencing.
+- [x] Terminalizować expired leases po wyczerpaniu prób.
+- [x] Nie pozwalać staremu workerowi zapisać wyniku po lease takeover.
+- [x] Fence'ować heartbeat dokładnym claim tokenem.
+- [x] Izolować cancellable intelligence work w child tasku.
+- [x] Utrzymywać niezależny bounded recovery poll podczas długiej pracy.
+- [x] Udowodnić kolejkę: jeden stale running nie blokuje kolejnych jobs.
+- [x] Przetestować child cancellation, dispatcher shutdown i drain kolejki.
+- [ ] Wdrożyć source commit i potwierdzić runtime/live recovery.
+- [ ] Odzyskać produkcyjną kolejkę wyłącznie po osobnym owner gate.
+- [ ] Potwierdzić live brak duplicate model/Vision work.
+- [ ] Zastąpić compatibility pipeline docelowym Material V3.
+
+Znane ograniczenia:
+
+- publikacja `PreparationJob` jest fenced, ale zapisy stron, assets i Document
+  wykonywane przez `DocumentProcessingService` nie mają jeszcze claim tokenu;
+  pełna attempt-scoped publikacja materiału pozostaje pracą Material V3;
+- przejście stanu po legacy Vision jest fenced, ale synchronicznego
+  `process_explicit_vision_document` uruchomionego przez `asyncio.to_thread` nie
+  można force-stopować przez anulowanie coroutiny; late result nie może
+  awansować replacement PreparationJob;
+- zdrowa długa intelligence albo legacy resume nadal może opóźniać serialną
+  kolejkę; DOC-03 zamyka expired-lease deadlock, nie Material V3/AUTO-01/RES-02
+  concurrency i backpressure;
+- source nie jest jeszcze wdrożony, a produkcyjny stale job pozostaje
+  niezmieniony.
 
 ### 5.4 DOC-04 — controlled metadata repair
 
@@ -533,8 +561,9 @@ deletion jest disabled, a owner retention policy nie jest jeszcze configured.
 
 - [ ] DOC-01 — `FIXED_UNVERIFIED`; deployment and Material V3 closure pending.
 - [ ] DOC-02 — `FIXED_UNVERIFIED`; deployment/live verification and Material V3 finalization pending.
-- [ ] **NEXT ACTIVE: DOC-03 — stale preparation recovery and lease fencing.**
-- [ ] DOC-04 design only do osobnego approval.
+- [ ] DOC-03 — `FIXED_UNVERIFIED`; deployment, live queue recovery and Material V3 finalization pending.
+- [ ] **NEXT ACTIVE: DOC-04 — read-only repair projection and owner-gated repair plan for the single invalid metadata record.**
+- [ ] DOC-04 repair wymaga osobnego approval; ten krok nie autoryzuje zapisu.
 
 ### PHASE 2 — Visual V2 migration correction
 
@@ -687,6 +716,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-08-31 | VISUAL-MIGRATION-AUDIT-BRANCH | isolated migration roundtrip | `65783d1c1e1b7b13d0fcccf85f922d8af8c0bf1c` | TECHNICAL ROUNDTRIP PASS / FROZEN CONTRACT FAIL | verified by full audit |
 | 2026-09-01 | DOC-01 | Independent source/test review and main-based promotion | audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; main `d69e373fc435c6a5373a256b1acd206fddd3d184` | SOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment and Material V3 closure pending | Owner/Assistant independent Git review |
 | 2026-09-01 | DOC-02 | Independent source/test review, main-based revalidation and bounded format probes | audit `c08b55a07ac1a8b761f0c06ed70dd90085a7b944`; main `5ae13876ed4e0104a9c049e5b68d67177b0372d9` | SOURCE RESOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment, live verification and Material V3 finalization pending | Owner/Assistant independent Git review |
+| 2026-09-01 | DOC-03 | Independent source/test review, main-based fencing and queue-drain validation | audit `b1dee3d0afff1aefb5235176502cf0256fe975ce`; main `f601c2c4cb88f58f5095b842b0135316d8721f6f` | SOURCE LEASE RECOVERY/FENCING PASS / FIXED_UNVERIFIED; deployment, live queue recovery and Material V3 finalization pending | Owner/Assistant independent Git review |
 | — | — | — | — | — | — |
 
 ## 18. Decision log
@@ -699,6 +729,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-08-31 | Physical backup remains independent from Google Drive synchronization | Cloud failure must not block canonical safety backup | No cloud dependency in backup completion gate |
 | 2026-09-01 | Promote DOC-01 fail-closed containment to main | It prevents automatic external V1 Vision without changing production data or globally disabling explicit compatibility | Source accepted; no deployment; scan-only ingestion safely fails closed until Material V3/Visual V2 |
 | 2026-09-01 | Promote DOC-02 bounded Office archive extraction to main | It removes the unbounded ZIP-member RAM allocation path and adds deterministic archive/image limits without changing formats, schema or external services | Source accepted; no deployment; remaining force-atomicity and shared-resource coordination are retained as explicit future hardening |
+| 2026-09-01 | Promote DOC-03 lease recovery and attempt fencing to main | It prevents stale workers from mutating a reclaimed preparation attempt and keeps recovery active during long intelligence waits | Source accepted; no deployment or production-job recovery; structural side-effect fencing and serial throughput remain Material V3/RES-02 work |
 
 ## 19. Current verdicts
 
@@ -712,7 +743,7 @@ BLOCKED — VISUAL STAGES ARE NON-EXECUTABLE AND ADVANCED CAN PRECEDE REQUIRED V
 
 **DOCUMENT_PIPELINE_VERDICT:**
 
-BLOCKED — DOC-01/DOC-02 AWAIT DEPLOYMENT/LIVE VERIFICATION, STALE SERIAL PREPARATION REMAINS, AND MATERIAL V3 IS PENDING
+BLOCKED — DOC-01/DOC-02/DOC-03 AWAIT DEPLOYMENT/LIVE VERIFICATION, SERIAL THROUGHPUT REMAINS, AND MATERIAL V3 IS PENDING
 
 **CAD_VERDICT:**
 
