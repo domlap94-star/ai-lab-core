@@ -147,7 +147,7 @@ commit lub zatwierdzony artefakt operacyjny.
 | VIS-08 | P1 | audit migration only | OPEN | Privacy assessment does not persist detector generation. | Exact detector generation in assessment and fingerprint/reuse tests. | Privacy reproducibility | — | — |
 | VIS-09 | P1 | audit migration only | OPEN | Visual capability vocabulary is open. | Closed perception-capability vocabulary plus rejection tests. | Capability contract | — | — |
 | VIS-10 | P1 | audit migration only | OPEN | Migration test omits critical frozen-contract invariants. | Expanded isolated PostgreSQL matrix, concurrency tests and roundtrip proof. | VIS-01..VIS-09 | — | — |
-| DOC-01 | P0 | present today | OPEN | Normal document ingestion can trigger explicit external Vision V1. | Canonical ingestion ends at local Material V3; no automatic external Vision. | Runtime containment | — | — |
+| DOC-01 | P0 | present today | FIXED_UNVERIFIED | Normal document ingestion can trigger explicit external Vision V1. | Canonical ingestion ends at local Material V3; no automatic external Vision. | Runtime containment | Independent source review PASS; audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; promoted main source `d69e373fc435c6a5373a256b1acd206fddd3d184`; focused `9/9` and main-based relevant regression `42/42` PASS; deployment/live verification pending. | pending |
 | DOC-02 | P0 | present today | OPEN | OOXML/ODF media extraction uses unbounded `archive.read(member)`. | Entry count, per-entry bytes, total bytes, compression-ratio and streaming bounds. | File-safety layer | — | — |
 | DOC-03 | P1 | present today | OPEN | Expired running preparation blocks eight queued jobs. | Lease recovery, fencing and queue-drain regression test. | Preparation dispatcher | — | — |
 | DOC-04 | P1 | present today | OPEN | Document 8903 contains an invalid lone surrogate in JSON metadata. | Separate owner-approved controlled data repair with backup and audit proof. | DOC-02 safety; owner write gate | — | — |
@@ -236,6 +236,13 @@ commit lub zatwierdzony artefakt operacyjny.
 Kolejność jest obowiązkowa.
 
 ### 5.1 DOC-01 — ingestion-driven V1 externalization
+
+**Status: `FIXED_UNVERIFIED`.** Containment accepted: ordinary ingestion can no
+longer enter legacy external Vision. Known limitation: scan-only ingestion now
+fails closed until Material V3/Visual V2 provides the replacement local-first
+workflow. Full closure still requires deployment/live proof, a canonical local
+Material V3 terminal state, proof of no automatic external Vision, and an
+accepted recovery path for later explicit analysis.
 
 - [ ] Usunąć automatyczne przejście zwykłego ingestion do external Vision V1.
 - [ ] Udowodnić canonical przepływ:
@@ -506,8 +513,8 @@ deletion jest disabled, a owner retention policy nie jest jeszcze configured.
 
 ### PHASE 1 — Immediate production containment
 
-- [ ] DOC-01.
-- [ ] DOC-02.
+- [ ] DOC-01 — `FIXED_UNVERIFIED`; deployment and Material V3 closure pending.
+- [ ] **NEXT ACTIVE: DOC-02 — bounded OOXML/ODF asset extraction and ZIP-bomb protection.**
 - [ ] DOC-03.
 - [ ] DOC-04 design only do osobnego approval.
 
@@ -660,6 +667,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 |---|---|---|---|---|---|
 | 2026-08-31 | FULL-AUDIT | `FOLLOWUP_PRECHUNK23_FULL_SYSTEM_READONLY_AUDIT_20260831` | chat-only report | READ-ONLY AUDIT PASS / 21 BLOCKERS IDENTIFIED | pending owner/Assistant review |
 | 2026-08-31 | VISUAL-MIGRATION-AUDIT-BRANCH | isolated migration roundtrip | `65783d1c1e1b7b13d0fcccf85f922d8af8c0bf1c` | TECHNICAL ROUNDTRIP PASS / FROZEN CONTRACT FAIL | verified by full audit |
+| 2026-09-01 | DOC-01 | Independent source/test review and main-based promotion | audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; main `d69e373fc435c6a5373a256b1acd206fddd3d184` | SOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment and Material V3 closure pending | Owner/Assistant independent Git review |
 | — | — | — | — | — | — |
 
 ## 18. Decision log
@@ -670,6 +678,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-08-31 | Do not treat current RAM issue as proven memory leak | Audit identified medium false-starvation risk and real overlapping workloads | Calibration required before changing guard thresholds |
 | 2026-08-31 | Every new supported Document should receive local Material and Text Intelligence | Current target design lacks a non-Assistant durable Text Intelligence owner | AUTO-01 design gate required |
 | 2026-08-31 | Physical backup remains independent from Google Drive synchronization | Cloud failure must not block canonical safety backup | No cloud dependency in backup completion gate |
+| 2026-09-01 | Promote DOC-01 fail-closed containment to main | It prevents automatic external V1 Vision without changing production data or globally disabling explicit compatibility | Source accepted; no deployment; scan-only ingestion safely fails closed until Material V3/Visual V2 |
 
 ## 19. Current verdicts
 
