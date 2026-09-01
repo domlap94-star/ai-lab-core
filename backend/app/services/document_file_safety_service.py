@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import mimetypes
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+
+from app.services.document_office_archive_safety import (
+    DEFAULT_OFFICE_ARCHIVE_POLICY,
+    DocumentOfficeArchiveSafety,
+    OfficeArchiveSafetyError,
+    OfficeArchiveSafetyPolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +50,16 @@ class DocumentFileSafetyService:
         ".csv": {"text/csv", "text/plain", "application/octet-stream", "application/vnd.ms-excel"},
         ".tsv": {"text/tab-separated-values", "text/plain", "application/octet-stream"},
     }
+
+    def __init__(
+        self,
+        office_archive_policy: OfficeArchiveSafetyPolicy = (
+            DEFAULT_OFFICE_ARCHIVE_POLICY
+        ),
+    ) -> None:
+        self.office_archive_safety = DocumentOfficeArchiveSafety(
+            office_archive_policy
+        )
 
     def classify(self, *, path: Path, original_filename: str | None, declared_mime: str | None) -> FileSafetyResult:
         extension = Path(original_filename or path.name).suffix.casefold()
@@ -89,19 +105,15 @@ class DocumentFileSafetyService:
         del guessed
         return FileSafetyResult("unsupported", error_code="UNSUPPORTED_FORMAT")
 
-    @staticmethod
-    def _classify_zip_container(path: Path, extension: str) -> FileSafetyResult:
-        expected = {".docx": "word/", ".xlsx": "xl/", ".pptx": "ppt/", ".odt": "mimetype"}[extension]
+    def _classify_zip_container(self, path: Path, extension: str) -> FileSafetyResult:
         try:
-            with zipfile.ZipFile(path) as archive:
-                infos = archive.infolist()
-                if len(infos) > 5000 or any(info.flag_bits & 0x1 for info in infos):
-                    return FileSafetyResult("unsupported", error_code="ENCRYPTED_OR_OVERSIZED_OFFICE_CONTAINER")
-                names = {info.filename.replace("\\", "/") for info in infos}
-                if expected == "mimetype":
-                    valid = "mimetype" in names
-                else:
-                    valid = "[Content_Types].xml" in names and any(name.startswith(expected) for name in names)
-        except (OSError, zipfile.BadZipFile, RuntimeError):
-            valid = False
-        return FileSafetyResult("supported", extension[1:]) if valid else FileSafetyResult("integrity_failed", error_code="OFFICE_CONTAINER_MISMATCH")
+            self.office_archive_safety.preflight(
+                path=path,
+                extension=extension,
+            )
+        except OfficeArchiveSafetyError as error:
+            return FileSafetyResult(
+                error.state,
+                error_code=error.code,
+            )
+        return FileSafetyResult("supported", extension[1:])
