@@ -148,7 +148,7 @@ commit lub zatwierdzony artefakt operacyjny.
 | VIS-09 | P1 | audit migration only | OPEN | Visual capability vocabulary is open. | Closed perception-capability vocabulary plus rejection tests. | Capability contract | — | — |
 | VIS-10 | P1 | audit migration only | OPEN | Migration test omits critical frozen-contract invariants. | Expanded isolated PostgreSQL matrix, concurrency tests and roundtrip proof. | VIS-01..VIS-09 | — | — |
 | DOC-01 | P0 | present today | FIXED_UNVERIFIED | Normal document ingestion can trigger explicit external Vision V1. | Canonical ingestion ends at local Material V3; no automatic external Vision. | Runtime containment | Independent source review PASS; audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; promoted main source `d69e373fc435c6a5373a256b1acd206fddd3d184`; focused `9/9` and main-based relevant regression `42/42` PASS; deployment/live verification pending. | pending |
-| DOC-02 | P0 | present today | OPEN | OOXML/ODF media extraction uses unbounded `archive.read(member)`. | Entry count, per-entry bytes, total bytes, compression-ratio and streaming bounds. | File-safety layer | — | — |
+| DOC-02 | P0 | present today | FIXED_UNVERIFIED | OOXML/ODF media extraction uses unbounded `archive.read(member)`. | Entry count, per-entry bytes, total bytes, compression-ratio and streaming bounds. | File-safety layer | Independent source review PASS; audit `c08b55a07ac1a8b761f0c06ed70dd90085a7b944`; promoted main source `5ae13876ed4e0104a9c049e5b68d67177b0372d9`; focused T01–T24, main-based relevant regression `34/34`, and actual XLSX/PPTX/ODT promotion probes PASS; deployment/live verification pending. | pending |
 | DOC-03 | P1 | present today | OPEN | Expired running preparation blocks eight queued jobs. | Lease recovery, fencing and queue-drain regression test. | Preparation dispatcher | — | — |
 | DOC-04 | P1 | present today | OPEN | Document 8903 contains an invalid lone surrogate in JSON metadata. | Separate owner-approved controlled data repair with backup and audit proof. | DOC-02 safety; owner write gate | — | — |
 | AUTO-01 | P0 | target V3 design | OPEN | No durable non-Assistant owner exists for automatic Text Intelligence. | Document/material-generation-scoped durable Text Intelligence work ledger or explicitly approved equivalent. | Material V3 schema | — | — |
@@ -256,13 +256,31 @@ accepted recovery path for later explicit analysis.
 
 ### 5.2 DOC-02 — OOXML/ODF ZIP allocation
 
-- [ ] Zastąpić unbounded `archive.read(member)` bounded/streaming extraction.
-- [ ] Egzekwować max archive entries.
-- [ ] Egzekwować per-entry uncompressed bytes.
-- [ ] Egzekwować total uncompressed bytes.
-- [ ] Egzekwować compression-ratio bound.
-- [ ] Egzekwować asset-count i asset-bytes bounds.
-- [ ] Dodać bezpieczne testy ZIP-bomb bez alokacji niekontrolowanych danych.
+**Status: `FIXED_UNVERIFIED`.** Source containment is independently accepted;
+deployment and live verification remain pending.
+
+- [x] Zastąpić unbounded `archive.read(member)` bounded/streaming extraction.
+- [x] Egzekwować max archive entries.
+- [x] Egzekwować per-entry uncompressed bytes.
+- [x] Egzekwować total uncompressed bytes.
+- [x] Egzekwować compression-ratio bound.
+- [x] Egzekwować asset-count i asset-bytes bounds.
+- [x] Egzekwować image dimension i pixel bounds przed pełnym decode.
+- [x] Zachować istniejące assets/files po hard preflight rejection z `force=True`.
+- [x] Dodać bezpieczne testy ZIP-bomb bez alokacji niekontrolowanych danych.
+- [ ] Wdrożyć i potwierdzić live bounded extraction bez production file processing.
+
+Znane ograniczenia, które nie blokują source containment:
+
+- po udanym Phase-A validation ścieżka `force=True` nadal usuwa i zatwierdza
+  poprzednie assets przed commitem kompletnego replacement set; późniejszy
+  Phase-B persistence failure może pozostawić dokument bez starych assets;
+  pełna transakcyjność replacement pozostaje hardeningiem Material V3;
+- wspólna admission/control dla upload bytes, LibreOffice, OCR, PDF rendering,
+  Assistant Qwen i backup IO pozostaje osobnym blockerem `RES-02`;
+- committed evidence jest najsilniejsze dla DOCX i konwertowanego DOC;
+  dodatkowe main-promotion probes potwierdziły rzeczywistą bounded persistence
+  dla XLSX, PPTX i ODT.
 
 ### 5.3 DOC-03 — stale preparation recovery
 
@@ -514,8 +532,8 @@ deletion jest disabled, a owner retention policy nie jest jeszcze configured.
 ### PHASE 1 — Immediate production containment
 
 - [ ] DOC-01 — `FIXED_UNVERIFIED`; deployment and Material V3 closure pending.
-- [ ] **NEXT ACTIVE: DOC-02 — bounded OOXML/ODF asset extraction and ZIP-bomb protection.**
-- [ ] DOC-03.
+- [ ] DOC-02 — `FIXED_UNVERIFIED`; deployment/live verification and Material V3 finalization pending.
+- [ ] **NEXT ACTIVE: DOC-03 — stale preparation recovery and lease fencing.**
 - [ ] DOC-04 design only do osobnego approval.
 
 ### PHASE 2 — Visual V2 migration correction
@@ -668,6 +686,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-08-31 | FULL-AUDIT | `FOLLOWUP_PRECHUNK23_FULL_SYSTEM_READONLY_AUDIT_20260831` | chat-only report | READ-ONLY AUDIT PASS / 21 BLOCKERS IDENTIFIED | pending owner/Assistant review |
 | 2026-08-31 | VISUAL-MIGRATION-AUDIT-BRANCH | isolated migration roundtrip | `65783d1c1e1b7b13d0fcccf85f922d8af8c0bf1c` | TECHNICAL ROUNDTRIP PASS / FROZEN CONTRACT FAIL | verified by full audit |
 | 2026-09-01 | DOC-01 | Independent source/test review and main-based promotion | audit `f4041f709b88a111cd1fe9eba4d8640b1bede15f`; main `d69e373fc435c6a5373a256b1acd206fddd3d184` | SOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment and Material V3 closure pending | Owner/Assistant independent Git review |
+| 2026-09-01 | DOC-02 | Independent source/test review, main-based revalidation and bounded format probes | audit `c08b55a07ac1a8b761f0c06ed70dd90085a7b944`; main `5ae13876ed4e0104a9c049e5b68d67177b0372d9` | SOURCE RESOURCE CONTAINMENT PASS / FIXED_UNVERIFIED; deployment, live verification and Material V3 finalization pending | Owner/Assistant independent Git review |
 | — | — | — | — | — | — |
 
 ## 18. Decision log
@@ -679,6 +698,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-08-31 | Every new supported Document should receive local Material and Text Intelligence | Current target design lacks a non-Assistant durable Text Intelligence owner | AUTO-01 design gate required |
 | 2026-08-31 | Physical backup remains independent from Google Drive synchronization | Cloud failure must not block canonical safety backup | No cloud dependency in backup completion gate |
 | 2026-09-01 | Promote DOC-01 fail-closed containment to main | It prevents automatic external V1 Vision without changing production data or globally disabling explicit compatibility | Source accepted; no deployment; scan-only ingestion safely fails closed until Material V3/Visual V2 |
+| 2026-09-01 | Promote DOC-02 bounded Office archive extraction to main | It removes the unbounded ZIP-member RAM allocation path and adds deterministic archive/image limits without changing formats, schema or external services | Source accepted; no deployment; remaining force-atomicity and shared-resource coordination are retained as explicit future hardening |
 
 ## 19. Current verdicts
 
@@ -692,7 +712,7 @@ BLOCKED — VISUAL STAGES ARE NON-EXECUTABLE AND ADVANCED CAN PRECEDE REQUIRED V
 
 **DOCUMENT_PIPELINE_VERDICT:**
 
-BLOCKED — AUTO V1 EXTERNALIZATION, ZIP RESOURCE DEFECT, AND STALE SERIAL PREPARATION
+BLOCKED — DOC-01/DOC-02 AWAIT DEPLOYMENT/LIVE VERIFICATION, STALE SERIAL PREPARATION REMAINS, AND MATERIAL V3 IS PENDING
 
 **CAD_VERDICT:**
 
