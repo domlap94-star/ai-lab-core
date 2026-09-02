@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.document import Document
+from app.services.backup_restore_service import OPERATION_LOCK_KEY
 from app.services.document_metadata_unicode_safety import (
     DOCUMENT_METADATA_REPAIR_CONTRACT_MISMATCH,
     DocumentMetadataSafetyError,
@@ -63,6 +64,9 @@ REPAIR_BACKUP_DISAPPEARED = (
     "DOCUMENT_METADATA_REPAIR_BACKUP_DISAPPEARED"
 )
 REPAIR_ACTIVE_OPERATION = "DOCUMENT_METADATA_REPAIR_ACTIVE_OPERATION"
+REPAIR_OPERATION_LOCK_BUSY = (
+    "DOCUMENT_METADATA_REPAIR_OPERATION_LOCK_BUSY"
+)
 REPAIR_TARGET_MISSING = "DOCUMENT_METADATA_REPAIR_TARGET_MISSING"
 REPAIR_NULL_SHAPE = "DOCUMENT_METADATA_REPAIR_NULL_SHAPE"
 REPAIR_BEFORE_HASH = "DOCUMENT_METADATA_REPAIR_BEFORE_HASH"
@@ -87,6 +91,7 @@ _CRITICAL_RUNTIME_PATHS = (
     "backend/app/services/document_metadata_service.py",
     "backend/app/services/document_service.py",
     "backend/app/services/document_processing_service.py",
+    "backend/app/services/backup_restore_service.py",
     "backend/app/repositories/document_repository.py",
 )
 
@@ -155,6 +160,7 @@ class RepairResult:
     affected_columns: tuple[str, ...]
     backup_run_id: int | None = None
     backup_manifest_sha256: str | None = None
+    production_preflight: bool = False
 
     def safe_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -162,6 +168,7 @@ class RepairResult:
             "database": self.database,
             "document_id": TARGET_DOCUMENT_ID,
             "executed": self.executed,
+            "production_preflight": self.production_preflight,
             "affected_documents": self.affected_documents,
             "affected_columns": list(self.affected_columns),
             "metadata_raw": self.raw,
@@ -504,14 +511,14 @@ def _validate_production_gate(
     connection: Connection,
     *,
     database: str,
-    execute: bool,
+    production_mode: bool,
     contract: RepairContract,
     transaction_time: datetime | None = None,
 ) -> BackupEvidence | None:
     if database != "ai_lab":
         return None
     required = (
-        execute,
+        production_mode,
         contract.allow_production_ai_lab,
         bool(contract.owner_approval_id),
         bool(contract.expected_git_sha),
@@ -566,6 +573,31 @@ def _validate_production_gate(
     return evidence
 
 
+def _validate_execution_mode(
+    *,
+    database: str,
+    execute: bool,
+    production_preflight: bool,
+) -> None:
+    if execute and production_preflight:
+        raise DocumentMetadataRepairError(REPAIR_PRODUCTION_GUARD)
+    if database == "ai_lab" and not (execute or production_preflight):
+        raise DocumentMetadataRepairError(REPAIR_PRODUCTION_GUARD)
+
+
+def _acquire_backup_restore_operation_lock(
+    connection: Connection,
+) -> None:
+    acquired = bool(
+        connection.execute(
+            text("SELECT pg_try_advisory_xact_lock(:key)"),
+            {"key": OPERATION_LOCK_KEY},
+        ).scalar_one()
+    )
+    if not acquired:
+        raise DocumentMetadataRepairError(REPAIR_OPERATION_LOCK_BUSY)
+
+
 def _assert_no_active_operations(connection: Connection) -> None:
     backup_count = int(
         connection.execute(
@@ -579,7 +611,9 @@ def _assert_no_active_operations(connection: Connection) -> None:
         connection.execute(
             text(
                 "SELECT count(*) FROM restore_runs "
-                "WHERE status IN ('queued','running')"
+                "WHERE status IN ("
+                "'queued','running','approval_required','rollback_required'"
+                ")"
             )
         ).scalar_one()
     )
@@ -600,15 +634,15 @@ def _assert_target_quiescent(
         or row.get("purged_at") is not None
     ):
         raise DocumentMetadataRepairError(REPAIR_TARGET_ACTIVE)
-    active = connection.execute(
+    preparation_rows = connection.execute(
         text(
             "SELECT id, status FROM document_preparation_jobs "
-            "WHERE document_id=:id AND status IN ('queued','running') "
+            "WHERE document_id=:id "
             "ORDER BY id FOR SHARE"
         ),
         {"id": TARGET_DOCUMENT_ID},
     ).all()
-    if active:
+    if any(row.status in {"queued", "running"} for row in preparation_rows):
         raise DocumentMetadataRepairError(REPAIR_TARGET_ACTIVE)
 
 
@@ -680,10 +714,6 @@ def _revalidate_production_guards(
     initial_backup: BackupEvidence,
 ) -> None:
     _assert_no_active_operations(connection)
-    _assert_target_quiescent(
-        connection,
-        _reload_target_state(connection),
-    )
     _verify_runtime_source_identity(str(contract.expected_git_sha))
     refreshed_backup = _load_backup_evidence(
         connection,
@@ -703,6 +733,10 @@ def _revalidate_production_guards(
         contract=contract,
         recheck=True,
     )
+    _assert_target_quiescent(
+        connection,
+        _reload_target_state(connection),
+    )
 
 
 def execute_repair(
@@ -711,6 +745,7 @@ def execute_repair(
     contract: RepairContract,
     data_root: Path,
     execute: bool = False,
+    production_preflight: bool = False,
 ) -> RepairResult:
     if connection.in_transaction():
         raise DocumentMetadataRepairError(REPAIR_REFUSED)
@@ -732,13 +767,13 @@ def execute_repair(
             raise DocumentMetadataRepairError(
                 REPAIR_DATABASE_MISMATCH
             )
-        initial_backup = _validate_production_gate(
-            connection,
+        _validate_execution_mode(
             database=database,
             execute=execute,
-            contract=contract,
-            transaction_time=transaction_time,
+            production_preflight=production_preflight,
         )
+        if execute or production_preflight:
+            _acquire_backup_restore_operation_lock(connection)
         db_head = str(
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
@@ -749,6 +784,13 @@ def execute_repair(
                 REPAIR_ALEMBIC_MISMATCH
             )
         _assert_no_active_operations(connection)
+        initial_backup = _validate_production_gate(
+            connection,
+            database=database,
+            production_mode=(execute or production_preflight),
+            contract=contract,
+            transaction_time=transaction_time,
+        )
 
         row = connection.execute(
             text(
@@ -944,12 +986,37 @@ def execute_repair(
             transaction.commit()
             committed = True
         else:
+            if production_preflight:
+                if database == "ai_lab":
+                    if initial_backup is None:
+                        raise DocumentMetadataRepairError(
+                            REPAIR_BACKUP_INVALID
+                        )
+                    _revalidate_production_guards(
+                        connection,
+                        contract=contract,
+                        initial_backup=initial_backup,
+                    )
+                else:
+                    _assert_target_quiescent(
+                        connection,
+                        _reload_target_state(connection),
+                    )
             transaction.rollback()
 
         return RepairResult(
-            code=("DOCUMENT_METADATA_REPAIR_EXECUTED" if execute else "DOCUMENT_METADATA_REPAIR_DRY_RUN"),
+            code=(
+                "DOCUMENT_METADATA_REPAIR_EXECUTED"
+                if execute
+                else (
+                    "DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK"
+                    if production_preflight
+                    else "DOCUMENT_METADATA_REPAIR_DRY_RUN"
+                )
+            ),
             database=database,
             executed=execute,
+            production_preflight=production_preflight,
             raw=raw_result.safe_evidence(),
             normalized=normalized_result.safe_evidence(),
             affected_documents=affected_count,
@@ -999,7 +1066,12 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Guarded one-row document metadata surrogate repair."
     )
-    parser.add_argument("--execute", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--execute", action="store_true")
+    mode.add_argument(
+        "--preflight-production",
+        action="store_true",
+    )
     parser.add_argument(
         "--allow-production-ai-lab", action="store_true"
     )
@@ -1086,6 +1158,7 @@ def main(argv: list[str] | None = None) -> int:
                     contract=contract,
                     data_root=Path(settings.data_dir),
                     execute=args.execute,
+                    production_preflight=args.preflight_production,
                 )
             print(
                 json.dumps(

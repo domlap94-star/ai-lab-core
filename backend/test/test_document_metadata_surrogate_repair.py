@@ -13,7 +13,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.exc import OperationalError
 
 from app.database.session import SessionLocal, engine
 from app.models.document import Document
@@ -36,6 +37,7 @@ from app.scripts.repair_document_metadata_surrogates import (
     REPAIR_BEFORE_HASH,
     REPAIR_CANDIDATE_HASH,
     REPAIR_CONCURRENCY,
+    REPAIR_OPERATION_LOCK_BUSY,
     REPAIR_POSTCONDITION,
     REPAIR_PRODUCTION_GUARD,
     REPAIR_RUNTIME_SOURCE_MISMATCH,
@@ -49,6 +51,7 @@ from app.scripts.repair_document_metadata_surrogates import (
     RepairResult,
     _assert_no_active_operations,
     _assert_target_quiescent,
+    _acquire_backup_restore_operation_lock,
     _backup_root_sha256,
     _parser,
     _revalidate_production_guards,
@@ -58,6 +61,7 @@ from app.scripts.repair_document_metadata_surrogates import (
     _verify_runtime_source_identity,
     execute_repair,
 )
+from app.services.backup_restore_service import OPERATION_LOCK_KEY
 from app.services.document_metadata_unicode_safety import (
     DOCUMENT_METADATA_JSON_INVALID,
     DOCUMENT_METADATA_UNICODE_KEY_COLLISION,
@@ -800,6 +804,7 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
         *,
         contract: RepairContract | None = None,
         execute: bool,
+        production_preflight: bool = False,
     ) -> RepairResult:
         with engine.connect() as connection:
             return execute_repair(
@@ -807,6 +812,7 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
                 contract=contract or self._contract(),
                 data_root=self.data_root,
                 execute=execute,
+                production_preflight=production_preflight,
             )
 
     def _state(self) -> tuple[object, ...]:
@@ -1103,7 +1109,7 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
             _validate_production_gate(
                 connection,
                 database="ai_lab",
-                execute=True,
+                production_mode=True,
                 contract=contract,
             )
         self.assertEqual(raised.exception.code, REPAIR_PRODUCTION_GUARD)
@@ -1121,7 +1127,7 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
             _validate_production_gate(
                 connection,
                 database="ai_lab",
-                execute=True,
+                production_mode=True,
                 contract=contract,
             )
         self.assertEqual(raised.exception.code, REPAIR_PRODUCTION_GUARD)
@@ -1139,7 +1145,7 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
             _validate_production_gate(
                 connection,
                 database="ai_lab",
-                execute=True,
+                production_mode=True,
                 contract=contract,
             )
         self.assertEqual(raised.exception.code, REPAIR_PRODUCTION_GUARD)
@@ -1328,6 +1334,661 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
                 {"key": "nul", "id": OTHER_ID},
             ).scalar_one()
         self.assertEqual(value, "before\ufffdafter")
+
+    def _identity_fixture(
+        self,
+    ) -> tuple[Path, Path, str, dict[str, str]]:
+        repository = self.data_root / "identity-repository"
+        committed: dict[str, str] = {}
+        for relative in repair_module._CRITICAL_RUNTIME_PATHS:
+            path = repository / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            content = ("synthetic:" + relative + "\n").encode()
+            path.write_bytes(content)
+            blob = b"blob " + str(len(content)).encode() + b"\0" + content
+            committed[relative] = hashlib.sha1(blob).hexdigest()
+        head = "e" * 40
+        script = repository / repair_module._CRITICAL_RUNTIME_PATHS[0]
+        return repository, script, head, committed
+
+    @staticmethod
+    def _identity_git_output(
+        repository: Path,
+        head: str,
+        committed: dict[str, str],
+    ):
+        def output(arguments, *, cwd, text_output):
+            del cwd, text_output
+            if arguments == ["rev-parse", "--show-toplevel"]:
+                return str(repository)
+            if arguments == ["rev-parse", "HEAD"]:
+                return head
+            if arguments[:1] == ["rev-parse"]:
+                relative = arguments[1].split(":", 1)[1]
+                return committed[relative]
+            if arguments[:1] == ["hash-object"]:
+                relative = arguments[1].split("=", 1)[1]
+                content = (repository / relative).read_bytes()
+                blob = (
+                    b"blob " + str(len(content)).encode() + b"\0" + content
+                )
+                return hashlib.sha1(blob).hexdigest()
+            raise AssertionError(f"unexpected Git command: {arguments!r}")
+
+        return output
+
+    @staticmethod
+    def _required_cli_arguments() -> list[str]:
+        return [
+            "--expected-database", TEST_DATABASE_NAME,
+            "--expected-alembic-head", EXPECTED_HEAD,
+            "--expected-xmin", "1",
+            "--expected-updated-at", UPDATED_AT.isoformat(),
+            "--expected-storage-sha256", "0" * 64,
+            "--expected-raw-before-sha256", "0" * 64,
+            "--expected-raw-candidate-sha256", "0" * 64,
+            "--expected-normalized-before-sha256", "0" * 64,
+            "--expected-normalized-candidate-sha256", "0" * 64,
+        ]
+
+    def test_h01_canonical_operation_lock_identity(self) -> None:
+        self.assertEqual(repair_module.OPERATION_LOCK_KEY, OPERATION_LOCK_KEY)
+        source = Path(repair_module.__file__).read_text(encoding="utf-8")
+        self.assertIn(
+            "from app.services.backup_restore_service import OPERATION_LOCK_KEY",
+            source,
+        )
+        self.assertIn(
+            "backend/app/services/backup_restore_service.py",
+            repair_module._CRITICAL_RUNTIME_PATHS,
+        )
+
+    def test_h02_repair_acquires_operation_lock(self) -> None:
+        with engine.connect() as first, engine.connect() as second:
+            first_transaction = first.begin()
+            second_transaction = second.begin()
+            try:
+                _acquire_backup_restore_operation_lock(first)
+                acquired = second.execute(
+                    text("SELECT pg_try_advisory_xact_lock(:key)"),
+                    {"key": OPERATION_LOCK_KEY},
+                ).scalar_one()
+                self.assertFalse(acquired)
+            finally:
+                second_transaction.rollback()
+                first_transaction.rollback()
+
+    def test_h03_busy_lock_refuses_before_target_work(self) -> None:
+        statements: list[str] = []
+        contract = self._contract()
+
+        def record_statement(
+            _connection, _cursor, statement, _parameters, _context,
+            _executemany,
+        ) -> None:
+            statements.append(statement)
+
+        with engine.connect() as holder:
+            holder_transaction = holder.begin()
+            try:
+                _acquire_backup_restore_operation_lock(holder)
+                event.listen(engine, "before_cursor_execute", record_statement)
+                try:
+                    with self.assertRaises(
+                        DocumentMetadataRepairError
+                    ) as raised:
+                        self._execute(contract=contract, execute=True)
+                finally:
+                    event.remove(
+                        engine, "before_cursor_execute", record_statement
+                    )
+                self.assertEqual(
+                    raised.exception.code,
+                    REPAIR_OPERATION_LOCK_BUSY,
+                )
+            finally:
+                holder_transaction.rollback()
+        self.assertFalse(
+            any("FROM documents" in statement for statement in statements)
+        )
+
+    def test_h04_operation_lock_released_on_preflight_rollback(self) -> None:
+        result = self._execute(
+            execute=False,
+            production_preflight=True,
+        )
+        self.assertFalse(result.executed)
+        with engine.begin() as connection:
+            acquired = connection.execute(
+                text("SELECT pg_try_advisory_xact_lock(:key)"),
+                {"key": OPERATION_LOCK_KEY},
+            ).scalar_one()
+            self.assertTrue(acquired)
+
+    def test_h05_operation_lock_released_on_execute_commit(self) -> None:
+        self._execute(execute=True)
+        with engine.begin() as connection:
+            acquired = connection.execute(
+                text("SELECT pg_try_advisory_xact_lock(:key)"),
+                {"key": OPERATION_LOCK_KEY},
+            ).scalar_one()
+            self.assertTrue(acquired)
+
+    def test_h06_backup_start_race_is_closed(self) -> None:
+        with engine.connect() as repair, engine.connect() as backup:
+            repair_transaction = repair.begin()
+            backup_transaction = backup.begin()
+            try:
+                _acquire_backup_restore_operation_lock(repair)
+                backup_can_start = backup.execute(
+                    text("SELECT pg_try_advisory_xact_lock(:key)"),
+                    {"key": OPERATION_LOCK_KEY},
+                ).scalar_one()
+                self.assertFalse(backup_can_start)
+            finally:
+                backup_transaction.rollback()
+                repair_transaction.rollback()
+        with engine.begin() as backup:
+            backup_can_start = backup.execute(
+                text("SELECT pg_try_advisory_xact_lock(:key)"),
+                {"key": OPERATION_LOCK_KEY},
+            ).scalar_one()
+            self.assertTrue(backup_can_start)
+
+    def test_h07_operation_wins_first_and_repair_reads_no_target(self) -> None:
+        statements: list[str] = []
+        contract = self._contract()
+
+        def record_statement(
+            _connection, _cursor, statement, _parameters, _context,
+            _executemany,
+        ) -> None:
+            statements.append(statement)
+
+        with engine.connect() as operation:
+            operation_transaction = operation.begin()
+            try:
+                _acquire_backup_restore_operation_lock(operation)
+                event.listen(engine, "before_cursor_execute", record_statement)
+                try:
+                    with self.assertRaises(
+                        DocumentMetadataRepairError
+                    ) as raised:
+                        self._execute(
+                            contract=contract,
+                            execute=False,
+                            production_preflight=True,
+                        )
+                finally:
+                    event.remove(
+                        engine, "before_cursor_execute", record_statement
+                    )
+                self.assertEqual(
+                    raised.exception.code,
+                    REPAIR_OPERATION_LOCK_BUSY,
+                )
+            finally:
+                operation_transaction.rollback()
+        self.assertFalse(
+            any("FROM documents" in statement for statement in statements)
+        )
+
+    def test_h08_repair_lock_order_is_canonical(self) -> None:
+        statements: list[str] = []
+
+        def record_statement(
+            _connection, _cursor, statement, _parameters, _context,
+            _executemany,
+        ) -> None:
+            statements.append(" ".join(statement.split()))
+
+        def synthetic_backup(connection, **_kwargs):
+            connection.execute(
+                text("SELECT 1 /* selected_backup_evidence */")
+            )
+            return None
+
+        event.listen(engine, "before_cursor_execute", record_statement)
+        try:
+            with patch.object(
+                repair_module,
+                "_validate_production_gate",
+                side_effect=synthetic_backup,
+            ):
+                self._execute(
+                    execute=False,
+                    production_preflight=True,
+                )
+        finally:
+            event.remove(engine, "before_cursor_execute", record_statement)
+        lock_index = next(
+            index for index, value in enumerate(statements)
+            if "pg_try_advisory_xact_lock" in value
+        )
+        backup_index = next(
+            index for index, value in enumerate(statements)
+            if "selected_backup_evidence" in value
+        )
+        document_index = next(
+            index for index, value in enumerate(statements)
+            if "FROM documents WHERE id=" in value and "FOR UPDATE" in value
+        )
+        preparation_index = next(
+            index for index, value in enumerate(statements)
+            if "FROM document_preparation_jobs" in value
+            and "FOR SHARE" in value
+        )
+        self.assertLess(lock_index, backup_index)
+        self.assertLess(backup_index, document_index)
+        self.assertLess(document_index, preparation_index)
+
+    def test_h09_all_terminal_preparation_rows_are_locked(self) -> None:
+        self._seed_preparation_job(status="ready", generation="h09-ready")
+        self._seed_preparation_job(status="failed", generation="h09-failed")
+        with engine.connect() as repair, engine.connect() as contender:
+            repair_transaction = repair.begin()
+            contender_transaction = contender.begin()
+            try:
+                _acquire_backup_restore_operation_lock(repair)
+                row = repair.execute(
+                    text(
+                        "SELECT processing_status, metadata_status, "
+                        "trashed_at, purged_at FROM documents "
+                        "WHERE id=:id FOR UPDATE"
+                    ),
+                    {"id": TARGET_ID},
+                ).mappings().one()
+                _assert_target_quiescent(repair, dict(row))
+                contender.execute(text("SET LOCAL lock_timeout='200ms'"))
+                with self.assertRaises(OperationalError):
+                    contender.execute(
+                        text(
+                            "UPDATE document_preparation_jobs "
+                            "SET status='queued' "
+                            "WHERE id=:id"
+                        ),
+                        {"id": "doc04a1-h09-ready"},
+                    )
+            finally:
+                contender_transaction.rollback()
+                repair_transaction.rollback()
+
+    def test_h10_queued_and_running_preparation_are_rejected(self) -> None:
+        self._seed_preparation_job(status="queued", generation="h10-queued")
+        self._seed_preparation_job(status="running", generation="h10-running")
+        self._assert_code(
+            REPAIR_TARGET_ACTIVE,
+            execute=False,
+        )
+
+    def test_h11_terminal_preparation_rows_are_allowed(self) -> None:
+        self._seed_preparation_job(status="ready", generation="h11-ready")
+        self._seed_preparation_job(status="failed", generation="h11-failed")
+        result = self._execute(
+            execute=False,
+            production_preflight=True,
+        )
+        self.assertEqual(
+            result.code,
+            "DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK",
+        )
+
+    def test_h12_new_preparation_insert_is_fenced(self) -> None:
+        with engine.connect() as repair, engine.connect() as contender:
+            repair_transaction = repair.begin()
+            contender_transaction = contender.begin()
+            try:
+                repair.execute(
+                    text("SELECT id FROM documents WHERE id=:id FOR UPDATE"),
+                    {"id": TARGET_ID},
+                ).one()
+                contender.execute(text("SET LOCAL lock_timeout='200ms'"))
+                with self.assertRaises(OperationalError):
+                    contender.execute(
+                        text(
+                            "INSERT INTO document_preparation_jobs ("
+                            "id, document_id, input_checksum, "
+                            "processor_generation, trigger, priority, "
+                            "status, stage, attempt_count, max_attempts"
+                            ") VALUES ("
+                            ":id, :document_id, :checksum, :generation, "
+                            "'operator_retry', 2, 'ready', "
+                            "'ready_for_ai', 0, 3)"
+                        ),
+                        {
+                            "id": "doc04a1-h12-insert",
+                            "document_id": TARGET_ID,
+                            "checksum": _sha256(FILE_CONTENT),
+                            "generation": "h12-insert",
+                        },
+                    )
+            finally:
+                contender_transaction.rollback()
+                repair_transaction.rollback()
+
+    def test_h13_preparation_locks_release_after_rollback(self) -> None:
+        self._seed_preparation_job(status="ready", generation="h13-ready")
+        with engine.connect() as repair:
+            repair_transaction = repair.begin()
+            row = repair.execute(
+                text(
+                    "SELECT processing_status, metadata_status, "
+                    "trashed_at, purged_at FROM documents "
+                    "WHERE id=:id FOR UPDATE"
+                ),
+                {"id": TARGET_ID},
+            ).mappings().one()
+            _assert_target_quiescent(repair, dict(row))
+            repair_transaction.rollback()
+        with engine.begin() as connection:
+            changed = connection.execute(
+                text(
+                    "UPDATE document_preparation_jobs SET status='failed' "
+                    "WHERE id=:id"
+                ),
+                {"id": "doc04a1-h13-ready"},
+            )
+            self.assertEqual(changed.rowcount, 1)
+            connection.execute(
+                text(
+                    "INSERT INTO document_preparation_jobs ("
+                    "id, document_id, input_checksum, processor_generation, "
+                    "trigger, priority, status, stage, attempt_count, "
+                    "max_attempts) VALUES ("
+                    ":id, :document_id, :checksum, :generation, "
+                    "'operator_retry', 2, 'ready', 'ready_for_ai', 0, 3)"
+                ),
+                {
+                    "id": "doc04a1-h13-insert",
+                    "document_id": TARGET_ID,
+                    "checksum": _sha256(FILE_CONTENT),
+                    "generation": "h13-insert",
+                },
+            )
+
+    def test_h14_execute_and_preflight_flags_are_exclusive(self) -> None:
+        with self.assertRaises(SystemExit):
+            _parser().parse_args(
+                ["--execute", "--preflight-production"]
+                + self._required_cli_arguments()
+            )
+
+    def test_h15_production_default_refuses_before_target_read(self) -> None:
+        connection = MagicMock()
+        connection.in_transaction.return_value = False
+        connection.execution_options.return_value = connection
+        transaction = connection.begin.return_value
+        transaction.is_active = True
+        connection.execute.side_effect = [
+            _ScalarResult("ai_lab"),
+            _ScalarResult(UPDATED_AT),
+        ]
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            execute_repair(
+                connection,
+                contract=_guard_contract(),
+                data_root=self.data_root,
+            )
+        self.assertEqual(raised.exception.code, REPAIR_PRODUCTION_GUARD)
+        sql = " ".join(
+            str(call.args[0]) for call in connection.execute.call_args_list
+        )
+        self.assertNotIn("FROM documents", sql)
+
+    def test_h16_preflight_requires_production_allow_flag(self) -> None:
+        connection = MagicMock()
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _validate_production_gate(
+                connection,
+                database="ai_lab",
+                production_mode=True,
+                contract=_guard_contract(allow_production_ai_lab=False),
+            )
+        self.assertEqual(raised.exception.code, REPAIR_PRODUCTION_GUARD)
+        connection.execute.assert_not_called()
+
+    def test_h17_preflight_requires_owner_approval(self) -> None:
+        connection = MagicMock()
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _validate_production_gate(
+                connection,
+                database="ai_lab",
+                production_mode=True,
+                contract=_guard_contract(owner_approval_id=None),
+            )
+        self.assertEqual(raised.exception.code, REPAIR_PRODUCTION_GUARD)
+        connection.execute.assert_not_called()
+
+    def test_h18_preflight_requires_complete_backup_contract(self) -> None:
+        missing_values = (
+            {"verified_backup_run_id": None},
+            {"verified_backup_manifest_sha256": None},
+            {"expected_backup_finished_at": None},
+            {"maximum_backup_age_seconds": None},
+            {"expected_backup_destination_root_sha256": None},
+        )
+        for changes in missing_values:
+            with self.subTest(changes=changes):
+                connection = MagicMock()
+                with self.assertRaises(
+                    DocumentMetadataRepairError
+                ) as raised:
+                    _validate_production_gate(
+                        connection,
+                        database="ai_lab",
+                        production_mode=True,
+                        contract=_guard_contract(**changes),
+                    )
+                self.assertEqual(
+                    raised.exception.code,
+                    REPAIR_PRODUCTION_GUARD,
+                )
+                connection.execute.assert_not_called()
+
+    def test_h19_preflight_full_contract_is_nonwriting(self) -> None:
+        evidence = _backup_evidence(self.data_root)
+        contract = _guard_contract(evidence)
+        connection = MagicMock()
+        with (
+            patch.object(repair_module, "_verify_runtime_source_identity") as identity,
+            patch.object(
+                repair_module,
+                "_load_backup_evidence",
+                return_value=evidence,
+            ) as load,
+            patch.object(repair_module, "_validate_backup_evidence") as logical,
+            patch.object(repair_module, "_verify_backup_physical") as physical,
+        ):
+            selected = _validate_production_gate(
+                connection,
+                database="ai_lab",
+                production_mode=True,
+                contract=contract,
+                transaction_time=UPDATED_AT + timedelta(minutes=5),
+            )
+        self.assertEqual(selected, evidence)
+        identity.assert_called_once()
+        load.assert_called_once()
+        logical.assert_called_once()
+        physical.assert_called_once()
+
+        statements: list[str] = []
+
+        def record_statement(
+            _connection, _cursor, statement, _parameters, _context,
+            _executemany,
+        ) -> None:
+            statements.append(" ".join(statement.split()))
+
+        original_assert_candidate = repair_module._assert_candidate
+        event.listen(engine, "before_cursor_execute", record_statement)
+        try:
+            with patch.object(
+                repair_module,
+                "_assert_candidate",
+                wraps=original_assert_candidate,
+            ) as candidate:
+                result = self._execute(
+                    execute=False,
+                    production_preflight=True,
+                )
+        finally:
+            event.remove(engine, "before_cursor_execute", record_statement)
+        self.assertEqual(candidate.call_count, 2)
+        self.assertEqual(
+            result.code,
+            "DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK",
+        )
+        self.assertFalse(result.executed)
+        self.assertTrue(result.production_preflight)
+        self.assertFalse(
+            any(
+                statement.startswith("UPDATE documents")
+                for statement in statements
+            )
+        )
+
+    def test_h20_preflight_holds_lock_until_rollback(self) -> None:
+        observed: list[bool] = []
+        original_scope_scan = repair_module._scope_scan
+
+        def observe_lock(connection):
+            with engine.begin() as observer:
+                observed.append(
+                    bool(
+                        observer.execute(
+                            text("SELECT pg_try_advisory_xact_lock(:key)"),
+                            {"key": OPERATION_LOCK_KEY},
+                        ).scalar_one()
+                    )
+                )
+            return original_scope_scan(connection)
+
+        with patch.object(
+            repair_module,
+            "_scope_scan",
+            side_effect=observe_lock,
+        ):
+            self._execute(execute=False, production_preflight=True)
+        self.assertEqual(observed, [False])
+        with engine.begin() as observer:
+            self.assertTrue(
+                observer.execute(
+                    text("SELECT pg_try_advisory_xact_lock(:key)"),
+                    {"key": OPERATION_LOCK_KEY},
+                ).scalar_one()
+            )
+
+    def test_h21_preflight_failure_rolls_back_and_releases_lock(self) -> None:
+        before = self._state()
+        original = repair_module._assert_candidate
+        calls = 0
+
+        def fail_after_candidates(*args, **kwargs):
+            nonlocal calls
+            original(*args, **kwargs)
+            calls += 1
+            if calls == 2:
+                raise DocumentMetadataRepairError(REPAIR_POSTCONDITION)
+
+        with patch.object(
+            repair_module,
+            "_assert_candidate",
+            side_effect=fail_after_candidates,
+        ):
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(
+                    execute=False,
+                    production_preflight=True,
+                )
+        self.assertEqual(raised.exception.code, REPAIR_POSTCONDITION)
+        self.assertEqual(self._state(), before)
+        with engine.begin() as observer:
+            self.assertTrue(
+                observer.execute(
+                    text("SELECT pg_try_advisory_xact_lock(:key)"),
+                    {"key": OPERATION_LOCK_KEY},
+                ).scalar_one()
+            )
+
+    def test_h22_execute_remains_one_row_two_columns(self) -> None:
+        before = self._state()
+        result = self._execute(execute=True)
+        after = self._state()
+        self.assertTrue(result.executed)
+        self.assertEqual(result.affected_documents, 1)
+        self.assertEqual(
+            result.affected_columns,
+            ("metadata_normalized", "metadata_raw"),
+        )
+        self.assertEqual(after[1], before[1])
+        self.assertEqual(after[4:], before[4:])
+
+    def test_h23_restore_rollback_required_blocks(self) -> None:
+        connection = MagicMock()
+        connection.execute.side_effect = [_ScalarResult(0), _ScalarResult(1)]
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _assert_no_active_operations(connection)
+        self.assertEqual(raised.exception.code, REPAIR_ACTIVE_OPERATION)
+        restore_sql = str(connection.execute.call_args_list[1].args[0])
+        self.assertIn("rollback_required", restore_sql)
+
+    def test_h24_restore_approval_required_blocks(self) -> None:
+        connection = MagicMock()
+        connection.execute.side_effect = [_ScalarResult(0), _ScalarResult(1)]
+        with self.assertRaises(DocumentMetadataRepairError) as raised:
+            _assert_no_active_operations(connection)
+        self.assertEqual(raised.exception.code, REPAIR_ACTIVE_OPERATION)
+        restore_sql = str(connection.execute.call_args_list[1].args[0])
+        self.assertIn("approval_required", restore_sql)
+
+    def test_h25_terminal_restore_states_do_not_block(self) -> None:
+        connection = MagicMock()
+        connection.execute.side_effect = [_ScalarResult(0), _ScalarResult(0)]
+        _assert_no_active_operations(connection)
+        restore_sql = str(connection.execute.call_args_list[1].args[0])
+        self.assertNotIn("completed", restore_sql)
+        self.assertNotIn("failed", restore_sql)
+
+    def test_h26_dirty_backup_service_rejects_runtime_identity(self) -> None:
+        repository, script, head, committed = self._identity_fixture()
+        backup_service = (
+            repository
+            / "backend/app/services/backup_restore_service.py"
+        )
+        backup_service.write_bytes(b"synthetic-dirty-backup-service")
+        with patch.object(
+            repair_module,
+            "_git_output",
+            side_effect=self._identity_git_output(
+                repository, head, committed
+            ),
+        ):
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                _verify_runtime_source_identity(head, script_path=script)
+        self.assertEqual(
+            raised.exception.code,
+            REPAIR_RUNTIME_SOURCE_MISMATCH,
+        )
+
+    def test_h27_unrelated_dirty_paths_do_not_block_identity(self) -> None:
+        repository, script, head, committed = self._identity_fixture()
+        for relative in (
+            "backend/test/synthetic_unrelated.py",
+            "reports/synthetic-unrelated.md",
+            "operations/backup/synthetic-unrelated.txt",
+        ):
+            path = repository / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("synthetic dirty", encoding="utf-8")
+        with patch.object(
+            repair_module,
+            "_git_output",
+            side_effect=self._identity_git_output(
+                repository, head, committed
+            ),
+        ):
+            _verify_runtime_source_identity(head, script_path=script)
 
     @staticmethod
     def _production_contract(**changes: object) -> RepairContract:
