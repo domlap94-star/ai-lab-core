@@ -80,6 +80,7 @@ REPAIR_RUNTIME_SOURCE_MISMATCH = (
     "DOCUMENT_METADATA_REPAIR_RUNTIME_SOURCE_MISMATCH"
 )
 REPAIR_TARGET_ACTIVE = "DOCUMENT_METADATA_REPAIR_TARGET_ACTIVE"
+REPAIR_TRANSACTION_ISOLATION = "READ COMMITTED"
 
 _HEX64 = frozenset("0123456789abcdef")
 _MAX_SCOPE_DOCUMENTS = 100_000
@@ -555,7 +556,6 @@ def _validate_production_gate(
         raise DocumentMetadataRepairError(
             REPAIR_PRODUCTION_GUARD
         )
-    _verify_runtime_source_identity(str(contract.expected_git_sha))
     evidence = _load_backup_evidence(
         connection,
         int(contract.verified_backup_run_id),
@@ -570,6 +570,7 @@ def _validate_production_gate(
         contract=contract,
         recheck=False,
     )
+    _verify_runtime_source_identity(str(contract.expected_git_sha))
     return evidence
 
 
@@ -714,7 +715,6 @@ def _revalidate_production_guards(
     initial_backup: BackupEvidence,
 ) -> None:
     _assert_no_active_operations(connection)
-    _verify_runtime_source_identity(str(contract.expected_git_sha))
     refreshed_backup = _load_backup_evidence(
         connection,
         int(contract.verified_backup_run_id),
@@ -733,6 +733,7 @@ def _revalidate_production_guards(
         contract=contract,
         recheck=True,
     )
+    _verify_runtime_source_identity(str(contract.expected_git_sha))
     _assert_target_quiescent(
         connection,
         _reload_target_state(connection),
@@ -749,8 +750,14 @@ def execute_repair(
 ) -> RepairResult:
     if connection.in_transaction():
         raise DocumentMetadataRepairError(REPAIR_REFUSED)
+    # PostgreSQL SERIALIZABLE/REPEATABLE READ retains the snapshot created by
+    # the first query. This repair needs each command after advisory and row
+    # locks to see current committed state, so it uses READ COMMITTED. Exact
+    # correctness remains fenced by the canonical operation lock; backup,
+    # Document and preparation locks; xmin/updated_at; before/candidate and
+    # storage hashes; row count; bounded scope; and final revalidation.
     connection = connection.execution_options(
-        isolation_level="SERIALIZABLE"
+        isolation_level=REPAIR_TRANSACTION_ISOLATION
     )
     transaction = connection.begin()
     committed = False
@@ -760,9 +767,6 @@ def execute_repair(
                 text("SELECT current_database()")
             ).scalar_one()
         )
-        transaction_time = connection.execute(
-            text("SELECT clock_timestamp()")
-        ).scalar_one()
         if database != contract.expected_database:
             raise DocumentMetadataRepairError(
                 REPAIR_DATABASE_MISMATCH
@@ -774,6 +778,9 @@ def execute_repair(
         )
         if execute or production_preflight:
             _acquire_backup_restore_operation_lock(connection)
+        transaction_time = connection.execute(
+            text("SELECT clock_timestamp()")
+        ).scalar_one()
         db_head = str(
             connection.execute(
                 text("SELECT version_num FROM alembic_version")
@@ -945,6 +952,22 @@ def execute_repair(
             finally:
                 session.close()
 
+            if database == "ai_lab":
+                if initial_backup is None:
+                    raise DocumentMetadataRepairError(
+                        REPAIR_BACKUP_INVALID
+                    )
+                _revalidate_production_guards(
+                    connection,
+                    contract=contract,
+                    initial_backup=initial_backup,
+                )
+            else:
+                _assert_no_active_operations(connection)
+                _assert_target_quiescent(
+                    connection,
+                    _reload_target_state(connection),
+                )
             if (
                 _relation_counts(connection) != relations_before
                 or source.stat().st_size != actual_size
@@ -969,20 +992,6 @@ def execute_repair(
                         raise DocumentMetadataRepairError(
                             REPAIR_POSTCONDITION
                         )
-            _assert_target_quiescent(
-                connection,
-                _reload_target_state(connection),
-            )
-            if database == "ai_lab":
-                if initial_backup is None:
-                    raise DocumentMetadataRepairError(
-                        REPAIR_BACKUP_INVALID
-                    )
-                _revalidate_production_guards(
-                    connection,
-                    contract=contract,
-                    initial_backup=initial_backup,
-                )
             transaction.commit()
             committed = True
         else:
@@ -998,10 +1007,19 @@ def execute_repair(
                         initial_backup=initial_backup,
                     )
                 else:
+                    _assert_no_active_operations(connection)
                     _assert_target_quiescent(
                         connection,
                         _reload_target_state(connection),
                     )
+                final_affected_count, final_affected_columns = _scope_scan(
+                    connection
+                )
+                if (
+                    final_affected_count != affected_count
+                    or final_affected_columns != affected_columns
+                ):
+                    raise DocumentMetadataRepairError(REPAIR_SCOPE)
             transaction.rollback()
 
         return RepairResult(

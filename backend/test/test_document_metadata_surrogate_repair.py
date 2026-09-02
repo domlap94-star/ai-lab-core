@@ -45,6 +45,7 @@ from app.scripts.repair_document_metadata_surrogates import (
     REPAIR_STORAGE,
     REPAIR_TARGET_MISSING,
     REPAIR_TARGET_ACTIVE,
+    REPAIR_TRANSACTION_ISOLATION,
     BackupEvidence,
     DocumentMetadataRepairError,
     RepairContract,
@@ -90,6 +91,8 @@ NORMALIZED_FIXTURE = (
 SAFE_FIXTURE = r'{"safe":"synthetic-safe","number":2.00}'
 FILE_CONTENT = b"synthetic-doc04a-storage"
 UPDATED_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
+OPERATION_FIXTURE_ROLE = "DOC04A3Role"
+OPERATION_FIXTURE_USER = "doc04a3-actor"
 
 
 class _ScalarResult:
@@ -690,12 +693,65 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.storage = tempfile.TemporaryDirectory()
         self.data_root = Path(self.storage.name)
+        self._cleanup_operation_fixtures()
         self._cleanup_documents()
         self._seed_document()
 
     def tearDown(self) -> None:
+        self._cleanup_operation_fixtures()
         self._cleanup_documents()
         self.storage.cleanup()
+
+    def _cleanup_operation_fixtures(self) -> None:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "DELETE FROM restore_runs "
+                    "WHERE error_code LIKE 'doc04a3-%'"
+                )
+            )
+            connection.execute(
+                text(
+                    "DELETE FROM backup_runs "
+                    "WHERE error_code LIKE 'doc04a3-%'"
+                )
+            )
+            connection.execute(
+                text("DELETE FROM users WHERE username=:username"),
+                {"username": OPERATION_FIXTURE_USER},
+            )
+            connection.execute(
+                text("DELETE FROM roles WHERE name=:name"),
+                {"name": OPERATION_FIXTURE_ROLE},
+            )
+
+    @staticmethod
+    def _operation_actor(connection) -> int:
+        role_id = connection.execute(
+            text(
+                "INSERT INTO roles (name, description) "
+                "VALUES (:name, 'isolated DOC04A3 fixture') RETURNING id"
+            ),
+            {"name": OPERATION_FIXTURE_ROLE},
+        ).scalar_one()
+        return int(
+            connection.execute(
+                text(
+                    "INSERT INTO users ("
+                    "username, email, password_hash, is_active, "
+                    "must_change_password, password_reset_requested, "
+                    "auth_version, role_id"
+                    ") VALUES ("
+                    ":username, 'doc04a3@example.invalid', "
+                    "'isolated-not-a-password', true, false, false, 0, "
+                    ":role_id) RETURNING id"
+                ),
+                {
+                    "username": OPERATION_FIXTURE_USER,
+                    "role_id": role_id,
+                },
+            ).scalar_one()
+        )
 
     def _cleanup_documents(self) -> None:
         with engine.begin() as connection:
@@ -866,6 +922,98 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
                     "generation": generation,
                     "status": status,
                     "stage": stage,
+                },
+            )
+
+    @staticmethod
+    def _after_current_database_listener(
+        action,
+        statements: list[str],
+    ):
+        fired = [False]
+
+        def listener(
+            _connection, _cursor, statement, _parameters, _context,
+            _executemany,
+        ) -> None:
+            normalized = " ".join(statement.split())
+            statements.append(normalized)
+            if not fired[0] and "SELECT current_database()" in normalized:
+                fired[0] = True
+                action()
+
+        return listener, fired
+
+    def _commit_running_backup(self, suffix: str) -> None:
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            try:
+                _acquire_backup_restore_operation_lock(connection)
+                actor_id = self._operation_actor(connection)
+                connection.execute(
+                    text(
+                        "INSERT INTO backup_runs ("
+                        "scope, trigger, destination, status, stage, "
+                        "created_by_user_id, error_code"
+                        ") VALUES ("
+                        "'database', 'manual', 'synthetic-isolated', "
+                        "'running', 'database', :actor_id, :error_code)"
+                    ),
+                    {
+                        "actor_id": actor_id,
+                        "error_code": f"doc04a3-{suffix}",
+                    },
+                )
+                transaction.commit()
+            except Exception:
+                transaction.rollback()
+                raise
+
+    def _commit_unresolved_restore(self, suffix: str) -> None:
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            try:
+                _acquire_backup_restore_operation_lock(connection)
+                actor_id = self._operation_actor(connection)
+                connection.execute(
+                    text(
+                        "INSERT INTO restore_runs ("
+                        "checkpoint_path, mode, status, stage, "
+                        "manifest_verified, compatibility_verified, "
+                        "compatibility_result, created_by_user_id, "
+                        "error_code"
+                        ") VALUES ("
+                        "'synthetic-isolated', 'database', "
+                        "'approval_required', 'approval_required', "
+                        "false, false, 'invalid', :actor_id, :error_code)"
+                    ),
+                    {
+                        "actor_id": actor_id,
+                        "error_code": f"doc04a3-{suffix}",
+                    },
+                )
+                transaction.commit()
+            except Exception:
+                transaction.rollback()
+                raise
+
+    @staticmethod
+    def _commit_preparation_insert(suffix: str) -> None:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO document_preparation_jobs ("
+                    "id, document_id, input_checksum, processor_generation, "
+                    "trigger, priority, status, stage, attempt_count, "
+                    "max_attempts) VALUES ("
+                    ":id, :document_id, :checksum, :generation, "
+                    "'operator_retry', 2, 'queued', 'queued', 0, 3)"
+                ),
+                {
+                    "id": f"doc04a3-{suffix}",
+                    "document_id": TARGET_ID,
+                    "checksum": _sha256(FILE_CONTENT),
+                    "generation": suffix,
                 },
             )
 
@@ -1870,7 +2018,7 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
             side_effect=observe_lock,
         ):
             self._execute(execute=False, production_preflight=True)
-        self.assertEqual(observed, [False])
+        self.assertEqual(observed, [False, False])
         with engine.begin() as observer:
             self.assertTrue(
                 observer.execute(
@@ -1989,6 +2137,363 @@ class DocumentMetadataRepairIntegrationTests(unittest.TestCase):
             ),
         ):
             _verify_runtime_source_identity(head, script_path=script)
+
+    def test_i01_transaction_is_read_committed(self) -> None:
+        observed: list[str] = []
+        original = repair_module._assert_no_active_operations
+
+        def observe(connection):
+            observed.append(
+                str(
+                    connection.execute(
+                        text("SHOW transaction_isolation")
+                    ).scalar_one()
+                )
+            )
+            return original(connection)
+
+        with patch.object(
+            repair_module,
+            "_assert_no_active_operations",
+            side_effect=observe,
+        ):
+            self._execute(execute=False, production_preflight=True)
+        self.assertEqual(REPAIR_TRANSACTION_ISOLATION, "READ COMMITTED")
+        self.assertTrue(observed)
+        self.assertEqual(set(observed), {"read committed"})
+        source = Path(repair_module.__file__).read_text(encoding="utf-8")
+        self.assertNotIn('isolation_level="SERIALIZABLE"', source)
+
+    def test_i02_backup_commit_after_first_statement_is_visible(self) -> None:
+        contract = self._contract()
+        statements: list[str] = []
+        listener, fired = self._after_current_database_listener(
+            lambda: self._commit_running_backup("i02"),
+            statements,
+        )
+        event.listen(engine, "after_cursor_execute", listener)
+        try:
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(contract=contract, execute=True)
+        finally:
+            event.remove(engine, "after_cursor_execute", listener)
+        self.assertTrue(fired[0])
+        self.assertEqual(raised.exception.code, REPAIR_ACTIVE_OPERATION)
+        self.assertFalse(
+            any("FROM documents" in statement for statement in statements)
+        )
+
+    def test_i03_restore_commit_after_first_statement_is_visible(self) -> None:
+        contract = self._contract()
+        statements: list[str] = []
+        listener, fired = self._after_current_database_listener(
+            lambda: self._commit_unresolved_restore("i03"),
+            statements,
+        )
+        event.listen(engine, "after_cursor_execute", listener)
+        try:
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(contract=contract, execute=True)
+        finally:
+            event.remove(engine, "after_cursor_execute", listener)
+        self.assertTrue(fired[0])
+        self.assertEqual(raised.exception.code, REPAIR_ACTIVE_OPERATION)
+        self.assertFalse(
+            any("FROM documents" in statement for statement in statements)
+        )
+
+    def test_i04_preparation_insert_after_first_statement_is_visible(self) -> None:
+        contract = self._contract()
+        statements: list[str] = []
+        listener, fired = self._after_current_database_listener(
+            lambda: self._commit_preparation_insert("i04"),
+            statements,
+        )
+        event.listen(engine, "after_cursor_execute", listener)
+        try:
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(contract=contract, execute=True)
+        finally:
+            event.remove(engine, "after_cursor_execute", listener)
+        self.assertTrue(fired[0])
+        self.assertEqual(raised.exception.code, REPAIR_TARGET_ACTIVE)
+        self.assertFalse(
+            any(statement.startswith("UPDATE documents") for statement in statements)
+        )
+
+    def test_i05_terminal_preparation_reactivation_is_visible(self) -> None:
+        self._seed_preparation_job(status="ready", generation="i05-ready")
+        contract = self._contract()
+        statements: list[str] = []
+
+        def reactivate() -> None:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE document_preparation_jobs "
+                        "SET status='queued', stage='queued' WHERE id=:id"
+                    ),
+                    {"id": "doc04a1-i05-ready"},
+                )
+
+        listener, fired = self._after_current_database_listener(
+            reactivate,
+            statements,
+        )
+        event.listen(engine, "after_cursor_execute", listener)
+        try:
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(contract=contract, execute=True)
+        finally:
+            event.remove(engine, "after_cursor_execute", listener)
+        self.assertTrue(fired[0])
+        self.assertEqual(raised.exception.code, REPAIR_TARGET_ACTIVE)
+
+    def test_i06_document_status_commit_before_lock_is_visible(self) -> None:
+        contract = self._contract()
+        statements: list[str] = []
+
+        def change_status() -> None:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE documents SET processing_status='pending' "
+                        "WHERE id=:id"
+                    ),
+                    {"id": TARGET_ID},
+                )
+
+        listener, fired = self._after_current_database_listener(
+            change_status,
+            statements,
+        )
+        event.listen(engine, "after_cursor_execute", listener)
+        try:
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(contract=contract, execute=True)
+        finally:
+            event.remove(engine, "after_cursor_execute", listener)
+        self.assertTrue(fired[0])
+        self.assertEqual(raised.exception.code, REPAIR_TARGET_ACTIVE)
+
+    def test_i07_operation_after_repair_lock_remains_blocked(self) -> None:
+        with engine.connect() as repair, engine.connect() as operation:
+            repair_transaction = repair.begin()
+            operation_transaction = operation.begin()
+            try:
+                _acquire_backup_restore_operation_lock(repair)
+                acquired = operation.execute(
+                    text("SELECT pg_try_advisory_xact_lock(:key)"),
+                    {"key": OPERATION_LOCK_KEY},
+                ).scalar_one()
+                self.assertFalse(acquired)
+            finally:
+                operation_transaction.rollback()
+                repair_transaction.rollback()
+
+    def test_i08_insert_after_document_lock_remains_blocked(self) -> None:
+        with engine.connect() as repair, engine.connect() as contender:
+            repair_transaction = repair.begin()
+            contender_transaction = contender.begin()
+            try:
+                repair.execute(
+                    text("SELECT id FROM documents WHERE id=:id FOR UPDATE"),
+                    {"id": TARGET_ID},
+                ).one()
+                contender.execute(text("SET LOCAL lock_timeout='200ms'"))
+                with self.assertRaises(OperationalError):
+                    contender.execute(
+                        text(
+                            "INSERT INTO document_preparation_jobs ("
+                            "id, document_id, input_checksum, "
+                            "processor_generation, trigger, priority, "
+                            "status, stage, attempt_count, max_attempts"
+                            ") VALUES ("
+                            "'doc04a3-i08', :document_id, :checksum, "
+                            "'i08', 'operator_retry', 2, 'queued', "
+                            "'queued', 0, 3)"
+                        ),
+                        {
+                            "document_id": TARGET_ID,
+                            "checksum": _sha256(FILE_CONTENT),
+                        },
+                    )
+            finally:
+                contender_transaction.rollback()
+                repair_transaction.rollback()
+
+    def test_i09_update_after_preparation_share_lock_remains_blocked(self) -> None:
+        self._seed_preparation_job(status="ready", generation="i09-ready")
+        with engine.connect() as repair, engine.connect() as contender:
+            repair_transaction = repair.begin()
+            contender_transaction = contender.begin()
+            try:
+                row = repair.execute(
+                    text(
+                        "SELECT processing_status, metadata_status, "
+                        "trashed_at, purged_at FROM documents "
+                        "WHERE id=:id FOR UPDATE"
+                    ),
+                    {"id": TARGET_ID},
+                ).mappings().one()
+                _assert_target_quiescent(repair, dict(row))
+                contender.execute(text("SET LOCAL lock_timeout='200ms'"))
+                with self.assertRaises(OperationalError):
+                    contender.execute(
+                        text(
+                            "UPDATE document_preparation_jobs "
+                            "SET status='queued', stage='queued' WHERE id=:id"
+                        ),
+                        {"id": "doc04a1-i09-ready"},
+                    )
+            finally:
+                contender_transaction.rollback()
+                repair_transaction.rollback()
+
+    def test_i10_final_revalidation_sees_concurrent_scope_change(self) -> None:
+        self._seed_document(
+            document_id=OTHER_ID,
+            raw_text=SAFE_FIXTURE,
+            normalized_text=SAFE_FIXTURE,
+        )
+        before = self._state()
+        original = repair_module._scope_scan
+        calls = 0
+
+        def introduce_drift(connection):
+            nonlocal calls
+            result = original(connection)
+            calls += 1
+            if calls == 1:
+                with engine.begin() as contender:
+                    contender.execute(
+                        text(
+                            "UPDATE documents SET metadata_raw=CAST(:raw AS json) "
+                            "WHERE id=:id"
+                        ),
+                        {"raw": RAW_FIXTURE, "id": OTHER_ID},
+                    )
+            return result
+
+        with patch.object(
+            repair_module,
+            "_scope_scan",
+            side_effect=introduce_drift,
+        ):
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(execute=True)
+        self.assertEqual(raised.exception.code, REPAIR_POSTCONDITION)
+        self.assertEqual(self._state(), before)
+
+    def test_i11_preflight_rejects_fresh_scope_drift(self) -> None:
+        self._seed_document(
+            document_id=OTHER_ID,
+            raw_text=SAFE_FIXTURE,
+            normalized_text=SAFE_FIXTURE,
+        )
+        before = self._state()
+        original = repair_module._scope_scan
+        calls = 0
+
+        def introduce_drift(connection):
+            nonlocal calls
+            calls += 1
+            result = original(connection)
+            if calls == 1:
+                with engine.begin() as contender:
+                    contender.execute(
+                        text(
+                            "UPDATE documents SET metadata_raw=CAST(:raw AS json) "
+                            "WHERE id=:id"
+                        ),
+                        {"raw": RAW_FIXTURE, "id": OTHER_ID},
+                    )
+            return result
+
+        with patch.object(
+            repair_module,
+            "_scope_scan",
+            side_effect=introduce_drift,
+        ):
+            with self.assertRaises(DocumentMetadataRepairError) as raised:
+                self._execute(
+                    execute=False,
+                    production_preflight=True,
+                )
+        self.assertEqual(raised.exception.code, REPAIR_SCOPE)
+        self.assertEqual(self._state(), before)
+        self.assertEqual(calls, 2)
+
+    def test_i12_serializable_parent_controls_expose_old_snapshot(self) -> None:
+        def run_control(action) -> str:
+            contract = self._contract()
+            statements: list[str] = []
+            listener, _fired = self._after_current_database_listener(
+                action,
+                statements,
+            )
+            event.listen(engine, "after_cursor_execute", listener)
+            try:
+                with patch.object(
+                    repair_module,
+                    "REPAIR_TRANSACTION_ISOLATION",
+                    "SERIALIZABLE",
+                ):
+                    try:
+                        result = self._execute(
+                            contract=contract,
+                            execute=True,
+                        )
+                        return result.code
+                    except DocumentMetadataRepairError as error:
+                        return error.code
+                    except OperationalError:
+                        return "POSTGRES_SERIALIZATION_FAILURE"
+            finally:
+                event.remove(engine, "after_cursor_execute", listener)
+
+        backup_outcome = run_control(
+            lambda: self._commit_running_backup("i12-backup")
+        )
+        self.assertEqual(
+            backup_outcome,
+            "DOCUMENT_METADATA_REPAIR_EXECUTED",
+        )
+
+        self._cleanup_operation_fixtures()
+        self._cleanup_documents()
+        self._seed_document()
+        insert_outcome = run_control(
+            lambda: self._commit_preparation_insert("i12-insert")
+        )
+        self.assertEqual(
+            insert_outcome,
+            "DOCUMENT_METADATA_REPAIR_EXECUTED",
+        )
+
+        self._cleanup_documents()
+        self._seed_document()
+        self._seed_preparation_job(status="ready", generation="i12-ready")
+
+        def reactivate() -> None:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE document_preparation_jobs "
+                        "SET status='queued', stage='queued' WHERE id=:id"
+                    ),
+                    {"id": "doc04a1-i12-ready"},
+                )
+
+        reactivation_outcome = run_control(reactivate)
+        self.assertNotEqual(reactivation_outcome, REPAIR_TARGET_ACTIVE)
+        self.assertIn(
+            reactivation_outcome,
+            {
+                "DOCUMENT_METADATA_REPAIR_EXECUTED",
+                "POSTGRES_SERIALIZATION_FAILURE",
+            },
+        )
 
     @staticmethod
     def _production_contract(**changes: object) -> RepairContract:
