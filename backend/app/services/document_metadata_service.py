@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 
 from dataclasses import dataclass
@@ -18,6 +17,11 @@ from pillow_heif import register_heif_opener
 from pptx import Presentation
 
 from app.services.document_email_service import DocumentEmailService
+from app.services.document_metadata_unicode_safety import (
+    DocumentMetadataSafetyError,
+    sanitize_json_compatible,
+    sanitize_metadata_text,
+)
 
 
 register_heif_opener()
@@ -117,6 +121,14 @@ class DocumentMetadataService:
                 raw_metadata=None,
                 normalized_metadata=None,
                 error=None,
+            )
+
+        except DocumentMetadataSafetyError as error:
+            return DocumentMetadataResult(
+                status="failed",
+                raw_metadata=None,
+                normalized_metadata=None,
+                error=error.code,
             )
 
         except Exception as error:
@@ -607,6 +619,9 @@ class DocumentMetadataService:
                         )
                     )
 
+            except DocumentMetadataSafetyError:
+                raise
+
             except Exception:
                 exif_raw = {}
 
@@ -700,6 +715,9 @@ class DocumentMetadataService:
                 )
 
             return result
+
+        except DocumentMetadataSafetyError:
+            raise
 
         except Exception:
             return None
@@ -851,9 +869,9 @@ class DocumentMetadataService:
         if not value:
             return None
 
-        text = str(
-            value
-        ).strip()
+        text = sanitize_metadata_text(
+            str(value)
+        ).value.strip()
 
         pattern = re.compile(
             r"^D:"
@@ -964,9 +982,9 @@ class DocumentMetadataService:
         if not value:
             return None
 
-        text = str(
-            value
-        ).strip()
+        text = sanitize_metadata_text(
+            str(value)
+        ).value.strip()
 
         try:
             parsed = datetime.strptime(
@@ -1014,9 +1032,9 @@ class DocumentMetadataService:
         if value is None:
             return None
 
-        text = str(
-            value
-        ).strip()
+        text = sanitize_metadata_text(
+            str(value)
+        ).value.strip()
 
         return text or None
 
@@ -1062,78 +1080,4 @@ class DocumentMetadataService:
         cls,
         value: Any,
     ) -> Any:
-        if value is None:
-            return None
-
-        if isinstance(
-            value,
-            float,
-        ):
-            if not math.isfinite(
-                value
-            ):
-                return None
-
-            return value
-
-        if isinstance(
-            value,
-            (
-                str,
-                int,
-                bool,
-            ),
-        ):
-            return value
-
-        if isinstance(
-            value,
-            datetime,
-        ):
-            return value.isoformat()
-
-        if isinstance(
-            value,
-            bytes,
-        ):
-            return value.hex()
-
-        if isinstance(
-            value,
-            dict,
-        ):
-            return {
-                str(key): cls._json_safe(
-                    item
-                )
-                for key, item
-                in value.items()
-            }
-
-        if isinstance(
-            value,
-            (
-                list,
-                tuple,
-                set,
-            ),
-        ):
-            return [
-                cls._json_safe(item)
-                for item in value
-            ]
-
-        try:
-            numeric_value = float(
-                value
-            )
-
-            if not math.isfinite(
-                numeric_value
-            ):
-                return None
-
-            return numeric_value
-
-        except Exception:
-            return str(value)
+        return sanitize_json_compatible(value)

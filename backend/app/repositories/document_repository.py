@@ -13,6 +13,9 @@ from app.models.document_page import DocumentPage
 from app.models.client import Client
 from app.models.work_item import WorkItem
 from app.models.work_item_document import WorkItemDocument
+from app.services.document_metadata_unicode_safety import (
+    assert_json_compatible_safe,
+)
 
 
 class DocumentRepository:
@@ -26,6 +29,12 @@ class DocumentRepository:
         self,
         document: Document,
     ) -> Document:
+        if document.metadata_raw is not None:
+            assert_json_compatible_safe(document.metadata_raw)
+        if document.metadata_normalized is not None:
+            assert_json_compatible_safe(
+                document.metadata_normalized
+            )
         self.db.add(document)
         self.db.flush()
         self.db.refresh(document)
@@ -305,6 +314,8 @@ class DocumentRepository:
         self,
         document: Document,
     ) -> Document:
+        # Deliberately do not sanitize or validate historical metadata here.
+        # Unrelated updates must never silently repair owner-gated data.
         self.db.add(document)
         self.db.flush()
         self.db.refresh(document)
@@ -320,6 +331,10 @@ class DocumentRepository:
         normalized_metadata: dict[str, Any] | None,
         error: str | None,
     ) -> Document:
+        if raw_metadata is not None:
+            assert_json_compatible_safe(raw_metadata)
+        if normalized_metadata is not None:
+            assert_json_compatible_safe(normalized_metadata)
         document.metadata_status = status
         document.metadata_raw = raw_metadata
         document.metadata_normalized = normalized_metadata
