@@ -20,7 +20,10 @@ Add-Type -AssemblyName System.Net.Http
 
 function Stop-Build([string]$Code) { throw $Code }
 function Get-Sha256([string]$Path) {
-    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $stream = [System.IO.File]::OpenRead($Path)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([System.BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-','').ToLowerInvariant() }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
 }
 function Normalize-Project([string]$Name) {
     return ([regex]::Replace($Name.ToLowerInvariant(), '[-_.]+', '-'))
@@ -68,7 +71,7 @@ function Assert-SafeRoot([string]$Path, [string]$Name, [string]$Repo, $Policy) {
     $repoFull = Get-FullLocalPath $Repo 'repo'
     $authorized = Get-FullLocalPath $(if ($Name -eq 'runtime') { $Policy.authorized_runtime_parent } else { $Policy.authorized_cache_parent }) "authorized_${Name}_parent"
     if (-not (Test-StrictDescendant $full $authorized)) { Stop-Build "unsafe_${Name}_outside_authorized_parent" }
-    foreach ($blockedRaw in @($Policy.forbidden_runtime_roots)) {
+    foreach ($blockedRaw in @($Policy.forbidden_roots)) {
         $blocked = Get-FullBoundaryPath ([string]$blockedRaw) "forbidden_${Name}_root"
         if (Test-Under $full $blocked) { Stop-Build "unsafe_${Name}_forbidden_root" }
     }
@@ -426,9 +429,9 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Stop-Build 'host_git
 $RepoRoot = Get-FullLocalPath $RepoRoot 'repo'
 $lockPath = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-lock.json'
 $lock = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3') { Stop-Build 'runtime_lock_schema_mismatch' }
-$RuntimeRoot = Assert-SafeRoot $RuntimeRoot 'runtime' $RepoRoot $lock.path_policy
-$CacheRoot = Assert-SafeRoot $CacheRoot 'cache' $RepoRoot $lock.path_policy
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4') { Stop-Build 'runtime_lock_schema_mismatch' }
+$RuntimeRoot = Assert-SafeRoot $RuntimeRoot 'runtime' $RepoRoot $lock.path_policies.runtime_cache
+$CacheRoot = Assert-SafeRoot $CacheRoot 'cache' $RepoRoot $lock.path_policies.runtime_cache
 if ((Test-Under $RuntimeRoot $CacheRoot) -or (Test-Under $CacheRoot $RuntimeRoot)) { Stop-Build 'runtime_cache_path_overlap' }
 Assert-GitIdentity $RepoRoot $ExpectedGitSha $lock
 $profilePackages = @(Get-ProfilePackages $lock $Profile)

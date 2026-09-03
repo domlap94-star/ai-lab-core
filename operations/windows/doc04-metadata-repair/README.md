@@ -25,7 +25,10 @@ backend runtime.
   and its pure `odf/` package is selected by a bounded fail-closed TAR reader;
   no build script executes. No source distribution enters Production.
 - The runtime contains dependencies only. Application source is imported
-  directly from an exact Git worktree after HEAD and Git-cleaned blob checks.
+  directly from an exact Git worktree after a protected-scope cleanliness
+  check, exact `backend/app` Git-tree identity, and path-aware Git blob
+  verification of every tracked file. The critical-file list remains an
+  additional contract; dirty files outside the protected scope remain allowed.
 - Final invocation is offline, isolated (`-I -B -X utf8`), and never falls back
   to an installed interpreter.
 - Every supported Windows invocation goes through `invoke-repair.ps1`. The
@@ -33,25 +36,36 @@ backend runtime.
   data, and backup roots, launches with `System.Diagnostics.ProcessStartInfo`,
   sets `UseShellExecute=false`, assigns an explicit `WorkingDirectory`, clears
   the inherited environment, and supplies only a bounded allowlist.
-- Runtime and cache paths must be strict descendants of the lock-pinned
+- Lock V4 separates runtime/cache, non-production working, and production
+  configuration path policies. Runtime and cache paths must be strict descendants of the lock-pinned
   `C:\ai-lab-core-staging\doc04b-runtime` and
   `C:\ai-lab-core-staging\doc04b-cache` parents. The repository, data root,
   `C:\ai-lab-core-backups`, E:, F:, system, Program Files, ProgramData, and
-  startup roots are forbidden. Complete parent chains and runtime contents are
+  startup roots are forbidden. Non-production working roots stay in staging
+  and cannot overlap a runtime payload. A production `EnvironmentRoot` may be
+  the explicit application/repository root, but never a data, backup, E:/F:,
+  runtime/cache, system, startup, drive-root, or reparse path. Complete parent chains and runtime contents are
   rejected on any reparse point; runtime/cache overlap is forbidden.
 - `runtime-entrypoint.py` has standard-library-only top-level imports. It
   validates the environment policy, installs a permanent Python audit hook
   that rejects non-authorized `.env` opens, changes to the approved directory,
   verifies the exact Git source, and only then exposes the backend on
   `sys.path` or imports an `app.*` module.
-- Supported network boundaries are none for smoke/parity, a disposable
+- A second permanent audit hook measures and enforces Python-observable socket,
+  hostname-resolution, urllib, and HTTP activity. Supported network boundaries are none for smoke/parity, a disposable
   loopback PostgreSQL port for isolated tests, and only a separately approved
-  forced loopback PostgreSQL endpoint for future production use.
+  forced loopback PostgreSQL endpoint for future production use. The sole
+  non-DB exception is CPython's private `_fallback_socketpair` self-connection
+  used to wake a Windows asyncio event loop; exact stdlib source/function
+  identity bounds it, and it cannot select an external endpoint. Native
+  `psycopg-binary`/libpq networking is not visible to Python audit hooks, so
+  database host, port, name, and isolation remain separately enforced.
 
-Lock V3 has two non-interchangeable profiles. **Production** contains only the
-11-distribution executable import closure for the fixed repair: SQLAlchemy,
+Lock V4 has two non-interchangeable profiles. **Production** contains only the
+12-distribution executable import closure for the fixed repair: SQLAlchemy,
 greenlet, typing extensions, psycopg plus its Windows binary implementation,
-and the Pydantic settings stack. It excludes web servers, FastAPI, Qdrant,
+the Pydantic settings stack, and locked IANA timezone data required for silent
+PostgreSQL timezone adaptation. It excludes web servers, FastAPI, Qdrant,
 OCR/render/document parsers, Office libraries, NumPy, gRPC, test packages, and
 all source distributions. **Qualification** contains the wider 65-package
 closure needed by isolated migration and regression suites. `odfpy` 1.4.1 has
@@ -70,10 +84,16 @@ The runtime architecture eliminates reachability of the affected parsing
 surfaces. Repair code uses lexical JSON escape handling rather than non-strict
 Unicode codecs. Runtime archives are hash-locked and extracted by bounded .NET
 code. XML, HTML, mail, HTTP-server, property-list, data-URL, and tar parsers do
-not receive customer metadata. HTTP/TLS packages may import `ssl`, but no HTTP
-or TLS call occurs in a supported repair mode. Compatibility vectors must be
-byte-identical under Windows 3.12.10 and the immutable Linux backend image's
-Python 3.12.13 before the runtime is ready.
+not receive customer metadata. The fixed `production-source-security-trace`
+records the repository-relative `app.*` import closure, its SHA-256, selected
+stdlib-module presence, and the distribution closure on Windows 3.12.10 and
+backend 3.12.13. Transitive imports such as `email`, `urllib.request`,
+`http.client`, `zipfile`, `ipaddress`, and `ssl` are recorded truthfully but
+remain unreachable from customer-controlled parser or network input.
+`tzdata` is exercised by the real PostgreSQL preflight rather than the
+connection-free import trace, so the trace has 11 imported distributions while
+the fixed Production runtime contains 12 locked distributions.
+Compatibility vectors must remain byte-identical across both patch versions.
 
 ## Build and deterministic offline rebuild
 
@@ -112,7 +132,8 @@ or production data and does not connect to a database. The same wrapper owns
 the fixed repair-help, compatibility-vector, isolated-test, and isolated-
 Alembic modes; diagnostics never invoke the backend repair module directly.
 
-Readiness also runs the L01–L20 isolation matrix and M01–M30 closure matrix:
+Readiness also runs the L01–L20 isolation matrix, M01–M30 closure matrix, and
+N01–N28 production-path/source-closure matrix:
 bounded backend result relay, exact refusal propagation, profile minimality and
 separation, staging/backup-root policy, reparse rejection, builder environment
 preservation, owned partial cleanup, parent controls, and success cleanup.
@@ -130,12 +151,22 @@ can only constrain that value and can never substitute another image. The
 disposable parity container has no network and is removed. None of those tests
 names, opens, stats, or probes a production dotenv file.
 
+The N matrix runs the actual repair `main()` through the Production runtime and
+normal bounded relay against disposable PostgreSQL. Qualification alone
+migrates and seeds synthetic Document 8903, managed-backup evidence, and
+temporary files. Production runs `--preflight-production`; Qualification then
+proves the row, metadata, relations, storage, and backup fixtures unchanged. A
+wrong-before-hash control must relay the exact backend refusal. The same test
+uses a clean temporary clone whose `EnvironmentRoot` equals its `RepoRoot`.
+Fixture timestamps are relayed as invariant ISO-8601 arguments even when the
+host PowerShell deserializer materializes JSON timestamps as `DateTime` values.
+
 ## Production gates are intentionally dormant
 
 The launcher defines separate `ProductionPreflight` and `ExecuteProduction`
 parameter sets for a future owner-approved operation. There is no implicit
 production mode. Both require exact main/Git identity, an explicit environment
-root and data root, the complete frozen repair contract, a non-empty approval
+root and data root, the expected lowercase SHA-256 of the exact `.env`, the complete frozen repair contract, a non-empty approval
 identifier, and the existing repair executable's production guards. Execute
 also requires the exact write-awareness switch and a runtime-supplied fixed
 confirmation phrase.
@@ -146,9 +177,13 @@ fresh exact guard values. The wrapper never creates a backup or infers a guard.
 For either dormant production parameter set the process environment is still
 rebuilt from an empty collection, the working directory is exactly the explicit
 environment root, PostgreSQL is forced to loopback `ai_lab`, and the audit hook
-permits only that environment root's exact regular, non-reparse `.env`. Its
-resolved identity must match the explicit audit allowlist, and the full existing
-parent chains of EnvironmentRoot and DataRoot must be non-reparse. Those parameter sets are not
+permits only that environment root's exact regular, non-reparse `.env`. The
+launcher opens it read-only with reader-only sharing, verifies its hash, holds
+the handle for the complete child lifetime, and verifies the hash again before
+closing. Its resolved identity must match the audit allowlist, and the full
+existing parent chains of EnvironmentRoot and DataRoot must be non-reparse.
+The synthetic Production-profile proof still does not authorize a real
+production preflight or repair. Those parameter sets are not
 part of synthetic readiness and must not be exercised without a later owner
 gate.
 

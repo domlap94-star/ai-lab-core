@@ -8,6 +8,8 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'AuditEnvProbe')][switch]$AuditEnvProbe,
     [Parameter(Mandatory = $true, ParameterSetName = 'SyntheticProductionAudit')][switch]$SyntheticProductionAudit,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionImportTrace')][switch]$ProductionImportTrace,
+    [Parameter(Mandatory = $true, ParameterSetName = 'NetworkForbiddenProbe')][switch]$NetworkForbiddenProbe,
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][switch]$ProductionProfilePreflightIntegration,
     [Parameter(Mandatory = $true, ParameterSetName = 'RepairRelaySelfTest')][switch]$RepairRelaySelfTest,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionPreflight')][switch]$ProductionPreflight,
     [Parameter(Mandatory = $true, ParameterSetName = 'ExecuteProduction')][switch]$ExecuteProduction,
@@ -22,7 +24,9 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'AuditEnvProbe')]
     [Parameter(Mandatory = $true, ParameterSetName = 'SyntheticProductionAudit')]
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionImportTrace')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'RepairRelaySelfTest')][string]$SyntheticRoot,
+    [Parameter(Mandatory = $true, ParameterSetName = 'NetworkForbiddenProbe')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'RepairRelaySelfTest')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][string]$SyntheticRoot,
     [Parameter(ParameterSetName = 'Readiness')]
     [Parameter(ParameterSetName = 'RepairHelp')]
     [Parameter(ParameterSetName = 'CompatibilityVectors')]
@@ -36,14 +40,25 @@ param(
     [ValidateSet('Success','Refusal','Empty','Multiple','InvalidJson','Oversized','Nul','Stderr','Contradictory')]
     [string]$RelayCase,
     [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedTest')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedAlembicUpgrade')][ValidatePattern('^ai_lab_test_doc04b_[a-z0-9_]+$')][string]$SyntheticDatabaseName,
+    [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedAlembicUpgrade')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][ValidatePattern('^ai_lab_test_doc04b_[a-z0-9_]+$')][string]$SyntheticDatabaseName,
     [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedTest')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedAlembicUpgrade')][ValidateRange(1, 65535)][int]$SyntheticDatabasePort,
+    [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedAlembicUpgrade')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][ValidateRange(1, 65535)][int]$SyntheticDatabasePort,
     [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedTest')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedAlembicUpgrade')][string]$SyntheticDatabasePassword,
+    [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedAlembicUpgrade')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][string]$SyntheticDatabasePassword,
     [Parameter(Mandatory = $true, ParameterSetName = 'IsolatedTest')][ValidateSet('runtime-contract','doc04a','doc01','doc02','doc03','intake','assistant','regression')][string]$TestSuite,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionPreflight')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'ExecuteProduction')][string]$EnvironmentRoot,
+    [Parameter(Mandatory = $true, ParameterSetName = 'ExecuteProduction')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][string]$EnvironmentRoot,
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][string]$QualificationRuntimeRoot,
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')]
+    [ValidateSet('Success','WrongBeforeHash')][string]$IntegrationCase,
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionPreflight')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ExecuteProduction')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')]
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedEnvironmentFileSha256,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionPreflight')]
     [Parameter(Mandatory = $true, ParameterSetName = 'ExecuteProduction')][string]$DataRoot,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionPreflight')]
@@ -85,7 +100,12 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 function Stop-Launch([string]$Code) { throw $Code }
-function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Get-Sha256([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([System.BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-','').ToLowerInvariant() }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+}
 function Get-StringSha256([string]$Value) {
     $algorithm = [System.Security.Cryptography.SHA256]::Create()
     try { $hash = $algorithm.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)) } finally { $algorithm.Dispose() }
@@ -157,7 +177,7 @@ function Assert-PolicyPath([string]$Path, [string]$AuthorizedParent, $Policy, [s
     $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
     $parent = [System.IO.Path]::GetFullPath($AuthorizedParent).TrimEnd('\')
     if (-not (Test-IsStrictDescendant $full $parent)) { Stop-Launch $Code }
-    foreach ($boundary in @($Policy.forbidden_runtime_roots)) {
+    foreach ($boundary in @($Policy.forbidden_roots)) {
         if ($boundary -and (Test-IsWithin $full ([System.IO.Path]::GetFullPath([string]$boundary).TrimEnd('\')))) { Stop-Launch $Code }
     }
     Assert-NoReparseChain $parent $Code
@@ -167,9 +187,9 @@ function Assert-PolicyPath([string]$Path, [string]$AuthorizedParent, $Policy, [s
 function Assert-SyntheticRoot([string]$Root, [string]$Repo, [string[]]$AdditionalForbidden, $Policy) {
     $full = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
     if ([string]::IsNullOrWhiteSpace($full) -or $full -eq [System.IO.Path]::GetPathRoot($full)) { Stop-Launch 'DOC04B_SYNTHETIC_ROOT_INVALID' }
-    if (-not (Test-IsStrictDescendant $full ([string]$Policy.authorized_runtime_parent))) { Stop-Launch 'DOC04B_SYNTHETIC_ROOT_OUTSIDE_AUTHORIZED_PARENT' }
+    if (-not (Test-IsStrictDescendant $full ([string]$Policy.authorized_parent))) { Stop-Launch 'DOC04B_SYNTHETIC_ROOT_OUTSIDE_AUTHORIZED_PARENT' }
     Assert-NonReparseDirectory $full 'DOC04B_SYNTHETIC_ROOT_INVALID'
-    $forbidden = @($Repo, (Join-Path $Repo 'data'), 'C:\ai-lab-core-backups', 'E:\', 'F:\') + @($Policy.forbidden_runtime_roots) + @($AdditionalForbidden)
+    $forbidden = @($Repo, (Join-Path $Repo 'data'), 'C:\ai-lab-core-backups', 'E:\', 'F:\') + @($Policy.forbidden_roots) + @($AdditionalForbidden)
     foreach ($boundary in $forbidden) {
         if (-not [string]::IsNullOrWhiteSpace($boundary) -and (Test-IsWithin $full $boundary)) { Stop-Launch 'DOC04B_SYNTHETIC_ROOT_FORBIDDEN' }
     }
@@ -181,9 +201,63 @@ function Assert-SyntheticRoot([string]$Root, [string]$Repo, [string[]]$Additiona
     }
     return $full
 }
+function Assert-ProductionConfigurationRoot([string]$Root, [string]$Data, $Policy) {
+    $full = [System.IO.Path]::GetFullPath($Root).TrimEnd('\')
+    if ([string]::IsNullOrWhiteSpace($full) -or $full -eq [System.IO.Path]::GetPathRoot($full)) { Stop-Launch 'DOC04B_PRODUCTION_ENVIRONMENT_ROOT_INVALID' }
+    Assert-NonReparseDirectory $full 'DOC04B_PRODUCTION_ENVIRONMENT_ROOT_INVALID'
+    $boundaries = @($Data) + @($Policy.production_configuration.forbidden_roots)
+    foreach ($boundary in $boundaries) {
+        if ($boundary -and (Test-IsWithin $full ([System.IO.Path]::GetFullPath([string]$boundary).TrimEnd('\')))) { Stop-Launch 'DOC04B_PRODUCTION_ENVIRONMENT_ROOT_FORBIDDEN' }
+    }
+    return $full
+}
+function Get-StreamSha256([System.IO.FileStream]$Stream) {
+    $Stream.Position = 0
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try { $hash = $algorithm.ComputeHash($Stream) } finally { $algorithm.Dispose(); $Stream.Position = 0 }
+    return [System.BitConverter]::ToString($hash).Replace('-','').ToLowerInvariant()
+}
+function Open-VerifiedEnvironmentFile([string]$Path, [string]$ExpectedSha256) {
+    Assert-RegularNonReparseFile $Path 'DOC04B_PRODUCTION_ENV_FILE_INVALID'
+    try {
+        $stream = [System.IO.File]::Open($Path,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::Read)
+    } catch { Stop-Launch 'DOC04B_PRODUCTION_ENV_LOCK_FAILED' }
+    try {
+        if ((Get-StreamSha256 $stream) -cne $ExpectedSha256) { Stop-Launch 'DOC04B_PRODUCTION_ENV_HASH_MISMATCH' }
+        return $stream
+    } catch {
+        $stream.Dispose()
+        throw
+    }
+}
 function Assert-Source([string]$Repo, [string]$Expected, $Lock) {
     $root = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\')
     if ((Invoke-Git @('-C',$root,'rev-parse','HEAD')) -ne $Expected) { Stop-Launch 'DOC04B_GIT_HEAD_MISMATCH' }
+    $protectedStatus = Invoke-Git @('-C',$root,'status','--porcelain=v1','--untracked-files=all','--','backend/app','operations/windows/doc04-metadata-repair','backend/requirements.txt')
+    if ($protectedStatus) { Stop-Launch 'DOC04B_PROTECTED_SOURCE_DIRTY' }
+    if ((Invoke-Git @('-C',$root,'rev-parse','HEAD:backend/app')) -ne [string]$Lock.source_closure.backend_app_git_tree_sha) { Stop-Launch 'DOC04B_BACKEND_APP_TREE_MISMATCH' }
+    $treeOutput = Invoke-Git @('-C',$root,'ls-tree','-r','--full-tree','HEAD','--','backend/app')
+    $tracked = @($treeOutput -split "`r?`n" | Where-Object { $_ })
+    if (-not $tracked.Count) { Stop-Launch 'DOC04B_BACKEND_APP_TREE_EMPTY' }
+    $expectedBlobs = New-Object System.Collections.Generic.List[string]
+    $trackedPaths = New-Object System.Collections.Generic.List[string]
+    foreach ($record in $tracked) {
+        if ($record -notmatch '^(100644|100755) blob ([0-9a-f]{40})\t(.+)$') { Stop-Launch 'DOC04B_BACKEND_APP_TREE_ENTRY_INVALID' }
+        $expectedBlob = [string]$Matches[2]
+        $relative = [string]$Matches[3]
+        $path = Join-Path $root ($relative -replace '/','\')
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Stop-Launch 'DOC04B_BACKEND_APP_SOURCE_MISSING' }
+        $item = Get-Item -LiteralPath $path -Force
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { Stop-Launch 'DOC04B_BACKEND_APP_SOURCE_REPARSE' }
+        $expectedBlobs.Add($expectedBlob)
+        $trackedPaths.Add($relative)
+    }
+    $gitCommand = @(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]
+    $actualBlobs = @($trackedPaths.ToArray() | & $gitCommand.Source -C $root hash-object --stdin-paths 2>&1)
+    if ($LASTEXITCODE -ne 0 -or $actualBlobs.Count -ne $expectedBlobs.Count) { Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED' }
+    for ($index=0; $index -lt $expectedBlobs.Count; $index++) {
+        if ([string]$actualBlobs[$index] -ne $expectedBlobs[$index]) { Stop-Launch 'DOC04B_BACKEND_APP_SOURCE_MODIFIED' }
+    }
     foreach ($relative in $Lock.critical_git_paths) {
         $path = Join-Path $root ([string]$relative -replace '/','\')
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Stop-Launch 'DOC04B_CRITICAL_SOURCE_MISSING' }
@@ -195,7 +269,7 @@ function Assert-Source([string]$Repo, [string]$Expected, $Lock) {
     }
 }
 function Assert-Runtime([string]$Root, $Lock, [string]$ExpectedProfile) {
-    $full = Assert-PolicyPath $Root $Lock.path_policy.authorized_runtime_parent $Lock.path_policy 'DOC04B_RUNTIME_PATH_FORBIDDEN'
+    $full = Assert-PolicyPath $Root $Lock.path_policies.runtime_cache.authorized_runtime_parent $Lock.path_policies.runtime_cache 'DOC04B_RUNTIME_PATH_FORBIDDEN'
     Assert-NonReparseTree $full 'DOC04B_RUNTIME_REPARSE_FORBIDDEN'
     $profileDefinition = $Lock.profiles.$ExpectedProfile
     if (-not $profileDefinition) { Stop-Launch 'DOC04B_RUNTIME_PROFILE_INVALID' }
@@ -273,6 +347,19 @@ function ConvertFrom-BoundedJson([string]$Value) {
     if ($lines.Count -ne 1) { Stop-Launch ('DOC04B_CHILD_OUTPUT_LINE_COUNT_' + [string]$lines.Count) }
     try { return ($lines[0] | ConvertFrom-Json) } catch { Stop-Launch 'DOC04B_CHILD_OUTPUT_JSON_INVALID' }
 }
+function ConvertTo-IsoTimestampArgument($Value) {
+    if ($Value -is [DateTimeOffset]) {
+        return $Value.ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    }
+    if ($Value -is [DateTime]) {
+        return ([DateTimeOffset]$Value).ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    }
+    $text = [string]$Value
+    if ($text -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|[+-]\d{2}:\d{2})$') {
+        Stop-Launch 'DOC04B_CHILD_TIMESTAMP_INVALID'
+    }
+    return $text
+}
 function New-MinimalEnvironment(
     [string]$Runtime,
     [string]$GitExe,
@@ -280,7 +367,10 @@ function New-MinimalEnvironment(
     [string]$Policy,
     [string[]]$ForbiddenRoots,
     [string]$Profile,
-    [string]$AllowedEnvFile = ''
+    [string]$AllowedEnvFile = '',
+    [string]$ExpectedEnvSha256 = '',
+    [string]$NetworkHost = '',
+    [int]$NetworkPort = 0
 ) {
     $systemRoot = [Environment]::GetEnvironmentVariable('SystemRoot','Process')
     $windir = [Environment]::GetEnvironmentVariable('WINDIR','Process')
@@ -298,7 +388,14 @@ function New-MinimalEnvironment(
         'NEXT_DOC04_FORBIDDEN_ROOTS_JSON'=($ForbiddenRoots | ConvertTo-Json -Compress);
         'NEXT_DOC04_RUNTIME_PROFILE'=$Profile
     }
-    if ($AllowedEnvFile) { $result['NEXT_DOC04_ALLOWED_ENV_FILE'] = $AllowedEnvFile }
+    if ($AllowedEnvFile) {
+        $result['NEXT_DOC04_ALLOWED_ENV_FILE'] = $AllowedEnvFile
+        $result['NEXT_DOC04_EXPECTED_ENV_SHA256'] = $ExpectedEnvSha256
+    }
+    if ($NetworkHost) {
+        $result['NEXT_DOC04_NETWORK_ALLOWED_HOST'] = $NetworkHost
+        $result['NEXT_DOC04_NETWORK_ALLOWED_PORT'] = [string]$NetworkPort
+    }
     return $result
 }
 function Add-SyntheticApplicationEnvironment([hashtable]$Environment, [string]$WorkingDirectory, [string]$Database, [int]$Port, [string]$Password) {
@@ -313,7 +410,7 @@ $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot).TrimEnd('\')
 $RuntimeRoot = [System.IO.Path]::GetFullPath($RuntimeRoot).TrimEnd('\')
 $lockPath = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-lock.json'
 $lock = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3') { Stop-Launch 'DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH' }
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4') { Stop-Launch 'DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH' }
 Assert-Source $RepoRoot $ExpectedGitSha $lock
 $expectedProfile = if ($PSCmdlet.ParameterSetName -in @('IsolatedTest','IsolatedAlembicUpgrade')) { 'Qualification' } else { 'Production' }
 $RuntimeRoot = Assert-Runtime $RuntimeRoot $lock $expectedProfile
@@ -321,25 +418,28 @@ $python = Join-Path $RuntimeRoot 'python.exe'
 $entrypoint = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-entrypoint.py'
 $gitExe = (@(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]).Source
 
-$nonProductionSets = @('Readiness','RepairHelp','CompatibilityVectors','IsolatedTest','IsolatedAlembicUpgrade','AuditEnvProbe','SyntheticProductionAudit','ProductionImportTrace','RepairRelaySelfTest')
+$nonProductionSets = @('Readiness','RepairHelp','CompatibilityVectors','IsolatedTest','IsolatedAlembicUpgrade','AuditEnvProbe','SyntheticProductionAudit','ProductionImportTrace','NetworkForbiddenProbe','RepairRelaySelfTest')
 if ($PSCmdlet.ParameterSetName -in $nonProductionSets) {
-    $SyntheticRoot = Assert-SyntheticRoot $SyntheticRoot $RepoRoot $SyntheticForbiddenRoots $lock.path_policy
+    $SyntheticRoot = Assert-SyntheticRoot $SyntheticRoot $RepoRoot (@($SyntheticForbiddenRoots) + @($RuntimeRoot)) $lock.path_policies.nonproduction_working
     $workingDirectory = Join-Path $SyntheticRoot ('environment-' + [Guid]::NewGuid().ToString('N'))
     [System.IO.Directory]::CreateDirectory($workingDirectory) | Out-Null
     try {
-        $forbiddenRoots = @($RepoRoot,(Join-Path $RepoRoot 'data'),'C:\ai-lab-core-backups','E:\','F:\') + @($lock.path_policy.forbidden_runtime_roots) + @($SyntheticForbiddenRoots)
+        $forbiddenRoots = @($RepoRoot,(Join-Path $RepoRoot 'data'),'C:\ai-lab-core-backups','E:\','F:\',$RuntimeRoot) + @($lock.path_policies.nonproduction_working.forbidden_roots) + @($SyntheticForbiddenRoots)
         $policy = switch ($PSCmdlet.ParameterSetName) {
             'Readiness' {'readiness'} 'RepairHelp' {'repair-help'} 'CompatibilityVectors' {'compatibility-vectors'}
             'IsolatedTest' {'isolated-test'} 'IsolatedAlembicUpgrade' {'isolated-alembic-upgrade'}
             'AuditEnvProbe' {'nonproduction-audit-probe'} 'SyntheticProductionAudit' {'synthetic-production-audit'}
-            'ProductionImportTrace' {'production-import-trace'} 'RepairRelaySelfTest' {'repair-relay-self-test'}
+            'ProductionImportTrace' {'production-source-security-trace'} 'NetworkForbiddenProbe' {'network-forbidden-probe'} 'RepairRelaySelfTest' {'repair-relay-self-test'}
         }
-        $environment = New-MinimalEnvironment $RuntimeRoot $gitExe $workingDirectory $policy $forbiddenRoots $expectedProfile
+        $networkPort = if ($PSCmdlet.ParameterSetName -in @('IsolatedTest','IsolatedAlembicUpgrade')) { $SyntheticDatabasePort } else { 0 }
+        $networkHost = if ($networkPort) { '127.0.0.1' } else { '' }
+        $environment = New-MinimalEnvironment $RuntimeRoot $gitExe $workingDirectory $policy $forbiddenRoots $expectedProfile '' '' $networkHost $networkPort
         if ($PSCmdlet.ParameterSetName -eq 'SyntheticProductionAudit') {
             [System.IO.File]::WriteAllText((Join-Path $workingDirectory '.env'),'synthetic-control=1',(New-Object System.Text.UTF8Encoding($false)))
             [System.IO.Directory]::CreateDirectory((Join-Path $workingDirectory 'second')) | Out-Null
             [System.IO.File]::WriteAllText((Join-Path $workingDirectory 'second\.env'),'synthetic-control=2',(New-Object System.Text.UTF8Encoding($false)))
             $environment['NEXT_DOC04_ALLOWED_ENV_FILE'] = Join-Path $workingDirectory '.env'
+            $environment['NEXT_DOC04_EXPECTED_ENV_SHA256'] = Get-Sha256 (Join-Path $workingDirectory '.env')
             $arguments = @('synthetic-production-audit')
         } else {
             $databaseName = if ($PSCmdlet.ParameterSetName -in @('IsolatedTest','IsolatedAlembicUpgrade')) { $SyntheticDatabaseName } else { 'ai_lab_test_doc04b_readiness' }
@@ -353,7 +453,8 @@ if ($PSCmdlet.ParameterSetName -in $nonProductionSets) {
                 'IsolatedTest' {@('isolated-test','--suite',$TestSuite)}
                 'IsolatedAlembicUpgrade' {@('isolated-alembic-upgrade')}
                 'AuditEnvProbe' {@('smoke')}
-                'ProductionImportTrace' {@('production-import-trace')}
+                'ProductionImportTrace' {@('production-source-security-trace')}
+                'NetworkForbiddenProbe' {@('network-forbidden-probe')}
                 'RepairRelaySelfTest' {@('repair-relay-self-test','--case',$RelayCase.ToLowerInvariant())}
             }
             if ($PSCmdlet.ParameterSetName -eq 'AuditEnvProbe') {
@@ -406,13 +507,89 @@ if ($PSCmdlet.ParameterSetName -in $nonProductionSets) {
     }
 }
 
+if ($PSCmdlet.ParameterSetName -eq 'ProductionProfilePreflightIntegration') {
+    if ($SyntheticDatabasePort -eq 5432 -or -not $SyntheticDatabaseName.StartsWith('ai_lab_test_doc04b_')) { Stop-Launch 'DOC04B_ISOLATED_DATABASE_REQUIRED' }
+    $QualificationRuntimeRoot = Assert-Runtime ([System.IO.Path]::GetFullPath($QualificationRuntimeRoot).TrimEnd('\')) $lock 'Qualification'
+    $SyntheticRoot = Assert-SyntheticRoot $SyntheticRoot $RepoRoot @($RuntimeRoot,$QualificationRuntimeRoot) $lock.path_policies.nonproduction_working
+    $EnvironmentRoot = [System.IO.Path]::GetFullPath($EnvironmentRoot).TrimEnd('\')
+    if (-not $EnvironmentRoot.Equals($RepoRoot,[System.StringComparison]::OrdinalIgnoreCase)) { Stop-Launch 'DOC04B_INTEGRATION_SAME_ROOT_REQUIRED' }
+    $integrationRoot = Join-Path $SyntheticRoot ('production-profile-' + [Guid]::NewGuid().ToString('N'))
+    [System.IO.Directory]::CreateDirectory($integrationRoot) | Out-Null
+    $dataRoot = Join-Path $integrationRoot 'data'
+    $backupRoot = Join-Path $integrationRoot 'backup'
+    [System.IO.Directory]::CreateDirectory($dataRoot) | Out-Null
+    [System.IO.Directory]::CreateDirectory($backupRoot) | Out-Null
+    $EnvironmentRoot = Assert-ProductionConfigurationRoot $EnvironmentRoot $dataRoot $lock.path_policies
+    $productionEnvFile = Join-Path $EnvironmentRoot '.env'
+    $environmentHandle = $null
+    $fixturePrepared = $false
+    $qualificationEnvironment = $null
+    try {
+        $qualificationForbidden = @($RepoRoot,(Join-Path $RepoRoot 'data'),'C:\ai-lab-core-backups','E:\','F:\',$RuntimeRoot,$QualificationRuntimeRoot,$backupRoot) + @($lock.path_policies.nonproduction_working.forbidden_roots)
+        $qualificationEnvironment = New-MinimalEnvironment $QualificationRuntimeRoot $gitExe $integrationRoot 'production-profile-preflight-fixture' $qualificationForbidden 'Qualification' '' '' '127.0.0.1' $SyntheticDatabasePort
+        Add-SyntheticApplicationEnvironment $qualificationEnvironment $integrationRoot $SyntheticDatabaseName $SyntheticDatabasePort $SyntheticDatabasePassword
+        $qualificationEnvironment['DATA_DIR'] = $dataRoot
+        $qualificationEnvironment['NEXT_DOC04_SYNTHETIC_BACKUP_ROOT'] = $backupRoot
+        $fixtureChild = Invoke-IsolatedProcess (Join-Path $QualificationRuntimeRoot 'python.exe') $entrypoint @('production-profile-preflight-fixture','--phase','prepare') $integrationRoot $qualificationEnvironment 3600000
+        if ($fixtureChild.exit_code -ne 0 -or $fixtureChild.stderr) { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_FIXTURE_FAILED' }
+        $fixture = ConvertFrom-BoundedJson $fixtureChild.stdout
+        if ($fixture.result -ne 'DOC04B_PRODUCTION_PROFILE_FIXTURE_READY') { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_FIXTURE_FAILED' }
+        $fixturePrepared = $true
+
+        $environmentHandle = Open-VerifiedEnvironmentFile $productionEnvFile $ExpectedEnvironmentFileSha256
+        $productionForbidden = @($dataRoot,$backupRoot) + @($lock.path_policies.production_working_forbidden_roots)
+        $productionEnvironment = New-MinimalEnvironment $RuntimeRoot $gitExe $EnvironmentRoot 'production-profile-preflight-integration' $productionForbidden 'Production' $productionEnvFile $ExpectedEnvironmentFileSha256 '127.0.0.1' $SyntheticDatabasePort
+        Add-SyntheticApplicationEnvironment $productionEnvironment $EnvironmentRoot $SyntheticDatabaseName $SyntheticDatabasePort $SyntheticDatabasePassword
+        $productionEnvironment['DATA_DIR'] = $dataRoot
+        $repairArgs = @(
+            'repair','--preflight-production','--expected-database',$SyntheticDatabaseName,
+            '--expected-git-sha',$ExpectedGitSha,'--expected-alembic-head',[string]$fixture.expected_alembic_head,
+            '--expected-xmin',[string]$fixture.expected_xmin,'--expected-updated-at',(ConvertTo-IsoTimestampArgument $fixture.expected_updated_at),
+            '--expected-storage-sha256',[string]$fixture.expected_storage_sha256,
+            '--verified-backup-run-id',[string]$fixture.verified_backup_run_id,
+            '--verified-backup-manifest-sha256',[string]$fixture.verified_backup_manifest_sha256,
+            '--expected-backup-finished-at',(ConvertTo-IsoTimestampArgument $fixture.expected_backup_finished_at),
+            '--maximum-backup-age-seconds','3600',
+            '--expected-backup-destination-root-sha256',[string]$fixture.expected_backup_destination_root_sha256,
+            '--expected-raw-before-sha256',[string]$fixture.expected_raw_before_sha256,
+            '--expected-raw-candidate-sha256',[string]$fixture.expected_raw_candidate_sha256,
+            '--expected-normalized-before-sha256',[string]$fixture.expected_normalized_before_sha256,
+            '--expected-normalized-candidate-sha256',[string]$fixture.expected_normalized_candidate_sha256
+        )
+        if ($IntegrationCase -eq 'WrongBeforeHash') { $repairArgs[[array]::IndexOf($repairArgs,'--expected-raw-before-sha256') + 1] = ('0' * 64) }
+        $productionChild = Invoke-IsolatedProcess $python $entrypoint $repairArgs $EnvironmentRoot $productionEnvironment 3600000
+        if ((Get-StreamSha256 $environmentHandle) -cne $ExpectedEnvironmentFileSha256) { Stop-Launch 'DOC04B_PRODUCTION_ENV_CHANGED' }
+        $environmentHandle.Dispose(); $environmentHandle = $null
+
+        $verifyChild = Invoke-IsolatedProcess (Join-Path $QualificationRuntimeRoot 'python.exe') $entrypoint @('production-profile-preflight-fixture','--phase','verify') $integrationRoot $qualificationEnvironment 3600000
+        if ($verifyChild.exit_code -ne 0 -or $verifyChild.stderr) { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_FIXTURE_VERIFY_FAILED' }
+        $verifiedFixture = ConvertFrom-BoundedJson $verifyChild.stdout
+        if ($verifiedFixture.result -ne 'DOC04B_PRODUCTION_PROFILE_FIXTURE_UNCHANGED' -or $verifiedFixture.state_sha256 -ne $fixture.state_sha256) { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_FIXTURE_CHANGED' }
+        $cleanupChild = Invoke-IsolatedProcess (Join-Path $QualificationRuntimeRoot 'python.exe') $entrypoint @('production-profile-preflight-fixture','--phase','cleanup') $integrationRoot $qualificationEnvironment 3600000
+        if ($cleanupChild.exit_code -ne 0 -or $cleanupChild.stderr -or (ConvertFrom-BoundedJson $cleanupChild.stdout).result -ne 'DOC04B_PRODUCTION_PROFILE_FIXTURE_CLEANED') { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_FIXTURE_CLEANUP_FAILED' }
+        $fixturePrepared = $false
+        if ($productionChild.stderr -or -not $productionChild.stdout) { Stop-Launch 'DOC04B_PRODUCTION_INVOCATION_FAILED' }
+        $payload = ConvertFrom-BoundedJson $productionChild.stdout
+        if ([string]$payload.result -notmatch '^DOCUMENT_METADATA_REPAIR_[A-Z0-9_]{1,96}$' -or $payload.executed -isnot [bool]) { Stop-Launch 'DOC04B_PRODUCTION_RESULT_INVALID' }
+        if ($IntegrationCase -eq 'Success' -and ($productionChild.exit_code -ne 0 -or $payload.result -ne 'DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK' -or $payload.executed -or -not $payload.production_preflight)) { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_PREFLIGHT_FAILED' }
+        if ($IntegrationCase -eq 'WrongBeforeHash' -and ($productionChild.exit_code -eq 0 -or $payload.result -ne 'DOCUMENT_METADATA_REPAIR_BEFORE_HASH' -or $payload.executed)) { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_REFUSAL_FAILED' }
+        $productionChild.stdout
+        exit $productionChild.exit_code
+    } finally {
+        if ($environmentHandle) { $environmentHandle.Dispose() }
+        if ($fixturePrepared -and $qualificationEnvironment) {
+            try { [void](Invoke-IsolatedProcess (Join-Path $QualificationRuntimeRoot 'python.exe') $entrypoint @('production-profile-preflight-fixture','--phase','cleanup') $integrationRoot $qualificationEnvironment 3600000) } catch { }
+        }
+        if (Test-Path -LiteralPath $integrationRoot) { Remove-Item -LiteralPath $integrationRoot -Recurse -Force }
+    }
+}
+
 if (-not $AllowProductionAiLab -or [string]::IsNullOrWhiteSpace($OwnerApprovalId)) { Stop-Launch 'DOC04B_PRODUCTION_OWNER_GATE_REQUIRED' }
 $EnvironmentRoot = [System.IO.Path]::GetFullPath($EnvironmentRoot).TrimEnd('\')
 $DataRoot = [System.IO.Path]::GetFullPath($DataRoot).TrimEnd('\')
-Assert-NonReparseDirectory $EnvironmentRoot 'DOC04B_PRODUCTION_ENVIRONMENT_ROOT_INVALID'
 Assert-NonReparseDirectory $DataRoot 'DOC04B_PRODUCTION_DATA_ROOT_INVALID'
+$EnvironmentRoot = Assert-ProductionConfigurationRoot $EnvironmentRoot $DataRoot $lock.path_policies
 $productionEnvFile = Join-Path $EnvironmentRoot '.env'
-Assert-RegularNonReparseFile $productionEnvFile 'DOC04B_PRODUCTION_ENV_FILE_INVALID'
 $expectedEnvIdentity = [System.IO.Path]::GetFullPath($productionEnvFile)
 if ((Invoke-Git @('-C',$RepoRoot,'branch','--show-current')) -ne 'main' -or (Invoke-Git @('-C',$RepoRoot,'rev-parse','origin/main')) -ne $ExpectedGitSha) { Stop-Launch 'DOC04B_PRODUCTION_MAIN_IDENTITY_REQUIRED' }
 $repairArgs = @(
@@ -436,10 +613,14 @@ if ($policy -eq 'production-execute') {
     if (-not $IUnderstandThisWritesProduction -or $ConfirmationPhrase -cne 'DOC04_PRODUCTION_WRITE_APPROVED') { Stop-Launch 'DOC04B_PRODUCTION_WRITE_CONFIRMATION_REQUIRED' }
     $repairArgs += '--execute'
 }
-$forbiddenRoots = @('C:\ai-lab-core-backups','E:\','F:\') + @($lock.path_policy.forbidden_runtime_roots)
-$productionEnvironment = New-MinimalEnvironment $RuntimeRoot $gitExe $EnvironmentRoot $policy $forbiddenRoots 'Production' $expectedEnvIdentity
+$forbiddenRoots = @($DataRoot) + @($lock.path_policies.production_working_forbidden_roots)
+$productionEnvironment = New-MinimalEnvironment $RuntimeRoot $gitExe $EnvironmentRoot $policy $forbiddenRoots 'Production' $expectedEnvIdentity $ExpectedEnvironmentFileSha256 '127.0.0.1' 5432
 $productionEnvironment['ENVIRONMENT']='production';$productionEnvironment['POSTGRES_DB']='ai_lab';$productionEnvironment['POSTGRES_HOST']='127.0.0.1';$productionEnvironment['POSTGRES_PORT']='5432';$productionEnvironment['DATA_DIR']=$DataRoot
-$child = Invoke-IsolatedProcess $python $entrypoint $repairArgs $EnvironmentRoot $productionEnvironment 3600000
+$environmentHandle = Open-VerifiedEnvironmentFile $productionEnvFile $ExpectedEnvironmentFileSha256
+try {
+    $child = Invoke-IsolatedProcess $python $entrypoint $repairArgs $EnvironmentRoot $productionEnvironment 3600000
+    if ((Get-StreamSha256 $environmentHandle) -cne $ExpectedEnvironmentFileSha256) { Stop-Launch 'DOC04B_PRODUCTION_ENV_CHANGED' }
+} finally { $environmentHandle.Dispose() }
 if ($child.stderr) { Stop-Launch 'DOC04B_PRODUCTION_INVOCATION_FAILED' }
 $productionPayload = ConvertFrom-BoundedJson $child.stdout
 if ([string]$productionPayload.result -notmatch '^DOCUMENT_METADATA_REPAIR_[A-Z0-9_]{1,96}$' -or $productionPayload.executed -isnot [bool]) { Stop-Launch 'DOC04B_PRODUCTION_RESULT_INVALID' }

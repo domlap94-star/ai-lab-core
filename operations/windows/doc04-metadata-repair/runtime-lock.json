@@ -1,5 +1,5 @@
 {
-  "schema": "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3",
+  "schema": "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4",
   "runtime_python": {
     "implementation": "CPython",
     "version": "3.12.10",
@@ -35,19 +35,70 @@
   "extraction_limits": {"maximum_entries_per_archive":20000,"maximum_entry_bytes":67108864,"maximum_archive_output_bytes":536870912,"stream_buffer_bytes":1048576,"maximum_redirects":3},
   "backend_requirements_git_blob": "edd024b8be485794e1803bdf8d86fb4a10f060a3",
   "python312_pth": ["python312.zip",".","Lib\\site-packages","import site"],
-  "path_policy": {
-    "authorized_runtime_parent": "C:\\ai-lab-core-staging\\doc04b-runtime",
-    "authorized_cache_parent": "C:\\ai-lab-core-staging\\doc04b-cache",
-    "forbidden_runtime_roots": [
-      "C:\\ai-lab-core",
+  "path_policies": {
+    "runtime_cache": {
+      "authorized_runtime_parent": "C:\\ai-lab-core-staging\\doc04b-runtime",
+      "authorized_cache_parent": "C:\\ai-lab-core-staging\\doc04b-cache",
+      "forbidden_roots": [
+        "C:\\ai-lab-core",
+        "C:\\ai-lab-core\\data",
+        "C:\\ai-lab-core-backups",
+        "E:\\",
+        "F:\\",
+        "C:\\Windows",
+        "C:\\Program Files",
+        "C:\\Program Files (x86)",
+        "C:\\ProgramData",
+        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+        "C:\\Users\\Default\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+      ]
+    },
+    "nonproduction_working": {
+      "authorized_parent": "C:\\ai-lab-core-staging\\doc04b-runtime",
+      "forbidden_roots": [
+        "C:\\ai-lab-core",
+        "C:\\ai-lab-core\\data",
+        "C:\\ai-lab-core-backups",
+        "E:\\",
+        "F:\\",
+        "C:\\Windows",
+        "C:\\Program Files",
+        "C:\\Program Files (x86)",
+        "C:\\ProgramData",
+        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+        "C:\\Users\\Default\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+      ]
+    },
+    "production_configuration": {
+      "explicit_application_root_allowed": true,
+      "forbidden_roots": [
+        "C:\\ai-lab-core\\data",
+        "C:\\ai-lab-core-backups",
+        "E:\\",
+        "F:\\",
+        "C:\\ai-lab-core-staging\\doc04b-runtime",
+        "C:\\ai-lab-core-staging\\doc04b-cache",
+        "C:\\Windows",
+        "C:\\Program Files",
+        "C:\\Program Files (x86)",
+        "C:\\ProgramData",
+        "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+        "C:\\Users\\Default\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+      ]
+    },
+    "production_working_forbidden_roots": [
       "C:\\ai-lab-core\\data",
       "C:\\ai-lab-core-backups",
       "E:\\",
       "F:\\",
+      "C:\\ai-lab-core-staging\\doc04b-runtime",
+      "C:\\ai-lab-core-staging\\doc04b-cache",
       "C:\\Windows",
       "C:\\Program Files",
       "C:\\Program Files (x86)",
-      "C:\\ProgramData"
+      "C:\\ProgramData",
+      "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+      "C:\\Users\\Default\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
     ]
   },
   "profiles": {
@@ -63,12 +114,13 @@
         "annotated-types",
         "typing-inspection",
         "pydantic-settings",
-        "python-dotenv"
+        "python-dotenv",
+        "tzdata"
       ],
       "installed_runtime": {
-        "expected_file_count": 694,
+        "expected_file_count": 1327,
         "expected_bytes_maximum": 67108864,
-        "expected_tree_sha256": "32b6cbda72555005e955fd202404b80974c83620bf56050ffb2a256cb88e1cd3"
+        "expected_tree_sha256": "c5fa06a3e21ab2ea0e8df3dcfa4abee10015f9c0a240b66a8ae10a955ce99fad"
       }
     },
     "Qualification": {
@@ -76,7 +128,7 @@
       "installed_runtime": {
         "expected_file_count": 4710,
         "expected_bytes_maximum": 268435456,
-        "expected_tree_sha256": "29073b1cc9a2eaa11a4a628c90d77190eb0527edd737db99e5111f854e8d7932"
+        "expected_tree_sha256": "0ceaf9fb3876b3ee0ddfeb77bb70ad92dfd783b19cce97e82279395ef25b687e"
       }
     }
   },
@@ -89,11 +141,46 @@
     "operations/windows/doc04-metadata-repair/README.md",
     "backend/app/repositories/document_repository.py",
     "backend/app/scripts/repair_document_metadata_surrogates.py",
+    "backend/app/core/config.py",
+    "backend/app/models/document.py",
+    "backend/app/models/backup_operation.py",
+    "backend/app/services/backup_restore_service.py",
+    "backend/app/services/backup_supervisor_client.py",
     "backend/app/services/document_metadata_service.py",
     "backend/app/services/document_metadata_unicode_safety.py",
     "backend/app/services/document_processing_service.py",
     "backend/app/services/document_service.py"
   ],
+  "source_closure": {
+    "generation": "DOC04B_BACKEND_APP_SOURCE_CLOSURE_V1",
+    "verification_algorithm": "git-scoped-clean-v1+git-ls-tree-r-full-tree+git-hash-object-stdin-paths",
+    "backend_app_git_tree_sha": "345fb06ec50a573ad9eae938609e34695bb3131a",
+    "application_import_closure_algorithm": "sha256-utf8-lf-sorted-repository-relative-paths-v1",
+    "expected_application_import_closure_sha256": "cbc9e7e4b66e4df4b9944699de6383aef469bed9b090afbcfb48937a12a85f76",
+    "selected_stdlib_modules": [
+      "codecs",
+      "email",
+      "html.parser",
+      "http.client",
+      "http.cookies",
+      "http.server",
+      "ipaddress",
+      "os",
+      "plistlib",
+      "ssl",
+      "tarfile",
+      "urllib.request",
+      "wsgiref",
+      "xml.dom.minidom",
+      "xml.parsers.expat",
+      "zipfile"
+    ],
+    "stdlib_import_observations": {
+      "windows_3_12_10": {"codecs":true,"email":true,"html.parser":false,"http.client":true,"http.cookies":false,"http.server":false,"ipaddress":true,"os":true,"plistlib":false,"ssl":true,"tarfile":false,"urllib.request":true,"wsgiref":false,"xml.dom.minidom":false,"xml.parsers.expat":false,"zipfile":true},
+      "backend_3_12_13": {"codecs":true,"email":true,"html.parser":false,"http.client":true,"http.cookies":false,"http.server":false,"ipaddress":true,"os":true,"plistlib":false,"ssl":true,"tarfile":false,"urllib.request":true,"wsgiref":false,"xml.dom.minidom":false,"xml.parsers.expat":false,"zipfile":true}
+    },
+    "reviewed_reachability_decision": "imports_are_observed_dynamically; customer-controlled parser or network reachability remains forbidden"
+  },
   "packages": [
     {"project":"SQLAlchemy","version":"2.0.43","filename":"sqlalchemy-2.0.43-cp312-cp312-win_amd64.whl","url":"https://files.pythonhosted.org/packages/bc/09/405c915a974814b90aa591280623adc6ad6b322f61fd5cff80aeaef216c9/sqlalchemy-2.0.43-cp312-cp312-win_amd64.whl","bytes":2126260,"sha256":"1c6d85327ca688dbae7e2b06d7d84cfe4f3fffa5b5f9e21bb6ce9d0e1a0e0e0a","wheel_tag":"cp312-cp312-win_amd64","classification":"native","metadata_url":"https://pypi.org/pypi/SQLAlchemy/2.0.43/json"},
     {"project":"greenlet","version":"3.5.5","filename":"greenlet-3.5.5-cp312-cp312-win_amd64.whl","url":"https://files.pythonhosted.org/packages/de/30/1f42b88dc587b5899ee50616ad56ee40cafaf225df4fb829f10183c62a5c/greenlet-3.5.5-cp312-cp312-win_amd64.whl","bytes":324171,"sha256":"49ddacd36af37735fab103846f4ee4d18a492dde72730d1699c0c8ebe30d9f18","wheel_tag":"cp312-cp312-win_amd64","classification":"native","metadata_url":"https://pypi.org/pypi/greenlet/3.5.5/json","ignored_members":["greenlet-3.5.5.data/headers/greenlet.h"]},
@@ -163,19 +250,19 @@
   ],
   "security_delta": [
     {"release":"3.12.11","component":"tarfile extraction filters","issue":"CVE-2024-12718,CVE-2025-4138,CVE-2025-4330,CVE-2025-4435,CVE-2025-4517; gh-135034","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"locked runtime archives are extracted only by bounded PowerShell/.NET; no production archive is processed","verdict":"not_reachable"},
-    {"release":"3.12.11","component":"unicode_escape decoder","issue":"gh-133767","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"lexical JSON escape scanning; no codecs.decode, unicode_escape, raw_unicode_escape or non-strict handler","verdict":"not_reachable"},
-    {"release":"3.12.11","component":"ipaddress","issue":"gh-128840","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"repair modes parse no customer IP address text","verdict":"not_reachable"},
+    {"release":"3.12.11","component":"unicode_escape decoder","issue":"gh-133767","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"lexical JSON escape scanning; no codecs.decode, unicode_escape, raw_unicode_escape or non-strict handler","verdict":"not_reachable"},
+    {"release":"3.12.11","component":"ipaddress","issue":"gh-128840","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"repair modes parse no customer IP address text","verdict":"not_reachable"},
     {"release":"3.12.12","component":"pyexpat/xml.parsers.expat","issue":"CVE-2025-59375; gh-139312,gh-139400","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"XML parsers are excluded from all modes","verdict":"not_reachable"},
     {"release":"3.12.12","component":"tarfile","issue":"gh-130577","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no Python tar extraction","verdict":"not_reachable"},
-    {"release":"3.12.12","component":"zipfile ZIP64 validation","issue":"gh-139700","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"Python zipfile is not used; locked artifacts are extracted by bounded .NET after hash validation","verdict":"not_reachable"},
+    {"release":"3.12.12","component":"zipfile ZIP64 validation","issue":"gh-139700","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"zipfile is imported transitively but the repair does not process archives; locked artifacts are extracted by bounded .NET after hash validation","verdict":"import_only_not_reachable"},
     {"release":"3.12.12","component":"html.parser","issue":"gh-135661,gh-102555,gh-135462,gh-118350,gh-86155","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no HTML parsing in any mode","verdict":"not_reachable"},
-    {"release":"3.12.13","component":"email generator/header parsing","issue":"CVE-2024-6923; gh-144125,gh-143935,gh-136063","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"email modules never receive metadata","verdict":"not_reachable"},
+    {"release":"3.12.13","component":"email generator/header parsing","issue":"CVE-2024-6923; gh-144125,gh-143935,gh-136063","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"email is imported transitively but never receives metadata","verdict":"import_only_not_reachable"},
     {"release":"3.12.13","component":"wsgiref headers","issue":"gh-143916","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no WSGI or HTTP server","verdict":"not_reachable"},
     {"release":"3.12.13","component":"http.cookies","issue":"gh-143919","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no cookie parsing","verdict":"not_reachable"},
-    {"release":"3.12.13","component":"data URL parsing","issue":"gh-143925","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no URL input accepted","verdict":"not_reachable"},
+    {"release":"3.12.13","component":"data URL parsing","issue":"gh-143925","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"urllib.request is imported transitively but no URL input is accepted","verdict":"import_only_not_reachable"},
     {"release":"3.12.13","component":"pyexpat/xml.dom.minidom","issue":"CVE-2026-24515,CVE-2026-25210,CVE-2025-59375; gh-144363,gh-90949,gh-142145","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"XML modules not used","verdict":"not_reachable"},
     {"release":"3.12.13","component":"plistlib","issue":"gh-119342","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no property-list parsing","verdict":"not_reachable"},
-    {"release":"3.12.13","component":"http.client","issue":"gh-119451","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no HTTP call; runtime network policy permits PostgreSQL only","verdict":"not_reachable"},
+    {"release":"3.12.13","component":"http.client","issue":"gh-119451","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"http.client is imported transitively but no HTTP call is permitted; Python network policy permits only the exact PostgreSQL endpoint","verdict":"import_only_not_reachable"},
     {"release":"3.12.13","component":"http.server CGI on Windows","issue":"gh-119452","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no HTTP server","verdict":"not_reachable"},
     {"release":"3.12.13","component":"os.path.expandvars","issue":"gh-136065","present":true,"imported_smoke":true,"imported_synthetic_repair":true,"untrusted_production_reachable":false,"mitigation":"only bounded operator-controlled environment/configuration is visible; customer metadata is never passed to expandvars","verdict":"operator_input_only"},
     {"release":"3.12.13","component":"html.parser rawtext/plaintext","issue":"gh-137836","present":true,"imported_smoke":false,"imported_synthetic_repair":false,"untrusted_production_reachable":false,"mitigation":"no HTML parsing","verdict":"not_reachable"},

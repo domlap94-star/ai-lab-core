@@ -18,6 +18,7 @@ import os
 import pathlib
 import platform
 import re
+import socket
 import subprocess
 import sys
 import unittest
@@ -71,10 +72,13 @@ NONPRODUCTION_POLICIES = {
     "isolated-alembic-upgrade",
     "nonproduction-audit-probe",
     "backend-reference",
-    "production-import-trace",
+    "production-source-security-trace",
+    "network-forbidden-probe",
     "repair-relay-self-test",
+    "production-profile-preflight-fixture",
 }
 PRODUCTION_POLICIES = {"production-preflight", "production-execute"}
+PRODUCTION_PROFILE_INTEGRATION_POLICY = "production-profile-preflight-integration"
 SYNTHETIC_PRODUCTION_POLICY = "synthetic-production-audit"
 SENSITIVE_ABSENT = {
     "OPENAI_API_KEY",
@@ -100,6 +104,9 @@ ISOLATED_DATABASE_REVISION = "followup_assistant_chat_history_20260829"
 
 _ENV_FILE_OPEN_ATTEMPTS = 0
 _ALLOWED_ENV_FILE: str | None = None
+_PYTHON_NETWORK_ATTEMPTS = 0
+_PYTHON_NETWORK_ALLOWED = 0
+_PYTHON_NETWORK_BLOCKED = 0
 _RESULT_FD = os.dup(1)
 _ERROR_FD = os.dup(2)
 _SAFE_FAILURE_DETAILS: dict[str, Any] = {}
@@ -192,9 +199,100 @@ def _install_env_audit_guard(allowed_env_file: str | None) -> None:
     sys.addaudithook(audit)
 
 
+def _install_network_audit_guard(policy: str) -> None:
+    allowed_host = os.environ.get("NEXT_DOC04_NETWORK_ALLOWED_HOST", "")
+    allowed_port_raw = os.environ.get("NEXT_DOC04_NETWORK_ALLOWED_PORT", "")
+    allowed_port = int(allowed_port_raw) if allowed_port_raw.isdigit() else 0
+    db_policies = {
+        "isolated-test",
+        "isolated-alembic-upgrade",
+        "production-profile-preflight-fixture",
+        PRODUCTION_PROFILE_INTEGRATION_POLICY,
+        "production-preflight",
+        "production-execute",
+    }
+    if policy in db_policies:
+        if allowed_host != "127.0.0.1" or not 1 <= allowed_port <= 65535:
+            _refuse("DOC04B_NETWORK_POLICY_INVALID")
+        if policy in PRODUCTION_POLICIES and allowed_port != 5432:
+            _refuse("DOC04B_NETWORK_POLICY_INVALID")
+        if policy not in PRODUCTION_POLICIES and allowed_port == 5432:
+            _refuse("DOC04B_NETWORK_POLICY_INVALID")
+    elif allowed_host or allowed_port:
+        _refuse("DOC04B_NETWORK_POLICY_INVALID")
+
+    fallback_socketpair = getattr(socket, "_fallback_socketpair", None)
+    fallback_socketpair_code = getattr(fallback_socketpair, "__code__", None)
+
+    def is_internal_windows_socketpair() -> bool:
+        """Recognize only CPython's self-connected asyncio wakeup primitive."""
+        frame = sys._getframe(1)
+        for _ in range(12):
+            if frame is None:
+                break
+            if fallback_socketpair_code is not None and frame.f_code is fallback_socketpair_code:
+                return True
+            frame = frame.f_back
+        return False
+
+    def classify_endpoint(event: str, args: tuple[Any, ...]) -> tuple[str, int] | None:
+        value: Any = None
+        if event == "socket.connect" and len(args) >= 2:
+            value = args[1]
+        elif event in {"socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyname_ex"} and args:
+            host = args[0]
+            port = args[1] if len(args) > 1 and isinstance(args[1], int) else allowed_port
+            return (str(host), int(port))
+        elif event in {"urllib.Request", "http.client.connect"}:
+            return ("", 0)
+        if isinstance(value, tuple) and len(value) >= 2 and isinstance(value[1], int):
+            return (str(value[0]), int(value[1]))
+        return None
+
+    def audit(event: str, args: tuple[Any, ...]) -> None:
+        global _PYTHON_NETWORK_ATTEMPTS, _PYTHON_NETWORK_ALLOWED, _PYTHON_NETWORK_BLOCKED
+        relevant = {
+            "socket.__new__",
+            "socket.connect",
+            "socket.getaddrinfo",
+            "socket.gethostbyname",
+            "socket.gethostbyname_ex",
+            "urllib.Request",
+            "http.client.connect",
+        }
+        if event not in relevant:
+            return
+        _PYTHON_NETWORK_ATTEMPTS += 1
+        if event == "socket.__new__":
+            if policy in db_policies:
+                _PYTHON_NETWORK_ALLOWED += 1
+                return
+        else:
+            endpoint = classify_endpoint(event, args)
+            if (
+                policy in db_policies
+                and event == "socket.connect"
+                and endpoint is not None
+                and endpoint[0] in {"127.0.0.1", "::1"}
+                and is_internal_windows_socketpair()
+            ):
+                _PYTHON_NETWORK_ALLOWED += 1
+                return
+            if endpoint == (allowed_host, allowed_port) and policy in db_policies:
+                _PYTHON_NETWORK_ALLOWED += 1
+                return
+        _PYTHON_NETWORK_BLOCKED += 1
+        raise RuntimeRefusal("DOC04B_NETWORK_ENDPOINT_FORBIDDEN")
+
+    sys.addaudithook(audit)
+
+
 def _environment_roots() -> tuple[pathlib.Path, pathlib.Path, str]:
     policy = os.environ.get("NEXT_DOC04_RUNTIME_POLICY", "")
-    if policy not in NONPRODUCTION_POLICIES | PRODUCTION_POLICIES | {SYNTHETIC_PRODUCTION_POLICY}:
+    if policy not in NONPRODUCTION_POLICIES | PRODUCTION_POLICIES | {
+        SYNTHETIC_PRODUCTION_POLICY,
+        PRODUCTION_PROFILE_INTEGRATION_POLICY,
+    }:
         _refuse("DOC04B_RUNTIME_POLICY_REQUIRED")
     environment_raw = os.environ.get("NEXT_DOC04_ENVIRONMENT_ROOT", "")
     working_raw = os.environ.get("NEXT_DOC04_WORKING_DIRECTORY", "")
@@ -237,7 +335,11 @@ def _cwd_sha256(path: pathlib.Path) -> str:
 
 def _validate_child_environment(working_directory: pathlib.Path, policy: str) -> None:
     profile = os.environ.get("NEXT_DOC04_RUNTIME_PROFILE", "")
-    qualification = {"isolated-test", "isolated-alembic-upgrade"}
+    qualification = {
+        "isolated-test",
+        "isolated-alembic-upgrade",
+        "production-profile-preflight-fixture",
+    }
     if policy in qualification and profile != "Qualification":
         _refuse("DOC04B_RUNTIME_PROFILE_MISMATCH")
     if policy not in qualification and profile != "Production":
@@ -249,6 +351,18 @@ def _validate_child_environment(working_directory: pathlib.Path, policy: str) ->
             or os.environ.get("POSTGRES_PORT") != "5432"
         ):
             _refuse("DOC04B_PRODUCTION_DATABASE_CONTRACT_INVALID")
+        return
+    if policy == PRODUCTION_PROFILE_INTEGRATION_POLICY:
+        database = os.environ.get("POSTGRES_DB", "")
+        port = os.environ.get("POSTGRES_PORT", "")
+        if (
+            os.environ.get("ENVIRONMENT") != "test"
+            or not database.startswith("ai_lab_test_doc04b_")
+            or os.environ.get("POSTGRES_HOST") != "127.0.0.1"
+            or port == "5432"
+            or not port.isdigit()
+        ):
+            _refuse("DOC04B_ISOLATED_DATABASE_REQUIRED")
         return
     if policy == SYNTHETIC_PRODUCTION_POLICY:
         return
@@ -301,7 +415,37 @@ def _run_git(repo: pathlib.Path, *args: str) -> str:
     return completed.stdout.strip()
 
 
-def _verify_source() -> pathlib.Path:
+def _run_git_input(repo: pathlib.Path, input_text: str, *args: str) -> str:
+    executable = os.environ.get("NEXT_DOC04_GIT_EXE", "")
+    if not executable or not os.path.isabs(executable) or not os.path.isfile(executable):
+        _refuse("DOC04B_GIT_EXECUTABLE_REQUIRED")
+    try:
+        completed = subprocess.run(
+            [executable, "-C", str(repo), *args],
+            input=input_text,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="strict",
+            timeout=30,
+        )
+    except Exception as error:
+        raise RuntimeRefusal("DOC04B_GIT_IDENTITY_FAILED") from error
+    return completed.stdout.strip()
+
+
+def _load_runtime_lock(path: pathlib.Path) -> dict[str, Any]:
+    try:
+        lock = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as error:
+        raise RuntimeRefusal("DOC04B_RUNTIME_LOCK_INVALID") from error
+    if lock.get("schema") != "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4":
+        _refuse("DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH")
+    return lock
+
+
+def _verify_source() -> tuple[pathlib.Path, dict[str, Any]]:
     script = pathlib.Path(__file__).resolve()
     repo = script.parents[3]
     expected = os.environ.get("NEXT_DOC04_EXPECTED_GIT_SHA", "")
@@ -311,12 +455,49 @@ def _verify_source() -> pathlib.Path:
     if actual_root != repo or _run_git(repo, "rev-parse", "HEAD") != expected:
         _refuse("DOC04B_GIT_HEAD_MISMATCH")
     lock_path = repo / "operations/windows/doc04-metadata-repair/runtime-lock.json"
-    try:
-        lock = json.loads(lock_path.read_text(encoding="utf-8"))
-    except Exception as error:
-        raise RuntimeRefusal("DOC04B_RUNTIME_LOCK_INVALID") from error
-    if lock.get("schema") != "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3":
-        _refuse("DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH")
+    lock = _load_runtime_lock(lock_path)
+    protected_status = _run_git(
+        repo,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        "--",
+        "backend/app",
+        "operations/windows/doc04-metadata-repair",
+        "backend/requirements.txt",
+    )
+    if protected_status:
+        _refuse("DOC04B_PROTECTED_SOURCE_DIRTY")
+    source_contract = lock.get("source_closure", {})
+    if (
+        _run_git(repo, "rev-parse", "HEAD:backend/app")
+        != source_contract.get("backend_app_git_tree_sha")
+    ):
+        _refuse("DOC04B_BACKEND_APP_TREE_MISMATCH")
+    tree_records = _run_git(
+        repo, "ls-tree", "-r", "--full-tree", "HEAD", "--", "backend/app"
+    ).splitlines()
+    if not tree_records:
+        _refuse("DOC04B_BACKEND_APP_TREE_EMPTY")
+    expected_blobs: list[str] = []
+    tracked_paths: list[str] = []
+    for record in tree_records:
+        match = re.fullmatch(r"(100644|100755) blob ([0-9a-f]{40})\t(.+)", record)
+        if match is None:
+            _refuse("DOC04B_BACKEND_APP_TREE_ENTRY_INVALID")
+        relative = match.group(3)
+        path = repo / pathlib.PurePosixPath(relative)
+        if not path.is_file() or _is_reparse_or_link(path):
+            _refuse("DOC04B_BACKEND_APP_SOURCE_INVALID")
+        expected_blobs.append(match.group(2))
+        tracked_paths.append(relative)
+    # --stdin-paths applies Git's path-specific clean filters to every supplied
+    # path, the batched equivalent of one hash-object --path invocation per file.
+    actual_blobs = _run_git_input(
+        repo, "".join(path + "\n" for path in tracked_paths), "hash-object", "--stdin-paths"
+    ).splitlines()
+    if actual_blobs != expected_blobs:
+        _refuse("DOC04B_BACKEND_APP_SOURCE_MODIFIED")
     for relative in lock["critical_git_paths"]:
         path = repo / pathlib.PurePosixPath(relative)
         if not path.is_file() or _is_reparse_or_link(path):
@@ -325,7 +506,7 @@ def _verify_source() -> pathlib.Path:
         working = _run_git(repo, "hash-object", f"--path={relative}", str(path))
         if committed != working:
             _refuse("DOC04B_CRITICAL_SOURCE_MODIFIED")
-    return repo
+    return repo, lock
 
 
 def _import_contract() -> tuple[Any, Any]:
@@ -447,6 +628,13 @@ def _compatibility_vectors() -> dict[str, Any]:
 
 
 def _emit(payload: Any) -> None:
+    if isinstance(payload, dict):
+        payload = dict(payload)
+        payload.setdefault("python_network_attempts", _PYTHON_NETWORK_ATTEMPTS)
+        payload.setdefault("python_network_allowed", _PYTHON_NETWORK_ALLOWED)
+        payload.setdefault("python_network_blocked", _PYTHON_NETWORK_BLOCKED)
+        # Backward-compatible field, now derived from measured allowed events.
+        payload.setdefault("network_connections", _PYTHON_NETWORK_ALLOWED)
     value = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
     os.write(_RESULT_FD, value.encode("utf-8"))
 
@@ -594,14 +782,52 @@ def _normalize_distribution(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).casefold()
 
 
-def _production_import_trace() -> dict[str, Any]:
-    before = set(sys.modules)
+def _security_probe(component: str) -> tuple[str, ...]:
+    value = component.casefold()
+    if "unicode_escape" in value:
+        return ("codecs",)
+    if "ipaddress" in value:
+        return ("ipaddress",)
+    if "xml.dom.minidom" in value:
+        return ("xml.dom.minidom", "xml.parsers.expat")
+    if "expat" in value:
+        return ("xml.parsers.expat",)
+    if "zipfile" in value:
+        return ("zipfile",)
+    if "html.parser" in value:
+        return ("html.parser",)
+    if value.startswith("email"):
+        return ("email",)
+    if "wsgiref" in value:
+        return ("wsgiref",)
+    if "http.cookies" in value:
+        return ("http.cookies",)
+    if "data url" in value:
+        return ("urllib.request",)
+    if "plistlib" in value:
+        return ("plistlib",)
+    if "http.client" in value:
+        return ("http.client",)
+    if "http.server" in value:
+        return ("http.server",)
+    if "expandvars" in value:
+        return ("os",)
+    if value == "ssl":
+        return ("ssl",)
+    if "tarfile" in value:
+        return ("tarfile",)
+    return ()
+
+
+def _production_source_security_trace(
+    repo: pathlib.Path, lock: dict[str, Any], *, backend_reference: bool
+) -> dict[str, Any]:
     _import_contract()
     import psycopg
 
     if psycopg.pq.__impl__ != "binary":
         _refuse("DOC04B_PSYCOPG_BINARY_NOT_ACTIVE")
-    loaded_roots = {name.split(".", 1)[0] for name in set(sys.modules) - before}
+    loaded_roots = {name.split(".", 1)[0] for name in set(sys.modules)}
     package_map = importlib.metadata.packages_distributions()
     loaded_distributions = {
         distribution
@@ -616,11 +842,55 @@ def _production_import_trace() -> dict[str, Any]:
     }
     if observed != expected:
         _refuse("DOC04B_PRODUCTION_IMPORT_CLOSURE_MISMATCH")
+    app_files: set[str] = set()
+    outside_repository = 0
+    app_boundary = repo / "app" if backend_reference else repo / "backend/app"
+    for name, module in sorted(sys.modules.items()):
+        if name != "app" and not name.startswith("app."):
+            continue
+        origin = getattr(module, "__file__", None)
+        if not origin:
+            continue
+        path = pathlib.Path(origin)
+        if path.suffix in {".pyc", ".pyo"}:
+            path = path.with_suffix(".py")
+        try:
+            relative = path.resolve().relative_to(app_boundary.resolve())
+        except (OSError, ValueError):
+            outside_repository += 1
+            continue
+        app_files.add("backend/app/" + relative.as_posix())
+    ordered_app_files = sorted(app_files)
+    closure_bytes = ("\n".join(ordered_app_files) + "\n").encode("utf-8")
+    closure_sha256 = hashlib.sha256(closure_bytes).hexdigest()
+    source_contract = lock["source_closure"]
+    expected_closure = source_contract["expected_application_import_closure_sha256"]
+    if expected_closure != "0" * 64 and closure_sha256 != expected_closure:
+        _refuse("DOC04B_APPLICATION_IMPORT_CLOSURE_MISMATCH")
+    selected = source_contract["selected_stdlib_modules"]
+    stdlib_modules = {name: name in sys.modules for name in selected}
+    platform_key = "backend_3_12_13" if backend_reference else "windows_3_12_10"
+    expected_stdlib = source_contract["stdlib_import_observations"].get(platform_key, {})
+    if expected_stdlib and stdlib_modules != expected_stdlib:
+        _refuse("DOC04B_STDLIB_IMPORT_TRACE_MISMATCH")
+    if expected_closure != "0" * 64:
+        for item in lock["security_delta"]:
+            probes = _security_probe(str(item["component"]))
+            measured = any(name in sys.modules for name in probes)
+            if item["imported_synthetic_repair"] != measured:
+                _refuse("DOC04B_SECURITY_DELTA_TRACE_MISMATCH")
+    if outside_repository:
+        _refuse("DOC04B_APPLICATION_IMPORT_OUTSIDE_REPOSITORY")
     return {
+        "application_files": ordered_app_files,
+        "application_import_closure_sha256": closure_sha256,
         "distributions": sorted(PRODUCTION_EXPECTED_PACKAGES),
+        "outside_repository_count": outside_repository,
         "package_count": len(PRODUCTION_EXPECTED_PACKAGES),
         "psycopg_implementation": psycopg.pq.__impl__,
-        "result": "DOC04B_PRODUCTION_IMPORT_TRACE_PASS",
+        "reviewed_reachability_decision": source_contract["reviewed_reachability_decision"],
+        "result": "DOC04B_PRODUCTION_SOURCE_SECURITY_TRACE_PASS",
+        "stdlib_modules": stdlib_modules,
     }
 
 
@@ -632,7 +902,7 @@ def _assert_database_isolated() -> None:
         _refuse("DOC04B_ISOLATED_DATABASE_REQUIRED")
 
 
-def _smoke(working_directory: pathlib.Path) -> dict[str, Any]:
+def _smoke(working_directory: pathlib.Path, lock: dict[str, Any]) -> dict[str, Any]:
     repair, _ = _import_contract()
     versions = {
         name: importlib.metadata.version(name)
@@ -644,16 +914,22 @@ def _smoke(working_directory: pathlib.Path) -> dict[str, Any]:
         _refuse("DOC04B_OPERATION_LOCK_KEY_MISMATCH")
     if not repair._parser().format_help():
         _refuse("DOC04B_REPAIR_HELP_INVALID")
+    selected = lock["source_closure"]["selected_stdlib_modules"]
+    stdlib_modules = {name: name in sys.modules for name in selected}
+    for item in lock["security_delta"]:
+        measured = any(name in sys.modules for name in _security_probe(str(item["component"])))
+        if item["imported_smoke"] != measured:
+            _refuse("DOC04B_SECURITY_DELTA_SMOKE_MISMATCH")
     return {
         "architecture": "amd64" if sys.maxsize > 2**32 else "x86",
         "cwd_identity_sha256": _cwd_sha256(working_directory),
         "database_connections": 0,
         "environment_profile": "synthetic_explicit",
         "env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS,
-        "network_connections": 0,
         "packages": versions,
         "python": platform.python_version(),
         "result": "DOC04B_SMOKE_PASS",
+        "stdlib_modules": stdlib_modules,
     }
 
 
@@ -806,7 +1082,6 @@ def _repair_help() -> dict[str, Any]:
         "database_connections": 0,
         "env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS,
         "help_sha256": parser["help_sha256"],
-        "network_connections": 0,
         "option_count": len(parser["option_names"]),
         "result": "DOC04B_REPAIR_HELP_PASS",
     }
@@ -834,12 +1109,182 @@ def _synthetic_production_audit(working_directory: pathlib.Path) -> dict[str, An
     }
 
 
+def _fixture_file_sha256(path: pathlib.Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _production_preflight_fixture(
+    working_directory: pathlib.Path, phase: str
+) -> dict[str, Any]:
+    _assert_database_isolated()
+    from sqlalchemy import create_engine, text
+
+    from app.core.config import settings
+    from app.scripts import repair_document_metadata_surrogates as repair
+    from app.services.document_metadata_unicode_safety import (
+        repair_json_text_surrogates,
+    )
+
+    data_root = pathlib.Path(settings.data_dir).resolve()
+    backup_raw = os.environ.get("NEXT_DOC04_SYNTHETIC_BACKUP_ROOT", "")
+    backup_root = pathlib.Path(backup_raw).resolve() if backup_raw else pathlib.Path()
+    if (
+        not _is_within(str(data_root), str(working_directory))
+        or not backup_raw
+        or not _is_within(str(backup_root), str(working_directory))
+        or data_root == backup_root
+    ):
+        _refuse("DOC04B_PRODUCTION_PROFILE_FIXTURE_ROOT_INVALID")
+    storage = data_root / "documents" / "8903.bin"
+    checkpoint = backup_root / "checkpoint.json"
+    manifest = backup_root / "manifest.json"
+    engine = create_engine(settings.database_url, future=True)
+    try:
+        if phase == "cleanup":
+            with engine.begin() as connection:
+                connection.execute(text("DELETE FROM managed_backups WHERE id=4404"))
+                connection.execute(text("DELETE FROM backup_runs WHERE id=4403"))
+                connection.execute(text("DELETE FROM documents WHERE id=8903"))
+                connection.execute(text("DELETE FROM users WHERE id=89032"))
+                connection.execute(text("DELETE FROM roles WHERE id=89031"))
+            return {"result": "DOC04B_PRODUCTION_PROFILE_FIXTURE_CLEANED"}
+        if phase == "prepare":
+            storage.parent.mkdir(parents=True, exist_ok=True)
+            backup_root.mkdir(parents=True, exist_ok=True)
+            storage.write_bytes(b"synthetic-doc04b-document-8903\n")
+            checkpoint.write_text('{"synthetic":true}\n', encoding="utf-8")
+            manifest.write_text('{"schema":"synthetic-doc04b"}\n', encoding="utf-8")
+            raw = '{"title":"synthetic\\uD800metadata"}'
+            normalized = '{"title":"synthetic\\uDC00metadata"}'
+            with engine.begin() as connection:
+                connection.execute(text("INSERT INTO roles (id,name,description) VALUES (89031,'doc04b','synthetic')"))
+                connection.execute(text("INSERT INTO users (id,username,email,password_hash,is_active,must_change_password,password_reset_requested,role_id) VALUES (89032,'doc04b','doc04b@example.invalid','synthetic',true,false,false,89031)"))
+                connection.execute(
+                    text(
+                        "INSERT INTO documents (id,filename,original_filename,content_type,file_size,storage_path,checksum_sha256,archive_depth,source_type,processing_status,vision_status,vision_auto_eligible,vision_attempt_count,metadata_status,metadata_raw,metadata_normalized,match_status) "
+                        "VALUES (8903,'synthetic-8903.bin','synthetic-8903.bin','application/octet-stream',:size,'documents/8903.bin',:sha,0,'manual_upload','processed','not_evaluated',false,0,'processed',CAST(:raw AS json),CAST(:normalized AS json),'unmatched')"
+                    ),
+                    {
+                        "size": storage.stat().st_size,
+                        "sha": _fixture_file_sha256(storage),
+                        "raw": raw,
+                        "normalized": normalized,
+                    },
+                )
+                finished_at = connection.execute(text("SELECT clock_timestamp() - interval '1 minute'" )).scalar_one()
+                connection.execute(
+                    text(
+                        "INSERT INTO backup_runs (id,scope,trigger,destination,status,stage,checkpoint_path,manifest_path,artifact_count,total_bytes,verified,created_by_user_id,started_at,finished_at) "
+                        "VALUES (4403,'database','manual',:destination,'completed','completed',:checkpoint,:manifest,1,:bytes,true,89032,:finished,:finished)"
+                    ),
+                    {
+                        "destination": str(backup_root),
+                        "checkpoint": str(checkpoint),
+                        "manifest": str(manifest),
+                        "bytes": manifest.stat().st_size,
+                        "finished": finished_at,
+                    },
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO managed_backups (id,backup_id,backup_run_id,destination_root,checkpoint_path,manifest_path,manifest_schema,manifest_sha256,scope,app_version,source_head,db_revision,artifact_count,total_bytes,integrity_status,protected,lifecycle,created_at) "
+                        "VALUES (4404,'doc04b-synthetic-4403',4403,:destination,:checkpoint,:manifest,'synthetic-doc04b',:manifest_sha,'database','synthetic',:head,:revision,1,:bytes,'verified',true,'available',:finished)"
+                    ),
+                    {
+                        "destination": str(backup_root),
+                        "checkpoint": str(checkpoint),
+                        "manifest": str(manifest),
+                        "manifest_sha": _fixture_file_sha256(manifest),
+                        "head": os.environ["NEXT_DOC04_EXPECTED_GIT_SHA"],
+                        "revision": ISOLATED_DATABASE_REVISION,
+                        "bytes": manifest.stat().st_size,
+                        "finished": finished_at,
+                    },
+                )
+        with engine.connect() as connection:
+            database = connection.execute(text("SELECT current_database()" )).scalar_one()
+            if database != settings.postgres_db:
+                _refuse("DOC04B_DATABASE_IDENTITY_MISMATCH")
+            row = connection.execute(
+                text(
+                    "SELECT xmin::text AS xmin,updated_at,metadata_raw::text AS metadata_raw,metadata_normalized::text AS metadata_normalized,file_size,checksum_sha256,storage_path FROM documents WHERE id=8903"
+                )
+            ).mappings().one()
+            backup = connection.execute(
+                text(
+                    "SELECT br.id,br.status,br.stage,br.verified,br.finished_at,mb.id AS managed_id,mb.manifest_sha256,mb.integrity_status,mb.lifecycle FROM backup_runs br JOIN managed_backups mb ON mb.backup_run_id=br.id WHERE br.id=4403"
+                )
+            ).mappings().one()
+            relations = repair._relation_counts(connection)
+            revision = connection.execute(text("SELECT version_num FROM alembic_version" )).scalar_one()
+        if (
+            revision != ISOLATED_DATABASE_REVISION
+            or row["storage_path"] != "documents/8903.bin"
+            or int(row["file_size"]) != storage.stat().st_size
+            or row["checksum_sha256"] != _fixture_file_sha256(storage)
+            or backup["status"] != "completed"
+            or not backup["verified"]
+            or backup["integrity_status"] != "verified"
+        ):
+            _refuse("DOC04B_PRODUCTION_PROFILE_FIXTURE_INVALID")
+        raw_result = repair_json_text_surrogates(str(row["metadata_raw"]))
+        normalized_result = repair_json_text_surrogates(str(row["metadata_normalized"]))
+        state = {
+            "backup": dict(backup),
+            "checksum_sha256": row["checksum_sha256"],
+            "checkpoint_sha256": _fixture_file_sha256(checkpoint),
+            "file_size": int(row["file_size"]),
+            "manifest_sha256": _fixture_file_sha256(manifest),
+            "metadata_normalized": str(row["metadata_normalized"]),
+            "metadata_raw": str(row["metadata_raw"]),
+            "relations": relations,
+            "storage_path": row["storage_path"],
+            "storage_sha256": _fixture_file_sha256(storage),
+            "updated_at": row["updated_at"].isoformat(),
+            "xmin": str(row["xmin"]),
+        }
+        state_json = json.dumps(state, default=str, sort_keys=True, separators=(",", ":"))
+        payload = {
+            "result": (
+                "DOC04B_PRODUCTION_PROFILE_FIXTURE_READY"
+                if phase == "prepare"
+                else "DOC04B_PRODUCTION_PROFILE_FIXTURE_UNCHANGED"
+            ),
+            "state_sha256": hashlib.sha256(state_json.encode("utf-8")).hexdigest(),
+        }
+        if phase == "prepare":
+            payload.update(
+                {
+                    "expected_alembic_head": revision,
+                    "expected_backup_destination_root_sha256": repair._backup_root_sha256(str(backup_root)),
+                    "expected_backup_finished_at": backup["finished_at"].isoformat(),
+                    "expected_normalized_before_sha256": normalized_result.before_sha256,
+                    "expected_normalized_candidate_sha256": normalized_result.after_sha256,
+                    "expected_raw_before_sha256": raw_result.before_sha256,
+                    "expected_raw_candidate_sha256": raw_result.after_sha256,
+                    "expected_storage_sha256": _fixture_file_sha256(storage),
+                    "expected_updated_at": row["updated_at"].isoformat(),
+                    "expected_xmin": str(row["xmin"]),
+                    "verified_backup_manifest_sha256": _fixture_file_sha256(manifest),
+                    "verified_backup_run_id": int(backup["id"]),
+                }
+            )
+        return payload
+    finally:
+        engine.dispose()
+
+
 def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=False)
     sub = parser.add_subparsers(dest="mode", required=True)
     sub.add_parser("smoke", add_help=False)
     sub.add_parser("compatibility-vectors", add_help=False)
-    sub.add_parser("production-import-trace", add_help=False)
+    sub.add_parser("production-source-security-trace", add_help=False)
+    sub.add_parser("network-forbidden-probe", add_help=False)
     relay = sub.add_parser("repair-relay-self-test", add_help=False)
     relay.add_argument(
         "--case",
@@ -862,6 +1307,8 @@ def _argument_parser() -> argparse.ArgumentParser:
     tests.add_argument("--suite", choices=sorted(FIXED_TEST_SUITES), required=True)
     sub.add_parser("isolated-alembic-upgrade", add_help=False)
     sub.add_parser("synthetic-production-audit", add_help=False)
+    fixture = sub.add_parser("production-profile-preflight-fixture", add_help=False)
+    fixture.add_argument("--phase", choices=("prepare", "verify", "cleanup"), required=True)
     return parser
 
 
@@ -872,7 +1319,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         args = _argument_parser().parse_args(raw_args)
     environment_root, working_directory, policy = _environment_roots()
-    if policy in PRODUCTION_POLICIES | {SYNTHETIC_PRODUCTION_POLICY}:
+    if policy in PRODUCTION_POLICIES | {
+        SYNTHETIC_PRODUCTION_POLICY,
+        PRODUCTION_PROFILE_INTEGRATION_POLICY,
+    }:
         expected_env_file = environment_root / ".env"
         configured_env_file = os.environ.get("NEXT_DOC04_ALLOWED_ENV_FILE", "")
         if (
@@ -887,6 +1337,14 @@ def main(argv: list[str] | None = None) -> int:
     else:
         allowed_env_file = None
     _install_env_audit_guard(allowed_env_file)
+    _install_network_audit_guard(policy)
+    if allowed_env_file:
+        expected_env_sha256 = os.environ.get("NEXT_DOC04_EXPECTED_ENV_SHA256", "")
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_env_sha256):
+            _refuse("DOC04B_PRODUCTION_ENV_HASH_MISMATCH")
+        with open(allowed_env_file, "rb") as env_handle:
+            if hashlib.sha256(env_handle.read()).hexdigest() != expected_env_sha256:
+                _refuse("DOC04B_PRODUCTION_ENV_HASH_MISMATCH")
     os.chdir(working_directory)
     if _normal_path(os.getcwd()) != _normal_path(str(working_directory)):
         _refuse("DOC04B_WORKING_DIRECTORY_NOT_APPLIED")
@@ -907,7 +1365,7 @@ def main(argv: list[str] | None = None) -> int:
     backend_reference = policy == "backend-reference"
     if backend_reference:
         if (
-            args.mode != "compatibility-vectors"
+            args.mode not in {"compatibility-vectors", "production-source-security-trace"}
             or os.name == "nt"
             or platform.python_version() != "3.12.13"
             or os.environ.get("NEXT_DOC04_BACKEND_REFERENCE") != "1"
@@ -916,18 +1374,20 @@ def main(argv: list[str] | None = None) -> int:
         repo = pathlib.Path("/app")
         sys.path.insert(0, "/app")
     else:
-        repo = _verify_source()
+        repo, lock = _verify_source()
         sys.path.insert(0, str(repo / "backend"))
     sys.dont_write_bytecode = True
 
     expected_policy = {
         "smoke": {"readiness", "nonproduction-audit-probe"},
         "compatibility-vectors": {"compatibility-vectors", "backend-reference"},
-        "production-import-trace": {"production-import-trace"},
+        "production-source-security-trace": {"production-source-security-trace", "backend-reference"},
+        "network-forbidden-probe": {"network-forbidden-probe"},
         "repair-relay-self-test": {"repair-relay-self-test"},
         "isolated-test": {"isolated-test"},
         "isolated-alembic-upgrade": {"isolated-alembic-upgrade"},
-        "repair": {"repair-help", "production-preflight", "production-execute"},
+        "production-profile-preflight-fixture": {"production-profile-preflight-fixture"},
+        "repair": {"repair-help", "production-preflight", "production-execute", PRODUCTION_PROFILE_INTEGRATION_POLICY},
     }[args.mode]
     if policy not in expected_policy:
         _refuse("DOC04B_RUNTIME_POLICY_MODE_MISMATCH")
@@ -935,19 +1395,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "compatibility-vectors":
         _emit(_compatibility_vectors())
         return 0
-    if args.mode == "production-import-trace":
-        _emit(_production_import_trace())
+    if args.mode == "production-source-security-trace":
+        if backend_reference:
+            lock = _load_runtime_lock(pathlib.Path(__file__).with_name("runtime-lock.json"))
+        _emit(_production_source_security_trace(repo, lock, backend_reference=backend_reference))
         return 0
+    if args.mode == "network-forbidden-probe":
+        socket.socket()
+        _refuse("DOC04B_NETWORK_PROBE_NOT_BLOCKED")
     if args.mode == "repair-relay-self-test":
         return _relay_self_test(args.case)
     if args.mode == "smoke":
-        _emit(_smoke(working_directory))
+        _emit(_smoke(working_directory, lock))
         return 0
     if args.mode == "isolated-test":
         _emit(_run_tests(args.suite))
         return 0
     if args.mode == "isolated-alembic-upgrade":
         _emit(_run_alembic(repo))
+        return 0
+    if args.mode == "production-profile-preflight-fixture":
+        _emit(_production_preflight_fixture(working_directory, args.phase))
         return 0
     if args.mode == "repair" and policy == "repair-help":
         if args.repair_args not in (["--help"], ["-h"]):
@@ -965,12 +1433,24 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except RuntimeRefusal as error:
         code = str(error)
-        payload = {"env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS, "result": code}
+        payload = {
+            "env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS,
+            "python_network_allowed": _PYTHON_NETWORK_ALLOWED,
+            "python_network_attempts": _PYTHON_NETWORK_ATTEMPTS,
+            "python_network_blocked": _PYTHON_NETWORK_BLOCKED,
+            "result": code,
+        }
         payload.update(_SAFE_FAILURE_DETAILS)
         os.write(_ERROR_FD, (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"))
         raise SystemExit(2)
     except Exception:
         code = ENV_FORBIDDEN if _ENV_FILE_OPEN_ATTEMPTS else "DOC04B_RUNTIME_UNEXPECTED_FAILURE"
-        payload = {"env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS, "result": code}
+        payload = {
+            "env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS,
+            "python_network_allowed": _PYTHON_NETWORK_ALLOWED,
+            "python_network_attempts": _PYTHON_NETWORK_ATTEMPTS,
+            "python_network_blocked": _PYTHON_NETWORK_BLOCKED,
+            "result": code,
+        }
         os.write(_ERROR_FD, (json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"))
         raise SystemExit(2)

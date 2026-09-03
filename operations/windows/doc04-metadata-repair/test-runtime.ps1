@@ -19,6 +19,7 @@ $j = [ordered]@{}
 $k = [ordered]@{}
 $l = [ordered]@{}
 $m = [ordered]@{}
+$n = [ordered]@{}
 $containerName = 'doc04b-pg-' + [Guid]::NewGuid().ToString('N').Substring(0,12)
 $parityContainer = 'doc04b-parity-' + [Guid]::NewGuid().ToString('N').Substring(0,12)
 $database = 'ai_lab_test_doc04b_' + [Guid]::NewGuid().ToString('N').Substring(0,12)
@@ -29,7 +30,13 @@ function Pass-J([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Tes
 function Pass-K([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $k[$Id] = 'PASS' }
 function Pass-L([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $l[$Id] = 'PASS' }
 function Pass-M([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $m[$Id] = 'PASS' }
-function Get-Sha256([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+function Pass-N([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $n[$Id] = 'PASS' }
+function Get-Sha256([string]$Path) {
+    $stream = [System.IO.File]::OpenRead($Path)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try { return ([System.BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-','').ToLowerInvariant() }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+}
 function Get-StringSha256([string]$Value) {
     $algorithm = [System.Security.Cryptography.SHA256]::Create()
     try { $hash = $algorithm.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Value)) } finally { $algorithm.Dispose() }
@@ -75,7 +82,7 @@ function Invoke-WrapperRaw([string]$Runtime, [hashtable]$Mode, [string]$CallerDi
             $code = $LASTEXITCODE
         } catch {
             $bounded = [regex]::Match([string]$_.Exception.Message,'DOC04[A-Z0-9_]+')
-            $modeName = (@($modeCopy.Keys | Where-Object { [string]$_ -in @('Readiness','RepairHelp','CompatibilityVectors','IsolatedTest','IsolatedAlembicUpgrade','AuditEnvProbe','SyntheticProductionAudit') }) -join '_').ToUpperInvariant()
+            $modeName = (@($modeCopy.Keys | Where-Object { [string]$_ -in @('Readiness','RepairHelp','CompatibilityVectors','IsolatedTest','IsolatedAlembicUpgrade','AuditEnvProbe','SyntheticProductionAudit','ProductionImportTrace','NetworkForbiddenProbe') }) -join '_').ToUpperInvariant()
             if ($bounded.Success -and $modeName) { Stop-Test ('DOC04B_WRAPPER_' + $modeName + '_' + $bounded.Value) }
             Stop-Test 'DOC04B_WRAPPER_UNBOUNDED_FAILURE'
         }
@@ -116,6 +123,43 @@ function Invoke-RelayWrapperProcess([string]$Runtime, [string]$Case) {
     $output = @(& $powershell @arguments 2>&1 | ForEach-Object { [string]$_ })
     return [pscustomobject]@{exit_code=$LASTEXITCODE;lines=@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })}
 }
+function Invoke-IntegrationProcess([string]$Repo, [string]$ProductionRuntime, [string]$QualificationRuntime, [string]$Environment, [string]$EnvSha, [string]$Case, [string]$DatabaseName, [int]$Port, [string]$Password) {
+    $powershell = (@(Get-Command powershell.exe -CommandType Application -ErrorAction Stop)[0]).Source
+    $script = Join-Path $Repo 'operations\windows\doc04-metadata-repair\invoke-repair.ps1'
+    $arguments = @(
+        '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$script,
+        '-RepoRoot',$Repo,'-ExpectedGitSha',$ExpectedGitSha,'-RuntimeRoot',$ProductionRuntime,
+        '-QualificationRuntimeRoot',$QualificationRuntime,'-SyntheticRoot',$syntheticRoot,
+        '-EnvironmentRoot',$Environment,'-ExpectedEnvironmentFileSha256',$EnvSha,
+        '-SyntheticDatabaseName',$DatabaseName,'-SyntheticDatabasePort',[string]$Port,
+        '-SyntheticDatabasePassword',$Password,'-ProductionProfilePreflightIntegration',
+        '-IntegrationCase',$Case
+    )
+    $output = @(& $powershell @arguments 2>&1 | ForEach-Object { [string]$_ })
+    return [pscustomobject]@{exit_code=$LASTEXITCODE;lines=@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })}
+}
+function Test-HeldEnvironmentFileBlocksMutation([string]$Root) {
+    $path = Join-Path $Root 'held.env'
+    $probe = Join-Path $Root 'held-env-child.ps1'
+    [IO.File]::WriteAllText($path,'synthetic-lock-value',(New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText($probe,@'
+param([string]$Path)
+$writeBlocked=$false
+$deleteBlocked=$false
+try { [IO.File]::WriteAllText($Path,'changed') } catch { $writeBlocked=$true }
+try { [IO.File]::Delete($Path) } catch { $deleteBlocked=$true }
+if($writeBlocked -and $deleteBlocked){exit 0}
+exit 3
+'@,(New-Object Text.UTF8Encoding($false)))
+    $before = Get-Sha256 $path
+    $held = [IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+    try {
+        $powershell = (@(Get-Command powershell.exe -CommandType Application -ErrorAction Stop)[0]).Source
+        & $powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $probe -Path $path *> $null
+        $blocked = $LASTEXITCODE -eq 0
+    } finally { $held.Dispose() }
+    return ($blocked -and (Get-Sha256 $path) -eq $before)
+}
 function Remove-TestJunction([string]$Path) {
     if (Test-Path -LiteralPath $Path) {
         $item = Get-Item -LiteralPath $Path -Force
@@ -150,11 +194,13 @@ $entrypoint = Join-Path $tool 'runtime-entrypoint.py'
 
 if ((& git -C $RepoRoot rev-parse HEAD).Trim() -ne $ExpectedGitSha) { Stop-Test 'DOC04B_TEST_GIT_HEAD_MISMATCH' }
 if ((& git -C $RepoRoot status --short | Out-String).Trim()) { Stop-Test 'DOC04B_TEST_WORKTREE_NOT_CLEAN' }
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3') { Stop-Test 'DOC04B_LOCK_SCHEMA_INVALID' }
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4') { Stop-Test 'DOC04B_LOCK_SCHEMA_INVALID' }
 
 $campaignSucceeded = $false
 $rootJunction = $null
 $internalJunction = $null
+$integrationRepo = $null
+$productionProbeRoot = $null
 
 try {
     $allowedHosts = @($lock.allowed_download_hosts)
@@ -170,7 +216,7 @@ try {
         if (Test-Path -LiteralPath $cached) { Assert-CachedArtifact $cached $artifact.bytes $artifact.sha256 }
     }
 
-    Pass-J 'J01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3')
+    Pass-J 'J01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4')
     Pass-K 'K01' ($lock.release_evidence.backend_reference_source_only -and $lock.release_evidence.last_312_binary_release -eq '3.12.10')
     Pass-K 'K02' ($lock.runtime_python.filename -eq 'python-3.12.10-embed-amd64.zip' -and $lock.runtime_python.bytes -eq 11133606 -and $lock.runtime_python.sha256 -eq '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3')
     Pass-K 'K04' ($lock.patch_variance.type -eq 'same_minor_official_binary_fallback' -and -not $lock.patch_variance.exact_patch_identity)
@@ -234,8 +280,8 @@ try {
     Pass-J 'J23' (Invoke-WrapperExpectedFailure $changedRuntime @{Readiness=$true} $scratch 'DOC04B_RUNTIME_TREE_MISMATCH')
     $signatureCopy = Join-Path $scratch 'python-signature-tamper.exe'; Copy-Item -LiteralPath (Join-Path $runtimeA 'python.exe') -Destination $signatureCopy; [IO.File]::AppendAllText($signatureCopy,'x')
     Pass-J 'J24' ((Get-AuthenticodeSignature -LiteralPath $signatureCopy).Status -ne [System.Management.Automation.SignatureStatus]::Valid)
-    Pass-J 'J25' (Invoke-ExpectedFailure { & $builder -RepoRoot $RepoRoot -ExpectedGitSha $ExpectedGitSha -RuntimeRoot (Join-Path $RepoRoot 'runtime-prohibited') -CacheRoot $CacheRoot -Profile Production -Offline | Out-Null } 'unsafe_runtime_inside_repo')
-    Pass-J 'J26' (Invoke-ExpectedFailure { & $builder -RepoRoot $RepoRoot -ExpectedGitSha $ExpectedGitSha -RuntimeRoot (Join-Path $RepoRoot 'data\runtime-prohibited') -CacheRoot $CacheRoot -Profile Production -Offline | Out-Null } 'unsafe_runtime_inside_repo')
+    Pass-J 'J25' (Invoke-ExpectedFailure { & $builder -RepoRoot $RepoRoot -ExpectedGitSha $ExpectedGitSha -RuntimeRoot (Join-Path $RepoRoot 'runtime-prohibited') -CacheRoot $CacheRoot -Profile Production -Offline | Out-Null } 'unsafe_runtime_outside_authorized_parent')
+    Pass-J 'J26' (Invoke-ExpectedFailure { & $builder -RepoRoot $RepoRoot -ExpectedGitSha $ExpectedGitSha -RuntimeRoot (Join-Path $RepoRoot 'data\runtime-prohibited') -CacheRoot $CacheRoot -Profile Production -Offline | Out-Null } 'unsafe_runtime_outside_authorized_parent')
     $combinedPs = (Get-Content -LiteralPath $builder,$launcher,(Join-Path $tool 'test-runtime.ps1') -Raw) -join "`n"
     Pass-J 'J27' ($combinedPs.Contains('PYTHONNOUSERSITE') -and $combinedPs.Contains('runtime_tree_sha256') -and $combinedPs.Contains('ProcessStartInfo'))
     $helpRaw = Invoke-WrapperRaw $runtimeA @{RepairHelp=$true} $scratch
@@ -250,11 +296,11 @@ try {
     if($LASTEXITCODE -ne 0){Stop-Test 'DOC04B_TEMP_GIT_CHECKOUT_FAILED'}
     [IO.File]::AppendAllText((Join-Path $gitCopy 'backend\app\services\document_metadata_unicode_safety.py'),"`n# synthetic mutation`n")
     $savedRepo=$RepoRoot; $RepoRoot=$gitCopy
-    try { Pass-J 'J31' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_CRITICAL_SOURCE_MODIFIED') } finally { $RepoRoot=$savedRepo }
+    try { Pass-J 'J31' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY') } finally { $RepoRoot=$savedRepo }
     & git -C $gitCopy checkout --quiet -- backend/app/services/document_metadata_unicode_safety.py
     [IO.File]::AppendAllText((Join-Path $gitCopy 'operations\windows\doc04-metadata-repair\README.md'),"`nsynthetic mutation`n")
     $savedRepo=$RepoRoot; $RepoRoot=$gitCopy
-    try { Pass-J 'J32' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_CRITICAL_SOURCE_MODIFIED') } finally { $RepoRoot=$savedRepo }
+    try { Pass-J 'J32' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY') } finally { $RepoRoot=$savedRepo }
     & git -C $gitCopy checkout --quiet -- operations/windows/doc04-metadata-repair/README.md
     [IO.File]::WriteAllText((Join-Path $gitCopy 'unrelated-synthetic.txt'),'safe')
     $savedRepo=$RepoRoot; $RepoRoot=$gitCopy
@@ -281,7 +327,7 @@ try {
     Pass-L 'L09' ($scrubbed.result -eq 'DOC04B_SMOKE_PASS' -and $scrubbed.environment_profile -eq 'synthetic_explicit')
     Pass-L 'L10' ($scrubbed.python -eq '3.12.10')
     Pass-L 'L11' ($readinessJson.cwd_identity_sha256 -match '^[0-9a-f]{64}$')
-    Pass-L 'L12' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true;SyntheticRoot=$RepoRoot} $scratch 'DOC04B_SYNTHETIC_ROOT_FORBIDDEN')
+    Pass-L 'L12' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true;SyntheticRoot=$RepoRoot} $scratch 'DOC04B_SYNTHETIC_ROOT_OUTSIDE_AUTHORIZED_PARENT')
     $savedSyntheticRoot=$syntheticRoot; $syntheticRoot=$scratch
     try { Pass-L 'L13' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true;SyntheticForbiddenRoots=@($scratch)} $scratch 'DOC04B_SYNTHETIC_ROOT_FORBIDDEN') } finally { $syntheticRoot=$savedSyntheticRoot }
     $launcherText = Get-Content -LiteralPath $launcher -Raw
@@ -306,8 +352,9 @@ try {
     $entryText = Get-Content -LiteralPath $entrypoint -Raw
     Pass-L 'L01' ($entryText.Contains('sys.addaudithook') -and $entryText.IndexOf('sys.addaudithook') -lt $entryText.IndexOf('sys.path.insert'))
 
-    $backendImage = (& docker inspect --format '{{.Image}}' ai-lab-backend 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $backendImage -notmatch '^sha256:[0-9a-f]{64}$') { Stop-Test 'DOC04B_BACKEND_IMAGE_ID_UNAVAILABLE' }
+    $backendImage = $ExpectedBackendImage
+    if (-not $backendImage) { $backendImage = (& docker inspect --format '{{.Image}}' ai-lab-backend 2>$null | Out-String).Trim() }
+    if ($backendImage -notmatch '^sha256:[0-9a-f]{64}$') { Stop-Test 'DOC04B_BACKEND_IMAGE_ID_UNAVAILABLE' }
     if ($ExpectedBackendImage -and $ExpectedBackendImage -ne $backendImage) { Stop-Test 'DOC04B_BACKEND_IMAGE_ID_MISMATCH' }
     $backendPath = Join-Path $RepoRoot 'backend'
     $entryPath = Join-Path $tool 'runtime-entrypoint.py'
@@ -325,6 +372,18 @@ try {
     $linuxVectorHash = Get-StringSha256 $linuxVectors
     Pass-K 'K09' ($linuxVectors.StartsWith('{') -and $linuxVectors.Contains('repair_json_text_surrogates'))
     Pass-K 'K10' ($windowsVectors -ceq $linuxVectors -and $windowsVectorHash -eq $linuxVectorHash)
+    $linuxTraceRaw = Invoke-Docker @(
+        'run','--rm','--name',$parityContainer,'--network','none','--read-only','--tmpfs','/tmp','-w','/tmp/doc04b',
+        '-e','ENVIRONMENT=test','-e','POSTGRES_DB=ai_lab_test_doc04b_reference','-e','POSTGRES_USER=doc04b','-e','POSTGRES_PASSWORD=synthetic-only',
+        '-e','POSTGRES_HOST=127.0.0.1','-e','POSTGRES_PORT=65432','-e','SECRET_KEY=synthetic-doc04b-key-not-production',
+        '-e','ADMIN_USERNAME=synthetic','-e','ADMIN_EMAIL=synthetic@example.invalid','-e','ADMIN_PASSWORD=synthetic-only','-e','N8N_INGEST_API_KEY=synthetic-only',
+        '-e','DATA_DIR=/tmp/doc04b/data','-e','PYTHONDONTWRITEBYTECODE=1','-e','PYTHONNOUSERSITE=1','-e','PYTHONUTF8=1',
+        '-e','NEXT_DOC04_RUNTIME_POLICY=backend-reference','-e','NEXT_DOC04_ENVIRONMENT_ROOT=/tmp/doc04b','-e','NEXT_DOC04_WORKING_DIRECTORY=/tmp/doc04b',
+        '-e','NEXT_DOC04_FORBIDDEN_ROOTS_JSON=["/app"]','-e','NEXT_DOC04_BACKEND_REFERENCE=1','-e','NEXT_DOC04_RUNTIME_PROFILE=Production',
+        '-v',("${backendPath}:/app:ro"),'-v',("${entryPath}:/tool/runtime-entrypoint.py:ro"),'-v',("${lockPath}:/tool/runtime-lock.json:ro"),
+        $backendImage,'python','-I','-B','-X','utf8','/tool/runtime-entrypoint.py','production-source-security-trace'
+    )
+    $linuxTrace = $linuxTraceRaw | ConvertFrom-Json
     Pass-K 'K11' (Assert-ContainerAbsent $parityContainer)
 
     $relaySuccess = Invoke-RelayWrapperProcess $runtimeA 'Success'
@@ -347,8 +406,8 @@ try {
         $failureText = $failure.lines -join "`n"
         Pass-M $definition[0] ($failure.exit_code -ne 0 -and $failureText.Contains($definition[2]) -and -not $failureText.Contains('bounded-test-stderr'))
     }
-    Pass-M 'M10' (($relaySuccess.lines -join '') -ceq '{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_DRY_RUN"}')
-    Pass-M 'M11' (($relayRefusal.lines -join '') -ceq '{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
+    Pass-M 'M10' (($relaySuccess.lines -join '') -ceq '{"executed":false,"network_connections":0,"python_network_allowed":0,"python_network_attempts":0,"python_network_blocked":0,"result":"DOCUMENT_METADATA_REPAIR_DRY_RUN"}')
+    Pass-M 'M11' (($relayRefusal.lines -join '') -ceq '{"executed":false,"network_connections":0,"python_network_allowed":0,"python_network_attempts":0,"python_network_blocked":0,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
     Pass-M 'M12' ($entryText.Contains('return _invoke_and_relay_repair(args.repair_args)') -and $entryText.Contains('def _invoke_and_relay_repair(') -and $launcherText.Contains('$productionPayload = ConvertFrom-BoundedJson $child.stdout'))
 
     $productionProjects = @($lock.profiles.Production.package_projects)
@@ -357,8 +416,9 @@ try {
     Pass-M 'M13' (@($productionPackages | Where-Object { $_.classification -eq 'locked_pure_sdist' }).Count -eq 0)
     Pass-M 'M14' (@($productionProjects | Where-Object { $_.ToLowerInvariant() -in $forbiddenProduction }).Count -eq 0)
     $importTrace = Invoke-WrapperJson $runtimeA @{ProductionImportTrace=$true} $scratch
-    Pass-M 'M15' ($importTrace.result -eq 'DOC04B_PRODUCTION_IMPORT_TRACE_PASS' -and $importTrace.package_count -eq $productionProjects.Count -and $importTrace.psycopg_implementation -eq 'binary')
-    Pass-M 'M16' ($buildA.package_count -eq 11 -and @($buildA.packages | Where-Object { $_.ToLowerInvariant() -in $forbiddenProduction }).Count -eq 0 -and $qualificationBuildA.package_count -eq 65)
+    $productionImportProjects = @($productionProjects | Where-Object { $_ -ne 'tzdata' })
+    Pass-M 'M15' ($importTrace.result -eq 'DOC04B_PRODUCTION_SOURCE_SECURITY_TRACE_PASS' -and $importTrace.package_count -eq $productionImportProjects.Count -and $importTrace.distributions -notcontains 'tzdata' -and $importTrace.psycopg_implementation -eq 'binary')
+    Pass-M 'M16' ($buildA.package_count -eq 12 -and @($buildA.packages | Where-Object { $_.ToLowerInvariant() -in $forbiddenProduction }).Count -eq 0 -and $qualificationBuildA.package_count -eq 65)
     $fakeDatabaseMode=@{IsolatedTest=$true;TestSuite='runtime-contract';SyntheticDatabaseName='ai_lab_test_doc04b_profile';SyntheticDatabasePort=65432;SyntheticDatabasePassword='synthetic-only'}
     Pass-M 'M17' (Invoke-WrapperExpectedFailure $runtimeA $fakeDatabaseMode $scratch 'DOC04B_RUNTIME_PROFILE_MISMATCH')
     Pass-M 'M18' (Invoke-WrapperExpectedFailure $qualificationA @{Readiness=$true} $scratch 'DOC04B_RUNTIME_PROFILE_MISMATCH')
@@ -383,18 +443,22 @@ try {
     Pass-M 'M26' (Invoke-WrapperExpectedFailure $runtimeReparseCopy @{Readiness=$true} $scratch 'DOC04B_RUNTIME_REPARSE_FORBIDDEN')
     Remove-TestJunction $internalJunction;$internalJunction=$null
 
-    $productionEnvRoot=Join-Path $scratch 'synthetic-production-env';New-FreshDirectory $productionEnvRoot
+    $productionProbeRoot=Join-Path ([IO.Path]::GetTempPath()) ('doc04b3-production-probe-' + [Guid]::NewGuid().ToString('N'))
+    $productionEnvTarget=Join-Path $scratch 'synthetic-production-env-target';New-FreshDirectory $productionEnvTarget
+    $productionEnvRoot=$productionProbeRoot;[void](New-Item -ItemType Junction -Path $productionEnvRoot -Target $productionEnvTarget)
     $productionDataTarget=Join-Path $scratch 'synthetic-production-data-target';New-FreshDirectory $productionDataTarget
-    $envJunction=Join-Path $productionEnvRoot '.env';[void](New-Item -ItemType Junction -Path $envJunction -Target $productionDataTarget)
-    $productionArguments=@{RepoRoot=$RepoRoot;ExpectedGitSha=$ExpectedGitSha;RuntimeRoot=$runtimeA;EnvironmentRoot=$productionEnvRoot;DataRoot=$productionDataTarget;AllowProductionAiLab=$true;OwnerApprovalId='synthetic-only';ExpectedAlembicHead='synthetic';ExpectedXmin='1';ExpectedUpdatedAt='2026-09-03T00:00:00Z';ExpectedStorageSha256=('0'*64);VerifiedBackupRunId=1;VerifiedBackupManifestSha256=('0'*64);ExpectedBackupFinishedAt='2026-09-03T00:00:00Z';MaximumBackupAgeSeconds=60;ExpectedBackupDestinationRootSha256=('0'*64);ExpectedRawBeforeSha256=('0'*64);ExpectedRawCandidateSha256=('0'*64);ExpectedNormalizedBeforeSha256=('0'*64);ExpectedNormalizedCandidateSha256=('0'*64);ProductionPreflight=$true}
-    $envRejected=Invoke-ExpectedFailure { & $launcher @productionArguments | Out-Null } 'DOC04B_PRODUCTION_ENV_FILE_INVALID'
-    Remove-TestJunction $envJunction
-    [IO.File]::WriteAllText($envJunction,'synthetic=true',(New-Object Text.UTF8Encoding($false)))
+    $productionArguments=@{RepoRoot=$RepoRoot;ExpectedGitSha=$ExpectedGitSha;RuntimeRoot=$runtimeA;EnvironmentRoot=$productionEnvRoot;ExpectedEnvironmentFileSha256=('0'*64);DataRoot=$productionDataTarget;AllowProductionAiLab=$true;OwnerApprovalId='synthetic-only';ExpectedAlembicHead='synthetic';ExpectedXmin='1';ExpectedUpdatedAt='2026-09-03T00:00:00Z';ExpectedStorageSha256=('0'*64);VerifiedBackupRunId=1;VerifiedBackupManifestSha256=('0'*64);ExpectedBackupFinishedAt='2026-09-03T00:00:00Z';MaximumBackupAgeSeconds=60;ExpectedBackupDestinationRootSha256=('0'*64);ExpectedRawBeforeSha256=('0'*64);ExpectedRawCandidateSha256=('0'*64);ExpectedNormalizedBeforeSha256=('0'*64);ExpectedNormalizedCandidateSha256=('0'*64);ProductionPreflight=$true}
+    $envRejected=Invoke-ExpectedFailure { & $launcher @productionArguments | Out-Null } 'DOC04B_PRODUCTION_ENVIRONMENT_ROOT_INVALID'
+    Remove-TestJunction $productionEnvRoot
+    New-FreshDirectory $productionEnvRoot
+    [IO.File]::WriteAllText((Join-Path $productionEnvRoot '.env'),'synthetic=true',(New-Object Text.UTF8Encoding($false)))
     $dataJunction=Join-Path $scratch 'synthetic-production-data-reparse';[void](New-Item -ItemType Junction -Path $dataJunction -Target $productionDataTarget)
     $productionArguments.DataRoot=$dataJunction
     $dataRejected=Invoke-ExpectedFailure { & $launcher @productionArguments | Out-Null } 'DOC04B_PRODUCTION_DATA_ROOT_INVALID'
     Remove-TestJunction $dataJunction
     Pass-M 'M27' ($envRejected -and $dataRejected)
+    Remove-Item -LiteralPath $productionProbeRoot -Recurse -Force
+    $productionProbeRoot=$null
 
     $builderEnvironmentBeforeFailure=@{};foreach($name in $builderEnvironmentNames){$builderEnvironmentBeforeFailure[$name]=[Environment]::GetEnvironmentVariable($name,'Process')}
     [void](Invoke-ExpectedFailure { & $builder -RepoRoot $RepoRoot -ExpectedGitSha $ExpectedGitSha -RuntimeRoot $runtimeA -CacheRoot $CacheRoot -Profile Production -Offline | Out-Null } 'runtime_root_not_fresh')
@@ -463,6 +527,88 @@ try {
     $changedPaths=@(& git -C $RepoRoot diff-tree --no-commit-id --name-only -r $ExpectedGitSha)
     Pass-K 'K14' ($changedPaths -notcontains 'backend/Dockerfile' -and $changedPaths -notcontains 'backend/requirements.txt')
 
+    $policies = $lock.path_policies
+    Pass-N 'N01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4' -and $policies.runtime_cache -and $policies.nonproduction_working -and $policies.production_configuration -and $policies.production_working_forbidden_roots)
+    $runtimeForbidden = @($policies.runtime_cache.forbidden_roots)
+    Pass-N 'N02' (@(@('C:\ai-lab-core','C:\ai-lab-core\data','C:\ai-lab-core-backups','E:\','F:\') | Where-Object { $_ -notin $runtimeForbidden }).Count -eq 0)
+    Pass-N 'N04' ($launcherText.Contains('Assert-ProductionConfigurationRoot $EnvironmentRoot $DataRoot') -and $launcherText.Contains('$boundaries = @($Data)'))
+    Pass-N 'N05' (@($policies.production_configuration.forbidden_roots) -contains 'C:\ai-lab-core-backups')
+    Pass-N 'N06' (@(@('E:\','F:\',[string]$policies.runtime_cache.authorized_runtime_parent,[string]$policies.runtime_cache.authorized_cache_parent) | Where-Object { $_ -notin @($policies.production_configuration.forbidden_roots) }).Count -eq 0)
+    Pass-N 'N10' (Test-HeldEnvironmentFileBlocksMutation $scratch)
+
+    $savedRepo = $RepoRoot
+    $RepoRoot = $gitCopy
+    try {
+        $copyClean = Invoke-WrapperJson $runtimeA @{Readiness=$true} $scratch
+        Pass-N 'N12' ($copyClean.result -eq 'DOC04B_SMOKE_PASS')
+        [IO.File]::AppendAllText((Join-Path $gitCopy 'backend\app\core\config.py'),"`n# doc04b3 synthetic mutation`n")
+        Pass-N 'N13' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY')
+        & git -C $gitCopy checkout --quiet -- backend/app/core/config.py
+        [IO.File]::AppendAllText((Join-Path $gitCopy 'backend\app\services\backup_restore_service.py'),"`n# doc04b3 synthetic mutation`n")
+        Pass-N 'N14' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY')
+        & git -C $gitCopy checkout --quiet -- backend/app/services/backup_restore_service.py
+        [IO.File]::AppendAllText((Join-Path $gitCopy 'backend\app\models\document.py'),"`n# doc04b3 synthetic mutation`n")
+        Pass-N 'N15' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY')
+        & git -C $gitCopy checkout --quiet -- backend/app/models/document.py
+        $shadow = Join-Path $gitCopy 'backend\app\doc04b3_shadow.py'
+        [IO.File]::WriteAllText($shadow,'raise RuntimeError("must not import")',(New-Object Text.UTF8Encoding($false)))
+        Pass-N 'N16' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY')
+        [IO.File]::Delete($shadow)
+        $outside = Join-Path $gitCopy 'FOLLOWUP_SYNTHETIC_UNRELATED.md'
+        [IO.File]::WriteAllText($outside,'unrelated dirty report',(New-Object Text.UTF8Encoding($false)))
+        $unrelatedAllowed = Invoke-WrapperJson $runtimeA @{Readiness=$true} $scratch
+        Pass-N 'N17' ($unrelatedAllowed.result -eq 'DOC04B_SMOKE_PASS')
+    } finally { $RepoRoot = $savedRepo }
+
+    Pass-N 'N18' ($importTrace.application_import_closure_sha256 -eq $lock.source_closure.expected_application_import_closure_sha256 -and $importTrace.outside_repository_count -eq 0)
+    $windowsStdlib = $importTrace.stdlib_modules | ConvertTo-Json -Compress
+    $lockedWindowsStdlib = $lock.source_closure.stdlib_import_observations.windows_3_12_10 | ConvertTo-Json -Compress
+    $linuxStdlib = $linuxTrace.stdlib_modules | ConvertTo-Json -Compress
+    $lockedLinuxStdlib = $lock.source_closure.stdlib_import_observations.backend_3_12_13 | ConvertTo-Json -Compress
+    Pass-N 'N19' ($windowsStdlib -ceq $lockedWindowsStdlib -and $linuxStdlib -ceq $lockedLinuxStdlib)
+    Pass-N 'N20' ($importTrace.result -eq 'DOC04B_PRODUCTION_SOURCE_SECURITY_TRACE_PASS' -and $linuxTrace.result -eq 'DOC04B_PRODUCTION_SOURCE_SECURITY_TRACE_PASS')
+    $vectorPayload = $windowsVectors | ConvertFrom-Json
+    Pass-N 'N21' (@(@($readinessJson,$helpJson,$vectorPayload,$importTrace) | Where-Object { $_.python_network_attempts -ne 0 -or $_.python_network_allowed -ne 0 -or $_.python_network_blocked -ne 0 }).Count -eq 0)
+    Pass-N 'N22' (Invoke-WrapperExpectedFailure $runtimeA @{NetworkForbiddenProbe=$true} $scratch 'DOC04B_NETWORK_ENDPOINT_FORBIDDEN')
+    Pass-N 'N23' ($upgrade.result -eq 'DOC04B_ALEMBIC_UPGRADE_PASS' -and $port -ne 5432 -and $entryText.Contains('endpoint == (allowed_host, allowed_port)'))
+
+    $integrationRepo = Join-Path ([IO.Path]::GetTempPath()) ('doc04b3-source-' + [Guid]::NewGuid().ToString('N'))
+    if (Test-Path -LiteralPath $integrationRepo) { Stop-Test 'DOC04B_INTEGRATION_REPO_NOT_FRESH' }
+    & git -c advice.detachedHead=false clone --quiet --shared $RepoRoot $integrationRepo
+    if($LASTEXITCODE -ne 0){Stop-Test 'DOC04B_INTEGRATION_REPO_CLONE_FAILED'}
+    & git -C $integrationRepo -c advice.detachedHead=false checkout --quiet $ExpectedGitSha
+    if($LASTEXITCODE -ne 0){Stop-Test 'DOC04B_INTEGRATION_REPO_CHECKOUT_FAILED'}
+    $integrationEnv = Join-Path $integrationRepo '.env'
+    [IO.File]::WriteAllText($integrationEnv,"DOC04B_SYNTHETIC_CONTROL=1`n",(New-Object Text.UTF8Encoding($false)))
+    $integrationEnvSha = Get-Sha256 $integrationEnv
+    $integrationSuccess = Invoke-IntegrationProcess $integrationRepo $runtimeA $qualificationA $integrationRepo $integrationEnvSha 'Success' $database $port $password
+    $integrationSuccessPayload = $integrationSuccess.lines[0] | ConvertFrom-Json
+    Pass-N 'N03' ($integrationSuccess.exit_code -eq 0 -and ([IO.Path]::GetFullPath((Split-Path -Parent $integrationEnv)).TrimEnd('\') -eq [IO.Path]::GetFullPath($integrationRepo).TrimEnd('\')) -and $integrationSuccessPayload.result -eq 'DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK')
+    Pass-N 'N07' ($integrationSuccess.exit_code -eq 0 -and $integrationSuccessPayload.production_preflight -and -not $integrationSuccessPayload.executed)
+    $wrongEnv = Invoke-IntegrationProcess $integrationRepo $runtimeA $qualificationA $integrationRepo ('0' * 64) 'Success' $database $port $password
+    Pass-N 'N08' ($wrongEnv.exit_code -ne 0 -and ($wrongEnv.lines -join "`n").Contains('DOC04B_PRODUCTION_ENV_HASH_MISMATCH'))
+    $envRegular = Join-Path $integrationRepo '.env.regular'
+    Move-Item -LiteralPath $integrationEnv -Destination $envRegular
+    $envTarget = Join-Path $scratch 'env-reparse-target'; New-FreshDirectory $envTarget
+    [void](New-Item -ItemType Junction -Path $integrationEnv -Target $envTarget)
+    $reparseEnv = Invoke-IntegrationProcess $integrationRepo $runtimeA $qualificationA $integrationRepo $integrationEnvSha 'Success' $database $port $password
+    Pass-N 'N09' ($reparseEnv.exit_code -ne 0 -and ($reparseEnv.lines -join "`n").Contains('DOC04B_PRODUCTION_ENV_FILE_INVALID'))
+    Remove-TestJunction $integrationEnv
+    Move-Item -LiteralPath $envRegular -Destination $integrationEnv
+    Pass-N 'N11' ((Get-Sha256 $integrationEnv) -eq $integrationEnvSha)
+    Pass-N 'N24' ($integrationSuccess.lines.Count -eq 1 -and $integrationSuccessPayload.result -eq 'DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK' -and $integrationSuccessPayload.python_network_blocked -eq 0)
+    Pass-N 'N25' (-not $integrationSuccessPayload.executed -and $integrationSuccessPayload.production_preflight)
+    $integrationRefusal = Invoke-IntegrationProcess $integrationRepo $runtimeA $qualificationA $integrationRepo $integrationEnvSha 'WrongBeforeHash' $database $port $password
+    $integrationRefusalPayload = $integrationRefusal.lines[0] | ConvertFrom-Json
+    Pass-N 'N26' ($integrationRefusal.exit_code -ne 0 -and $integrationRefusal.lines.Count -eq 1 -and $integrationRefusalPayload.result -eq 'DOCUMENT_METADATA_REPAIR_BEFORE_HASH' -and -not $integrationRefusalPayload.executed)
+    Pass-N 'N27' ($integrationSuccessPayload.result -eq 'DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK' -and ([IO.Path]::GetFullPath((Split-Path -Parent $integrationEnv)).TrimEnd('\') -eq [IO.Path]::GetFullPath($integrationRepo).TrimEnd('\')))
+    $parentLauncher = (& git -C $RepoRoot show 'd7ed8b7cc571c3bce70ff767c18a31d709cc9de8:operations/windows/doc04-metadata-repair/invoke-repair.ps1' | Out-String)
+    Pass-N 'N28' (-not $parentLauncher.Contains('ProductionProfilePreflightIntegration') -and $parentLauncher.Contains('@($lock.path_policy.forbidden_runtime_roots)'))
+    $temporaryBoundary = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+    if (-not (Test-IsStrictDescendant $integrationRepo $temporaryBoundary) -or ([IO.Path]::GetFileName($integrationRepo) -notmatch '^doc04b3-source-[0-9a-f]{32}$')) { Stop-Test 'DOC04B_INTEGRATION_REPO_CLEANUP_REFUSED' }
+    Remove-Item -LiteralPath $integrationRepo -Recurse -Force
+    $integrationRepo = $null
+
     Invoke-Docker @('rm','-f',$containerName) | Out-Null
     Pass-J 'J34' (Assert-ContainerAbsent $containerName)
 
@@ -477,8 +623,9 @@ try {
     foreach($id in 1..14){$name='K{0:D2}' -f $id;if(-not $k.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
     foreach($id in 1..20){$name='L{0:D2}' -f $id;if(-not $l.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
     foreach($id in 1..30){$name='M{0:D2}' -f $id;if(-not $m.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
+    foreach($id in 1..28){$name='N{0:D2}' -f $id;if(-not $n.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
     $result=[ordered]@{
-        result='DOC04B2_RUNTIME_CLOSURE_READINESS_PASS';source_git_sha=$ExpectedGitSha;
+        result='DOC04B3_PRODUCTION_PATH_CLOSURE_PASS';source_git_sha=$ExpectedGitSha;
         runtime_lock_sha256=(Get-Sha256 $lockPath);python_version='3.12.10';backend_reference_python='3.12.13';architecture='amd64';
         python_artifact_filename=$lock.runtime_python.filename;python_artifact_bytes=$lock.runtime_python.bytes;python_artifact_sha256=$lock.runtime_python.sha256;
         authenticode_status=$buildA.authenticode_status;authenticode_publisher=$buildA.authenticode_publisher;
@@ -486,7 +633,7 @@ try {
         qualification_profile=[ordered]@{package_count=$qualificationBuildA.package_count;file_count=$qualificationBuildA.file_count;runtime_bytes=$qualificationBuildA.runtime_bytes;online_tree_sha256=$qualificationBuildA.runtime_tree_sha256;offline_tree_sha256=$qualificationBuildB.runtime_tree_sha256;sdist='odfpy 1.4.1 only'};
         windows_vector_sha256=$windowsVectorHash;linux_vector_sha256=$linuxVectorHash;vector_equality=($windowsVectors -ceq $linuxVectors);
         backend_reference=[ordered]@{source_category='ai-lab-backend immutable image id';image_id=$backendImage;python='3.12.13'};
-        j=$j;k=$k;l=$l;m=$m;parent_controls=$parentControls;matrices=[ordered]@{U='28/28';R='35/35';G='35/35';H='27/27';I='12/12';DOC01='9/9';DOC02='24/24';DOC03='18/18';intake=$intake.tests_run;assistant=$assistant.tests_run;regression=$regression.tests_run};
+        j=$j;k=$k;l=$l;m=$m;n=$n;parent_controls=$parentControls;matrices=[ordered]@{U='28/28';R='35/35';G='35/35';H='27/27';I='12/12';DOC01='9/9';DOC02='24/24';DOC03='18/18';intake=$intake.tests_run;assistant=$assistant.tests_run;regression=$regression.tests_run};
         environment_isolation=[ordered]@{top_level_backend_imports_before_isolation=0;process_start_info_working_directory=$true;inherited_application_environment='SCRUBBED';nonproduction_env_file_open_attempts=0};
         disposable_postgres_port_non_5432=$true;disposable_postgres_removed=$true;parity_container_removed=$true;production_activity=0;
         retained_runtimes=@($runtimeA);qualification_runtimes_retained=0;offline_runtimes_retained=0;scratch_retained=$false;cache_retained=[bool](Test-Path -LiteralPath $CacheRoot)
@@ -498,6 +645,8 @@ try {
 } finally {
     if($internalJunction){try{Remove-TestJunction $internalJunction}catch{}}
     if($rootJunction){try{Remove-TestJunction $rootJunction}catch{}}
+    if($integrationRepo -and (Test-IsStrictDescendant $integrationRepo ([IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\'))) -and ([IO.Path]::GetFileName($integrationRepo) -match '^doc04b3-source-[0-9a-f]{32}$') -and (Test-Path -LiteralPath $integrationRepo)){Remove-Item -LiteralPath $integrationRepo -Recurse -Force}
+    if($productionProbeRoot -and (Test-IsStrictDescendant $productionProbeRoot ([IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\'))) -and ([IO.Path]::GetFileName($productionProbeRoot) -match '^doc04b3-production-probe-[0-9a-f]{32}$') -and (Test-Path -LiteralPath $productionProbeRoot)){Remove-Item -LiteralPath $productionProbeRoot -Recurse -Force}
     if(-not (Assert-ContainerAbsent $containerName)){& docker rm -f $containerName *> $null}
     if(-not (Assert-ContainerAbsent $parityContainer)){& docker rm -f $parityContainer *> $null}
     if ($syntheticRoot -and (Test-IsWithin $syntheticRoot $AuthorizedStagingRoot) -and ([IO.Path]::GetFileName($syntheticRoot) -match '^env-[0-9a-f]{12}$') -and (Test-Path -LiteralPath $syntheticRoot)) {
