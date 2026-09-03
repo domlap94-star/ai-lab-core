@@ -4,6 +4,9 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedGitSha,
     [Parameter(Mandatory = $true)][string]$RuntimeRoot,
     [Parameter(Mandatory = $true)][string]$CacheRoot,
+    [Parameter(Mandatory = $true)][ValidateSet('Production','Qualification')][string]$Profile,
+    [ValidateSet('SizeOverflow','PrematureEof','HashMismatch','HttpFailure','RedirectFailure','WriteFailure')]
+    [string]$DownloadFailureProbe = '',
     [switch]$Offline
 )
 
@@ -28,9 +31,18 @@ function Get-FullLocalPath([string]$Path, [string]$Name) {
     if ($full -match '^[A-Za-z]:$') { Stop-Build "unsafe_${Name}_drive_root" }
     return $full
 }
+function Get-FullBoundaryPath([string]$Path, [string]$Name) {
+    if (-not [System.IO.Path]::IsPathRooted($Path) -or $Path -notmatch '^[A-Za-z]:\\') { Stop-Build "unsafe_${Name}_not_absolute_local" }
+    return [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+}
 function Test-Under([string]$Child, [string]$Parent) {
     $p = $Parent.TrimEnd('\') + '\'
     return $Child.Equals($Parent, [System.StringComparison]::OrdinalIgnoreCase) -or $Child.StartsWith($p, [System.StringComparison]::OrdinalIgnoreCase)
+}
+function Test-StrictDescendant([string]$Child, [string]$Parent) {
+    $childFull = [System.IO.Path]::GetFullPath($Child).TrimEnd('\')
+    $parentFull = [System.IO.Path]::GetFullPath($Parent).TrimEnd('\')
+    return -not $childFull.Equals($parentFull, [System.StringComparison]::OrdinalIgnoreCase) -and (Test-Under $childFull $parentFull)
 }
 function Assert-NoReparseChain([string]$Path) {
     $cursor = [System.IO.Path]::GetFullPath($Path)
@@ -44,17 +56,30 @@ function Assert-NoReparseChain([string]$Path) {
         $cursor = $parent
     }
 }
-function Assert-SafeRoot([string]$Path, [string]$Name, [string]$Repo) {
+function Assert-NoReparseTree([string]$Path) {
+    Assert-NoReparseChain $Path
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return }
+    foreach ($item in Get-ChildItem -LiteralPath $Path -Force -Recurse) {
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { Stop-Build 'unsafe_internal_reparse_entry' }
+    }
+}
+function Assert-SafeRoot([string]$Path, [string]$Name, [string]$Repo, $Policy) {
     $full = Get-FullLocalPath $Path $Name
     $repoFull = Get-FullLocalPath $Repo 'repo'
+    $authorized = Get-FullLocalPath $(if ($Name -eq 'runtime') { $Policy.authorized_runtime_parent } else { $Policy.authorized_cache_parent }) "authorized_${Name}_parent"
+    if (-not (Test-StrictDescendant $full $authorized)) { Stop-Build "unsafe_${Name}_outside_authorized_parent" }
+    foreach ($blockedRaw in @($Policy.forbidden_runtime_roots)) {
+        $blocked = Get-FullBoundaryPath ([string]$blockedRaw) "forbidden_${Name}_root"
+        if (Test-Under $full $blocked) { Stop-Build "unsafe_${Name}_forbidden_root" }
+    }
     if (Test-Under $full $repoFull) { Stop-Build "unsafe_${Name}_inside_repo" }
     if (Test-Under $full (Join-Path $repoFull 'data')) { Stop-Build "unsafe_${Name}_inside_data" }
-    if ($full -match '^[EF]:\\') { Stop-Build "unsafe_${Name}_backup_drive" }
     foreach ($blocked in @($env:windir, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:ProgramData)) {
         if ($blocked -and (Test-Under $full ([System.IO.Path]::GetFullPath($blocked).TrimEnd('\')))) { Stop-Build "unsafe_${Name}_system_root" }
     }
     $startupSuffix = '\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup'
     if ($full.EndsWith($startupSuffix, [System.StringComparison]::OrdinalIgnoreCase) -or $full.Contains($startupSuffix + '\')) { Stop-Build "unsafe_${Name}_startup" }
+    Assert-NoReparseChain $authorized
     Assert-NoReparseChain $full
     return $full
 }
@@ -79,16 +104,30 @@ function Assert-GitIdentity([string]$Repo, [string]$Expected, $Lock) {
     $requirementsBlob = Invoke-Git @('-C', $Repo, 'rev-parse', 'HEAD:backend/requirements.txt')
     if ($requirementsBlob -ne $Lock.backend_requirements_git_blob) { Stop-Build 'backend_requirements_blob_mismatch' }
 }
-function Get-LockedArtifacts($Lock) {
+function Get-ProfilePackages($Lock, [string]$Name) {
+    $definition = $Lock.profiles.$Name
+    if (-not $definition) { Stop-Build 'runtime_profile_missing' }
+    if ($definition.PSObject.Properties.Name -contains 'include_all_catalog_packages' -and $definition.include_all_catalog_packages) { return @($Lock.packages) }
+    $projects = @($definition.package_projects)
+    $selected = @($Lock.packages | Where-Object { $projects -ccontains [string]$_.project })
+    if ($selected.Count -ne $projects.Count -or @($projects | Sort-Object -Unique).Count -ne $projects.Count) { Stop-Build 'runtime_profile_package_mismatch' }
+    return $selected
+}
+function Get-LockedArtifacts($Lock, $Packages) {
     $items = New-Object System.Collections.Generic.List[object]
     $items.Add([pscustomobject]@{filename=$Lock.runtime_python.filename;url=$Lock.runtime_python.url;bytes=[int64]$Lock.runtime_python.bytes;sha256=$Lock.runtime_python.sha256;kind='python'})
     $items.Add([pscustomobject]@{filename=([System.IO.Path]::GetFileName($Lock.runtime_python.sbom.url));url=$Lock.runtime_python.sbom.url;bytes=[int64]$Lock.runtime_python.sbom.bytes;sha256=$Lock.runtime_python.sbom.sha256;kind='sbom'})
     $items.Add([pscustomobject]@{filename=([System.IO.Path]::GetFileName($Lock.runtime_python.sigstore.url));url=$Lock.runtime_python.sigstore.url;bytes=[int64]$Lock.runtime_python.sigstore.bytes;sha256=$Lock.runtime_python.sigstore.sha256;kind='sigstore'})
-    foreach ($p in $Lock.packages) { $items.Add([pscustomobject]@{filename=$p.filename;url=$p.url;bytes=[int64]$p.bytes;sha256=$p.sha256;kind=$p.classification}) }
+    foreach ($p in $Packages) { $items.Add([pscustomobject]@{filename=$p.filename;url=$p.url;bytes=[int64]$p.bytes;sha256=$p.sha256;kind=$p.classification}) }
     return $items
 }
 function Assert-AllowedUri([uri]$Uri, [string[]]$Hosts) {
     if ($Uri.Scheme -ne 'https' -or $Hosts -notcontains $Uri.DnsSafeHost.ToLowerInvariant()) { Stop-Build 'download_uri_not_allowlisted' }
+}
+function Remove-OwnedPartial([string]$Path, [bool]$Owned) {
+    if ($Owned -and (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Remove-Item -LiteralPath $Path -Force
+    }
 }
 function Invoke-LockedDownload($Artifact, [string]$Destination, [string[]]$Hosts, [int]$MaxRedirects) {
     $handler = New-Object System.Net.Http.HttpClientHandler
@@ -96,6 +135,8 @@ function Invoke-LockedDownload($Artifact, [string]$Destination, [string[]]$Hosts
     $client = New-Object System.Net.Http.HttpClient($handler)
     $client.Timeout = [TimeSpan]::FromMinutes(5)
     $uri = [uri]$Artifact.url
+    $partial = $Destination + '.partial'
+    $ownedPartial = $false
     try {
         for ($redirect = 0; $redirect -le $MaxRedirects; $redirect++) {
             Assert-AllowedUri $uri $Hosts
@@ -106,26 +147,57 @@ function Invoke-LockedDownload($Artifact, [string]$Destination, [string[]]$Hosts
                 $response.Dispose()
                 continue
             }
-            if (-not $response.IsSuccessStatusCode) { Stop-Build 'download_http_failure' }
-            $partial = $Destination + '.partial'
-            if (Test-Path -LiteralPath $partial) { Stop-Build 'unexpected_partial_file' }
-            $input = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+            if (-not $response.IsSuccessStatusCode) { $response.Dispose(); Stop-Build 'download_http_failure' }
+            if (Test-Path -LiteralPath $partial) { $response.Dispose(); Stop-Build 'unexpected_partial_file' }
+            $inputStream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
             $output = [System.IO.File]::Open($partial, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+            $ownedPartial = $true
             try {
                 $buffer = New-Object byte[] 1048576
                 [int64]$total = 0
-                while (($read = $input.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
                     $total += $read
                     if ($total -gt [int64]$Artifact.bytes) { Stop-Build 'download_size_overflow' }
                     $output.Write($buffer, 0, $read)
                 }
-            } finally { $output.Dispose(); $input.Dispose(); $response.Dispose() }
+            } finally { $output.Dispose(); $inputStream.Dispose(); $response.Dispose() }
             if ((Get-Item -LiteralPath $partial).Length -ne [int64]$Artifact.bytes -or (Get-Sha256 $partial) -ne $Artifact.sha256) { Stop-Build 'download_integrity_mismatch' }
             [System.IO.File]::Move($partial, $Destination)
+            $ownedPartial = $false
             return
         }
-    } finally { $client.Dispose(); $handler.Dispose() }
+    } finally {
+        Remove-OwnedPartial $partial $ownedPartial
+        $client.Dispose()
+        $handler.Dispose()
+    }
     Stop-Build 'download_redirect_limit'
+}
+function Invoke-DownloadFailureCleanupProbe([string]$Root, [string]$Case) {
+    $destination = Join-Path $Root ('download-probe-' + $Case.ToLowerInvariant() + '.bin')
+    $partial = $destination + '.partial'
+    if ((Test-Path -LiteralPath $destination) -or (Test-Path -LiteralPath $partial)) { Stop-Build 'download_probe_collision' }
+    $owned = $false
+    try {
+        $stream = [System.IO.File]::Open($partial, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        $owned = $true
+        try { $stream.WriteByte(1) } finally { $stream.Dispose() }
+        switch ($Case) {
+            'SizeOverflow' { Stop-Build 'download_size_overflow' }
+            'PrematureEof' { Stop-Build 'download_integrity_mismatch' }
+            'HashMismatch' { Stop-Build 'download_integrity_mismatch' }
+            'HttpFailure' { Stop-Build 'download_http_failure' }
+            'RedirectFailure' { Stop-Build 'download_redirect_invalid' }
+            'WriteFailure' { Stop-Build 'download_write_failure' }
+            default { Stop-Build 'download_probe_case_invalid' }
+        }
+    } catch {
+        # A fixed synthetic fault is expected; only cleanup behavior is observed.
+    } finally {
+        Remove-OwnedPartial $partial $owned
+    }
+    if ((Test-Path -LiteralPath $partial) -or (Test-Path -LiteralPath $destination)) { Stop-Build 'download_probe_cleanup_failed' }
+    [ordered]@{case=$Case;owned_partial_count=0;result='DOC04B_DOWNLOAD_CLEANUP_PROBE_PASS'} | ConvertTo-Json -Compress
 }
 function Assert-LockedFile($Artifact, [string]$Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Stop-Build 'locked_artifact_missing' }
@@ -334,16 +406,17 @@ function Assert-Authenticode([string]$Path, [string]$SubjectContains, [string]$V
 function Get-RuntimeTree([string]$Root) {
     $records = New-Object System.Collections.Generic.List[string]
     [int64]$bytes = 0
-    $files = @(Get-ChildItem -LiteralPath $Root -File -Recurse -Force | Sort-Object { $_.FullName.Substring($Root.Length).TrimStart('\').Replace('\','/') })
-    foreach ($file in $files) {
-        $relative = $file.FullName.Substring($Root.Length).TrimStart('\').Replace('\','/')
+    [string[]]$relativePaths = @(Get-ChildItem -LiteralPath $Root -File -Recurse -Force | ForEach-Object { $_.FullName.Substring($Root.Length).TrimStart('\').Replace('\','/') })
+    [System.Array]::Sort($relativePaths, [System.StringComparer]::Ordinal)
+    foreach ($relative in $relativePaths) {
+        $file = Get-Item -LiteralPath (Join-Path $Root $relative.Replace('/','\'))
         $bytes += [int64]$file.Length
         $records.Add($relative + [char]0 + [string]$file.Length + [char]0 + (Get-Sha256 $file.FullName) + "`n")
     }
-    $joined = [string]::Concat($records)
+    $joined = [string]::Join('', $records.ToArray())
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try { $hash = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($joined)) } finally { $sha.Dispose() }
-    return [pscustomobject]@{sha256=([System.BitConverter]::ToString($hash).Replace('-','').ToLowerInvariant());file_count=$files.Count;bytes=$bytes}
+    return [pscustomobject]@{sha256=([System.BitConverter]::ToString($hash).Replace('-','').ToLowerInvariant());file_count=$relativePaths.Count;bytes=$bytes}
 }
 
 if ($env:OS -ne 'Windows_NT' -or -not [Environment]::Is64BitOperatingSystem -or -not [Environment]::Is64BitProcess) { Stop-Build 'windows_amd64_required' }
@@ -351,28 +424,41 @@ if ($PSVersionTable.PSVersion.Major -lt 5) { Stop-Build 'powershell_version_unsu
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Stop-Build 'host_git_required' }
 
 $RepoRoot = Get-FullLocalPath $RepoRoot 'repo'
-$RuntimeRoot = Assert-SafeRoot $RuntimeRoot 'runtime' $RepoRoot
-$CacheRoot = Assert-SafeRoot $CacheRoot 'cache' $RepoRoot
 $lockPath = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-lock.json'
 $lock = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V2') { Stop-Build 'runtime_lock_schema_mismatch' }
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3') { Stop-Build 'runtime_lock_schema_mismatch' }
+$RuntimeRoot = Assert-SafeRoot $RuntimeRoot 'runtime' $RepoRoot $lock.path_policy
+$CacheRoot = Assert-SafeRoot $CacheRoot 'cache' $RepoRoot $lock.path_policy
+if ((Test-Under $RuntimeRoot $CacheRoot) -or (Test-Under $CacheRoot $RuntimeRoot)) { Stop-Build 'runtime_cache_path_overlap' }
 Assert-GitIdentity $RepoRoot $ExpectedGitSha $lock
+$profilePackages = @(Get-ProfilePackages $lock $Profile)
+$profileDefinition = $lock.profiles.$Profile
+if ($Profile -eq 'Production' -and @($profilePackages | Where-Object { $_.classification -eq 'locked_pure_sdist' }).Count -ne 0) { Stop-Build 'production_profile_sdist_forbidden' }
+if ($Profile -eq 'Qualification') {
+    $sdists = @($profilePackages | Where-Object { $_.classification -eq 'locked_pure_sdist' })
+    if ($sdists.Count -gt 1 -or ($sdists.Count -eq 1 -and ($sdists[0].project -ne 'odfpy' -or $sdists[0].version -ne '1.4.1'))) { Stop-Build 'qualification_sdist_contract_invalid' }
+}
 
 if (Test-Path -LiteralPath $RuntimeRoot) { Stop-Build 'runtime_root_not_fresh' }
 if (-not (Test-Path -LiteralPath $CacheRoot)) { [System.IO.Directory]::CreateDirectory($CacheRoot) | Out-Null }
-$allowedNames = @((Get-LockedArtifacts $lock) | ForEach-Object { $_.filename })
+Assert-NoReparseChain $CacheRoot
+if ($DownloadFailureProbe) {
+    Invoke-DownloadFailureCleanupProbe $CacheRoot $DownloadFailureProbe
+    exit 0
+}
+$allowedNames = @((Get-LockedArtifacts $lock $lock.packages) | ForEach-Object { $_.filename })
 foreach ($item in Get-ChildItem -LiteralPath $CacheRoot -Force) {
     if ($item.PSIsContainer -or $allowedNames -notcontains $item.Name -or $item.Name.EndsWith('.partial')) { Stop-Build 'cache_contains_unexpected_entry' }
 }
 
-$artifacts = Get-LockedArtifacts $lock
+$artifacts = Get-LockedArtifacts $lock $profilePackages
 foreach ($artifact in $artifacts) {
     $target = Join-Path $CacheRoot $artifact.filename
     if (Test-Path -LiteralPath $target) { Assert-LockedFile $artifact $target }
     elseif ($Offline) { Stop-Build 'offline_artifact_missing' }
     else { Invoke-LockedDownload $artifact $target $lock.allowed_download_hosts ([int]$lock.extraction_limits.maximum_redirects) }
 }
-if (-not $Offline) { foreach ($package in $lock.packages) { Assert-PypiMetadata $package $lock.allowed_download_hosts } }
+if (-not $Offline) { foreach ($package in $profilePackages) { Assert-PypiMetadata $package $lock.allowed_download_hosts } }
 Assert-PythonSbom $lock $CacheRoot
 
 $staging = $RuntimeRoot + '.building-' + $PID
@@ -383,15 +469,16 @@ try {
     Expand-LockedZip (Join-Path $CacheRoot $lock.runtime_python.filename) $staging $lock.extraction_limits $targets
     $site = Join-Path $staging 'Lib\site-packages'
     [System.IO.Directory]::CreateDirectory($site) | Out-Null
-    foreach ($package in $lock.packages) {
+    foreach ($package in $profilePackages) {
         if ($package.classification -eq 'locked_pure_sdist') { Install-LockedPureSdist $package (Join-Path $CacheRoot $package.filename) $site $lock.extraction_limits $targets }
         else { Install-LockedWheel $package (Join-Path $CacheRoot $package.filename) $site $lock.extraction_limits $targets }
     }
     $pthPath = Join-Path $staging 'python312._pth'
     [System.IO.File]::WriteAllText($pthPath, ([string]::Join("`r`n", @($lock.python312_pth)) + "`r`n"), [System.Text.Encoding]::ASCII)
+    $profileMarker = [ordered]@{profile=$Profile;schema=$lock.schema}
+    [System.IO.File]::WriteAllText((Join-Path $staging '_NEXT_DOC04_RUNTIME_PROFILE.json'), (($profileMarker | ConvertTo-Json -Compress) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     $signer = Assert-Authenticode (Join-Path $staging 'python.exe') $lock.runtime_python.authenticode_subject_contains $lock.runtime_python.product_version
     [void](Assert-Authenticode (Join-Path $staging 'python312.dll') $lock.runtime_python.authenticode_subject_contains $lock.runtime_python.product_version)
-    $env:PYTHONDONTWRITEBYTECODE='1'; $env:PYTHONNOUSERSITE='1'; $env:PYTHONUTF8='1'; Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue; Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
     $probeInfo = New-Object System.Diagnostics.ProcessStartInfo
     $probeInfo.FileName = Join-Path $staging 'python.exe'
     $probeInfo.Arguments = '-I -B -X utf8 -c "import json,platform,sys;print(json.dumps({''version'':platform.python_version(),''machine'':platform.machine(),''bits'':64 if sys.maxsize>2**32 else 32},sort_keys=True,separators=('','','':'')))"'
@@ -423,12 +510,15 @@ try {
     } finally { $probeProcess.Dispose() }
     $probeObject = ($probe | Out-String).Trim() | ConvertFrom-Json
     if ($probeObject.version -ne '3.12.10' -or [int]$probeObject.bits -ne 64 -or $probeObject.machine -notmatch '(?i)(amd64|x86_64)') { Stop-Build 'portable_python_identity_mismatch' }
+    Assert-NoReparseTree $staging
     $tree = Get-RuntimeTree $staging
-    if ($tree.bytes -gt [int64]$lock.installed_runtime.expected_bytes_maximum) { Stop-Build 'runtime_size_limit_exceeded' }
-    if ([int]$lock.installed_runtime.expected_file_count -gt 0 -and $tree.file_count -ne [int]$lock.installed_runtime.expected_file_count) { Stop-Build 'runtime_file_count_mismatch' }
-    if ($lock.installed_runtime.expected_tree_sha256 -notmatch '^0{64}$' -and $tree.sha256 -ne $lock.installed_runtime.expected_tree_sha256) { Stop-Build 'runtime_tree_hash_mismatch' }
+    $expectedRuntime = $profileDefinition.installed_runtime
+    if ($tree.bytes -gt [int64]$expectedRuntime.expected_bytes_maximum) { Stop-Build 'runtime_size_limit_exceeded' }
+    if ([int]$expectedRuntime.expected_file_count -gt 0 -and $tree.file_count -ne [int]$expectedRuntime.expected_file_count) { Stop-Build 'runtime_file_count_mismatch' }
+    if ($expectedRuntime.expected_tree_sha256 -notmatch '^0{64}$' -and $tree.sha256 -ne $expectedRuntime.expected_tree_sha256) { Stop-Build 'runtime_tree_hash_mismatch' }
     [System.IO.Directory]::Move($staging, $RuntimeRoot)
-    $manifest = [ordered]@{result='runtime_built';source_git_sha=$ExpectedGitSha;runtime_lock_sha256=(Get-Sha256 $lockPath);python_version='3.12.10';architecture='amd64';python_artifact_sha256=$lock.runtime_python.sha256;package_count=@($lock.packages).Count;file_count=$tree.file_count;runtime_bytes=$tree.bytes;runtime_tree_sha256=$tree.sha256;authenticode_status='Valid';authenticode_publisher='Python Software Foundation';offline=[bool]$Offline;production_activity=0}
+    Assert-NoReparseTree $RuntimeRoot
+    $manifest = [ordered]@{result='runtime_built';profile=$Profile;source_git_sha=$ExpectedGitSha;runtime_lock_sha256=(Get-Sha256 $lockPath);python_version='3.12.10';architecture='amd64';python_artifact_sha256=$lock.runtime_python.sha256;package_count=$profilePackages.Count;packages=@($profilePackages | ForEach-Object { $_.project });file_count=$tree.file_count;runtime_bytes=$tree.bytes;runtime_tree_sha256=$tree.sha256;authenticode_status='Valid';authenticode_publisher='Python Software Foundation';offline=[bool]$Offline;production_activity=0}
     $manifestPath = $RuntimeRoot + '.manifest.json'
     [System.IO.File]::WriteAllText($manifestPath, (($manifest | ConvertTo-Json -Compress) + "`n"), (New-Object System.Text.UTF8Encoding($false)))
     $manifest | ConvertTo-Json -Compress

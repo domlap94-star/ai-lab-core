@@ -45,10 +45,10 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         actual.add("backend/test/test_doc04_windows_runtime_contract.py")
         self.assertEqual(actual, EXPECTED_FILES)
 
-    def test_runtime_lock_v2_python_and_variance(self) -> None:
+    def test_runtime_lock_v3_python_profiles_paths_and_variance(self) -> None:
         self.assertEqual(
             self.lock["schema"],
-            "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V2",
+            "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3",
         )
         python = self.lock["runtime_python"]
         self.assertEqual(python["implementation"], "CPython")
@@ -71,6 +71,18 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         self.assertTrue(variance["parity_required"])
         self.assertTrue(variance["security_delta_review_required"])
         self.assertEqual(variance["production_general_use"], "forbidden")
+        self.assertEqual(set(self.lock["profiles"]), {"Production", "Qualification"})
+        policy = self.lock["path_policy"]
+        self.assertEqual(
+            policy["authorized_runtime_parent"],
+            r"C:\ai-lab-core-staging\doc04b-runtime",
+        )
+        self.assertEqual(
+            policy["authorized_cache_parent"],
+            r"C:\ai-lab-core-staging\doc04b-cache",
+        )
+        for root in (r"C:\ai-lab-core-backups", "E:\\", "F:\\"):
+            self.assertIn(root, policy["forbidden_runtime_roots"])
 
     def test_locked_artifacts_are_unique_and_allowlisted(self) -> None:
         packages = self.lock["packages"]
@@ -116,6 +128,19 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
                     "py3-none-any", "py2.py3-none-any",
                 },
             )
+        production = self.lock["profiles"]["Production"]["package_projects"]
+        self.assertEqual(len(production), 11)
+        by_name = {item["project"]: item for item in packages}
+        self.assertTrue(all(by_name[name]["classification"] != "locked_pure_sdist" for name in production))
+        forbidden = {
+            "odfpy", "fastapi", "uvicorn", "qdrant-client", "pymupdf",
+            "pillow", "pillow_heif", "pytesseract", "numpy", "openpyxl",
+            "xlrd", "xlsxwriter", "python-docx", "python-pptx", "grpcio",
+            "watchfiles", "websockets",
+        }
+        self.assertFalse({name.lower() for name in production} & forbidden)
+        qualification_sdists = [item for item in packages if item["classification"] == "locked_pure_sdist"]
+        self.assertEqual([(item["project"], item["version"]) for item in qualification_sdists], [("odfpy", "1.4.1")])
 
     def test_top_level_versions_match_backend_requirements(self) -> None:
         versions = {item["project"]: item["version"] for item in self.lock["packages"]}
@@ -133,10 +158,15 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
             )
 
     def test_runtime_identity_is_frozen(self) -> None:
-        installed = self.lock["installed_runtime"]
-        self.assertGreater(installed["expected_file_count"], 0)
-        self.assertTrue(HEX64.fullmatch(installed["expected_tree_sha256"]))
-        self.assertNotEqual(installed["expected_tree_sha256"], "0" * 64)
+        identities = {
+            "Production": (694, "32b6cbda72555005e955fd202404b80974c83620bf56050ffb2a256cb88e1cd3"),
+            "Qualification": (4710, "29073b1cc9a2eaa11a4a628c90d77190eb0527edd737db99e5111f854e8d7932"),
+        }
+        for profile, (count, digest) in identities.items():
+            installed = self.lock["profiles"][profile]["installed_runtime"]
+            self.assertEqual(installed["expected_file_count"], count)
+            self.assertEqual(installed["expected_tree_sha256"], digest)
+            self.assertTrue(HEX64.fullmatch(digest))
         self.assertEqual(
             self.lock["python312_pth"],
             ["python312.zip", ".", "Lib\\site-packages", "import site"],
@@ -195,6 +225,11 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
             self.assertNotIn(forbidden, powershell)
         self.assertNotRegex(powershell, r"(?i)\b(?:winget|choco)\b")
         self.assertNotRegex(powershell, r"(?i)\$env:path\s*=")
+        builder = (TOOL / "build-runtime.ps1").read_text(encoding="utf-8")
+        self.assertNotRegex(
+            builder,
+            r"(?im)^\s*(?:\$env:(?:PYTHONDONTWRITEBYTECODE|PYTHONNOUSERSITE|PYTHONUTF8)\s*=|Remove-Item\s+Env:(?:PYTHONHOME|PYTHONPATH))",
+        )
 
     def test_entrypoint_top_level_imports_are_standard_library_only(self) -> None:
         entrypoint = TOOL / "runtime-entrypoint.py"
@@ -241,6 +276,8 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
             "NEXT_DOC04_ENVIRONMENT_ROOT",
             "NEXT_DOC04_WORKING_DIRECTORY",
             "NEXT_DOC04_FORBIDDEN_ROOTS_JSON",
+            "NEXT_DOC04_RUNTIME_PROFILE",
+            "NEXT_DOC04_ALLOWED_ENV_FILE",
             "PYTHONDONTWRITEBYTECODE",
             "PYTHONNOUSERSITE",
             "PYTHONUTF8",
@@ -260,13 +297,16 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         for parameter_set in (
             "Readiness", "RepairHelp", "CompatibilityVectors", "IsolatedTest",
             "IsolatedAlembicUpgrade", "AuditEnvProbe", "SyntheticProductionAudit",
+            "ProductionImportTrace", "RepairRelaySelfTest",
         ):
             self.assertRegex(
                 launcher,
                 rf"Mandatory = \$true, ParameterSetName = '{parameter_set}'",
             )
         self.assertIn("DOC04B_SYNTHETIC_ROOT_FORBIDDEN", launcher)
-        self.assertIn("'E:\\','F:\\'", launcher)
+        self.assertIn("C:\\ai-lab-core-backups", launcher)
+        self.assertIn("Assert-NoReparseChain", launcher)
+        self.assertIn("Assert-NonReparseTree", launcher)
 
     def test_production_modes_require_explicit_environment_root(self) -> None:
         launcher = (TOOL / "invoke-repair.ps1").read_text(encoding="utf-8")
@@ -287,6 +327,8 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         harness = (TOOL / "test-runtime.ps1").read_text(encoding="utf-8")
         for index in range(1, 21):
             self.assertIn(f"Pass-L 'L{index:02d}'", harness)
+        for index in range(1, 31):
+            self.assertRegex(harness, rf"['\"]M{index:02d}['\"]")
         self.assertIn("hostile-parent-marker", harness)
         self.assertIn("SyntheticProductionAudit", harness)
         self.assertIn("AuditEnvProbe", harness)
@@ -312,11 +354,24 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         self.assertIn("sdist_unsupported_tar_type", builder)
         self.assertIn("Install-LockedPureSdist", builder)
         self.assertIn("Assert-PypiMetadata", builder)
+        self.assertIn("[ValidateSet('Production','Qualification')]", builder)
+        self.assertIn("production_profile_sdist_forbidden", builder)
+        self.assertIn("Remove-OwnedPartial", builder)
+        self.assertIn("DOC04B_DOWNLOAD_CLEANUP_PROBE_PASS", builder)
+        self.assertIn("_NEXT_DOC04_RUNTIME_PROFILE.json", builder)
+        self.assertIn("runtime_cache_path_overlap", builder)
         self.assertNotIn("Expand-Archive", builder)
         self.assertNotRegex(builder, r"(?i)\bpip(?:\.exe)?\s+install\b")
         self.assertIn("$probeInfo.WorkingDirectory = $staging", builder)
         self.assertIn("$probeInfo.EnvironmentVariables.Clear()", builder)
         self.assertNotRegex(builder, r"(?im)^\s*\$probe\s*=\s*&\s*")
+        self.assertIn("[string]::Join('', $records.ToArray())", builder)
+        self.assertIn("[System.Array]::Sort($relativePaths, [System.StringComparer]::Ordinal)", builder)
+
+        launcher = (TOOL / "invoke-repair.ps1").read_text(encoding="utf-8")
+        self.assertIn("[string]::Join('', $records.ToArray())", launcher)
+        self.assertIn("[System.Array]::Sort($relativePaths, [System.StringComparer]::Ordinal)", launcher)
+        self.assertNotIn("[string]::Concat($records)", builder + launcher)
 
     def test_launcher_has_explicit_mutually_exclusive_production_gates(self) -> None:
         launcher = (TOOL / "invoke-repair.ps1").read_text(encoding="utf-8")
@@ -329,12 +384,29 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         self.assertIn("--execute", launcher)
         self.assertIn("POSTGRES_HOST']='127.0.0.1'", launcher)
         self.assertIn("POSTGRES_PORT']='5432'", launcher)
+        self.assertIn("$productionPayload = ConvertFrom-BoundedJson $child.stdout", launcher)
+        self.assertIn("exit $child.exit_code", launcher)
+        self.assertIn("Assert-RegularNonReparseFile $productionEnvFile", launcher)
+
+        harness = (TOOL / "test-runtime.ps1").read_text(encoding="utf-8")
+        self.assertIn("docker inspect --format '{{.Image}}' ai-lab-backend", harness)
+        self.assertIn("DOC04B_BACKEND_IMAGE_ID_MISMATCH", harness)
+        self.assertNotIn("[Parameter(Mandatory = $true)][ValidatePattern('^sha256:[0-9a-f]{64}$')][string]$BackendImage", harness)
+        self.assertIn("Get-Command powershell.exe -CommandType Application", harness)
+        self.assertNotIn("Join-Path $PSHOME 'powershell.exe'", harness)
+        self.assertIn("$builderSuccessEnvironmentUnchanged", harness)
+        self.assertIn("$builderFailureEnvironmentUnchanged", harness)
+        self.assertIn("@($runtimeB,$qualificationA,$qualificationB,$scratch)", harness)
+        self.assertIn("Remove-CampaignPath $path", harness)
+        self.assertIn("@(($runtimeB + '.manifest.json'),($qualificationA + '.manifest.json'),($qualificationB + '.manifest.json'))", harness)
+        self.assertIn("Pass-M 'M30'", harness)
 
     def test_entrypoint_has_only_fixed_modes(self) -> None:
         entrypoint = (TOOL / "runtime-entrypoint.py").read_text(encoding="utf-8")
         for mode in (
             "smoke", "repair", "isolated-test", "isolated-alembic-upgrade",
             "compatibility-vectors", "synthetic-production-audit",
+            "production-import-trace", "repair-relay-self-test",
         ):
             self.assertIn(f'"{mode}"', entrypoint)
         for forbidden in ("eval(", "exec(", "run_module", "run_path", "shell=True"):
@@ -350,6 +422,11 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         )
         self.assertIn("command.upgrade(config, ISOLATED_DATABASE_REVISION)", entrypoint)
         self.assertNotIn('command.upgrade(config, "head")', entrypoint)
+        self.assertIn("def _invoke_and_relay_repair(", entrypoint)
+        self.assertIn("return _invoke_and_relay_repair(args.repair_args)", entrypoint)
+        self.assertIn("MAX_REPAIR_OUTPUT_BYTES = 65_536", entrypoint)
+        self.assertIn("DOC04B_REPAIR_SUCCESS_REFUSAL_CONTRADICTION", entrypoint)
+        self.assertIn("def _production_import_trace()", entrypoint)
 
     def test_no_secret_or_production_value_is_committed(self) -> None:
         combined = "\n".join(

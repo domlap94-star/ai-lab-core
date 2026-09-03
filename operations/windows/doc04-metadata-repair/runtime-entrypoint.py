@@ -26,13 +26,18 @@ from typing import Any, Iterator
 
 SAFE_CODE = "DOC04B_RUNTIME_REFUSED"
 ENV_FORBIDDEN = "DOC04_RUNTIME_ENV_FILE_FORBIDDEN"
-EXPECTED_PACKAGES = {
+PRODUCTION_EXPECTED_PACKAGES = {
     "SQLAlchemy": "2.0.43",
+    "greenlet": "3.5.5",
+    "typing-extensions": "4.16.0",
     "psycopg": "3.2.10",
     "psycopg-binary": "3.2.10",
     "pydantic": "2.11.7",
+    "pydantic-core": "2.33.2",
+    "annotated-types": "0.8.0",
+    "typing-inspection": "0.4.4",
     "pydantic-settings": "2.11.0",
-    "alembic": "1.16.5",
+    "python-dotenv": "1.2.2",
 }
 FIXED_TEST_SUITES = {
     "runtime-contract": ("test.test_doc04_windows_runtime_contract",),
@@ -66,6 +71,8 @@ NONPRODUCTION_POLICIES = {
     "isolated-alembic-upgrade",
     "nonproduction-audit-probe",
     "backend-reference",
+    "production-import-trace",
+    "repair-relay-self-test",
 }
 PRODUCTION_POLICIES = {"production-preflight", "production-execute"}
 SYNTHETIC_PRODUCTION_POLICY = "synthetic-production-audit"
@@ -82,6 +89,13 @@ SENSITIVE_ABSENT = {
     "BACKUP_SUPERVISOR_URL",
 }
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
+REPAIR_RESULT = re.compile(r"^DOCUMENT_METADATA_REPAIR_[A-Z0-9_]{1,96}$")
+REPAIR_SUCCESS_CODES = {
+    "DOCUMENT_METADATA_REPAIR_DRY_RUN",
+    "DOCUMENT_METADATA_REPAIR_EXECUTED",
+    "DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK",
+}
+MAX_REPAIR_OUTPUT_BYTES = 65_536
 ISOLATED_DATABASE_REVISION = "followup_assistant_chat_history_20260829"
 
 _ENV_FILE_OPEN_ATTEMPTS = 0
@@ -123,6 +137,23 @@ def _is_reparse_or_link(path: pathlib.Path) -> bool:
     if os.name == "nt":
         return bool(path.stat(follow_symlinks=False).st_file_attributes & 0x400)
     return False
+
+
+def _assert_no_reparse_chain(path: pathlib.Path, code: str) -> None:
+    cursor = pathlib.Path(os.path.abspath(path))
+    while True:
+        if cursor.exists() and _is_reparse_or_link(cursor):
+            _refuse(code)
+        parent = cursor.parent
+        if parent == cursor:
+            break
+        cursor = parent
+
+
+def _assert_regular_non_reparse_file(path: pathlib.Path, code: str) -> None:
+    _assert_no_reparse_chain(path, code)
+    if not path.is_file() or _is_reparse_or_link(path):
+        _refuse(code)
 
 
 def _path_from_audit(value: Any) -> str | None:
@@ -178,8 +209,7 @@ def _environment_roots() -> tuple[pathlib.Path, pathlib.Path, str]:
             _refuse(f"DOC04B_{label}_NOT_DIRECTORY")
         if _is_drive_root(path):
             _refuse(f"DOC04B_{label}_DRIVE_ROOT")
-        if _is_reparse_or_link(path):
-            _refuse(f"DOC04B_{label}_REPARSE")
+        _assert_no_reparse_chain(path, f"DOC04B_{label}_REPARSE")
     environment_root = pathlib.Path(os.path.realpath(environment_root))
     working_directory = pathlib.Path(os.path.realpath(working_directory))
     if _normal_path(str(environment_root)) != _normal_path(str(working_directory)):
@@ -206,6 +236,12 @@ def _cwd_sha256(path: pathlib.Path) -> str:
 
 
 def _validate_child_environment(working_directory: pathlib.Path, policy: str) -> None:
+    profile = os.environ.get("NEXT_DOC04_RUNTIME_PROFILE", "")
+    qualification = {"isolated-test", "isolated-alembic-upgrade"}
+    if policy in qualification and profile != "Qualification":
+        _refuse("DOC04B_RUNTIME_PROFILE_MISMATCH")
+    if policy not in qualification and profile != "Production":
+        _refuse("DOC04B_RUNTIME_PROFILE_MISMATCH")
     if policy in PRODUCTION_POLICIES:
         if (
             os.environ.get("POSTGRES_DB") != "ai_lab"
@@ -279,7 +315,7 @@ def _verify_source() -> pathlib.Path:
         lock = json.loads(lock_path.read_text(encoding="utf-8"))
     except Exception as error:
         raise RuntimeRefusal("DOC04B_RUNTIME_LOCK_INVALID") from error
-    if lock.get("schema") != "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V2":
+    if lock.get("schema") != "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3":
         _refuse("DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH")
     for relative in lock["critical_git_paths"]:
         path = repo / pathlib.PurePosixPath(relative)
@@ -415,6 +451,179 @@ def _emit(payload: Any) -> None:
     os.write(_RESULT_FD, value.encode("utf-8"))
 
 
+def _bounded_repair_value(value: Any, depth: int = 0) -> None:
+    if depth > 8:
+        _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+    if value is None or isinstance(value, (bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+        return
+    if isinstance(value, str):
+        if len(value) > 4096 or "\x00" in value:
+            _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+        return
+    if isinstance(value, list):
+        if len(value) > 128:
+            _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+        for item in value:
+            _bounded_repair_value(item, depth + 1)
+        return
+    if isinstance(value, dict):
+        if len(value) > 64:
+            _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+        for key, item in value.items():
+            if not isinstance(key, str) or len(key) > 96 or "\x00" in key:
+                _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+            _bounded_repair_value(item, depth + 1)
+        return
+    _refuse("DOC04B_REPAIR_RESULT_STRUCTURE_INVALID")
+
+
+def _validate_repair_payload(payload: Any, exit_code: int) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        _refuse("DOC04B_REPAIR_RESULT_NOT_OBJECT")
+    allowed_keys = {
+        "affected_columns",
+        "affected_documents",
+        "backup_manifest_sha256",
+        "backup_run_id",
+        "database",
+        "document_id",
+        "executed",
+        "metadata_normalized",
+        "metadata_raw",
+        "production_preflight",
+        "result",
+    }
+    if set(payload) - allowed_keys:
+        _refuse("DOC04B_REPAIR_RESULT_KEYS_INVALID")
+    _bounded_repair_value(payload)
+    result = payload.get("result")
+    executed = payload.get("executed")
+    if not isinstance(result, str) or not REPAIR_RESULT.fullmatch(result):
+        _refuse("DOC04B_REPAIR_RESULT_CODE_INVALID")
+    if not isinstance(executed, bool):
+        _refuse("DOC04B_REPAIR_RESULT_EXECUTED_INVALID")
+    if not isinstance(exit_code, int) or not 0 <= exit_code <= 255:
+        _refuse("DOC04B_REPAIR_EXIT_CODE_INVALID")
+    if exit_code == 0:
+        if result not in REPAIR_SUCCESS_CODES:
+            _refuse("DOC04B_REPAIR_SUCCESS_REFUSAL_CONTRADICTION")
+        if executed != (result == "DOCUMENT_METADATA_REPAIR_EXECUTED"):
+            _refuse("DOC04B_REPAIR_SUCCESS_EXECUTED_CONTRADICTION")
+    elif executed or result in REPAIR_SUCCESS_CODES:
+        _refuse("DOC04B_REPAIR_FAILURE_EXECUTED_CONTRADICTION")
+    return payload
+
+
+def _invoke_and_relay_repair(
+    repair_args: list[str], repair_callable: Any | None = None
+) -> int:
+    if repair_callable is None:
+        from app.scripts.repair_document_metadata_surrogates import (
+            main as repair_main,
+        )
+
+        repair_callable = repair_main
+    captured_stdout = io.StringIO()
+    captured_stderr = io.StringIO()
+    with contextlib.redirect_stdout(captured_stdout), contextlib.redirect_stderr(
+        captured_stderr
+    ):
+        exit_code = int(repair_callable(repair_args))
+    stdout = captured_stdout.getvalue()
+    stderr = captured_stderr.getvalue()
+    if stderr:
+        _refuse("DOC04B_REPAIR_STDERR_NOT_EMPTY")
+    encoded = stdout.encode("utf-8", errors="strict")
+    if len(encoded) > MAX_REPAIR_OUTPUT_BYTES:
+        _refuse("DOC04B_REPAIR_OUTPUT_OVERSIZED")
+    if b"\x00" in encoded:
+        _refuse("DOC04B_REPAIR_OUTPUT_NUL")
+    lines = stdout.splitlines()
+    if len(lines) != 1 or not lines[0].strip():
+        _refuse("DOC04B_REPAIR_OUTPUT_LINE_COUNT_INVALID")
+    try:
+        payload = json.loads(lines[0])
+    except json.JSONDecodeError as error:
+        raise RuntimeRefusal("DOC04B_REPAIR_OUTPUT_JSON_INVALID") from error
+    payload = _validate_repair_payload(payload, exit_code)
+    _emit(payload)
+    return exit_code
+
+
+def _relay_self_test(case: str) -> int:
+    def fixed(_: list[str]) -> int:
+        if case == "success":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_DRY_RUN"}')
+            return 0
+        if case == "refusal":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
+            return 2
+        if case == "empty":
+            return 2
+        if case == "multiple":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
+            return 2
+        if case == "invalidjson":
+            print("not-json")
+            return 2
+        if case == "oversized":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED","database":"' + ("x" * 66_000) + '"}')
+            return 2
+        if case == "nul":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}\x00')
+            return 2
+        if case == "stderr":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
+            print("bounded-test-stderr", file=sys.stderr)
+            return 2
+        if case == "contradictory":
+            print('{"executed":false,"result":"DOCUMENT_METADATA_REPAIR_REFUSED"}')
+            return 0
+        _refuse("DOC04B_RELAY_SELF_TEST_CASE_INVALID")
+        return 2
+
+    return _invoke_and_relay_repair([], fixed)
+
+
+def _normalize_distribution(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).casefold()
+
+
+def _production_import_trace() -> dict[str, Any]:
+    before = set(sys.modules)
+    _import_contract()
+    import psycopg
+
+    if psycopg.pq.__impl__ != "binary":
+        _refuse("DOC04B_PSYCOPG_BINARY_NOT_ACTIVE")
+    loaded_roots = {name.split(".", 1)[0] for name in set(sys.modules) - before}
+    package_map = importlib.metadata.packages_distributions()
+    loaded_distributions = {
+        distribution
+        for root in loaded_roots
+        for distribution in package_map.get(root, ())
+    }
+    expected = {_normalize_distribution(name) for name in PRODUCTION_EXPECTED_PACKAGES}
+    observed = {
+        _normalize_distribution(name)
+        for name in loaded_distributions
+        if _normalize_distribution(name) in expected
+    }
+    if observed != expected:
+        _refuse("DOC04B_PRODUCTION_IMPORT_CLOSURE_MISMATCH")
+    return {
+        "distributions": sorted(PRODUCTION_EXPECTED_PACKAGES),
+        "package_count": len(PRODUCTION_EXPECTED_PACKAGES),
+        "psycopg_implementation": psycopg.pq.__impl__,
+        "result": "DOC04B_PRODUCTION_IMPORT_TRACE_PASS",
+    }
+
+
 def _assert_database_isolated() -> None:
     database = os.environ.get("POSTGRES_DB", "")
     host = os.environ.get("POSTGRES_HOST", "")
@@ -425,8 +634,11 @@ def _assert_database_isolated() -> None:
 
 def _smoke(working_directory: pathlib.Path) -> dict[str, Any]:
     repair, _ = _import_contract()
-    versions = {name: importlib.metadata.version(name) for name in EXPECTED_PACKAGES}
-    if versions != EXPECTED_PACKAGES:
+    versions = {
+        name: importlib.metadata.version(name)
+        for name in PRODUCTION_EXPECTED_PACKAGES
+    }
+    if versions != PRODUCTION_EXPECTED_PACKAGES:
         _refuse("DOC04B_PACKAGE_VERSION_MISMATCH")
     if repair.OPERATION_LOCK_KEY != 0x4E455854424B5253:
         _refuse("DOC04B_OPERATION_LOCK_KEY_MISMATCH")
@@ -627,6 +839,23 @@ def _argument_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="mode", required=True)
     sub.add_parser("smoke", add_help=False)
     sub.add_parser("compatibility-vectors", add_help=False)
+    sub.add_parser("production-import-trace", add_help=False)
+    relay = sub.add_parser("repair-relay-self-test", add_help=False)
+    relay.add_argument(
+        "--case",
+        choices=(
+            "success",
+            "refusal",
+            "empty",
+            "multiple",
+            "invalidjson",
+            "oversized",
+            "nul",
+            "stderr",
+            "contradictory",
+        ),
+        required=True,
+    )
     repair = sub.add_parser("repair", add_help=False)
     repair.add_argument("repair_args", nargs=argparse.REMAINDER)
     tests = sub.add_parser("isolated-test", add_help=False)
@@ -644,7 +873,17 @@ def main(argv: list[str] | None = None) -> int:
         args = _argument_parser().parse_args(raw_args)
     environment_root, working_directory, policy = _environment_roots()
     if policy in PRODUCTION_POLICIES | {SYNTHETIC_PRODUCTION_POLICY}:
-        allowed_env_file = str(environment_root / ".env")
+        expected_env_file = environment_root / ".env"
+        configured_env_file = os.environ.get("NEXT_DOC04_ALLOWED_ENV_FILE", "")
+        if (
+            not configured_env_file
+            or _normal_path(configured_env_file) != _normal_path(str(expected_env_file))
+        ):
+            _refuse("DOC04B_PRODUCTION_ENV_ALLOWLIST_INVALID")
+        _assert_regular_non_reparse_file(
+            expected_env_file, "DOC04B_PRODUCTION_ENV_FILE_INVALID"
+        )
+        allowed_env_file = str(expected_env_file)
     else:
         allowed_env_file = None
     _install_env_audit_guard(allowed_env_file)
@@ -684,6 +923,8 @@ def main(argv: list[str] | None = None) -> int:
     expected_policy = {
         "smoke": {"readiness", "nonproduction-audit-probe"},
         "compatibility-vectors": {"compatibility-vectors", "backend-reference"},
+        "production-import-trace": {"production-import-trace"},
+        "repair-relay-self-test": {"repair-relay-self-test"},
         "isolated-test": {"isolated-test"},
         "isolated-alembic-upgrade": {"isolated-alembic-upgrade"},
         "repair": {"repair-help", "production-preflight", "production-execute"},
@@ -694,6 +935,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode == "compatibility-vectors":
         _emit(_compatibility_vectors())
         return 0
+    if args.mode == "production-import-trace":
+        _emit(_production_import_trace())
+        return 0
+    if args.mode == "repair-relay-self-test":
+        return _relay_self_test(args.case)
     if args.mode == "smoke":
         _emit(_smoke(working_directory))
         return 0
@@ -709,9 +955,7 @@ def main(argv: list[str] | None = None) -> int:
         _emit(_repair_help())
         return 0
     if args.mode == "repair":
-        from app.scripts.repair_document_metadata_surrogates import main as repair_main
-
-        return int(repair_main(args.repair_args))
+        return _invoke_and_relay_repair(args.repair_args)
     _refuse()
     return 2
 

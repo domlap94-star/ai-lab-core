@@ -1,5 +1,5 @@
 {
-  "schema": "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V2",
+  "schema": "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V3",
   "runtime_python": {
     "implementation": "CPython",
     "version": "3.12.10",
@@ -35,7 +35,51 @@
   "extraction_limits": {"maximum_entries_per_archive":20000,"maximum_entry_bytes":67108864,"maximum_archive_output_bytes":536870912,"stream_buffer_bytes":1048576,"maximum_redirects":3},
   "backend_requirements_git_blob": "edd024b8be485794e1803bdf8d86fb4a10f060a3",
   "python312_pth": ["python312.zip",".","Lib\\site-packages","import site"],
-  "installed_runtime": {"expected_file_count":4709,"expected_bytes_maximum":268435456,"expected_tree_sha256":"c661799bdf3d86a93ade1ee1dec935ab031a6793256e65ac4d155dd49873f88c"},
+  "path_policy": {
+    "authorized_runtime_parent": "C:\\ai-lab-core-staging\\doc04b-runtime",
+    "authorized_cache_parent": "C:\\ai-lab-core-staging\\doc04b-cache",
+    "forbidden_runtime_roots": [
+      "C:\\ai-lab-core",
+      "C:\\ai-lab-core\\data",
+      "C:\\ai-lab-core-backups",
+      "E:\\",
+      "F:\\",
+      "C:\\Windows",
+      "C:\\Program Files",
+      "C:\\Program Files (x86)",
+      "C:\\ProgramData"
+    ]
+  },
+  "profiles": {
+    "Production": {
+      "package_projects": [
+        "SQLAlchemy",
+        "greenlet",
+        "typing-extensions",
+        "psycopg",
+        "psycopg-binary",
+        "pydantic",
+        "pydantic-core",
+        "annotated-types",
+        "typing-inspection",
+        "pydantic-settings",
+        "python-dotenv"
+      ],
+      "installed_runtime": {
+        "expected_file_count": 694,
+        "expected_bytes_maximum": 67108864,
+        "expected_tree_sha256": "32b6cbda72555005e955fd202404b80974c83620bf56050ffb2a256cb88e1cd3"
+      }
+    },
+    "Qualification": {
+      "include_all_catalog_packages": true,
+      "installed_runtime": {
+        "expected_file_count": 4710,
+        "expected_bytes_maximum": 268435456,
+        "expected_tree_sha256": "29073b1cc9a2eaa11a4a628c90d77190eb0527edd737db99e5111f854e8d7932"
+      }
+    }
+  },
   "critical_git_paths": [
     "operations/windows/doc04-metadata-repair/runtime-lock.json",
     "operations/windows/doc04-metadata-repair/build-runtime.ps1",

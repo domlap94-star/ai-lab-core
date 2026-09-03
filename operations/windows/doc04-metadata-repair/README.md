@@ -21,8 +21,9 @@ backend runtime.
 - Archive extraction is bounded direct PowerShell/.NET ZIP/GZip processing.
   Python `zipfile` and `tarfile`, blind archive expansion, package resolution,
   and wheel scripts or `.pth` payloads are not used. The sole source-only
-  artifact, official `odfpy` 1.4.1, is hash-pinned and its pure `odf/` package
-  is selected by a bounded fail-closed TAR reader; no build script executes.
+  artifact, official `odfpy` 1.4.1, is qualification-only: it is hash-pinned
+  and its pure `odf/` package is selected by a bounded fail-closed TAR reader;
+  no build script executes. No source distribution enters Production.
 - The runtime contains dependencies only. Application source is imported
   directly from an exact Git worktree after HEAD and Git-cleaned blob checks.
 - Final invocation is offline, isolated (`-I -B -X utf8`), and never falls back
@@ -32,6 +33,12 @@ backend runtime.
   data, and backup roots, launches with `System.Diagnostics.ProcessStartInfo`,
   sets `UseShellExecute=false`, assigns an explicit `WorkingDirectory`, clears
   the inherited environment, and supplies only a bounded allowlist.
+- Runtime and cache paths must be strict descendants of the lock-pinned
+  `C:\ai-lab-core-staging\doc04b-runtime` and
+  `C:\ai-lab-core-staging\doc04b-cache` parents. The repository, data root,
+  `C:\ai-lab-core-backups`, E:, F:, system, Program Files, ProgramData, and
+  startup roots are forbidden. Complete parent chains and runtime contents are
+  rejected on any reparse point; runtime/cache overlap is forbidden.
 - `runtime-entrypoint.py` has standard-library-only top-level imports. It
   validates the environment policy, installs a permanent Python audit hook
   that rejects non-authorized `.env` opens, changes to the approved directory,
@@ -41,13 +48,16 @@ backend runtime.
   loopback PostgreSQL port for isolated tests, and only a separately approved
   forced loopback PostgreSQL endpoint for future production use.
 
-The complete Windows dependency closure is pinned, including SQLAlchemy,
-psycopg and its Windows binary wheel, Pydantic, Pydantic Settings, Alembic,
-HTTP import-time dependencies required by the backend module graph, and all
-transitive packages. No VCS source, editable dependency, version range, or
-dynamically selected artifact is allowed. `odfpy` 1.4.1 has no PyPI wheel, so
-its exact official source distribution is the one explicit pure-source
-exception; executable/build payload is neither selected nor run.
+Lock V3 has two non-interchangeable profiles. **Production** contains only the
+11-distribution executable import closure for the fixed repair: SQLAlchemy,
+greenlet, typing extensions, psycopg plus its Windows binary implementation,
+and the Pydantic settings stack. It excludes web servers, FastAPI, Qdrant,
+OCR/render/document parsers, Office libraries, NumPy, gRPC, test packages, and
+all source distributions. **Qualification** contains the wider 65-package
+closure needed by isolated migration and regression suites. `odfpy` 1.4.1 has
+no PyPI wheel and is the sole qualification-only source exception. A runtime
+profile marker participates in the frozen tree hash; production modes reject a
+Qualification tree and isolated tests reject a Production tree.
 
 ## Patch variance and security delta
 
@@ -71,14 +81,16 @@ Use a clean, exact audit worktree and staging/cache roots outside the
 repository, its data directory, system locations, startup locations, and all
 backup volumes.
 
-1. Run `build-runtime.ps1` without `-Offline` for runtime A. The builder may
-   obtain only lock-listed HTTPS artifacts from the three allowlisted hosts.
-2. Run the same builder with `-Offline` into a fresh runtime B using the
-   verified cache.
-3. Require both runtime-tree hashes and file counts to match the committed
-   `installed_runtime` identity.
-4. Keep one validated runtime outside Git. Cache, binaries, wheels, manifests,
-   and readiness reports must never be committed.
+1. Invoke `build-runtime.ps1` with an explicit `-Profile Production` or
+   `-Profile Qualification`; there is no default.
+2. Build online and offline trees for both profiles. The builder may obtain
+   only lock-listed HTTPS artifacts from the three allowlisted hosts.
+3. Require each profile's online/offline hash and count to match its separate
+   frozen identity.
+4. Successful complete readiness retains only the Production online runtime,
+   its adjacent manifest, and the final report. Qualification, offline, scratch,
+   temporary Git, synthetic roots, and disposable containers are removed.
+   A verified cache remains only when the harness explicitly requests it.
 
 The tree identity is SHA-256 over records sorted by relative path. Each record
 is `relative-path NUL byte-count NUL file-sha256 LF`. The adjacent safe runtime
@@ -100,12 +112,23 @@ or production data and does not connect to a database. The same wrapper owns
 the fixed repair-help, compatibility-vector, isolated-test, and isolated-
 Alembic modes; diagnostics never invoke the backend repair module directly.
 
-Readiness also runs the L01–L20 isolation matrix: hostile caller directories,
+Readiness also runs the L01–L20 isolation matrix and M01–M30 closure matrix:
+bounded backend result relay, exact refusal propagation, profile minimality and
+separation, staging/backup-root policy, reparse rejection, builder environment
+preservation, owned partial cleanup, parent controls, and success cleanup.
+The fixed relay captures backend Python stdout/stderr in bounded memory,
+validates exactly one JSON object, emits only the validated object through the
+preserved result descriptor, and retains the backend exit code. Thus a valid
+`DOCUMENT_METADATA_REPAIR_*` refusal is not collapsed into a generic wrapper
+failure. The remaining isolation checks cover hostile caller directories,
 a synthetic poison dotenv positive control, inherited application/Python
 environment scrubbing, explicit child-CWD proof, synthetic-root rejection,
 production-shaped dotenv allowlist proof entirely under temporary staging,
-output redaction, and caller-location independence. None of those tests names,
-opens, stats, or probes a production dotenv file.
+output redaction, and caller-location independence. Backend parity resolves
+only the immutable `.Image` field of `ai-lab-backend`; an optional expected ID
+can only constrain that value and can never substitute another image. The
+disposable parity container has no network and is removed. None of those tests
+names, opens, stats, or probes a production dotenv file.
 
 ## Production gates are intentionally dormant
 
@@ -123,7 +146,9 @@ fresh exact guard values. The wrapper never creates a backup or infers a guard.
 For either dormant production parameter set the process environment is still
 rebuilt from an empty collection, the working directory is exactly the explicit
 environment root, PostgreSQL is forced to loopback `ai_lab`, and the audit hook
-permits only that environment root's exact `.env`. Those parameter sets are not
+permits only that environment root's exact regular, non-reparse `.env`. Its
+resolved identity must match the explicit audit allowlist, and the full existing
+parent chains of EnvironmentRoot and DataRoot must be non-reparse. Those parameter sets are not
 part of synthetic readiness and must not be exercised without a later owner
 gate.
 
