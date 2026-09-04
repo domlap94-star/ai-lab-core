@@ -104,6 +104,7 @@ ISOLATED_DATABASE_REVISION = "followup_assistant_chat_history_20260829"
 
 _ENV_FILE_OPEN_ATTEMPTS = 0
 _ALLOWED_ENV_FILE: str | None = None
+_PRODUCTION_DATA_ROOT: str | None = None
 _PYTHON_NETWORK_ATTEMPTS = 0
 _PYTHON_NETWORK_ALLOWED = 0
 _PYTHON_NETWORK_BLOCKED = 0
@@ -189,10 +190,14 @@ def _install_env_audit_guard(allowed_env_file: str | None) -> None:
         candidate = _path_from_audit(args[0])
         if candidate is None:
             return
+        candidate_key = _normal_path(candidate)
+        if _PRODUCTION_DATA_ROOT and _is_within(candidate_key, _PRODUCTION_DATA_ROOT):
+            _assert_no_reparse_chain(
+                pathlib.Path(candidate_key), "DOC04B_PRODUCTION_DATA_ROOT_REPARSE"
+            )
         if ntpath.basename(ntpath.normpath(candidate)).casefold() != ".env":
             return
         _ENV_FILE_OPEN_ATTEMPTS += 1
-        candidate_key = _normal_path(candidate)
         if _ALLOWED_ENV_FILE is None or candidate_key != _ALLOWED_ENV_FILE:
             raise RuntimeRefusal(ENV_FORBIDDEN)
 
@@ -253,18 +258,40 @@ def _install_network_audit_guard(policy: str) -> None:
         global _PYTHON_NETWORK_ATTEMPTS, _PYTHON_NETWORK_ALLOWED, _PYTHON_NETWORK_BLOCKED
         relevant = {
             "socket.__new__",
+            "socket.bind",
             "socket.connect",
             "socket.getaddrinfo",
+            "socket.gethostbyaddr",
             "socket.gethostbyname",
             "socket.gethostbyname_ex",
+            "socket.getnameinfo",
+            "socket.getservbyname",
+            "socket.getservbyport",
+            "socket.sendmsg",
+            "socket.sendto",
             "urllib.Request",
             "http.client.connect",
         }
         if event not in relevant:
             return
         _PYTHON_NETWORK_ATTEMPTS += 1
+        always_forbidden = {
+            "socket.sendto",
+            "socket.sendmsg",
+            "socket.gethostbyaddr",
+            "socket.getnameinfo",
+            "socket.getservbyname",
+            "socket.getservbyport",
+        }
+        if event in always_forbidden:
+            _PYTHON_NETWORK_BLOCKED += 1
+            raise RuntimeRefusal("DOC04B_NETWORK_ENDPOINT_FORBIDDEN")
         if event == "socket.__new__":
             if policy in db_policies:
+                _PYTHON_NETWORK_ALLOWED += 1
+                return
+        elif event == "socket.bind":
+            if policy in db_policies and is_internal_windows_socketpair():
                 _PYTHON_NETWORK_ALLOWED += 1
                 return
         else:
@@ -388,7 +415,12 @@ def _validate_child_environment(working_directory: pathlib.Path, policy: str) ->
     ):
         if not os.environ.get(required_name):
             _refuse("DOC04B_SYNTHETIC_ENVIRONMENT_INVALID")
-    if not _is_within(os.environ["DATA_DIR"], str(working_directory)):
+    if policy == "production-profile-preflight-fixture":
+        if _normal_path(os.environ["DATA_DIR"]) != _normal_path(
+            os.environ.get("NEXT_DOC04_DATA_ROOT", "")
+        ):
+            _refuse("DOC04B_SYNTHETIC_DATA_ROOT_INVALID")
+    elif not _is_within(os.environ["DATA_DIR"], str(working_directory)):
         _refuse("DOC04B_SYNTHETIC_DATA_ROOT_INVALID")
     if any(name in os.environ for name in SENSITIVE_ABSENT):
         _refuse("DOC04B_INHERITED_ENVIRONMENT_PRESENT")
@@ -396,32 +428,62 @@ def _validate_child_environment(working_directory: pathlib.Path, policy: str) ->
         _refuse("DOC04B_INHERITED_ENVIRONMENT_PRESENT")
 
 
-def _run_git(repo: pathlib.Path, *args: str) -> str:
+def _trusted_git_environment() -> dict[str, str]:
+    attributes_file = os.environ.get("NEXT_DOC04_GIT_ATTRIBUTES_FILE", "")
+    global_config = os.environ.get("GIT_CONFIG_GLOBAL", "")
+    home = os.environ.get("HOME", "")
+    xdg = os.environ.get("XDG_CONFIG_HOME", "")
+    if not all((attributes_file, global_config, home, xdg)):
+        _refuse("DOC04B_TRUSTED_GIT_ENVIRONMENT_INVALID")
+    for path in (attributes_file, global_config):
+        candidate = pathlib.Path(path)
+        if not candidate.is_file() or candidate.stat().st_size != 0:
+            _refuse("DOC04B_TRUSTED_GIT_ENVIRONMENT_INVALID")
+    for path in (home, xdg):
+        if not pathlib.Path(path).is_dir():
+            _refuse("DOC04B_TRUSTED_GIT_ENVIRONMENT_INVALID")
+    expected = {
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+    }
+    if any(os.environ.get(key) != value for key, value in expected.items()):
+        _refuse("DOC04B_TRUSTED_GIT_ENVIRONMENT_INVALID")
+    result = {
+        key: value
+        for key, value in os.environ.items()
+        if key.casefold() in {"systemroot", "windir", "comspec", "path", "temp", "tmp"}
+    }
+    result.update(expected)
+    result.update(
+        {
+            "GIT_CONFIG_GLOBAL": global_config,
+            "HOME": home,
+            "USERPROFILE": home,
+            "XDG_CONFIG_HOME": xdg,
+        }
+    )
+    return result
+
+
+def _run_git(repo: pathlib.Path, *args: str, input_text: str | None = None) -> str:
     executable = os.environ.get("NEXT_DOC04_GIT_EXE", "")
     if not executable or not os.path.isabs(executable) or not os.path.isfile(executable):
         _refuse("DOC04B_GIT_EXECUTABLE_REQUIRED")
     try:
         completed = subprocess.run(
-            [executable, "-C", str(repo), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="strict",
-            timeout=30,
-        )
-    except Exception as error:
-        raise RuntimeRefusal("DOC04B_GIT_IDENTITY_FAILED") from error
-    return completed.stdout.strip()
-
-
-def _run_git_input(repo: pathlib.Path, input_text: str, *args: str) -> str:
-    executable = os.environ.get("NEXT_DOC04_GIT_EXE", "")
-    if not executable or not os.path.isabs(executable) or not os.path.isfile(executable):
-        _refuse("DOC04B_GIT_EXECUTABLE_REQUIRED")
-    try:
-        completed = subprocess.run(
-            [executable, "-C", str(repo), *args],
+            [
+                executable,
+                "-c",
+                f"core.attributesFile={os.environ['NEXT_DOC04_GIT_ATTRIBUTES_FILE']}",
+                "-c",
+                "core.autocrlf=false",
+                "-C",
+                str(repo),
+                *args,
+            ],
             input=input_text,
             check=True,
             capture_output=True,
@@ -429,10 +491,134 @@ def _run_git_input(repo: pathlib.Path, input_text: str, *args: str) -> str:
             encoding="utf-8",
             errors="strict",
             timeout=30,
+            env=_trusted_git_environment(),
         )
     except Exception as error:
         raise RuntimeRefusal("DOC04B_GIT_IDENTITY_FAILED") from error
     return completed.stdout.strip()
+
+
+def _normalized_git_blob_sha1(path: pathlib.Path) -> str:
+    text = path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    body = text.encode("utf-8")
+    return hashlib.sha1(b"blob " + str(len(body)).encode("ascii") + b"\0" + body).hexdigest()
+
+
+def _assert_exact_physical_tree(
+    repo: pathlib.Path, relative_root: str, tracked_paths: list[str], code: str
+) -> None:
+    root = repo / pathlib.PurePosixPath(relative_root)
+    _assert_no_reparse_chain(root, code)
+    if not root.is_dir() or _is_reparse_or_link(root):
+        _refuse(code)
+    expected_files = set(tracked_paths)
+    expected_directories: set[str] = set()
+    for relative in tracked_paths:
+        if not relative.startswith(relative_root + "/"):
+            _refuse(code)
+        parent = pathlib.PurePosixPath(relative).parent
+        while parent.as_posix() != relative_root:
+            expected_directories.add(parent.as_posix())
+            parent = parent.parent
+    actual_files: set[str] = set()
+    actual_directories: set[str] = set()
+    casefolded: dict[str, str] = {}
+    for current_root, directory_names, file_names in os.walk(root, topdown=True):
+        current = pathlib.Path(current_root)
+        for name in [*directory_names, *file_names]:
+            path = current / name
+            if _is_reparse_or_link(path):
+                _refuse(code)
+            relative = path.relative_to(repo).as_posix()
+            previous = casefolded.setdefault(relative.casefold(), relative)
+            if previous != relative:
+                _refuse("DOC04B_SOURCE_FILESYSTEM_CASE_COLLISION")
+            if path.is_dir():
+                actual_directories.add(relative)
+            elif path.is_file():
+                actual_files.add(relative)
+            else:
+                _refuse(code)
+    if actual_files != expected_files or actual_directories != expected_directories:
+        _refuse(code)
+
+
+def _assert_trusted_git_boundary(repo: pathlib.Path, paths: list[str], lock: dict[str, Any]) -> None:
+    attributes = repo / ".gitattributes"
+    _assert_regular_non_reparse_file(attributes, "DOC04B_GITATTRIBUTES_INVALID")
+    expected = lock["trusted_git_policy"]["gitattributes_git_blob"]
+    if _normalized_git_blob_sha1(attributes) != expected:
+        _refuse("DOC04B_GITATTRIBUTES_BLOB_MISMATCH")
+    info_attributes = repo / ".git/info/attributes"
+    if info_attributes.exists() and (not info_attributes.is_file() or info_attributes.stat().st_size):
+        _refuse("DOC04B_GIT_INFO_ATTRIBUTES_FORBIDDEN")
+    output = _run_git(repo, "check-attr", "--stdin", "-a", input_text="".join(path + "\n" for path in paths))
+    for line in output.splitlines():
+        match = re.fullmatch(r".+: ([^:]+): .+", line)
+        if match is None or match.group(1) not in {"text", "eol"}:
+            _refuse("DOC04B_GIT_ATTRIBUTES_FORBIDDEN")
+
+
+def _configure_production_data_root(environment_root: pathlib.Path, policy: str) -> None:
+    global _PRODUCTION_DATA_ROOT
+    if policy not in PRODUCTION_POLICIES | {
+        PRODUCTION_PROFILE_INTEGRATION_POLICY,
+        "production-profile-preflight-fixture",
+    }:
+        return
+    data_raw = os.environ.get("NEXT_DOC04_DATA_ROOT", "")
+    if not data_raw:
+        _refuse("DOC04B_PRODUCTION_DATA_ROOT_REQUIRED")
+    data_root = pathlib.Path(data_raw)
+    canonical_environment = environment_root
+    if policy == "production-profile-preflight-fixture":
+        root_raw = os.environ.get("NEXT_DOC04_PRODUCTION_ENVIRONMENT_ROOT", "")
+        if not root_raw:
+            _refuse("DOC04B_PRODUCTION_DATA_ROOT_REQUIRED")
+        canonical_environment = pathlib.Path(root_raw)
+    expected = canonical_environment / "data"
+    if _normal_path(str(data_root)) != _normal_path(str(expected)):
+        _refuse("DOC04B_PRODUCTION_DATA_ROOT_NOT_CANONICAL")
+    _assert_no_reparse_chain(data_root, "DOC04B_PRODUCTION_DATA_ROOT_REPARSE")
+    if not data_root.is_dir() or _is_reparse_or_link(data_root):
+        _refuse("DOC04B_PRODUCTION_DATA_ROOT_INVALID")
+    _PRODUCTION_DATA_ROOT = _normal_path(str(data_root))
+
+
+def _verify_pycache_boundary(
+    repo: pathlib.Path | None, environment_root: pathlib.Path, working_directory: pathlib.Path
+) -> None:
+    configured = os.environ.get("NEXT_DOC04_PYCACHE_PREFIX", "")
+    invocation = os.environ.get("NEXT_DOC04_INVOCATION_SCRATCH", "")
+    runtime = os.environ.get("NEXT_DOC04_RUNTIME_ROOT", "")
+    if not configured or not invocation or not runtime:
+        _refuse("DOC04B_PYCACHE_BOUNDARY_INVALID")
+    prefix = pathlib.Path(configured)
+    if sys.pycache_prefix is None or _normal_path(sys.pycache_prefix) != _normal_path(str(prefix)):
+        _refuse("DOC04B_PYCACHE_BOUNDARY_INVALID")
+    invocation_path = pathlib.Path(invocation)
+    expected_scratch = invocation_path / "scratch"
+    if not invocation_path.is_dir() or _is_reparse_or_link(invocation_path):
+        _refuse("DOC04B_PYCACHE_BOUNDARY_INVALID")
+    _assert_no_reparse_chain(invocation_path, "DOC04B_PYCACHE_BOUNDARY_INVALID")
+    if not prefix.is_dir() or not _is_within(str(prefix), invocation):
+        _refuse("DOC04B_PYCACHE_BOUNDARY_INVALID")
+    _assert_no_reparse_chain(prefix, "DOC04B_PYCACHE_BOUNDARY_INVALID")
+    boundaries = [runtime, str(environment_root), str(working_directory)]
+    if repo is not None:
+        boundaries.append(str(repo))
+    if _PRODUCTION_DATA_ROOT:
+        boundaries.append(_PRODUCTION_DATA_ROOT)
+    for boundary in boundaries:
+        if boundary and _is_within(str(prefix), boundary):
+            _refuse("DOC04B_PYCACHE_BOUNDARY_INVALID")
+    if (
+        _normal_path(os.environ.get("TEMP", "")) != _normal_path(str(expected_scratch))
+        or _normal_path(os.environ.get("TMP", "")) != _normal_path(str(expected_scratch))
+        or not expected_scratch.is_dir()
+        or _is_reparse_or_link(expected_scratch)
+    ):
+        _refuse("DOC04B_TEMP_BOUNDARY_INVALID")
 
 
 def _load_runtime_lock(path: pathlib.Path) -> dict[str, Any]:
@@ -440,7 +626,7 @@ def _load_runtime_lock(path: pathlib.Path) -> dict[str, Any]:
         lock = json.loads(path.read_text(encoding="utf-8"))
     except Exception as error:
         raise RuntimeRefusal("DOC04B_RUNTIME_LOCK_INVALID") from error
-    if lock.get("schema") != "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4":
+    if lock.get("schema") != "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5":
         _refuse("DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH")
     return lock
 
@@ -465,6 +651,8 @@ def _verify_source() -> tuple[pathlib.Path, dict[str, Any]]:
         "backend/app",
         "operations/windows/doc04-metadata-repair",
         "backend/requirements.txt",
+        ".gitattributes",
+        "compose/backend/docker-compose.yml",
     )
     if protected_status:
         _refuse("DOC04B_PROTECTED_SOURCE_DIRTY")
@@ -493,11 +681,26 @@ def _verify_source() -> tuple[pathlib.Path, dict[str, Any]]:
         tracked_paths.append(relative)
     # --stdin-paths applies Git's path-specific clean filters to every supplied
     # path, the batched equivalent of one hash-object --path invocation per file.
-    actual_blobs = _run_git_input(
-        repo, "".join(path + "\n" for path in tracked_paths), "hash-object", "--stdin-paths"
+    actual_blobs = _run_git(
+        repo, "hash-object", "--stdin-paths",
+        input_text="".join(path + "\n" for path in tracked_paths),
     ).splitlines()
     if actual_blobs != expected_blobs:
         _refuse("DOC04B_BACKEND_APP_SOURCE_MODIFIED")
+    _assert_exact_physical_tree(
+        repo, "backend/app", tracked_paths, "DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY"
+    )
+    tooling_paths = list(lock["source_filesystem_policy"]["runtime_tooling_files"])
+    _assert_exact_physical_tree(
+        repo,
+        "operations/windows/doc04-metadata-repair",
+        tooling_paths,
+        "DOC04B_RUNTIME_TOOLING_FILESYSTEM_MISMATCH",
+    )
+    protected_paths = tracked_paths + tooling_paths + list(
+        lock["source_filesystem_policy"]["single_files"]
+    )
+    _assert_trusted_git_boundary(repo, protected_paths, lock)
     for relative in lock["critical_git_paths"]:
         path = repo / pathlib.PurePosixPath(relative)
         if not path.is_file() or _is_reparse_or_link(path):
@@ -506,6 +709,14 @@ def _verify_source() -> tuple[pathlib.Path, dict[str, Any]]:
         working = _run_git(repo, "hash-object", f"--path={relative}", str(path))
         if committed != working:
             _refuse("DOC04B_CRITICAL_SOURCE_MODIFIED")
+    if _run_git(repo, "rev-parse", "HEAD:backend/requirements.txt") != lock["backend_requirements_git_blob"]:
+        _refuse("DOC04B_BACKEND_REQUIREMENTS_BLOB_MISMATCH")
+    compose_path = lock["production_data_policy"]["compose_path"]
+    if _run_git(repo, "rev-parse", f"HEAD:{compose_path}") != lock["production_data_policy"]["compose_git_blob"]:
+        _refuse("DOC04B_COMPOSE_BLOB_MISMATCH")
+    compose = (repo / pathlib.PurePosixPath(compose_path)).read_text(encoding="utf-8")
+    if lock["production_data_policy"]["compose_mount"] not in compose:
+        _refuse("DOC04B_COMPOSE_DATA_MAPPING_MISMATCH")
     return repo, lock
 
 
@@ -853,7 +1064,7 @@ def _production_source_security_trace(
             continue
         path = pathlib.Path(origin)
         if path.suffix in {".pyc", ".pyo"}:
-            path = path.with_suffix(".py")
+            _refuse("DOC04B_APPLICATION_BYTECODE_ORIGIN_FORBIDDEN")
         try:
             relative = path.resolve().relative_to(app_boundary.resolve())
         except (OSError, ValueError):
@@ -886,6 +1097,7 @@ def _production_source_security_trace(
         "application_import_closure_sha256": closure_sha256,
         "distributions": sorted(PRODUCTION_EXPECTED_PACKAGES),
         "outside_repository_count": outside_repository,
+        "source_pycache_origins": 0,
         "package_count": len(PRODUCTION_EXPECTED_PACKAGES),
         "psycopg_implementation": psycopg.pq.__impl__,
         "reviewed_reachability_decision": source_contract["reviewed_reachability_decision"],
@@ -928,6 +1140,7 @@ def _smoke(working_directory: pathlib.Path, lock: dict[str, Any]) -> dict[str, A
         "env_file_open_attempts": _ENV_FILE_OPEN_ATTEMPTS,
         "packages": versions,
         "python": platform.python_version(),
+        "pycache_prefix_isolated": True,
         "result": "DOC04B_SMOKE_PASS",
         "stdlib_modules": stdlib_modules,
     }
@@ -939,6 +1152,26 @@ def _iter_tests(suite: unittest.TestSuite) -> Iterator[unittest.TestCase]:
             yield from _iter_tests(item)
         else:
             yield item
+
+
+@contextlib.contextmanager
+def _isolated_test_git_normalization() -> Iterator[None]:
+    """Make frozen synthetic Git fixtures model Windows text normalization."""
+    values = {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.autocrlf",
+        "GIT_CONFIG_VALUE_0": "true",
+    }
+    previous = {name: os.environ.get(name) for name in values}
+    os.environ.update(values)
+    try:
+        yield
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def _run_tests(suite_name: str) -> dict[str, Any]:
@@ -972,7 +1205,8 @@ def _run_tests(suite_name: str) -> dict[str, Any]:
         for prefix in ("u", "r", "g", "h", "i")
     }
     captured = io.StringIO()
-    result = unittest.TextTestRunner(stream=captured, verbosity=2).run(suite)
+    with _isolated_test_git_normalization():
+        result = unittest.TextTestRunner(stream=captured, verbosity=2).run(suite)
     if not result.wasSuccessful() or result.skipped:
         failed = []
         for test, _ in list(result.failures) + list(result.errors):
@@ -1133,7 +1367,8 @@ def _production_preflight_fixture(
     backup_raw = os.environ.get("NEXT_DOC04_SYNTHETIC_BACKUP_ROOT", "")
     backup_root = pathlib.Path(backup_raw).resolve() if backup_raw else pathlib.Path()
     if (
-        not _is_within(str(data_root), str(working_directory))
+        _PRODUCTION_DATA_ROOT is None
+        or _normal_path(str(data_root)) != _PRODUCTION_DATA_ROOT
         or not backup_raw
         or not _is_within(str(backup_root), str(working_directory))
         or data_root == backup_root
@@ -1284,7 +1519,22 @@ def _argument_parser() -> argparse.ArgumentParser:
     sub.add_parser("smoke", add_help=False)
     sub.add_parser("compatibility-vectors", add_help=False)
     sub.add_parser("production-source-security-trace", add_help=False)
-    sub.add_parser("network-forbidden-probe", add_help=False)
+    network = sub.add_parser("network-forbidden-probe", add_help=False)
+    network.add_argument(
+        "--case",
+        choices=(
+            "socket_new",
+            "bind",
+            "sendto",
+            "sendmsg",
+            "gethostbyaddr",
+            "getnameinfo",
+            "getservbyname",
+            "getservbyport",
+            "wrong_connect",
+        ),
+        required=True,
+    )
     relay = sub.add_parser("repair-relay-self-test", add_help=False)
     relay.add_argument(
         "--case",
@@ -1319,6 +1569,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         args = _argument_parser().parse_args(raw_args)
     environment_root, working_directory, policy = _environment_roots()
+    _configure_production_data_root(environment_root, policy)
     if policy in PRODUCTION_POLICIES | {
         SYNTHETIC_PRODUCTION_POLICY,
         PRODUCTION_PROFILE_INTEGRATION_POLICY,
@@ -1349,6 +1600,8 @@ def main(argv: list[str] | None = None) -> int:
     if _normal_path(os.getcwd()) != _normal_path(str(working_directory)):
         _refuse("DOC04B_WORKING_DIRECTORY_NOT_APPLIED")
     _validate_child_environment(working_directory, policy)
+    provisional_repo = None if policy == "backend-reference" else pathlib.Path(__file__).resolve().parents[3]
+    _verify_pycache_boundary(provisional_repo, environment_root, working_directory)
     null_fd = os.open(os.devnull, os.O_WRONLY)
     try:
         os.dup2(null_fd, 1)
@@ -1401,7 +1654,25 @@ def main(argv: list[str] | None = None) -> int:
         _emit(_production_source_security_trace(repo, lock, backend_reference=backend_reference))
         return 0
     if args.mode == "network-forbidden-probe":
-        socket.socket()
+        probe = args.case
+        if probe == "socket_new":
+            socket.socket()
+        elif probe == "wrong_connect":
+            sys.audit("socket.connect", None, ("127.0.0.1", 1))
+        elif probe == "bind":
+            sys.audit("socket.bind", None, ("127.0.0.1", 0))
+        elif probe == "sendto":
+            sys.audit("socket.sendto", None, b"x", ("127.0.0.1", 1))
+        elif probe == "sendmsg":
+            sys.audit("socket.sendmsg", None, [b"x"], (), 0, ("127.0.0.1", 1))
+        elif probe == "gethostbyaddr":
+            sys.audit("socket.gethostbyaddr", "127.0.0.1")
+        elif probe == "getnameinfo":
+            sys.audit("socket.getnameinfo", ("127.0.0.1", 1), 0)
+        elif probe == "getservbyname":
+            sys.audit("socket.getservbyname", "postgresql", "tcp")
+        elif probe == "getservbyport":
+            sys.audit("socket.getservbyport", 5432, "tcp")
         _refuse("DOC04B_NETWORK_PROBE_NOT_BLOCKED")
     if args.mode == "repair-relay-self-test":
         return _relay_self_test(args.case)

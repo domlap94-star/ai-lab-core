@@ -1,5 +1,5 @@
 {
-  "schema": "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4",
+  "schema": "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5",
   "runtime_python": {
     "implementation": "CPython",
     "version": "3.12.10",
@@ -34,6 +34,87 @@
   "allowed_download_hosts": ["files.pythonhosted.org","pypi.org","www.python.org"],
   "extraction_limits": {"maximum_entries_per_archive":20000,"maximum_entry_bytes":67108864,"maximum_archive_output_bytes":536870912,"stream_buffer_bytes":1048576,"maximum_redirects":3},
   "backend_requirements_git_blob": "edd024b8be485794e1803bdf8d86fb4a10f060a3",
+  "source_filesystem_policy": {
+    "backend_app_root": "backend/app",
+    "runtime_tooling_root": "operations/windows/doc04-metadata-repair",
+    "runtime_tooling_files": [
+      "operations/windows/doc04-metadata-repair/runtime-lock.json",
+      "operations/windows/doc04-metadata-repair/build-runtime.ps1",
+      "operations/windows/doc04-metadata-repair/invoke-repair.ps1",
+      "operations/windows/doc04-metadata-repair/runtime-entrypoint.py",
+      "operations/windows/doc04-metadata-repair/test-runtime.ps1",
+      "operations/windows/doc04-metadata-repair/README.md"
+    ],
+    "single_files": [
+      "backend/requirements.txt",
+      ".gitattributes",
+      "compose/backend/docker-compose.yml"
+    ],
+    "physical_set_rule": "every physical file and directory below a protected tree must have exactly one case-exact tracked Git counterpart",
+    "forbidden_import_artifacts": ["__pycache__", ".pyc", ".pyo", ".pyd", ".dll", ".pth"],
+    "case_sensitive_identity_required": true,
+    "reparse_objects_forbidden": true
+  },
+  "trusted_git_policy": {
+    "gitattributes_git_blob": "dfe0770424b2a19faf507a501ebfc23be8f54e7b",
+    "info_attributes": "absent_or_empty",
+    "environment": {
+      "GIT_CONFIG_NOSYSTEM": "1",
+      "GIT_ATTR_NOSYSTEM": "1",
+      "GIT_TERMINAL_PROMPT": "0",
+      "GIT_NO_REPLACE_OBJECTS": "1",
+      "GIT_OPTIONAL_LOCKS": "0"
+    },
+    "command_config": {
+      "core.attributesFile": "fresh_empty_file",
+      "core.autocrlf": "false"
+    },
+    "allowed_path_attributes": ["text", "eol"],
+    "forbidden_path_attributes": ["filter", "ident", "working-tree-encoding"]
+  },
+  "production_data_policy": {
+    "canonical_relative_path": "data",
+    "compose_path": "compose/backend/docker-compose.yml",
+    "compose_git_blob": "2c592a9408066d82bb6e8bd8db74f907a3ab3afd",
+    "compose_mount": "../../data:/data",
+    "alternate_copy_forbidden": true,
+    "reparse_objects_forbidden": true
+  },
+  "python_network_policy": {
+    "database_endpoint": "numeric-loopback-only",
+    "audited_events": [
+      "socket.__new__",
+      "socket.bind",
+      "socket.connect",
+      "socket.getaddrinfo",
+      "socket.gethostbyaddr",
+      "socket.gethostbyname",
+      "socket.gethostbyname_ex",
+      "socket.getnameinfo",
+      "socket.getservbyname",
+      "socket.getservbyport",
+      "socket.sendmsg",
+      "socket.sendto",
+      "urllib.Request",
+      "http.client.connect"
+    ],
+    "always_forbidden_events": [
+      "socket.sendto",
+      "socket.sendmsg",
+      "socket.gethostbyaddr",
+      "socket.getnameinfo",
+      "socket.getservbyname",
+      "socket.getservbyport"
+    ],
+    "bind_exception": "exact internal CPython fallback socketpair only",
+    "native_libpq_boundary": "host, port, database and PostgreSQL identity remain independently constrained"
+  },
+  "backend_reference_image_policy": {
+    "container": "ai-lab-backend",
+    "inspection": "docker inspect --format {{.Image}} exactly once per readiness campaign",
+    "expected_image": "optional constraint only",
+    "reuse_inspected_identity": true
+  },
   "python312_pth": ["python312.zip",".","Lib\\site-packages","import site"],
   "path_policies": {
     "runtime_cache": {
@@ -120,7 +201,7 @@
       "installed_runtime": {
         "expected_file_count": 1327,
         "expected_bytes_maximum": 67108864,
-        "expected_tree_sha256": "c5fa06a3e21ab2ea0e8df3dcfa4abee10015f9c0a240b66a8ae10a955ce99fad"
+        "expected_tree_sha256": "c5a7bb28d376ae717ac105bdda359fe16ef3838550e72e08dd4522ddad128d69"
       }
     },
     "Qualification": {
@@ -128,7 +209,7 @@
       "installed_runtime": {
         "expected_file_count": 4710,
         "expected_bytes_maximum": 268435456,
-        "expected_tree_sha256": "0ceaf9fb3876b3ee0ddfeb77bb70ad92dfd783b19cce97e82279395ef25b687e"
+        "expected_tree_sha256": "48496606c4899c74ccb1c23667fa199e2b58be560a2fbdd1419fe1d7deab4b2f"
       }
     }
   },

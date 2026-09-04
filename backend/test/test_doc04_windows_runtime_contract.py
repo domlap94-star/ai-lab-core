@@ -45,10 +45,10 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         actual.add("backend/test/test_doc04_windows_runtime_contract.py")
         self.assertEqual(actual, EXPECTED_FILES)
 
-    def test_runtime_lock_v4_python_profiles_paths_and_variance(self) -> None:
+    def test_runtime_lock_v5_python_profiles_paths_and_variance(self) -> None:
         self.assertEqual(
             self.lock["schema"],
-            "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4",
+            "NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5",
         )
         python = self.lock["runtime_python"]
         self.assertEqual(python["implementation"], "CPython")
@@ -173,8 +173,8 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
 
     def test_runtime_identity_is_frozen(self) -> None:
         identities = {
-            "Production": (1327, "c5fa06a3e21ab2ea0e8df3dcfa4abee10015f9c0a240b66a8ae10a955ce99fad"),
-            "Qualification": (4710, "0ceaf9fb3876b3ee0ddfeb77bb70ad92dfd783b19cce97e82279395ef25b687e"),
+            "Production": (1327, "c5a7bb28d376ae717ac105bdda359fe16ef3838550e72e08dd4522ddad128d69"),
+            "Qualification": (4710, "48496606c4899c74ccb1c23667fa199e2b58be560a2fbdd1419fe1d7deab4b2f"),
         }
         for profile, (count, digest) in identities.items():
             installed = self.lock["profiles"][profile]["installed_runtime"]
@@ -356,6 +356,8 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
             self.assertRegex(harness, rf"['\"]M{index:02d}['\"]")
         for index in range(1, 29):
             self.assertRegex(harness, rf"['\"]N{index:02d}['\"]")
+        for index in range(1, 33):
+            self.assertRegex(harness, rf"['\"]O{index:02d}['\"]")
         self.assertIn("hostile-parent-marker", harness)
         self.assertIn("SyntheticProductionAudit", harness)
         self.assertIn("AuditEnvProbe", harness)
@@ -468,7 +470,7 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
         self.assertIn("def _production_preflight_fixture(", entrypoint)
         self.assertIn('"hash-object", "--stdin-paths"', entrypoint)
 
-    def test_v4_source_and_dynamic_security_contract_is_frozen(self) -> None:
+    def test_v5_source_and_dynamic_security_contract_is_frozen(self) -> None:
         closure = self.lock["source_closure"]
         self.assertEqual(
             closure["backend_app_git_tree_sha"],
@@ -492,6 +494,95 @@ class Doc04WindowsRuntimeContractTests(unittest.TestCase):
             "backend/app/services/backup_supervisor_client.py",
         ):
             self.assertIn(relative, self.lock["critical_git_paths"])
+
+    def test_v5_source_filesystem_and_trusted_git_contract(self) -> None:
+        source = self.lock["source_filesystem_policy"]
+        self.assertEqual(source["backend_app_root"], "backend/app")
+        self.assertEqual(
+            set(source["runtime_tooling_files"]),
+            EXPECTED_FILES - {"backend/test/test_doc04_windows_runtime_contract.py"},
+        )
+        self.assertEqual(
+            source["single_files"],
+            ["backend/requirements.txt", ".gitattributes", "compose/backend/docker-compose.yml"],
+        )
+        self.assertEqual(
+            set(source["forbidden_import_artifacts"]),
+            {"__pycache__", ".pyc", ".pyo", ".pyd", ".dll", ".pth"},
+        )
+        git = self.lock["trusted_git_policy"]
+        self.assertEqual(git["gitattributes_git_blob"], "dfe0770424b2a19faf507a501ebfc23be8f54e7b")
+        self.assertEqual(git["info_attributes"], "absent_or_empty")
+        self.assertEqual(
+            git["environment"],
+            {
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+            },
+        )
+        self.assertEqual(set(git["forbidden_path_attributes"]), {"filter", "ident", "working-tree-encoding"})
+        self.assertEqual(self.lock["backend_requirements_git_blob"], "edd024b8be485794e1803bdf8d86fb4a10f060a3")
+        combined = "\n".join(
+            (TOOL / name).read_text(encoding="utf-8")
+            for name in ("build-runtime.ps1", "invoke-repair.ps1", "runtime-entrypoint.py")
+        )
+        for token in (
+            "Assert-ExactPhysicalTree",
+            "DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY",
+            "DOC04B_SOURCE_FILESYSTEM_CASE_COLLISION",
+            "NEXT_DOC04_GIT_ATTRIBUTES_FILE",
+            "GIT_CONFIG_NOSYSTEM",
+            "GIT_ATTR_NOSYSTEM",
+            "GIT_NO_REPLACE_OBJECTS",
+            "core.attributesFile",
+            "core.autocrlf=false",
+            "check-attr",
+            "working-tree-encoding",
+        ):
+            self.assertIn(token, combined)
+
+    def test_v5_pycache_data_image_and_network_contract(self) -> None:
+        launcher = (TOOL / "invoke-repair.ps1").read_text(encoding="utf-8")
+        entrypoint = (TOOL / "runtime-entrypoint.py").read_text(encoding="utf-8")
+        builder = (TOOL / "build-runtime.ps1").read_text(encoding="utf-8")
+        harness = (TOOL / "test-runtime.ps1").read_text(encoding="utf-8")
+        for token in (
+            "--check-hash-based-pycs",
+            "pycache_prefix=",
+            "NEXT_DOC04_PYCACHE_PREFIX",
+            "NEXT_DOC04_INVOCATION_SCRATCH",
+            "DOC04B_SOURCE_PYCACHE_CREATED",
+        ):
+            self.assertIn(token, launcher + entrypoint + builder)
+        data = self.lock["production_data_policy"]
+        self.assertEqual(data["canonical_relative_path"], "data")
+        self.assertEqual(data["compose_git_blob"], "2c592a9408066d82bb6e8bd8db74f907a3ab3afd")
+        self.assertEqual(data["compose_mount"], "../../data:/data")
+        self.assertIn("Assert-ProductionDataRoot", launcher)
+        self.assertIn("DOC04B_PRODUCTION_DATA_ROOT_NOT_CANONICAL", launcher + entrypoint)
+        self.assertIn("docker inspect --format '{{.Image}}' ai-lab-backend", harness)
+        self.assertIn("CONSTRAINT_ONLY", harness)
+        self.assertIn(
+            "[Environment]::SetEnvironmentVariable($forbiddenRootsEnvironmentName, '[\"/app\"]', 'Process')",
+            harness,
+        )
+        self.assertIn("'-e',$forbiddenRootsEnvironmentName", harness)
+        self.assertNotIn('NEXT_DOC04_FORBIDDEN_ROOTS_JSON=[\\"/app\\"]', harness)
+        self.assertIn(
+            "Pass-N 'N01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5'",
+            harness,
+        )
+        self.assertNotIn("Pass-N 'N01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4'", harness)
+        events = set(self.lock["python_network_policy"]["audited_events"])
+        for event in (
+            "socket.bind", "socket.sendto", "socket.sendmsg", "socket.gethostbyaddr",
+            "socket.getnameinfo", "socket.getservbyname", "socket.getservbyport",
+        ):
+            self.assertIn(event, events)
+            self.assertIn(event, entrypoint)
 
     def test_no_secret_or_production_value_is_committed(self) -> None:
         combined = "\n".join(

@@ -86,15 +86,123 @@ function Assert-SafeRoot([string]$Path, [string]$Name, [string]$Repo, $Policy) {
     Assert-NoReparseChain $full
     return $full
 }
-function Invoke-Git([string[]]$Arguments) {
-    $out = & git @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { Stop-Build 'git_identity_failed' }
-    return (($out | Out-String).Trim())
+function ConvertTo-WindowsArgument([string]$Value) {
+    if ($Value.Length -eq 0) { return '""' }
+    if ($Value -notmatch '[\s"]') { return $Value }
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    [int]$slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq '\') { $slashes++; continue }
+        if ($character -eq '"') { [void]$builder.Append(('\' * (($slashes * 2) + 1))); [void]$builder.Append('"'); $slashes = 0; continue }
+        if ($slashes -gt 0) { [void]$builder.Append(('\' * $slashes)); $slashes = 0 }
+        [void]$builder.Append($character)
+    }
+    if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+function Get-TrustedGitExecutable {
+    $shim=(@(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]).Source
+    $gitRoot=Split-Path -Parent (Split-Path -Parent $shim)
+    $direct=Join-Path $gitRoot 'mingw64\bin\git.exe'
+    if(Test-Path -LiteralPath $direct -PathType Leaf){return $direct}
+    return $shim
+}
+function Invoke-Git([string[]]$Arguments, [string]$InputText = '') {
+    $git = Get-TrustedGitExecutable
+    $boundary = Join-Path ([System.IO.Path]::GetTempPath()) ('doc04b-git-' + [Guid]::NewGuid().ToString('N'))
+    [System.IO.Directory]::CreateDirectory($boundary) | Out-Null
+    $globalConfig = Join-Path $boundary 'global.gitconfig'
+    $attributes = Join-Path $boundary 'global.attributes'
+    $gitHomeRoot = Join-Path $boundary 'home'
+    $xdg = Join-Path $boundary 'xdg'
+    [System.IO.Directory]::CreateDirectory($gitHomeRoot) | Out-Null
+    [System.IO.Directory]::CreateDirectory($xdg) | Out-Null
+    [System.IO.File]::WriteAllText($globalConfig,'',[System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($attributes,'',[System.Text.UTF8Encoding]::new($false))
+    $allArguments = @('-c',"core.attributesFile=$attributes",'-c','core.autocrlf=false') + $Arguments
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $git
+    $info.Arguments = (@($allArguments | ForEach-Object { ConvertTo-WindowsArgument ([string]$_) }) -join ' ')
+    $info.UseShellExecute = $false; $info.CreateNoWindow = $true
+    $hasInput = -not [string]::IsNullOrEmpty($InputText)
+    $info.RedirectStandardInput = $hasInput; $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true
+    $info.EnvironmentVariables.Clear()
+    foreach($name in @('SystemRoot','WINDIR','ComSpec','PATH')) { $value=[Environment]::GetEnvironmentVariable($name,'Process'); if($value){$info.EnvironmentVariables[$name]=$value} }
+    $info.EnvironmentVariables['GIT_CONFIG_NOSYSTEM']='1';$info.EnvironmentVariables['GIT_ATTR_NOSYSTEM']='1';$info.EnvironmentVariables['GIT_TERMINAL_PROMPT']='0';$info.EnvironmentVariables['GIT_NO_REPLACE_OBJECTS']='1';$info.EnvironmentVariables['GIT_OPTIONAL_LOCKS']='0'
+    $info.EnvironmentVariables['TEMP']=$boundary;$info.EnvironmentVariables['TMP']=$boundary
+    $info.EnvironmentVariables['GIT_CONFIG_GLOBAL']=$globalConfig;$info.EnvironmentVariables['HOME']=$gitHomeRoot;$info.EnvironmentVariables['USERPROFILE']=$gitHomeRoot;$info.EnvironmentVariables['XDG_CONFIG_HOME']=$xdg
+    $process = New-Object System.Diagnostics.Process; $process.StartInfo = $info
+    try {
+        if(-not $process.Start()){Stop-Build 'git_identity_failed'}
+        $stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync()
+        if($hasInput){$process.StandardInput.Write($InputText);$process.StandardInput.Close()}
+        if(-not $process.WaitForExit(30000)){try{$process.Kill()}catch{};Stop-Build 'git_identity_failed'}
+        if($process.ExitCode -ne 0){Stop-Build 'git_identity_failed'}
+        return $stdout.Result.Trim()
+    } finally {
+        $process.Dispose()
+        if(Test-Path -LiteralPath $boundary){Remove-Item -LiteralPath $boundary -Recurse -Force}
+    }
+}
+function Get-NormalizedGitBlobSha1([string]$Path) {
+    $text=[System.IO.File]::ReadAllText($Path,[System.Text.UTF8Encoding]::new($false)).Replace("`r`n","`n").Replace("`r","`n")
+    $bytes=[System.Text.Encoding]::UTF8.GetBytes($text)
+    $header=[System.Text.Encoding]::ASCII.GetBytes(('blob '+$bytes.Length+[char]0))
+    $combined=New-Object byte[] ($header.Length+$bytes.Length)
+    [Array]::Copy($header,0,$combined,0,$header.Length);[Array]::Copy($bytes,0,$combined,$header.Length,$bytes.Length)
+    $sha=[System.Security.Cryptography.SHA1]::Create();try{$hash=$sha.ComputeHash($combined)}finally{$sha.Dispose()}
+    return [BitConverter]::ToString($hash).Replace('-','').ToLowerInvariant()
+}
+function Assert-ExactPhysicalTree([string]$Repo, [string]$RelativeRoot, [string[]]$TrackedPaths, [string]$Code) {
+    $root=Join-Path $Repo ($RelativeRoot -replace '/','\')
+    Assert-NoReparseTree $root
+    $expectedFiles=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $expectedDirectories=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach($tracked in $TrackedPaths){
+        if(-not $tracked.StartsWith($RelativeRoot+'/',[StringComparison]::Ordinal)){Stop-Build $Code}
+        [void]$expectedFiles.Add($tracked)
+        $parent=[IO.Path]::GetDirectoryName($tracked.Replace('/','\'))
+        while($parent -and $parent.Replace('\','/') -ne $RelativeRoot){[void]$expectedDirectories.Add($parent.Replace('\','/'));$parent=[IO.Path]::GetDirectoryName($parent)}
+    }
+    $actualFiles=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $actualDirectories=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $caseMap=@{}
+    foreach($item in Get-ChildItem -LiteralPath $root -Force -Recurse){
+        if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){Stop-Build $Code}
+        $relative=$item.FullName.Substring($Repo.Length).TrimStart('\').Replace('\','/')
+        $caseKey=$relative.ToLowerInvariant()
+        if($caseMap.ContainsKey($caseKey) -and $caseMap[$caseKey] -cne $relative){Stop-Build 'DOC04B_SOURCE_FILESYSTEM_CASE_COLLISION'}
+        $caseMap[$caseKey]=$relative
+        if($item.PSIsContainer){[void]$actualDirectories.Add($relative)}else{[void]$actualFiles.Add($relative)}
+    }
+    if($actualFiles.Count -ne $expectedFiles.Count -or @($actualFiles | Where-Object {-not $expectedFiles.Contains($_)}).Count -ne 0 -or @($expectedFiles | Where-Object {-not $actualFiles.Contains($_)}).Count -ne 0){Stop-Build $Code}
+    if($actualDirectories.Count -ne $expectedDirectories.Count -or @($actualDirectories | Where-Object {-not $expectedDirectories.Contains($_)}).Count -ne 0 -or @($expectedDirectories | Where-Object {-not $actualDirectories.Contains($_)}).Count -ne 0){Stop-Build $Code}
+}
+function Assert-TrustedGitBoundary([string]$Repo, [string[]]$Paths, $Lock) {
+    $attributesPath=Join-Path $Repo '.gitattributes'
+    if((Get-NormalizedGitBlobSha1 $attributesPath) -ne [string]$Lock.trusted_git_policy.gitattributes_git_blob){Stop-Build 'gitattributes_blob_mismatch'}
+    $infoAttributes=Join-Path $Repo '.git\info\attributes'
+    if((Test-Path -LiteralPath $infoAttributes) -and (Get-Item -LiteralPath $infoAttributes).Length -ne 0){Stop-Build 'git_info_attributes_forbidden'}
+    $attributeOutput=Invoke-Git @('-C',$Repo,'check-attr','--stdin','-a') (($Paths -join "`n")+"`n")
+    foreach($line in @($attributeOutput -split "`r?`n" | Where-Object {$_})){
+        if($line -notmatch '^.+: ([^:]+): .+$'){Stop-Build 'git_attributes_invalid'}
+        if($Matches[1] -in @('filter','ident','working-tree-encoding') -or $Matches[1] -notin @('text','eol')){Stop-Build 'git_attributes_forbidden'}
+    }
 }
 function Assert-GitIdentity([string]$Repo, [string]$Expected, $Lock) {
     $actualRoot = Invoke-Git @('-C', $Repo, 'rev-parse', '--show-toplevel')
     if (-not ([System.IO.Path]::GetFullPath($actualRoot).TrimEnd('\').Equals([System.IO.Path]::GetFullPath($Repo).TrimEnd('\'), [System.StringComparison]::OrdinalIgnoreCase))) { Stop-Build 'git_root_mismatch' }
     if ((Invoke-Git @('-C', $Repo, 'rev-parse', 'HEAD')) -ne $Expected) { Stop-Build 'git_head_mismatch' }
+    $treeOutput=Invoke-Git @('-C',$Repo,'ls-tree','-r','--full-tree','HEAD','--','backend/app')
+    $tracked=@($treeOutput -split "`r?`n" | Where-Object {$_})
+    $backendPaths=@($tracked | ForEach-Object { if($_ -notmatch '^(100644|100755) blob [0-9a-f]{40}\t(.+)$'){Stop-Build 'backend_app_tree_entry_invalid'};[string]$Matches[2] })
+    Assert-ExactPhysicalTree $Repo 'backend/app' $backendPaths 'source_filesystem_extra_entry'
+    $toolingPaths=@($Lock.source_filesystem_policy.runtime_tooling_files | ForEach-Object {[string]$_})
+    Assert-ExactPhysicalTree $Repo 'operations/windows/doc04-metadata-repair' $toolingPaths 'runtime_tooling_filesystem_mismatch'
+    $allProtected=@($backendPaths)+@($toolingPaths)+@($Lock.source_filesystem_policy.single_files | ForEach-Object {[string]$_})
+    Assert-TrustedGitBoundary $Repo $allProtected $Lock
     foreach ($relative in $Lock.critical_git_paths) {
         $absolute = Join-Path $Repo ([string]$relative -replace '/', '\')
         if (-not (Test-Path -LiteralPath $absolute -PathType Leaf)) { Stop-Build 'critical_git_path_missing' }
@@ -106,6 +214,8 @@ function Assert-GitIdentity([string]$Repo, [string]$Expected, $Lock) {
     }
     $requirementsBlob = Invoke-Git @('-C', $Repo, 'rev-parse', 'HEAD:backend/requirements.txt')
     if ($requirementsBlob -ne $Lock.backend_requirements_git_blob) { Stop-Build 'backend_requirements_blob_mismatch' }
+    $composeBlob=Invoke-Git @('-C',$Repo,'rev-parse',('HEAD:'+ [string]$Lock.production_data_policy.compose_path))
+    if($composeBlob -ne [string]$Lock.production_data_policy.compose_git_blob){Stop-Build 'compose_blob_mismatch'}
 }
 function Get-ProfilePackages($Lock, [string]$Name) {
     $definition = $Lock.profiles.$Name
@@ -429,7 +539,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Stop-Build 'host_git
 $RepoRoot = Get-FullLocalPath $RepoRoot 'repo'
 $lockPath = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-lock.json'
 $lock = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4') { Stop-Build 'runtime_lock_schema_mismatch' }
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5') { Stop-Build 'runtime_lock_schema_mismatch' }
 $RuntimeRoot = Assert-SafeRoot $RuntimeRoot 'runtime' $RepoRoot $lock.path_policies.runtime_cache
 $CacheRoot = Assert-SafeRoot $CacheRoot 'cache' $RepoRoot $lock.path_policies.runtime_cache
 if ((Test-Under $RuntimeRoot $CacheRoot) -or (Test-Under $CacheRoot $RuntimeRoot)) { Stop-Build 'runtime_cache_path_overlap' }
@@ -484,7 +594,10 @@ try {
     [void](Assert-Authenticode (Join-Path $staging 'python312.dll') $lock.runtime_python.authenticode_subject_contains $lock.runtime_python.product_version)
     $probeInfo = New-Object System.Diagnostics.ProcessStartInfo
     $probeInfo.FileName = Join-Path $staging 'python.exe'
-    $probeInfo.Arguments = '-I -B -X utf8 -c "import json,platform,sys;print(json.dumps({''version'':platform.python_version(),''machine'':platform.machine(),''bits'':64 if sys.maxsize>2**32 else 32},sort_keys=True,separators=('','','':'')))"'
+    $probeScratch = $RuntimeRoot + '.probe-' + [Guid]::NewGuid().ToString('N')
+    $probePycache = Join-Path $probeScratch 'pycache'
+    [System.IO.Directory]::CreateDirectory($probePycache) | Out-Null
+    $probeInfo.Arguments = '-I -B --check-hash-based-pycs always -X utf8 -X ' + (ConvertTo-WindowsArgument ('pycache_prefix=' + $probePycache)) + ' -c "import json,platform,sys;print(json.dumps({''version'':platform.python_version(),''machine'':platform.machine(),''bits'':64 if sys.maxsize>2**32 else 32},sort_keys=True,separators=('','','':'')))"'
     $probeInfo.UseShellExecute = $false
     $probeInfo.CreateNoWindow = $true
     $probeInfo.RedirectStandardOutput = $true
@@ -495,14 +608,15 @@ try {
         $value = [Environment]::GetEnvironmentVariable($name,'Process')
         if ($value) { $probeInfo.EnvironmentVariables[$name] = $value }
     }
-    $probeInfo.EnvironmentVariables['TEMP'] = $staging
-    $probeInfo.EnvironmentVariables['TMP'] = $staging
+    $probeInfo.EnvironmentVariables['TEMP'] = $probeScratch
+    $probeInfo.EnvironmentVariables['TMP'] = $probeScratch
     $probeInfo.EnvironmentVariables['PATH'] = $staging
     $probeInfo.EnvironmentVariables['PYTHONDONTWRITEBYTECODE'] = '1'
     $probeInfo.EnvironmentVariables['PYTHONNOUSERSITE'] = '1'
     $probeInfo.EnvironmentVariables['PYTHONUTF8'] = '1'
     $probeProcess = New-Object System.Diagnostics.Process
     $probeProcess.StartInfo = $probeInfo
+    $probeFailure=$null
     try {
         if (-not $probeProcess.Start()) { Stop-Build 'portable_python_probe_failed' }
         $probeOutput = $probeProcess.StandardOutput.ReadToEndAsync()
@@ -510,7 +624,14 @@ try {
         if (-not $probeProcess.WaitForExit(30000)) { try { $probeProcess.Kill() } catch { }; Stop-Build 'portable_python_probe_timeout' }
         $probe = $probeOutput.Result.Trim()
         if ($probeProcess.ExitCode -ne 0 -or $probeError.Result.Trim()) { Stop-Build 'portable_python_probe_failed' }
-    } finally { $probeProcess.Dispose() }
+    } catch { $probeFailure=$_ }
+    finally {
+        $probeProcess.Dispose()
+        $probePycacheCreated=@(Get-ChildItem -LiteralPath $probePycache -Force -Recurse -File).Count -ne 0
+        if(Test-Path -LiteralPath $probeScratch){Remove-Item -LiteralPath $probeScratch -Recurse -Force}
+    }
+    if($probePycacheCreated){Stop-Build 'portable_python_probe_pycache_created'}
+    if($probeFailure){throw $probeFailure}
     $probeObject = ($probe | Out-String).Trim() | ConvertFrom-Json
     if ($probeObject.version -ne '3.12.10' -or [int]$probeObject.bits -ne 64 -or $probeObject.machine -notmatch '(?i)(amd64|x86_64)') { Stop-Build 'portable_python_identity_mismatch' }
     Assert-NoReparseTree $staging

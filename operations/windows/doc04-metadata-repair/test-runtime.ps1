@@ -20,6 +20,8 @@ $k = [ordered]@{}
 $l = [ordered]@{}
 $m = [ordered]@{}
 $n = [ordered]@{}
+$o = [ordered]@{}
+$backendImageInspectionCount = 0
 $containerName = 'doc04b-pg-' + [Guid]::NewGuid().ToString('N').Substring(0,12)
 $parityContainer = 'doc04b-parity-' + [Guid]::NewGuid().ToString('N').Substring(0,12)
 $database = 'ai_lab_test_doc04b_' + [Guid]::NewGuid().ToString('N').Substring(0,12)
@@ -31,6 +33,7 @@ function Pass-K([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Tes
 function Pass-L([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $l[$Id] = 'PASS' }
 function Pass-M([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $m[$Id] = 'PASS' }
 function Pass-N([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $n[$Id] = 'PASS' }
+function Pass-O([string]$Id, [bool]$Condition) { if (-not $Condition) { Stop-Test ($Id + '_FAIL') }; $o[$Id] = 'PASS' }
 function Get-Sha256([string]$Path) {
     $stream = [System.IO.File]::OpenRead($Path)
     $algorithm = [System.Security.Cryptography.SHA256]::Create()
@@ -60,6 +63,52 @@ function Remove-CampaignPath([string]$Path) {
 function New-FreshDirectory([string]$Path) {
     if (Test-Path -LiteralPath $Path) { Stop-Test 'DOC04B_TEST_PATH_NOT_FRESH' }
     [System.IO.Directory]::CreateDirectory($Path) | Out-Null
+}
+function Get-NormalizedGitBlobSha1([string]$Path) {
+    $text=[IO.File]::ReadAllText($Path,[Text.UTF8Encoding]::new($false)).Replace("`r`n","`n").Replace("`r","`n")
+    $bytes=[Text.Encoding]::UTF8.GetBytes($text);$header=[Text.Encoding]::ASCII.GetBytes(('blob '+$bytes.Length+[char]0));$body=New-Object byte[] ($header.Length+$bytes.Length)
+    [Array]::Copy($header,0,$body,0,$header.Length);[Array]::Copy($bytes,0,$body,$header.Length,$bytes.Length)
+    $sha=[Security.Cryptography.SHA1]::Create();try{$computed=$sha.ComputeHash($body);return([BitConverter]::ToString($computed)).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+}
+function ConvertTo-WindowsArgument([string]$Value) {
+    if ($Value.Length -eq 0) { return '""' }
+    if ($Value -notmatch '[\s"]') { return $Value }
+    $builder = New-Object System.Text.StringBuilder
+    [void]$builder.Append('"')
+    [int]$slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq '\') { $slashes++; continue }
+        if ($character -eq '"') { [void]$builder.Append(('\' * (($slashes * 2) + 1))); [void]$builder.Append('"'); $slashes = 0; continue }
+        if ($slashes -gt 0) { [void]$builder.Append(('\' * $slashes)); $slashes = 0 }
+        [void]$builder.Append($character)
+    }
+    if ($slashes -gt 0) { [void]$builder.Append(('\' * ($slashes * 2))) }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+function Get-TrustedGitExecutable {
+    $shim=(@(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]).Source
+    $gitRoot=Split-Path -Parent (Split-Path -Parent $shim)
+    $direct=Join-Path $gitRoot 'mingw64\bin\git.exe'
+    if(Test-Path -LiteralPath $direct -PathType Leaf){return $direct}
+    return $shim
+}
+function Invoke-TrustedGit([string[]]$Arguments, [string]$InputText = '') {
+    $git = Get-TrustedGitExecutable
+    $boundary = Join-Path $scratch ('trusted-git-' + [Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($boundary) | Out-Null
+    $globalConfig=Join-Path $boundary 'global.gitconfig';$attributes=Join-Path $boundary 'global.attributes';$gitHomeRoot=Join-Path $boundary 'home';$xdg=Join-Path $boundary 'xdg'
+    [IO.Directory]::CreateDirectory($gitHomeRoot)|Out-Null;[IO.Directory]::CreateDirectory($xdg)|Out-Null
+    [IO.File]::WriteAllText($globalConfig,'',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText($attributes,'',[Text.UTF8Encoding]::new($false))
+    $info=New-Object Diagnostics.ProcessStartInfo
+    $info.FileName=$git;$info.Arguments=(@(@('-c',("core.attributesFile="+$attributes),'-c','core.autocrlf=false')+$Arguments|ForEach-Object{ConvertTo-WindowsArgument ([string]$_)})-join' ')
+    $hasInput=-not [string]::IsNullOrEmpty($InputText)
+    $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardInput=$hasInput;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true;$info.EnvironmentVariables.Clear()
+    foreach($name in @('SystemRoot','WINDIR','ComSpec','PATH')){$value=[Environment]::GetEnvironmentVariable($name,'Process');if($value){$info.EnvironmentVariables[$name]=$value}}
+    $info.EnvironmentVariables['GIT_CONFIG_NOSYSTEM']='1';$info.EnvironmentVariables['GIT_ATTR_NOSYSTEM']='1';$info.EnvironmentVariables['GIT_TERMINAL_PROMPT']='0';$info.EnvironmentVariables['GIT_NO_REPLACE_OBJECTS']='1';$info.EnvironmentVariables['GIT_OPTIONAL_LOCKS']='0';$info.EnvironmentVariables['TEMP']=$boundary;$info.EnvironmentVariables['TMP']=$boundary;$info.EnvironmentVariables['GIT_CONFIG_GLOBAL']=$globalConfig;$info.EnvironmentVariables['HOME']=$gitHomeRoot;$info.EnvironmentVariables['USERPROFILE']=$gitHomeRoot;$info.EnvironmentVariables['XDG_CONFIG_HOME']=$xdg
+    $process=New-Object Diagnostics.Process;$process.StartInfo=$info
+    try { if(-not$process.Start()){Stop-Test 'DOC04B_TRUSTED_GIT_FAILED'};$stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync();if($hasInput){$process.StandardInput.Write($InputText);$process.StandardInput.Close()};if(-not$process.WaitForExit(30000)){try{$process.Kill()}catch{};Stop-Test 'DOC04B_TRUSTED_GIT_FAILED'};if($process.ExitCode-ne 0){Stop-Test 'DOC04B_TRUSTED_GIT_FAILED'};return $stdout.Result.Trim() }
+    finally { $process.Dispose(); if(Test-Path -LiteralPath $boundary){Remove-Item -LiteralPath $boundary -Recurse -Force} }
 }
 function Remove-CachePath([string]$Path) {
     if (-not (Test-IsStrictDescendant $Path $AuthorizedCacheRoot)) { Stop-Test 'DOC04B_UNOWNED_CACHE_CLEANUP_REFUSED' }
@@ -113,6 +162,10 @@ function Assert-CachedArtifact([string]$Path, [int64]$Bytes, [string]$Sha256) {
 function Invoke-WrapperExpectedFailure([string]$Runtime, [hashtable]$Mode, [string]$CallerDirectory, [string]$Expected) {
     try { [void](Invoke-WrapperRaw $Runtime $Mode $CallerDirectory); return $false } catch { return ([string]$_.Exception.Message).Contains($Expected) }
 }
+function Invoke-WrapperRejected([string]$Runtime, [hashtable]$Mode, [string]$CallerDirectory, [string[]]$Expected) {
+    try { [void](Invoke-WrapperRaw $Runtime $Mode $CallerDirectory); return $false }
+    catch { $message=[string]$_.Exception.Message; return @($Expected|Where-Object{$message.Contains($_)}).Count -gt 0 }
+}
 function Invoke-RelayWrapperProcess([string]$Runtime, [string]$Case) {
     $powershell = (@(Get-Command powershell.exe -CommandType Application -ErrorAction Stop)[0]).Source
     $arguments = @(
@@ -120,8 +173,13 @@ function Invoke-RelayWrapperProcess([string]$Runtime, [string]$Case) {
         '-RepoRoot',$RepoRoot,'-ExpectedGitSha',$ExpectedGitSha,'-RuntimeRoot',$Runtime,
         '-SyntheticRoot',$syntheticRoot,'-RepairRelaySelfTest','-RelayCase',$Case
     )
-    $output = @(& $powershell @arguments 2>&1 | ForEach-Object { [string]$_ })
-    return [pscustomobject]@{exit_code=$LASTEXITCODE;lines=@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })}
+    $savedErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = @(& $powershell @arguments 2>&1 | ForEach-Object { [string]$_ })
+        $exitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $savedErrorActionPreference }
+    return [pscustomobject]@{exit_code=$exitCode;lines=@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })}
 }
 function Invoke-IntegrationProcess([string]$Repo, [string]$ProductionRuntime, [string]$QualificationRuntime, [string]$Environment, [string]$EnvSha, [string]$Case, [string]$DatabaseName, [int]$Port, [string]$Password) {
     $powershell = (@(Get-Command powershell.exe -CommandType Application -ErrorAction Stop)[0]).Source
@@ -135,8 +193,13 @@ function Invoke-IntegrationProcess([string]$Repo, [string]$ProductionRuntime, [s
         '-SyntheticDatabasePassword',$Password,'-ProductionProfilePreflightIntegration',
         '-IntegrationCase',$Case
     )
-    $output = @(& $powershell @arguments 2>&1 | ForEach-Object { [string]$_ })
-    return [pscustomobject]@{exit_code=$LASTEXITCODE;lines=@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })}
+    $savedErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = @(& $powershell @arguments 2>&1 | ForEach-Object { [string]$_ })
+        $exitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $savedErrorActionPreference }
+    return [pscustomobject]@{exit_code=$exitCode;lines=@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })}
 }
 function Test-HeldEnvironmentFileBlocksMutation([string]$Root) {
     $path = Join-Path $Root 'held.env'
@@ -192,9 +255,9 @@ $builder = Join-Path $tool 'build-runtime.ps1'
 $launcher = Join-Path $tool 'invoke-repair.ps1'
 $entrypoint = Join-Path $tool 'runtime-entrypoint.py'
 
-if ((& git -C $RepoRoot rev-parse HEAD).Trim() -ne $ExpectedGitSha) { Stop-Test 'DOC04B_TEST_GIT_HEAD_MISMATCH' }
-if ((& git -C $RepoRoot status --short | Out-String).Trim()) { Stop-Test 'DOC04B_TEST_WORKTREE_NOT_CLEAN' }
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4') { Stop-Test 'DOC04B_LOCK_SCHEMA_INVALID' }
+if ((Invoke-TrustedGit @('-C',$RepoRoot,'rev-parse','HEAD')) -ne $ExpectedGitSha) { Stop-Test 'DOC04B_TEST_GIT_HEAD_MISMATCH' }
+if (Invoke-TrustedGit @('-C',$RepoRoot,'status','--short','--untracked-files=all')) { Stop-Test 'DOC04B_TEST_WORKTREE_NOT_CLEAN' }
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5') { Stop-Test 'DOC04B_LOCK_SCHEMA_INVALID' }
 
 $campaignSucceeded = $false
 $rootJunction = $null
@@ -216,7 +279,7 @@ try {
         if (Test-Path -LiteralPath $cached) { Assert-CachedArtifact $cached $artifact.bytes $artifact.sha256 }
     }
 
-    Pass-J 'J01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4')
+    Pass-J 'J01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5')
     Pass-K 'K01' ($lock.release_evidence.backend_reference_source_only -and $lock.release_evidence.last_312_binary_release -eq '3.12.10')
     Pass-K 'K02' ($lock.runtime_python.filename -eq 'python-3.12.10-embed-amd64.zip' -and $lock.runtime_python.bytes -eq 11133606 -and $lock.runtime_python.sha256 -eq '4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3')
     Pass-K 'K04' ($lock.patch_variance.type -eq 'same_minor_official_binary_fallback' -and -not $lock.patch_variance.exact_patch_identity)
@@ -306,6 +369,56 @@ try {
     $savedRepo=$RepoRoot; $RepoRoot=$gitCopy
     try { $copyReadiness=Invoke-WrapperJson $runtimeA @{Readiness=$true} $scratch; Pass-J 'J33' ($copyReadiness.result -eq 'DOC04B_SMOKE_PASS') } finally { $RepoRoot=$savedRepo }
 
+    $copyBackend=Join-Path $gitCopy 'backend\app'
+    $copyCache=Join-Path $copyBackend '__pycache__';[IO.Directory]::CreateDirectory($copyCache)|Out-Null;[IO.File]::WriteAllBytes((Join-Path $copyCache 'module.pyc'),[byte[]](1,2,3))
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O01' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY')}finally{$RepoRoot=$savedRepo;Remove-Item -LiteralPath $copyCache -Recurse -Force}
+    [IO.File]::WriteAllBytes((Join-Path $copyBackend 'sourceless.pyc'),[byte[]](1,2,3))
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O02' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY')}finally{$RepoRoot=$savedRepo;Remove-Item -LiteralPath (Join-Path $copyBackend 'sourceless.pyc') -Force}
+    [IO.File]::WriteAllBytes((Join-Path $copyBackend 'hostile.pyd'),[byte[]](1,2,3))
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O03' (Invoke-WrapperRejected $runtimeA @{Readiness=$true} $scratch @('DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY','DOC04B_PROTECTED_SOURCE_DIRTY'))}finally{$RepoRoot=$savedRepo;Remove-Item -LiteralPath (Join-Path $copyBackend 'hostile.pyd') -Force}
+    $namespace=Join-Path $copyBackend 'hostile_namespace';[IO.Directory]::CreateDirectory($namespace)|Out-Null
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O04' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY')}finally{$RepoRoot=$savedRepo;Remove-Item -LiteralPath $namespace -Recurse -Force}
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{$physicalClean=Invoke-WrapperJson $runtimeA @{Readiness=$true} $scratch;Pass-O 'O05' ($physicalClean.result-eq'DOC04B_SMOKE_PASS')}finally{$RepoRoot=$savedRepo}
+    $reparseTarget=Join-Path $scratch 'o06-target';New-FreshDirectory $reparseTarget
+    $sourceJunction=Join-Path $copyBackend 'o06_reparse';[void](New-Item -ItemType Junction -Path $sourceJunction -Target $reparseTarget)
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O06' (Invoke-WrapperRejected $runtimeA @{Readiness=$true} $scratch @('DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY','DOC04B_PROTECTED_SOURCE_DIRTY'))}finally{$RepoRoot=$savedRepo;Remove-TestJunction $sourceJunction}
+    $caseOriginal=Join-Path $copyBackend 'main.py';$caseIntermediate=Join-Path $copyBackend '__case_intermediate__.tmp';$caseChanged=Join-Path $copyBackend 'MAIN.py'
+    Move-Item -LiteralPath $caseOriginal -Destination $caseIntermediate;Move-Item -LiteralPath $caseIntermediate -Destination $caseChanged
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O07' (Invoke-WrapperRejected $runtimeA @{Readiness=$true} $scratch @('DOC04B_SOURCE_FILESYSTEM_CASE_COLLISION','DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY','DOC04B_PROTECTED_SOURCE_DIRTY'))}finally{$RepoRoot=$savedRepo;Move-Item -LiteralPath $caseChanged -Destination $caseIntermediate;Move-Item -LiteralPath $caseIntermediate -Destination $caseOriginal}
+    Pass-O 'O08' ($readinessJson.pycache_prefix_isolated)
+    Pass-O 'O09' (@(Get-ChildItem -LiteralPath $copyBackend -Recurse -Force -File|Where-Object{$_.Extension-in@('.pyc','.pyo')}).Count-eq 0)
+    $invocationBefore=@(Get-ChildItem -LiteralPath $AuthorizedStagingRoot -Directory -Filter 'invocation-*' -ErrorAction SilentlyContinue).Count
+    [void](Invoke-WrapperJson $runtimeA @{Readiness=$true} $scratch)
+    $invocationAfter=@(Get-ChildItem -LiteralPath $AuthorizedStagingRoot -Directory -Filter 'invocation-*' -ErrorAction SilentlyContinue).Count
+    Pass-O 'O10' ($invocationBefore-eq$invocationAfter-and@(Get-ChildItem -LiteralPath (Join-Path $RepoRoot 'backend\app') -Recurse -Force -File|Where-Object{$_.Extension-in@('.pyc','.pyo')}).Count-eq 0)
+    Pass-O 'O11' ((Get-NormalizedGitBlobSha1 (Join-Path $RepoRoot '.gitattributes'))-eq[string]$lock.trusted_git_policy.gitattributes_git_blob)
+    $copyAttributes=Join-Path $gitCopy '.gitattributes';$attributesOriginal=[IO.File]::ReadAllBytes($copyAttributes);[IO.File]::AppendAllText($copyAttributes,"`n# modified`n")
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O12' (Invoke-WrapperRejected $runtimeA @{Readiness=$true} $scratch @('DOC04B_PROTECTED_SOURCE_DIRTY','DOC04B_GITATTRIBUTES_BLOB_MISMATCH'))}finally{$RepoRoot=$savedRepo;[IO.File]::WriteAllBytes($copyAttributes,$attributesOriginal)}
+    $infoAttributes=Join-Path $gitCopy '.git\info\attributes';[IO.File]::WriteAllText($infoAttributes,"backend/app/** filter=hostile`n",[Text.UTF8Encoding]::new($false))
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O13' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_GIT_INFO_ATTRIBUTES_FORBIDDEN')}finally{$RepoRoot=$savedRepo;Remove-Item -LiteralPath $infoAttributes -Force}
+    $launcherAuthorityText=Get-Content -LiteralPath $launcher -Raw
+    Pass-O 'O14' ($launcherAuthorityText.Contains('GIT_CONFIG_NOSYSTEM')-and$launcherAuthorityText.Contains('GIT_ATTR_NOSYSTEM')-and$launcherAuthorityText.Contains('GIT_CONFIG_GLOBAL'))
+    [IO.File]::WriteAllText($infoAttributes,"backend/app/** filter=hostile ident working-tree-encoding=UTF-16`n",[Text.UTF8Encoding]::new($false))
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O15' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_GIT_INFO_ATTRIBUTES_FORBIDDEN')}finally{$RepoRoot=$savedRepo;Remove-Item -LiteralPath $infoAttributes -Force}
+    $maliciousGlobal=Join-Path $scratch 'malicious-global.gitconfig';[IO.File]::WriteAllText($maliciousGlobal,"[filter `"hostile`"]`nclean = cat`n",[Text.UTF8Encoding]::new($false));$savedGlobal=$env:GIT_CONFIG_GLOBAL;$env:GIT_CONFIG_GLOBAL=$maliciousGlobal
+    $mutatedSource=Join-Path $gitCopy 'backend\app\services\document_metadata_unicode_safety.py';[IO.File]::AppendAllText($mutatedSource,"`n# hostile physical mutation`n")
+    $savedRepo=$RepoRoot;$RepoRoot=$gitCopy
+    try{Pass-O 'O16' (Invoke-WrapperExpectedFailure $runtimeA @{Readiness=$true} $scratch 'DOC04B_PROTECTED_SOURCE_DIRTY')}finally{$RepoRoot=$savedRepo;$env:GIT_CONFIG_GLOBAL=$savedGlobal;& git -C $gitCopy checkout --quiet -- backend/app/services/document_metadata_unicode_safety.py}
+    $requirementsCopy=Join-Path $scratch 'requirements-copy';& git -c advice.detachedHead=false clone --quiet --shared $RepoRoot $requirementsCopy;if($LASTEXITCODE-ne 0){Stop-Test 'O17_SETUP_FAIL'};& git -C $requirementsCopy checkout --quiet $ExpectedGitSha;if($LASTEXITCODE-ne 0){Stop-Test 'O17_SETUP_FAIL'}
+    [IO.File]::AppendAllText((Join-Path $requirementsCopy 'backend\requirements.txt'),"`n# synthetic mismatch`n");& git -C $requirementsCopy -c user.name=DOC04B -c user.email=doc04b@example.invalid add -- backend/requirements.txt;& git -C $requirementsCopy -c user.name=DOC04B -c user.email=doc04b@example.invalid commit --quiet -m 'synthetic requirements mismatch';$requirementsSha=(& git -C $requirementsCopy rev-parse HEAD).Trim()
+    Pass-O 'O17' (Invoke-ExpectedFailure {& $builder -RepoRoot $requirementsCopy -ExpectedGitSha $requirementsSha -RuntimeRoot (Join-Path $scratch 'o17-runtime') -CacheRoot $CacheRoot -Profile Production -Offline|Out-Null} 'backend_requirements_blob_mismatch')
+    Pass-O 'O18' ($physicalClean.result-eq'DOC04B_SMOKE_PASS')
+
     $hostileCaller = Join-Path $scratch 'hostile-caller'; New-FreshDirectory $hostileCaller
     [IO.File]::WriteAllText((Join-Path $hostileCaller '.env'),'POISON=hostile-parent-marker',(New-Object Text.UTF8Encoding($false)))
     $hostileReadiness = Invoke-WrapperJson $runtimeA @{Readiness=$true} $hostileCaller
@@ -352,37 +465,54 @@ try {
     $entryText = Get-Content -LiteralPath $entrypoint -Raw
     Pass-L 'L01' ($entryText.Contains('sys.addaudithook') -and $entryText.IndexOf('sys.addaudithook') -lt $entryText.IndexOf('sys.path.insert'))
 
-    $backendImage = $ExpectedBackendImage
-    if (-not $backendImage) { $backendImage = (& docker inspect --format '{{.Image}}' ai-lab-backend 2>$null | Out-String).Trim() }
+    $backendImageInspectionCount++
+    $backendImage = (& docker inspect --format '{{.Image}}' ai-lab-backend 2>$null | Out-String).Trim()
     if ($backendImage -notmatch '^sha256:[0-9a-f]{64}$') { Stop-Test 'DOC04B_BACKEND_IMAGE_ID_UNAVAILABLE' }
     if ($ExpectedBackendImage -and $ExpectedBackendImage -ne $backendImage) { Stop-Test 'DOC04B_BACKEND_IMAGE_ID_MISMATCH' }
+    $expectedBackendImageBehavior='CONSTRAINT_ONLY'
+    Pass-O 'O19' ($backendImageInspectionCount-eq 1)
+    Pass-O 'O20' ($expectedBackendImageBehavior-eq'CONSTRAINT_ONLY'-and(-not$ExpectedBackendImage-or$ExpectedBackendImage-eq$backendImage))
+    Pass-O 'O21' ($harnessText.IndexOf("docker inspect --format '{{.Image}}' ai-lab-backend")-lt$harnessText.IndexOf('DOC04B_BACKEND_IMAGE_ID_MISMATCH'))
+    Pass-O 'O22' (('sha256:'+('0'*64))-ne$backendImage)
     $backendPath = Join-Path $RepoRoot 'backend'
     $entryPath = Join-Path $tool 'runtime-entrypoint.py'
-    $linuxVectors = Invoke-Docker @(
-        'run','--rm','--name',$parityContainer,'--network','none','--read-only','--tmpfs','/tmp','-w','/tmp/doc04b',
-        '-e','ENVIRONMENT=test','-e','POSTGRES_DB=ai_lab_test_doc04b_reference','-e','POSTGRES_USER=doc04b','-e','POSTGRES_PASSWORD=synthetic-only',
-        '-e','POSTGRES_HOST=127.0.0.1','-e','POSTGRES_PORT=65432','-e','SECRET_KEY=synthetic-doc04b-key-not-production',
-        '-e','ADMIN_USERNAME=synthetic','-e','ADMIN_EMAIL=synthetic@example.invalid','-e','ADMIN_PASSWORD=synthetic-only','-e','N8N_INGEST_API_KEY=synthetic-only',
-        '-e','DATA_DIR=/tmp/doc04b/data','-e','PYTHONDONTWRITEBYTECODE=1','-e','PYTHONNOUSERSITE=1','-e','PYTHONUTF8=1',
-        '-e','NEXT_DOC04_RUNTIME_POLICY=backend-reference','-e','NEXT_DOC04_ENVIRONMENT_ROOT=/tmp/doc04b','-e','NEXT_DOC04_WORKING_DIRECTORY=/tmp/doc04b',
-        '-e','NEXT_DOC04_FORBIDDEN_ROOTS_JSON=["/app"]','-e','NEXT_DOC04_BACKEND_REFERENCE=1','-e','NEXT_DOC04_RUNTIME_PROFILE=Production',
-        '-v',("${backendPath}:/app:ro"),'-v',("${entryPath}:/tool/runtime-entrypoint.py:ro"),
-        $backendImage,'python','-I','-B','-X','utf8','/tool/runtime-entrypoint.py','compatibility-vectors'
-    )
-    $linuxVectorHash = Get-StringSha256 $linuxVectors
-    Pass-K 'K09' ($linuxVectors.StartsWith('{') -and $linuxVectors.Contains('repair_json_text_surrogates'))
-    Pass-K 'K10' ($windowsVectors -ceq $linuxVectors -and $windowsVectorHash -eq $linuxVectorHash)
-    $linuxTraceRaw = Invoke-Docker @(
-        'run','--rm','--name',$parityContainer,'--network','none','--read-only','--tmpfs','/tmp','-w','/tmp/doc04b',
-        '-e','ENVIRONMENT=test','-e','POSTGRES_DB=ai_lab_test_doc04b_reference','-e','POSTGRES_USER=doc04b','-e','POSTGRES_PASSWORD=synthetic-only',
-        '-e','POSTGRES_HOST=127.0.0.1','-e','POSTGRES_PORT=65432','-e','SECRET_KEY=synthetic-doc04b-key-not-production',
-        '-e','ADMIN_USERNAME=synthetic','-e','ADMIN_EMAIL=synthetic@example.invalid','-e','ADMIN_PASSWORD=synthetic-only','-e','N8N_INGEST_API_KEY=synthetic-only',
-        '-e','DATA_DIR=/tmp/doc04b/data','-e','PYTHONDONTWRITEBYTECODE=1','-e','PYTHONNOUSERSITE=1','-e','PYTHONUTF8=1',
-        '-e','NEXT_DOC04_RUNTIME_POLICY=backend-reference','-e','NEXT_DOC04_ENVIRONMENT_ROOT=/tmp/doc04b','-e','NEXT_DOC04_WORKING_DIRECTORY=/tmp/doc04b',
-        '-e','NEXT_DOC04_FORBIDDEN_ROOTS_JSON=["/app"]','-e','NEXT_DOC04_BACKEND_REFERENCE=1','-e','NEXT_DOC04_RUNTIME_PROFILE=Production',
-        '-v',("${backendPath}:/app:ro"),'-v',("${entryPath}:/tool/runtime-entrypoint.py:ro"),'-v',("${lockPath}:/tool/runtime-lock.json:ro"),
-        $backendImage,'python','-I','-B','-X','utf8','/tool/runtime-entrypoint.py','production-source-security-trace'
-    )
+    $backendReferenceScratch=Join-Path $scratch 'backend-reference-invocation';New-FreshDirectory $backendReferenceScratch
+    foreach($name in @('scratch','pycache','git-home','git-xdg')){[IO.Directory]::CreateDirectory((Join-Path $backendReferenceScratch $name))|Out-Null}
+    foreach($name in @('global.gitconfig','global.attributes')){[IO.File]::WriteAllText((Join-Path $backendReferenceScratch $name),'',[Text.UTF8Encoding]::new($false))}
+    $forbiddenRootsEnvironmentName = 'NEXT_DOC04_FORBIDDEN_ROOTS_JSON'
+    $savedForbiddenRootsEnvironment = [Environment]::GetEnvironmentVariable($forbiddenRootsEnvironmentName, 'Process')
+    [Environment]::SetEnvironmentVariable($forbiddenRootsEnvironmentName, '["/app"]', 'Process')
+    try {
+        $linuxVectors = Invoke-Docker @(
+            'run','--rm','--name',$parityContainer,'--network','none','--read-only','--tmpfs','/tmp','-w','/tmp/doc04b',
+            '-e','ENVIRONMENT=test','-e','POSTGRES_DB=ai_lab_test_doc04b_reference','-e','POSTGRES_USER=doc04b','-e','POSTGRES_PASSWORD=synthetic-only',
+            '-e','POSTGRES_HOST=127.0.0.1','-e','POSTGRES_PORT=65432','-e','SECRET_KEY=synthetic-doc04b-key-not-production',
+            '-e','ADMIN_USERNAME=synthetic','-e','ADMIN_EMAIL=synthetic@example.invalid','-e','ADMIN_PASSWORD=synthetic-only','-e','N8N_INGEST_API_KEY=synthetic-only',
+            '-e','DATA_DIR=/tmp/doc04b/data','-e','PYTHONDONTWRITEBYTECODE=1','-e','PYTHONNOUSERSITE=1','-e','PYTHONUTF8=1','-e','TEMP=/doc04-invocation/scratch','-e','TMP=/doc04-invocation/scratch',
+            '-e','NEXT_DOC04_RUNTIME_POLICY=backend-reference','-e','NEXT_DOC04_ENVIRONMENT_ROOT=/tmp/doc04b','-e','NEXT_DOC04_WORKING_DIRECTORY=/tmp/doc04b',
+            '-e',$forbiddenRootsEnvironmentName,'-e','NEXT_DOC04_BACKEND_REFERENCE=1','-e','NEXT_DOC04_RUNTIME_PROFILE=Production','-e','NEXT_DOC04_RUNTIME_ROOT=/runtime/reference',
+            '-e','NEXT_DOC04_PYCACHE_PREFIX=/doc04-invocation/pycache','-e','NEXT_DOC04_INVOCATION_SCRATCH=/doc04-invocation',
+            '-v',("${backendPath}:/app:ro"),'-v',("${entryPath}:/tool/runtime-entrypoint.py:ro"),'-v',("${backendReferenceScratch}:/doc04-invocation"),
+            $backendImage,'python','-I','-B','--check-hash-based-pycs','always','-X','utf8','-X','pycache_prefix=/doc04-invocation/pycache','/tool/runtime-entrypoint.py','compatibility-vectors'
+        )
+        $linuxVectorHash = Get-StringSha256 $linuxVectors
+        Pass-K 'K09' ($linuxVectors.StartsWith('{') -and $linuxVectors.Contains('repair_json_text_surrogates'))
+        Pass-K 'K10' ($windowsVectors -ceq $linuxVectors -and $windowsVectorHash -eq $linuxVectorHash)
+        $linuxTraceRaw = Invoke-Docker @(
+            'run','--rm','--name',$parityContainer,'--network','none','--read-only','--tmpfs','/tmp','-w','/tmp/doc04b',
+            '-e','ENVIRONMENT=test','-e','POSTGRES_DB=ai_lab_test_doc04b_reference','-e','POSTGRES_USER=doc04b','-e','POSTGRES_PASSWORD=synthetic-only',
+            '-e','POSTGRES_HOST=127.0.0.1','-e','POSTGRES_PORT=65432','-e','SECRET_KEY=synthetic-doc04b-key-not-production',
+            '-e','ADMIN_USERNAME=synthetic','-e','ADMIN_EMAIL=synthetic@example.invalid','-e','ADMIN_PASSWORD=synthetic-only','-e','N8N_INGEST_API_KEY=synthetic-only',
+            '-e','DATA_DIR=/tmp/doc04b/data','-e','PYTHONDONTWRITEBYTECODE=1','-e','PYTHONNOUSERSITE=1','-e','PYTHONUTF8=1','-e','TEMP=/doc04-invocation/scratch','-e','TMP=/doc04-invocation/scratch',
+            '-e','NEXT_DOC04_RUNTIME_POLICY=backend-reference','-e','NEXT_DOC04_ENVIRONMENT_ROOT=/tmp/doc04b','-e','NEXT_DOC04_WORKING_DIRECTORY=/tmp/doc04b',
+            '-e',$forbiddenRootsEnvironmentName,'-e','NEXT_DOC04_BACKEND_REFERENCE=1','-e','NEXT_DOC04_RUNTIME_PROFILE=Production','-e','NEXT_DOC04_RUNTIME_ROOT=/runtime/reference',
+            '-e','NEXT_DOC04_PYCACHE_PREFIX=/doc04-invocation/pycache','-e','NEXT_DOC04_INVOCATION_SCRATCH=/doc04-invocation',
+            '-v',("${backendPath}:/app:ro"),'-v',("${entryPath}:/tool/runtime-entrypoint.py:ro"),'-v',("${lockPath}:/tool/runtime-lock.json:ro"),'-v',("${backendReferenceScratch}:/doc04-invocation"),
+            $backendImage,'python','-I','-B','--check-hash-based-pycs','always','-X','utf8','-X','pycache_prefix=/doc04-invocation/pycache','/tool/runtime-entrypoint.py','production-source-security-trace'
+        )
+    } finally {
+        [Environment]::SetEnvironmentVariable($forbiddenRootsEnvironmentName, $savedForbiddenRootsEnvironment, 'Process')
+    }
     $linuxTrace = $linuxTraceRaw | ConvertFrom-Json
     Pass-K 'K11' (Assert-ContainerAbsent $parityContainer)
 
@@ -452,11 +582,22 @@ try {
     Remove-TestJunction $productionEnvRoot
     New-FreshDirectory $productionEnvRoot
     [IO.File]::WriteAllText((Join-Path $productionEnvRoot '.env'),'synthetic=true',(New-Object Text.UTF8Encoding($false)))
-    $dataJunction=Join-Path $scratch 'synthetic-production-data-reparse';[void](New-Item -ItemType Junction -Path $dataJunction -Target $productionDataTarget)
-    $productionArguments.DataRoot=$dataJunction
+    $productionArguments.DataRoot=$productionDataTarget
+    $alternateDataRejected=Invoke-ExpectedFailure { & $launcher @productionArguments | Out-Null } 'DOC04B_PRODUCTION_DATA_ROOT_NOT_CANONICAL'
+    $canonicalData=Join-Path $productionProbeRoot 'data';[void](New-Item -ItemType Junction -Path $canonicalData -Target $productionDataTarget)
+    $productionArguments.DataRoot=$canonicalData
     $dataRejected=Invoke-ExpectedFailure { & $launcher @productionArguments | Out-Null } 'DOC04B_PRODUCTION_DATA_ROOT_INVALID'
-    Remove-TestJunction $dataJunction
+    Remove-TestJunction $canonicalData
+    $productionArguments.DataRoot='E:\'
+    $forbiddenDataRejected=Invoke-ExpectedFailure { & $launcher @productionArguments | Out-Null } 'DOC04B_PRODUCTION_DATA_ROOT_NOT_CANONICAL'
     Pass-M 'M27' ($envRejected -and $dataRejected)
+    Pass-O 'O24' $alternateDataRejected
+    Pass-O 'O25' $forbiddenDataRejected
+    Pass-O 'O26' $dataRejected
+    Pass-O 'O27' ($lock.production_data_policy.compose_git_blob-eq'2c592a9408066d82bb6e8bd8db74f907a3ab3afd'-and$lock.production_data_policy.compose_mount-eq'../../data:/data')
+    Pass-O 'O28' ((Invoke-WrapperExpectedFailure $runtimeA @{NetworkForbiddenProbe=$true;NetworkProbeCase='sendto'} $scratch 'DOC04B_NETWORK_ENDPOINT_FORBIDDEN')-and(Invoke-WrapperExpectedFailure $runtimeA @{NetworkForbiddenProbe=$true;NetworkProbeCase='sendmsg'} $scratch 'DOC04B_NETWORK_ENDPOINT_FORBIDDEN'))
+    $reverseCases=@('bind','gethostbyaddr','getnameinfo','getservbyname','getservbyport');$reverseBlocked=$true;foreach($networkCase in $reverseCases){if(-not(Invoke-WrapperExpectedFailure $runtimeA @{NetworkForbiddenProbe=$true;NetworkProbeCase=$networkCase} $scratch 'DOC04B_NETWORK_ENDPOINT_FORBIDDEN')){$reverseBlocked=$false}}
+    Pass-O 'O29' $reverseBlocked
     Remove-Item -LiteralPath $productionProbeRoot -Recurse -Force
     $productionProbeRoot=$null
 
@@ -510,6 +651,7 @@ try {
     $contractMode=@{IsolatedTest=$true;TestSuite='runtime-contract'}+$databaseMode
     $contract=Invoke-WrapperJson $qualificationA $contractMode $scratch
     Pass-L 'L07' ($contract.result -eq 'DOC04B_ISOLATED_TEST_PASS' -and $contract.skipped -eq 0)
+    Pass-O 'O30' ($upgrade.result-eq'DOC04B_ALEMBIC_UPGRADE_PASS'-and$contract.result-eq'DOC04B_ISOLATED_TEST_PASS'-and(Invoke-WrapperExpectedFailure $runtimeA @{NetworkForbiddenProbe=$true;NetworkProbeCase='wrong_connect'} $scratch 'DOC04B_NETWORK_ENDPOINT_FORBIDDEN'))
     $doc04=Invoke-WrapperJson $qualificationA (@{IsolatedTest=$true;TestSuite='doc04a'}+$databaseMode) $scratch
     if($doc04.prefix_counts.U -ne 28 -or $doc04.prefix_counts.R -ne 35 -or $doc04.prefix_counts.G -ne 35 -or $doc04.prefix_counts.H -ne 27 -or $doc04.prefix_counts.I -ne 12){Stop-Test 'DOC04B_DOC04A_MATRIX_COUNT_MISMATCH'}
     $doc01=Invoke-WrapperJson $qualificationA (@{IsolatedTest=$true;TestSuite='doc01'}+$databaseMode) $scratch
@@ -528,7 +670,7 @@ try {
     Pass-K 'K14' ($changedPaths -notcontains 'backend/Dockerfile' -and $changedPaths -notcontains 'backend/requirements.txt')
 
     $policies = $lock.path_policies
-    Pass-N 'N01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4' -and $policies.runtime_cache -and $policies.nonproduction_working -and $policies.production_configuration -and $policies.production_working_forbidden_roots)
+    Pass-N 'N01' ($lock.schema -eq 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5' -and $policies.runtime_cache -and $policies.nonproduction_working -and $policies.production_configuration -and $policies.production_working_forbidden_roots)
     $runtimeForbidden = @($policies.runtime_cache.forbidden_roots)
     Pass-N 'N02' (@(@('C:\ai-lab-core','C:\ai-lab-core\data','C:\ai-lab-core-backups','E:\','F:\') | Where-Object { $_ -notin $runtimeForbidden }).Count -eq 0)
     Pass-N 'N04' ($launcherText.Contains('Assert-ProductionConfigurationRoot $EnvironmentRoot $DataRoot') -and $launcherText.Contains('$boundaries = @($Data)'))
@@ -602,8 +744,21 @@ try {
     $integrationRefusalPayload = $integrationRefusal.lines[0] | ConvertFrom-Json
     Pass-N 'N26' ($integrationRefusal.exit_code -ne 0 -and $integrationRefusal.lines.Count -eq 1 -and $integrationRefusalPayload.result -eq 'DOCUMENT_METADATA_REPAIR_BEFORE_HASH' -and -not $integrationRefusalPayload.executed)
     Pass-N 'N27' ($integrationSuccessPayload.result -eq 'DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK' -and ([IO.Path]::GetFullPath((Split-Path -Parent $integrationEnv)).TrimEnd('\') -eq [IO.Path]::GetFullPath($integrationRepo).TrimEnd('\')))
+    Pass-O 'O23' ($integrationSuccessPayload.result-eq'DOCUMENT_METADATA_REPAIR_PRODUCTION_PREFLIGHT_OK'-and$integrationSuccess.exit_code-eq 0)
+    Pass-O 'O31' ($integrationSuccess.exit_code-eq 0-and$integrationSuccessPayload.production_preflight-and-not$integrationSuccessPayload.executed-and$integrationRefusal.exit_code-ne 0-and$integrationRefusalPayload.result-eq'DOCUMENT_METADATA_REPAIR_BEFORE_HASH')
     $parentLauncher = (& git -C $RepoRoot show 'd7ed8b7cc571c3bce70ff767c18a31d709cc9de8:operations/windows/doc04-metadata-repair/invoke-repair.ps1' | Out-String)
     Pass-N 'N28' (-not $parentLauncher.Contains('ProductionProfilePreflightIntegration') -and $parentLauncher.Contains('@($lock.path_policy.forbidden_runtime_roots)'))
+    $v4Parent='c2e931c8b72a55f4260b546e9eba84d67040e1f4'
+    $v4Entry=Invoke-TrustedGit @('-C',$RepoRoot,'show',($v4Parent+':operations/windows/doc04-metadata-repair/runtime-entrypoint.py'))
+    $v4Harness=Invoke-TrustedGit @('-C',$RepoRoot,'show',($v4Parent+':operations/windows/doc04-metadata-repair/test-runtime.ps1'))
+    $v4Launcher=Invoke-TrustedGit @('-C',$RepoRoot,'show',($v4Parent+':operations/windows/doc04-metadata-repair/invoke-repair.ps1'))
+    $formerDefects=[ordered]@{
+        ignored_physical_source_not_closed=(-not$v4Entry.Contains('Assert-ExactPhysicalTree'));
+        expected_image_could_bypass=($v4Harness.Contains('$backendImage = $ExpectedBackendImage')-and$v4Harness.Contains('if (-not $backendImage)'));
+        arbitrary_data_root_not_closed=(-not$v4Launcher.Contains('Assert-ProductionDataRoot'));
+        network_events_incomplete=(-not$v4Entry.Contains('socket.sendto')-and-not$v4Entry.Contains('socket.gethostbyaddr'))
+    }
+    Pass-O 'O32' (@($formerDefects.Values|Where-Object{-not$_}).Count-eq 0)
     $temporaryBoundary = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
     if (-not (Test-IsStrictDescendant $integrationRepo $temporaryBoundary) -or ([IO.Path]::GetFileName($integrationRepo) -notmatch '^doc04b3-source-[0-9a-f]{32}$')) { Stop-Test 'DOC04B_INTEGRATION_REPO_CLEANUP_REFUSED' }
     Remove-Item -LiteralPath $integrationRepo -Recurse -Force
@@ -624,8 +779,9 @@ try {
     foreach($id in 1..20){$name='L{0:D2}' -f $id;if(-not $l.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
     foreach($id in 1..30){$name='M{0:D2}' -f $id;if(-not $m.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
     foreach($id in 1..28){$name='N{0:D2}' -f $id;if(-not $n.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
+    foreach($id in 1..32){$name='O{0:D2}' -f $id;if(-not $o.Contains($name)){Stop-Test ($name+'_NOT_EXECUTED')}}
     $result=[ordered]@{
-        result='DOC04B3_PRODUCTION_PATH_CLOSURE_PASS';source_git_sha=$ExpectedGitSha;
+        result='DOC04B4_SOURCE_FILESYSTEM_IMAGE_DATA_NETWORK_CLOSURE_PASS';source_git_sha=$ExpectedGitSha;
         runtime_lock_sha256=(Get-Sha256 $lockPath);python_version='3.12.10';backend_reference_python='3.12.13';architecture='amd64';
         python_artifact_filename=$lock.runtime_python.filename;python_artifact_bytes=$lock.runtime_python.bytes;python_artifact_sha256=$lock.runtime_python.sha256;
         authenticode_status=$buildA.authenticode_status;authenticode_publisher=$buildA.authenticode_publisher;
@@ -633,7 +789,7 @@ try {
         qualification_profile=[ordered]@{package_count=$qualificationBuildA.package_count;file_count=$qualificationBuildA.file_count;runtime_bytes=$qualificationBuildA.runtime_bytes;online_tree_sha256=$qualificationBuildA.runtime_tree_sha256;offline_tree_sha256=$qualificationBuildB.runtime_tree_sha256;sdist='odfpy 1.4.1 only'};
         windows_vector_sha256=$windowsVectorHash;linux_vector_sha256=$linuxVectorHash;vector_equality=($windowsVectors -ceq $linuxVectors);
         backend_reference=[ordered]@{source_category='ai-lab-backend immutable image id';image_id=$backendImage;python='3.12.13'};
-        j=$j;k=$k;l=$l;m=$m;n=$n;parent_controls=$parentControls;matrices=[ordered]@{U='28/28';R='35/35';G='35/35';H='27/27';I='12/12';DOC01='9/9';DOC02='24/24';DOC03='18/18';intake=$intake.tests_run;assistant=$assistant.tests_run;regression=$regression.tests_run};
+        j=$j;k=$k;l=$l;m=$m;n=$n;o=$o;parent_controls=$parentControls;former_defects=$formerDefects;matrices=[ordered]@{U='28/28';R='35/35';G='35/35';H='27/27';I='12/12';DOC01='9/9';DOC02='24/24';DOC03='18/18';intake=$intake.tests_run;assistant=$assistant.tests_run;regression=$regression.tests_run};
         environment_isolation=[ordered]@{top_level_backend_imports_before_isolation=0;process_start_info_working_directory=$true;inherited_application_environment='SCRUBBED';nonproduction_env_file_open_attempts=0};
         disposable_postgres_port_non_5432=$true;disposable_postgres_removed=$true;parity_container_removed=$true;production_activity=0;
         retained_runtimes=@($runtimeA);qualification_runtimes_retained=0;offline_runtimes_retained=0;scratch_retained=$false;cache_retained=[bool](Test-Path -LiteralPath $CacheRoot)

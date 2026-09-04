@@ -29,14 +29,26 @@ backend runtime.
   check, exact `backend/app` Git-tree identity, and path-aware Git blob
   verification of every tracked file. The critical-file list remains an
   additional contract; dirty files outside the protected scope remain allowed.
-- Final invocation is offline, isolated (`-I -B -X utf8`), and never falls back
-  to an installed interpreter.
+- Final invocation is offline, isolated (`-I -B --check-hash-based-pycs always
+  -X utf8 -X pycache_prefix=<fresh invocation path>`), and never falls back to
+  an installed interpreter. `TEMP`, `TMP`, Git HOME/config, and bytecode cache
+  all live in a fresh invocation-owned staging directory that is removed after
+  the child exits. Source-tree bytecode is rejected and is never imported.
 - Every supported Windows invocation goes through `invoke-repair.ps1`. The
   wrapper creates a fresh synthetic environment directory outside the source,
   data, and backup roots, launches with `System.Diagnostics.ProcessStartInfo`,
   sets `UseShellExecute=false`, assigns an explicit `WorkingDirectory`, clears
   the inherited environment, and supplies only a bounded allowlist.
-- Lock V4 separates runtime/cache, non-production working, and production
+- Lock V5 closes the physical source set in addition to Git identity. Every
+  physical file and directory below `backend/app` must correspond exactly to a
+  tracked Git entry, and the runtime-tooling directory must contain exactly its
+  six locked files. Ignored bytecode/native payloads, import shadows, namespace
+  directories, missing or case-mismatched entries, and reparse objects fail
+  closed. The pinned `.gitattributes`, requirements blob, and compose blob are
+  verified with system/global Git config and attributes disabled; non-empty
+  `.git/info/attributes` and protected-path filter, ident, or
+  `working-tree-encoding` attributes are rejected.
+- Lock V5 separates runtime/cache, non-production working, and production
   configuration path policies. Runtime and cache paths must be strict descendants of the lock-pinned
   `C:\ai-lab-core-staging\doc04b-runtime` and
   `C:\ai-lab-core-staging\doc04b-cache` parents. The repository, data root,
@@ -61,7 +73,7 @@ backend runtime.
   `psycopg-binary`/libpq networking is not visible to Python audit hooks, so
   database host, port, name, and isolation remain separately enforced.
 
-Lock V4 has two non-interchangeable profiles. **Production** contains only the
+Lock V5 has two non-interchangeable profiles. **Production** contains only the
 12-distribution executable import closure for the fixed repair: SQLAlchemy,
 greenlet, typing extensions, psycopg plus its Windows binary implementation,
 the Pydantic settings stack, and locked IANA timezone data required for silent
@@ -133,7 +145,8 @@ the fixed repair-help, compatibility-vector, isolated-test, and isolated-
 Alembic modes; diagnostics never invoke the backend repair module directly.
 
 Readiness also runs the L01–L20 isolation matrix, M01–M30 closure matrix, and
-N01–N28 production-path/source-closure matrix:
+N01–N28 production-path/source-closure matrix, plus O01–O32 executable
+source-authority matrix:
 bounded backend result relay, exact refusal propagation, profile minimality and
 separation, staging/backup-root policy, reparse rejection, builder environment
 preservation, owned partial cleanup, parent controls, and success cleanup.
@@ -148,8 +161,22 @@ production-shaped dotenv allowlist proof entirely under temporary staging,
 output redaction, and caller-location independence. Backend parity resolves
 only the immutable `.Image` field of `ai-lab-backend`; an optional expected ID
 can only constrain that value and can never substitute another image. The
+harness performs exactly one `docker inspect --format '{{.Image}}'
+ai-lab-backend` per campaign and reuses the resulting immutable ID. The
 disposable parity container has no network and is removed. None of those tests
 names, opens, stats, or probes a production dotenv file.
+
+The O matrix exercises ignored `.pyc`/`.pyd` and import-shadow rejection,
+exact physical file/directory closure, reparse and case rejection, isolated
+bytecode/TEMP cleanup, pinned Git attributes and clean-filter bypass resistance,
+the requirements/compose pins, single backend image authority lookup, canonical
+`EnvironmentRoot\data`, and the complete Python-observable network event deny
+set. `socket.sendto`, `socket.sendmsg`, reverse lookup, service lookup, and
+arbitrary bind are always rejected. Bind is allowed only for CPython's narrowly
+identified internal fallback socketpair. The allowed database endpoint remains
+numeric `127.0.0.1` at the one approved port. `psycopg-binary`/libpq native
+networking remains separately pinned by database host, port, name, and live
+PostgreSQL identity.
 
 The N matrix runs the actual repair `main()` through the Production runtime and
 normal bounded relay against disposable PostgreSQL. Qualification alone
@@ -166,7 +193,8 @@ host PowerShell deserializer materializes JSON timestamps as `DateTime` values.
 The launcher defines separate `ProductionPreflight` and `ExecuteProduction`
 parameter sets for a future owner-approved operation. There is no implicit
 production mode. Both require exact main/Git identity, an explicit environment
-root and data root, the expected lowercase SHA-256 of the exact `.env`, the complete frozen repair contract, a non-empty approval
+root and canonical data root exactly equal to `EnvironmentRoot\data`, the
+expected lowercase SHA-256 of the exact `.env`, the complete frozen repair contract, a non-empty approval
 identifier, and the existing repair executable's production guards. Execute
 also requires the exact write-awareness switch and a runtime-supplied fixed
 confirmation phrase.
@@ -182,7 +210,9 @@ launcher opens it read-only with reader-only sharing, verifies its hash, holds
 the handle for the complete child lifetime, and verifies the hash again before
 closing. Its resolved identity must match the audit allowlist, and the full
 existing parent chains of EnvironmentRoot and DataRoot must be non-reparse.
-The synthetic Production-profile proof still does not authorize a real
+The compose source is blob-pinned and must retain the exact `../../data:/data`
+mapping. Alternate byte-identical copies, backup volumes, runtime/cache roots,
+system locations, and reparse paths are not valid data authority. The synthetic Production-profile proof still does not authorize a real
 production preflight or repair. Those parameter sets are not
 part of synthetic readiness and must not be exercised without a later owner
 gate.

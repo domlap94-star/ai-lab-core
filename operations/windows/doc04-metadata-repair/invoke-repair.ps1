@@ -9,6 +9,9 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'SyntheticProductionAudit')][switch]$SyntheticProductionAudit,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionImportTrace')][switch]$ProductionImportTrace,
     [Parameter(Mandatory = $true, ParameterSetName = 'NetworkForbiddenProbe')][switch]$NetworkForbiddenProbe,
+    [Parameter(ParameterSetName = 'NetworkForbiddenProbe')]
+    [ValidateSet('socket_new','bind','sendto','sendmsg','gethostbyaddr','getnameinfo','getservbyname','getservbyport','wrong_connect')]
+    [string]$NetworkProbeCase = 'socket_new',
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionProfilePreflightIntegration')][switch]$ProductionProfilePreflightIntegration,
     [Parameter(Mandatory = $true, ParameterSetName = 'RepairRelaySelfTest')][switch]$RepairRelaySelfTest,
     [Parameter(Mandatory = $true, ParameterSetName = 'ProductionPreflight')][switch]$ProductionPreflight,
@@ -126,11 +129,31 @@ function Get-Tree([string]$Root) {
     try { $hash = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($joined)) } finally { $sha.Dispose() }
     return [pscustomobject]@{sha256=[System.BitConverter]::ToString($hash).Replace('-','').ToLowerInvariant();file_count=$relativePaths.Count;bytes=$bytes}
 }
-function Invoke-Git([string[]]$Arguments) {
-    $gitCommand = @(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]
-    $value = & $gitCommand.Source @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) { Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED' }
-    return (($value | Out-String).Trim())
+function Get-TrustedGitExecutable {
+    $shim=(@(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]).Source
+    $gitRoot=Split-Path -Parent (Split-Path -Parent $shim)
+    $direct=Join-Path $gitRoot 'mingw64\bin\git.exe'
+    if(Test-Path -LiteralPath $direct -PathType Leaf){return $direct}
+    return $shim
+}
+function Invoke-Git([string[]]$Arguments, [string]$InputText = '') {
+    $gitExecutable = Get-TrustedGitExecutable
+    $boundary = Join-Path ([IO.Path]::GetTempPath()) ('doc04b-git-' + [Guid]::NewGuid().ToString('N'))
+    [IO.Directory]::CreateDirectory($boundary) | Out-Null
+    $globalConfig=Join-Path $boundary 'global.gitconfig';$attributes=Join-Path $boundary 'global.attributes';$gitHomeRoot=Join-Path $boundary 'home';$xdg=Join-Path $boundary 'xdg'
+    [IO.Directory]::CreateDirectory($gitHomeRoot)|Out-Null;[IO.Directory]::CreateDirectory($xdg)|Out-Null
+    [IO.File]::WriteAllText($globalConfig,'',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText($attributes,'',[Text.UTF8Encoding]::new($false))
+    $allArguments=@('-c',"core.attributesFile=$attributes",'-c','core.autocrlf=false')+$Arguments
+    $info=New-Object Diagnostics.ProcessStartInfo;$info.FileName=$gitExecutable;$info.Arguments=(@($allArguments|ForEach-Object{ConvertTo-WindowsArgument ([string]$_)})-join ' ')
+    $hasInput=-not [string]::IsNullOrEmpty($InputText)
+    $info.UseShellExecute=$false;$info.CreateNoWindow=$true;$info.RedirectStandardInput=$hasInput;$info.RedirectStandardOutput=$true;$info.RedirectStandardError=$true;$info.EnvironmentVariables.Clear()
+    foreach($name in @('SystemRoot','WINDIR','ComSpec','PATH')){$value=[Environment]::GetEnvironmentVariable($name,'Process');if($value){$info.EnvironmentVariables[$name]=$value}}
+    $info.EnvironmentVariables['GIT_CONFIG_NOSYSTEM']='1';$info.EnvironmentVariables['GIT_ATTR_NOSYSTEM']='1';$info.EnvironmentVariables['GIT_TERMINAL_PROMPT']='0';$info.EnvironmentVariables['GIT_NO_REPLACE_OBJECTS']='1';$info.EnvironmentVariables['GIT_OPTIONAL_LOCKS']='0';$info.EnvironmentVariables['TEMP']=$boundary;$info.EnvironmentVariables['TMP']=$boundary;$info.EnvironmentVariables['GIT_CONFIG_GLOBAL']=$globalConfig;$info.EnvironmentVariables['HOME']=$gitHomeRoot;$info.EnvironmentVariables['USERPROFILE']=$gitHomeRoot;$info.EnvironmentVariables['XDG_CONFIG_HOME']=$xdg
+    $process=New-Object Diagnostics.Process;$process.StartInfo=$info
+    try{if(-not $process.Start()){Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED'};$stdout=$process.StandardOutput.ReadToEndAsync();$stderr=$process.StandardError.ReadToEndAsync();if($hasInput){$process.StandardInput.Write($InputText);$process.StandardInput.Close()};if(-not $process.WaitForExit(30000)){try{$process.Kill()}catch{};Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED'};if($process.ExitCode-ne 0){Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED'};return $stdout.Result.Trim()}finally{$process.Dispose();if(Test-Path -LiteralPath $boundary){Remove-Item -LiteralPath $boundary -Recurse -Force}}
+}
+function Get-NormalizedGitBlobSha1([string]$Path) {
+    $text=[IO.File]::ReadAllText($Path,[Text.UTF8Encoding]::new($false)).Replace("`r`n","`n").Replace("`r","`n");$bytes=[Text.Encoding]::UTF8.GetBytes($text);$header=[Text.Encoding]::ASCII.GetBytes(('blob '+$bytes.Length+[char]0));$combined=New-Object byte[] ($header.Length+$bytes.Length);[Array]::Copy($header,0,$combined,0,$header.Length);[Array]::Copy($bytes,0,$combined,$header.Length,$bytes.Length);$sha=[Security.Cryptography.SHA1]::Create();try{$hash=$sha.ComputeHash($combined)}finally{$sha.Dispose()};return [BitConverter]::ToString($hash).Replace('-','').ToLowerInvariant()
 }
 function Test-IsWithin([string]$Candidate, [string]$Boundary) {
     $candidatePath = [System.IO.Path]::GetFullPath($Candidate).TrimEnd('\')
@@ -173,6 +196,22 @@ function Assert-RegularNonReparseFile([string]$Path, [string]$Code) {
     $item = Get-Item -LiteralPath $Path -Force
     if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { Stop-Launch $Code }
 }
+function Assert-ExactPhysicalTree([string]$Repo, [string]$RelativeRoot, [string[]]$TrackedPaths, [string]$Code) {
+    $root=Join-Path $Repo ($RelativeRoot -replace '/','\');Assert-NonReparseTree $root $Code
+    $expectedFiles=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal);$expectedDirectories=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    foreach($tracked in $TrackedPaths){if(-not $tracked.StartsWith($RelativeRoot+'/',[StringComparison]::Ordinal)){Stop-Launch $Code};[void]$expectedFiles.Add($tracked);$parent=[IO.Path]::GetDirectoryName($tracked.Replace('/','\'));while($parent -and $parent.Replace('\','/') -ne $RelativeRoot){[void]$expectedDirectories.Add($parent.Replace('\','/'));$parent=[IO.Path]::GetDirectoryName($parent)}}
+    $actualFiles=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal);$actualDirectories=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal);$caseMap=@{}
+    foreach($item in Get-ChildItem -LiteralPath $root -Force -Recurse){if(($item.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne 0){Stop-Launch $Code};$relative=$item.FullName.Substring($Repo.Length).TrimStart('\').Replace('\','/');$caseKey=$relative.ToLowerInvariant();if($caseMap.ContainsKey($caseKey)-and$caseMap[$caseKey]-cne$relative){Stop-Launch 'DOC04B_SOURCE_FILESYSTEM_CASE_COLLISION'};$caseMap[$caseKey]=$relative;if($item.PSIsContainer){[void]$actualDirectories.Add($relative)}else{[void]$actualFiles.Add($relative)}}
+    if($actualFiles.Count-ne$expectedFiles.Count-or@($actualFiles|Where-Object{-not$expectedFiles.Contains($_)}).Count-ne 0-or@($expectedFiles|Where-Object{-not$actualFiles.Contains($_)}).Count-ne 0){Stop-Launch $Code}
+    if($actualDirectories.Count-ne$expectedDirectories.Count-or@($actualDirectories|Where-Object{-not$expectedDirectories.Contains($_)}).Count-ne 0-or@($expectedDirectories|Where-Object{-not$actualDirectories.Contains($_)}).Count-ne 0){Stop-Launch $Code}
+}
+function Assert-TrustedGitBoundary([string]$Repo,[string[]]$Paths,$Lock) {
+    $attributes=Join-Path $Repo '.gitattributes';Assert-RegularNonReparseFile $attributes 'DOC04B_GITATTRIBUTES_INVALID'
+    if((Get-NormalizedGitBlobSha1 $attributes)-ne[string]$Lock.trusted_git_policy.gitattributes_git_blob){Stop-Launch 'DOC04B_GITATTRIBUTES_BLOB_MISMATCH'}
+    $infoAttributes=Join-Path $Repo '.git\info\attributes';if((Test-Path -LiteralPath $infoAttributes)-and(Get-Item -LiteralPath $infoAttributes).Length-ne 0){Stop-Launch 'DOC04B_GIT_INFO_ATTRIBUTES_FORBIDDEN'}
+    $output=Invoke-Git @('-C',$Repo,'check-attr','--stdin','-a') (($Paths-join "`n")+"`n")
+    foreach($line in @($output-split"`r?`n"|Where-Object{$_})){if($line-notmatch'^.+: ([^:]+): .+$'){Stop-Launch 'DOC04B_GIT_ATTRIBUTES_INVALID'};if($Matches[1]-in@('filter','ident','working-tree-encoding')-or$Matches[1]-notin@('text','eol')){Stop-Launch 'DOC04B_GIT_ATTRIBUTES_FORBIDDEN'}}
+}
 function Assert-PolicyPath([string]$Path, [string]$AuthorizedParent, $Policy, [string]$Code) {
     $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
     $parent = [System.IO.Path]::GetFullPath($AuthorizedParent).TrimEnd('\')
@@ -211,6 +250,29 @@ function Assert-ProductionConfigurationRoot([string]$Root, [string]$Data, $Polic
     }
     return $full
 }
+function Assert-ProductionDataRoot([string]$Environment,[string]$Data,$Lock) {
+    $environmentFull=[IO.Path]::GetFullPath($Environment).TrimEnd('\');$dataFull=[IO.Path]::GetFullPath($Data).TrimEnd('\');$expected=[IO.Path]::GetFullPath((Join-Path $environmentFull ([string]$Lock.production_data_policy.canonical_relative_path))).TrimEnd('\')
+    if(-not $dataFull.Equals($expected,[StringComparison]::OrdinalIgnoreCase)){Stop-Launch 'DOC04B_PRODUCTION_DATA_ROOT_NOT_CANONICAL'}
+    Assert-NonReparseDirectory $dataFull 'DOC04B_PRODUCTION_DATA_ROOT_INVALID'
+    $blockedRoots = @(
+        'C:\ai-lab-core-backups',
+        'E:\',
+        'F:\',
+        ([string]$Lock.path_policies.runtime_cache.authorized_runtime_parent),
+        ([string]$Lock.path_policies.runtime_cache.authorized_cache_parent),
+        $env:windir,
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        $env:ProgramData
+    )
+    foreach($blocked in $blockedRoots){
+        if($blocked){
+            $blockedFull = [IO.Path]::GetFullPath($blocked).TrimEnd('\')
+            if(Test-IsWithin $dataFull $blockedFull){Stop-Launch 'DOC04B_PRODUCTION_DATA_ROOT_FORBIDDEN'}
+        }
+    }
+    return $dataFull
+}
 function Get-StreamSha256([System.IO.FileStream]$Stream) {
     $Stream.Position = 0
     $algorithm = [System.Security.Cryptography.SHA256]::Create()
@@ -233,7 +295,7 @@ function Open-VerifiedEnvironmentFile([string]$Path, [string]$ExpectedSha256) {
 function Assert-Source([string]$Repo, [string]$Expected, $Lock) {
     $root = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\')
     if ((Invoke-Git @('-C',$root,'rev-parse','HEAD')) -ne $Expected) { Stop-Launch 'DOC04B_GIT_HEAD_MISMATCH' }
-    $protectedStatus = Invoke-Git @('-C',$root,'status','--porcelain=v1','--untracked-files=all','--','backend/app','operations/windows/doc04-metadata-repair','backend/requirements.txt')
+    $protectedStatus = Invoke-Git @('-C',$root,'status','--porcelain=v1','--untracked-files=all','--','backend/app','operations/windows/doc04-metadata-repair','backend/requirements.txt','.gitattributes','compose/backend/docker-compose.yml')
     if ($protectedStatus) { Stop-Launch 'DOC04B_PROTECTED_SOURCE_DIRTY' }
     if ((Invoke-Git @('-C',$root,'rev-parse','HEAD:backend/app')) -ne [string]$Lock.source_closure.backend_app_git_tree_sha) { Stop-Launch 'DOC04B_BACKEND_APP_TREE_MISMATCH' }
     $treeOutput = Invoke-Git @('-C',$root,'ls-tree','-r','--full-tree','HEAD','--','backend/app')
@@ -253,11 +315,14 @@ function Assert-Source([string]$Repo, [string]$Expected, $Lock) {
         $trackedPaths.Add($relative)
     }
     $gitCommand = @(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]
-    $actualBlobs = @($trackedPaths.ToArray() | & $gitCommand.Source -C $root hash-object --stdin-paths 2>&1)
-    if ($LASTEXITCODE -ne 0 -or $actualBlobs.Count -ne $expectedBlobs.Count) { Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED' }
+    $actualBlobs = @((Invoke-Git @('-C',$root,'hash-object','--stdin-paths') (($trackedPaths.ToArray()-join "`n")+"`n")) -split "`r?`n")
+    if ($actualBlobs.Count -ne $expectedBlobs.Count) { Stop-Launch 'DOC04B_GIT_IDENTITY_FAILED' }
     for ($index=0; $index -lt $expectedBlobs.Count; $index++) {
         if ([string]$actualBlobs[$index] -ne $expectedBlobs[$index]) { Stop-Launch 'DOC04B_BACKEND_APP_SOURCE_MODIFIED' }
     }
+    $backendPaths=@($trackedPaths.ToArray());Assert-ExactPhysicalTree $root 'backend/app' $backendPaths 'DOC04B_SOURCE_FILESYSTEM_EXTRA_ENTRY'
+    $toolingPaths=@($Lock.source_filesystem_policy.runtime_tooling_files|ForEach-Object{[string]$_});Assert-ExactPhysicalTree $root 'operations/windows/doc04-metadata-repair' $toolingPaths 'DOC04B_RUNTIME_TOOLING_FILESYSTEM_MISMATCH'
+    $allProtected=@($backendPaths)+@($toolingPaths)+@($Lock.source_filesystem_policy.single_files|ForEach-Object{[string]$_});Assert-TrustedGitBoundary $root $allProtected $Lock
     foreach ($relative in $Lock.critical_git_paths) {
         $path = Join-Path $root ([string]$relative -replace '/','\')
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Stop-Launch 'DOC04B_CRITICAL_SOURCE_MISSING' }
@@ -267,6 +332,10 @@ function Assert-Source([string]$Repo, [string]$Expected, $Lock) {
         $actualBlob = Invoke-Git @('-C',$root,'hash-object',"--path=$relative",$path)
         if ($expectedBlob -ne $actualBlob) { Stop-Launch 'DOC04B_CRITICAL_SOURCE_MODIFIED' }
     }
+    if((Invoke-Git @('-C',$root,'rev-parse','HEAD:backend/requirements.txt'))-ne[string]$Lock.backend_requirements_git_blob){Stop-Launch 'DOC04B_BACKEND_REQUIREMENTS_BLOB_MISMATCH'}
+    if((Invoke-Git @('-C',$root,'rev-parse',('HEAD:'+ [string]$Lock.production_data_policy.compose_path)))-ne[string]$Lock.production_data_policy.compose_git_blob){Stop-Launch 'DOC04B_COMPOSE_BLOB_MISMATCH'}
+    $compose=[IO.File]::ReadAllText((Join-Path $root ([string]$Lock.production_data_policy.compose_path -replace '/','\')),[Text.UTF8Encoding]::new($false))
+    if(-not$compose.Contains([string]$Lock.production_data_policy.compose_mount)){Stop-Launch 'DOC04B_COMPOSE_DATA_MAPPING_MISMATCH'}
 }
 function Assert-Runtime([string]$Root, $Lock, [string]$ExpectedProfile) {
     $full = Assert-PolicyPath $Root $Lock.path_policies.runtime_cache.authorized_runtime_parent $Lock.path_policies.runtime_cache 'DOC04B_RUNTIME_PATH_FORBIDDEN'
@@ -315,9 +384,15 @@ function Invoke-IsolatedProcess(
     [hashtable]$Environment,
     [int]$TimeoutMilliseconds
 ) {
+    $invocationRoot=Join-Path $script:InvocationScratchParent ('invocation-'+[Guid]::NewGuid().ToString('N'))
+    $scratch=Join-Path $invocationRoot 'scratch';$pycache=Join-Path $invocationRoot 'pycache';$gitHome=Join-Path $invocationRoot 'git-home';$gitXdg=Join-Path $invocationRoot 'git-xdg';$gitConfig=Join-Path $invocationRoot 'global.gitconfig';$gitAttributes=Join-Path $invocationRoot 'global.attributes'
+    foreach($path in @($scratch,$pycache,$gitHome,$gitXdg)){[IO.Directory]::CreateDirectory($path)|Out-Null}
+    [IO.File]::WriteAllText($gitConfig,'',[Text.UTF8Encoding]::new($false));[IO.File]::WriteAllText($gitAttributes,'',[Text.UTF8Encoding]::new($false))
+    $dataBoundary=if($Environment.ContainsKey('NEXT_DOC04_DATA_ROOT')){[string]$Environment['NEXT_DOC04_DATA_ROOT']}else{''}
+    foreach($boundary in @($script:RepoRootIdentity,$script:RuntimeRootIdentity,$WorkingDirectory,$dataBoundary,'C:\ai-lab-core-backups','E:\','F:\',$env:ProgramFiles,$env:ProgramData,$env:windir)){if($boundary-and(Test-IsWithin $invocationRoot $boundary)){Stop-Launch 'DOC04B_INVOCATION_SCRATCH_FORBIDDEN'}}
     $info = New-Object System.Diagnostics.ProcessStartInfo
     $info.FileName = $Python
-    $allArguments = @('-I','-B','-X','utf8',$EntryPoint) + $Arguments
+    $allArguments = @('-I','-B','--check-hash-based-pycs','always','-X','utf8','-X',('pycache_prefix='+$pycache),$EntryPoint) + $Arguments
     $info.Arguments = (@($allArguments | ForEach-Object { ConvertTo-WindowsArgument ([string]$_) }) -join ' ')
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
@@ -325,7 +400,9 @@ function Invoke-IsolatedProcess(
     $info.RedirectStandardError = $true
     $info.WorkingDirectory = $WorkingDirectory
     $info.EnvironmentVariables.Clear()
-    foreach ($item in $Environment.GetEnumerator()) { $info.EnvironmentVariables[[string]$item.Key] = [string]$item.Value }
+    $childEnvironment=@{};foreach($item in $Environment.GetEnumerator()){$childEnvironment[[string]$item.Key]=[string]$item.Value}
+    $childEnvironment['TEMP']=$scratch;$childEnvironment['TMP']=$scratch;$childEnvironment['GIT_CONFIG_NOSYSTEM']='1';$childEnvironment['GIT_ATTR_NOSYSTEM']='1';$childEnvironment['GIT_TERMINAL_PROMPT']='0';$childEnvironment['GIT_NO_REPLACE_OBJECTS']='1';$childEnvironment['GIT_OPTIONAL_LOCKS']='0';$childEnvironment['GIT_CONFIG_GLOBAL']=$gitConfig;$childEnvironment['HOME']=$gitHome;$childEnvironment['USERPROFILE']=$gitHome;$childEnvironment['XDG_CONFIG_HOME']=$gitXdg;$childEnvironment['NEXT_DOC04_GIT_ATTRIBUTES_FILE']=$gitAttributes;$childEnvironment['NEXT_DOC04_PYCACHE_PREFIX']=$pycache;$childEnvironment['NEXT_DOC04_INVOCATION_SCRATCH']=$invocationRoot;$childEnvironment['NEXT_DOC04_RUNTIME_ROOT']=$script:RuntimeRootIdentity
+    foreach ($item in $childEnvironment.GetEnumerator()) { $info.EnvironmentVariables[[string]$item.Key] = [string]$item.Value }
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $info
     try {
@@ -340,7 +417,14 @@ function Invoke-IsolatedProcess(
         $stderr = $stderrTask.Result.Trim()
         if ($stdout.Length -gt 65536 -or $stderr.Length -gt 65536 -or $stdout.Contains([char]0) -or $stderr.Contains([char]0)) { Stop-Launch 'DOC04B_CHILD_OUTPUT_UNBOUNDED' }
         return [pscustomobject]@{exit_code=$process.ExitCode;stdout=$stdout;stderr=$stderr}
-    } finally { $process.Dispose() }
+    } finally {
+        $process.Dispose()
+        $cleanupViolation=''
+        if((Test-Path -LiteralPath $pycache)-and@(Get-ChildItem -LiteralPath $pycache -Force -Recurse -File).Count-ne 0){$cleanupViolation='DOC04B_INVOCATION_PYCACHE_CREATED'}
+        foreach($sourceRoot in @((Join-Path $script:RepoRootIdentity 'backend\app'),(Join-Path $script:RepoRootIdentity 'operations\windows\doc04-metadata-repair'))){if(Test-Path -LiteralPath $sourceRoot){if(@(Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse -File|Where-Object{$_.Extension-in@('.pyc','.pyo')}).Count-ne 0){$cleanupViolation='DOC04B_SOURCE_PYCACHE_CREATED'}}}
+        if(Test-Path -LiteralPath $invocationRoot){Remove-Item -LiteralPath $invocationRoot -Recurse -Force}
+        if($cleanupViolation){Stop-Launch $cleanupViolation}
+    }
 }
 function ConvertFrom-BoundedJson([string]$Value) {
     $lines = @($Value -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
@@ -410,13 +494,17 @@ $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot).TrimEnd('\')
 $RuntimeRoot = [System.IO.Path]::GetFullPath($RuntimeRoot).TrimEnd('\')
 $lockPath = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-lock.json'
 $lock = Get-Content -LiteralPath $lockPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V4') { Stop-Launch 'DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH' }
+if ($lock.schema -ne 'NEXT_STABIL_DOC04_WINDOWS_RUNTIME_LOCK_V5') { Stop-Launch 'DOC04B_RUNTIME_LOCK_SCHEMA_MISMATCH' }
 Assert-Source $RepoRoot $ExpectedGitSha $lock
 $expectedProfile = if ($PSCmdlet.ParameterSetName -in @('IsolatedTest','IsolatedAlembicUpgrade')) { 'Qualification' } else { 'Production' }
 $RuntimeRoot = Assert-Runtime $RuntimeRoot $lock $expectedProfile
 $python = Join-Path $RuntimeRoot 'python.exe'
 $entrypoint = Join-Path $RepoRoot 'operations\windows\doc04-metadata-repair\runtime-entrypoint.py'
-$gitExe = (@(Get-Command git.exe -CommandType Application -ErrorAction Stop)[0]).Source
+$gitExe = Get-TrustedGitExecutable
+$script:InvocationScratchParent=[IO.Path]::GetFullPath([string]$lock.path_policies.nonproduction_working.authorized_parent).TrimEnd('\')
+$script:RepoRootIdentity=$RepoRoot
+$script:RuntimeRootIdentity=$RuntimeRoot
+if(-not(Test-Path -LiteralPath $script:InvocationScratchParent)){[IO.Directory]::CreateDirectory($script:InvocationScratchParent)|Out-Null}
 
 $nonProductionSets = @('Readiness','RepairHelp','CompatibilityVectors','IsolatedTest','IsolatedAlembicUpgrade','AuditEnvProbe','SyntheticProductionAudit','ProductionImportTrace','NetworkForbiddenProbe','RepairRelaySelfTest')
 if ($PSCmdlet.ParameterSetName -in $nonProductionSets) {
@@ -454,7 +542,7 @@ if ($PSCmdlet.ParameterSetName -in $nonProductionSets) {
                 'IsolatedAlembicUpgrade' {@('isolated-alembic-upgrade')}
                 'AuditEnvProbe' {@('smoke')}
                 'ProductionImportTrace' {@('production-source-security-trace')}
-                'NetworkForbiddenProbe' {@('network-forbidden-probe')}
+                'NetworkForbiddenProbe' {@('network-forbidden-probe','--case',$NetworkProbeCase)}
                 'RepairRelaySelfTest' {@('repair-relay-self-test','--case',$RelayCase.ToLowerInvariant())}
             }
             if ($PSCmdlet.ParameterSetName -eq 'AuditEnvProbe') {
@@ -515,11 +603,12 @@ if ($PSCmdlet.ParameterSetName -eq 'ProductionProfilePreflightIntegration') {
     if (-not $EnvironmentRoot.Equals($RepoRoot,[System.StringComparison]::OrdinalIgnoreCase)) { Stop-Launch 'DOC04B_INTEGRATION_SAME_ROOT_REQUIRED' }
     $integrationRoot = Join-Path $SyntheticRoot ('production-profile-' + [Guid]::NewGuid().ToString('N'))
     [System.IO.Directory]::CreateDirectory($integrationRoot) | Out-Null
-    $dataRoot = Join-Path $integrationRoot 'data'
+    $dataRoot = Join-Path $EnvironmentRoot 'data'
     $backupRoot = Join-Path $integrationRoot 'backup'
-    [System.IO.Directory]::CreateDirectory($dataRoot) | Out-Null
+    if(-not(Test-Path -LiteralPath $dataRoot)){[System.IO.Directory]::CreateDirectory($dataRoot) | Out-Null}
     [System.IO.Directory]::CreateDirectory($backupRoot) | Out-Null
     $EnvironmentRoot = Assert-ProductionConfigurationRoot $EnvironmentRoot $dataRoot $lock.path_policies
+    $dataRoot = Assert-ProductionDataRoot $EnvironmentRoot $dataRoot $lock
     $productionEnvFile = Join-Path $EnvironmentRoot '.env'
     $environmentHandle = $null
     $fixturePrepared = $false
@@ -529,6 +618,8 @@ if ($PSCmdlet.ParameterSetName -eq 'ProductionProfilePreflightIntegration') {
         $qualificationEnvironment = New-MinimalEnvironment $QualificationRuntimeRoot $gitExe $integrationRoot 'production-profile-preflight-fixture' $qualificationForbidden 'Qualification' '' '' '127.0.0.1' $SyntheticDatabasePort
         Add-SyntheticApplicationEnvironment $qualificationEnvironment $integrationRoot $SyntheticDatabaseName $SyntheticDatabasePort $SyntheticDatabasePassword
         $qualificationEnvironment['DATA_DIR'] = $dataRoot
+        $qualificationEnvironment['NEXT_DOC04_DATA_ROOT'] = $dataRoot
+        $qualificationEnvironment['NEXT_DOC04_PRODUCTION_ENVIRONMENT_ROOT'] = $EnvironmentRoot
         $qualificationEnvironment['NEXT_DOC04_SYNTHETIC_BACKUP_ROOT'] = $backupRoot
         $fixtureChild = Invoke-IsolatedProcess (Join-Path $QualificationRuntimeRoot 'python.exe') $entrypoint @('production-profile-preflight-fixture','--phase','prepare') $integrationRoot $qualificationEnvironment 3600000
         if ($fixtureChild.exit_code -ne 0 -or $fixtureChild.stderr) { Stop-Launch 'DOC04B_PRODUCTION_PROFILE_FIXTURE_FAILED' }
@@ -541,6 +632,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ProductionProfilePreflightIntegration') {
         $productionEnvironment = New-MinimalEnvironment $RuntimeRoot $gitExe $EnvironmentRoot 'production-profile-preflight-integration' $productionForbidden 'Production' $productionEnvFile $ExpectedEnvironmentFileSha256 '127.0.0.1' $SyntheticDatabasePort
         Add-SyntheticApplicationEnvironment $productionEnvironment $EnvironmentRoot $SyntheticDatabaseName $SyntheticDatabasePort $SyntheticDatabasePassword
         $productionEnvironment['DATA_DIR'] = $dataRoot
+        $productionEnvironment['NEXT_DOC04_DATA_ROOT'] = $dataRoot
         $repairArgs = @(
             'repair','--preflight-production','--expected-database',$SyntheticDatabaseName,
             '--expected-git-sha',$ExpectedGitSha,'--expected-alembic-head',[string]$fixture.expected_alembic_head,
@@ -589,6 +681,7 @@ $EnvironmentRoot = [System.IO.Path]::GetFullPath($EnvironmentRoot).TrimEnd('\')
 $DataRoot = [System.IO.Path]::GetFullPath($DataRoot).TrimEnd('\')
 Assert-NonReparseDirectory $DataRoot 'DOC04B_PRODUCTION_DATA_ROOT_INVALID'
 $EnvironmentRoot = Assert-ProductionConfigurationRoot $EnvironmentRoot $DataRoot $lock.path_policies
+$DataRoot = Assert-ProductionDataRoot $EnvironmentRoot $DataRoot $lock
 $productionEnvFile = Join-Path $EnvironmentRoot '.env'
 $expectedEnvIdentity = [System.IO.Path]::GetFullPath($productionEnvFile)
 if ((Invoke-Git @('-C',$RepoRoot,'branch','--show-current')) -ne 'main' -or (Invoke-Git @('-C',$RepoRoot,'rev-parse','origin/main')) -ne $ExpectedGitSha) { Stop-Launch 'DOC04B_PRODUCTION_MAIN_IDENTITY_REQUIRED' }
@@ -616,6 +709,7 @@ if ($policy -eq 'production-execute') {
 $forbiddenRoots = @($DataRoot) + @($lock.path_policies.production_working_forbidden_roots)
 $productionEnvironment = New-MinimalEnvironment $RuntimeRoot $gitExe $EnvironmentRoot $policy $forbiddenRoots 'Production' $expectedEnvIdentity $ExpectedEnvironmentFileSha256 '127.0.0.1' 5432
 $productionEnvironment['ENVIRONMENT']='production';$productionEnvironment['POSTGRES_DB']='ai_lab';$productionEnvironment['POSTGRES_HOST']='127.0.0.1';$productionEnvironment['POSTGRES_PORT']='5432';$productionEnvironment['DATA_DIR']=$DataRoot
+$productionEnvironment['NEXT_DOC04_DATA_ROOT']=$DataRoot
 $environmentHandle = Open-VerifiedEnvironmentFile $productionEnvFile $ExpectedEnvironmentFileSha256
 try {
     $child = Invoke-IsolatedProcess $python $entrypoint $repairArgs $EnvironmentRoot $productionEnvironment 3600000
