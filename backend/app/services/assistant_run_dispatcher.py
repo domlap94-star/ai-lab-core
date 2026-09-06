@@ -51,7 +51,6 @@ from app.services.local_model_time_policy import (
     utc_iso,
 )
 from app.services.unified_assistant_service import UnifiedAssistantService
-from app.services.vision_dispatcher import process_explicit_vision_document
 
 
 logger = logging.getLogger("ai_lab.assistant_pipeline_v2")
@@ -424,48 +423,16 @@ async def _execute_visual_stages(
         )
         return collected, False
 
-    generated = not collected.visual_available
-    if generated:
-        stage_service.wait(
-            run,
-            "waiting_for_vision",
-            manifest={
-                "document_id": document.id,
-                "mode": "generated",
-                "vision_status": document.vision_status,
-            },
-        )
-        db.commit()
-        await asyncio.to_thread(process_explicit_vision_document, document.id)
-        db.expire_all()
-        current_run = (
-            db.query(AssistantRun)
-            .filter(AssistantRun.id == run.id)
-            .with_for_update()
-            .one_or_none()
-        )
-        if (
-            current_run is None
-            or current_run.status == "cancelled"
-            or current_run.cancel_requested_at is not None
-        ):
-            db.rollback()
-            return collected, False
-        run = current_run
-        document = db.get(Document, document.id)
-    else:
-        stage_service.start(run, "waiting_for_vision")
-
-    if document is None:
-        error_code = "VISION_DOCUMENT_UNAVAILABLE"
-    elif document.vision_status not in {"complete", "partial"}:
-        error_code = (
-            document.vision_error_code
-            or f"VISION_{document.vision_status.upper()}"
-        )[:100]
+    if run.status == "cancelled" or run.cancel_requested_at is not None:
+        return collected, False
+    if document.vision_status == "partial":
+        error_code = "VISION_REQUIRED_COVERAGE_INCOMPLETE"
+    elif document.vision_status != "complete":
+        error_code = "VISION_REQUIRED_NOT_AVAILABLE"
     elif document.vision_schema_version != VISION_RESULT_SCHEMA:
         error_code = "VISION_SCHEMA_INVALID"
     else:
+        stage_service.start(run, "waiting_for_vision")
         recollected = service._collect(
             request,
             kb_resolution=kb_resolution,
@@ -474,7 +441,7 @@ async def _execute_visual_stages(
         if recollected.visual_available and source_count > 0:
             manifest = {
                 "document_id": document.id,
-                "mode": "generated" if generated else "reused",
+                "mode": "reused",
                 "vision_status": document.vision_status,
                 "visual_source_count": source_count,
                 "schema_version": document.vision_schema_version,
@@ -497,7 +464,7 @@ async def _execute_visual_stages(
                 result_manifest=manifest,
             )
             return recollected, True
-        error_code = "VISION_VALIDATED_EVIDENCE_MISSING"
+        error_code = "VISION_REQUIRED_NOT_AVAILABLE"
 
     _finish_visual_review(
         db=db,

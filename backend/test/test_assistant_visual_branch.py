@@ -1,24 +1,20 @@
 from __future__ import annotations
 
 import asyncio
-import tempfile
+import hashlib
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from PIL import Image
-
 from app.models.assistant_pipeline import AssistantRun
 from app.models.document import Document
-from app.models.document_page import DocumentPage
 from app.schemas.unified_assistant import UnifiedAssistantRequest, UnifiedAssistantResponse
 from app.schemas.vision import VISION_RESULT_SCHEMA
 from app.services import assistant_run_dispatcher as dispatcher
 from app.services import document_preparation_dispatcher as preparation_dispatcher
 from app.services.assistant_run_planner import AssistantRunPlanner
 from app.services.document_preparation_service import PreparationClaim
-from app.services.vision_processing_service import VisionProcessingService
 
 
 class _FakeQuery:
@@ -218,19 +214,18 @@ class _DispatcherHarness:
         self,
         *,
         visual: bool = True,
-        initial_visual: bool = False,
+        initial_visual: bool = True,
         has_document: bool = True,
-        vision_outcome: str = "complete",
+        vision_status: str | None = None,
+        vision_schema_version: str | None = VISION_RESULT_SCHEMA,
         response_status: str = "accepted_local",
-        cancel_after_vision: bool = False,
+        cancelled: bool = False,
         terminal_resolution: bool = False,
     ) -> None:
         self.events: list[str] = []
         self.visual_planned = visual
         self.visual_available = initial_visual
-        self.vision_outcome = vision_outcome
         self.response_status = response_status
-        self.cancel_after_vision = cancel_after_vision
         document_id = 71 if has_document else None
         request = UnifiedAssistantRequest(
             question=("Co widać na obrazie?" if visual else "Podsumuj dokument."),
@@ -242,8 +237,8 @@ class _DispatcherHarness:
             request_payload=request.model_dump(mode="json"),
             plan={"intent": "document_reasoning"},
             current_stage=None,
-            status="running",
-            cancel_requested_at=None,
+            status="cancelled" if cancelled else "running",
+            cancel_requested_at=SimpleNamespace() if cancelled else None,
             created_by_user_id=41,
             complexity="visual" if visual else "standard",
             target_scope={},
@@ -259,8 +254,11 @@ class _DispatcherHarness:
                 file_size=100,
                 checksum_sha256="b" * 64,
                 processing_status="processed",
-                vision_status=("complete" if initial_visual else "not_evaluated"),
-                vision_schema_version=(VISION_RESULT_SCHEMA if initial_visual else None),
+                vision_status=(
+                    vision_status
+                    or ("complete" if initial_visual else "not_evaluated")
+                ),
+                vision_schema_version=vision_schema_version,
             )
             if has_document
             else None
@@ -282,7 +280,6 @@ class _DispatcherHarness:
         )
         self.db = _FakeDb(self)
         self.stages = _FakeStages(self, visual)
-        self.vision_calls = 0
 
     def response(self, status):
         return UnifiedAssistantResponse(
@@ -299,21 +296,6 @@ class _DispatcherHarness:
             can_cancel=False,
             error_message=("safe review" if status == "review_required" else None),
         )
-
-    def run_vision(self, document_id):
-        self.vision_calls += 1
-        self.events.append(f"vision:explicit:{document_id}")
-        if self.cancel_after_vision:
-            self.run.status = "cancelled"
-            self.run.cancel_requested_at = SimpleNamespace()
-            return
-        if self.vision_outcome == "complete":
-            self.document.vision_status = "complete"
-            self.document.vision_schema_version = VISION_RESULT_SCHEMA
-            self.visual_available = True
-        else:
-            self.document.vision_status = self.vision_outcome
-            self.document.vision_error_code = "WORKER_UNAVAILABLE"
 
     def execute(self):
         global _ACTIVE_HARNESS
@@ -337,151 +319,28 @@ class _DispatcherHarness:
                 _FakeMaterialService,
             ),
             patch.object(dispatcher, "AssistantRunService", _FakeRunService),
-            patch.object(
-                dispatcher,
-                "process_explicit_vision_document",
-                side_effect=self.run_vision,
-            ),
         ):
             asyncio.run(dispatcher._execute_run(self.run.id))
         _ACTIVE_HARNESS = None
 
 
-class _VisionDocuments:
-    def __init__(self, document, pages):
-        self.document = document
-        self.pages = pages
-
-    def get(self, document_id):
-        return self.document if document_id == self.document.id else None
-
-    def get_pages(self, _document_id):
-        return self.pages
-
-    def commit(self):
-        return None
-
-
-class _VisionAssets:
-    def __init__(self, assets=()):
-        self.assets = list(assets)
-
-    def get_for_document(self, _document_id):
-        return self.assets
-
-
-class _CaptureSupervisor:
-    def __init__(self):
-        self.payloads: list[dict] = []
-
-    def create_job(self, payload):
-        self.payloads.append(payload)
-        return {
-            "job_id": "00000000-0000-0000-0000-000000000099",
-            "state": "QUEUED",
-            "attempt_count": 0,
-        }
-
-
 class AssistantVisualBranchTests(unittest.TestCase):
-    def test_t01_visual_stages_execute_before_local(self):
+    def test_t01_complete_visual_is_reused_before_local(self):
         harness = _DispatcherHarness()
         harness.execute()
-        self.assertLess(
-            harness.events.index("stage:complete:analyzing_vision"),
-            harness.events.index("stage:start:analyzing_local"),
-        )
-
-    def test_t02_existing_visual_is_reused_without_vision_call(self):
-        harness = _DispatcherHarness(initial_visual=True)
-        harness.execute()
-        self.assertEqual(harness.vision_calls, 0)
-        self.assertEqual(harness.stages.manifests["analyzing_vision"]["mode"], "reused")
-
-    def test_t03_missing_visual_invokes_explicit_path_once(self):
-        harness = _DispatcherHarness()
-        harness.execute()
-        self.assertEqual(harness.vision_calls, 1)
-
-    def test_t04_text_rich_rendered_pdf_is_not_suppressed(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            Image.new("RGB", (800, 600), "white").save(root / "p1.png")
-            document = Document(
-                id=4,
-                filename="report.pdf",
-                original_filename="report.pdf",
-                content_type="application/pdf",
-                file_size=100,
-                vision_auto_eligible=False,
-                vision_status="not_evaluated",
-                vision_attempt_count=0,
-            )
-            page = DocumentPage(
-                id=41,
-                document_id=4,
-                page_number=1,
-                extracted_text="Pełna treść tekstowa. " * 20,
-                render_path="p1.png",
-            )
-            supervisor = _CaptureSupervisor()
-            service = VisionProcessingService(object(), supervisor=supervisor)
-            service.data_root = root.resolve()
-            service.spool_root = (root / "vision-spool").resolve()
-            service.documents = _VisionDocuments(document, [page])
-            service.assets = _VisionAssets()
-            result = service.advance(document.id, explicit=True)
-            self.assertEqual(result.status, "queued")
-            self.assertEqual(document.vision_classification, "vision_required")
-            self.assertEqual(len(supervisor.payloads), 1)
-
-    def test_t05_explicit_fallback_is_deterministic_and_bounded_to_four(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            pages = []
-            for index in range(1, 7):
-                Image.new("RGB", (800, 600), "white").save(root / f"p{index}.png")
-                pages.append(
-                    DocumentPage(
-                        id=50 + index,
-                        document_id=5,
-                        page_number=index,
-                        extracted_text="Pełna treść tekstowa. " * 20,
-                        render_path=f"p{index}.png",
-                    )
-                )
-            document = Document(
-                id=5,
-                filename="report.pdf",
-                original_filename="report.pdf",
-                content_type="application/pdf",
-                file_size=100,
-                vision_auto_eligible=False,
-                vision_status="not_evaluated",
-                vision_attempt_count=0,
-            )
-            supervisor = _CaptureSupervisor()
-            service = VisionProcessingService(object(), supervisor=supervisor)
-            service.data_root = root.resolve()
-            service.spool_root = (root / "vision-spool").resolve()
-            service.documents = _VisionDocuments(document, list(reversed(pages)))
-            service.assets = _VisionAssets()
-            service.advance(document.id, explicit=True)
-            sources = supervisor.payloads[0]["sources"]
-            self.assertEqual(len(sources), 4)
-            self.assertEqual([item["page_number"] for item in sources], [1, 2, 3, 4])
-
-    def test_t06_success_is_recollected_before_local_reasoning(self):
-        harness = _DispatcherHarness()
-        harness.execute()
-        local_index = harness.events.index("local:ask")
-        self.assertIn("collect:visual", harness.events[:local_index])
+        waiting = harness.events.index("stage:complete:waiting_for_vision")
+        analyzing = harness.events.index("stage:start:analyzing_vision")
+        analyzed = harness.events.index("stage:complete:analyzing_vision")
+        local = harness.events.index("stage:start:analyzing_local")
+        self.assertLess(waiting, analyzing)
+        self.assertLess(analyzing, analyzed)
+        self.assertLess(analyzed, local)
         self.assertEqual(
-            harness.stages.manifests["analyzing_vision"]["visual_source_count"],
-            1,
+            harness.stages.manifests["analyzing_vision"]["mode"],
+            "reused",
         )
 
-    def test_t07_advanced_is_after_visual_and_local(self):
+    def test_t02_local_reasoning_precedes_advanced(self):
         harness = _DispatcherHarness(response_status="advanced_queued")
         harness.execute()
         visual = harness.events.index("stage:complete:analyzing_vision")
@@ -490,71 +349,112 @@ class AssistantVisualBranchTests(unittest.TestCase):
         self.assertLess(visual, local)
         self.assertLess(local, advanced)
 
-    def test_t08_failed_visual_reviews_without_local_or_advanced(self):
-        harness = _DispatcherHarness(vision_outcome="failed_retryable")
+    def test_t03_missing_visual_is_review_required(self):
+        harness = _DispatcherHarness(initial_visual=False)
         harness.execute()
         self.assertEqual(harness.run.status, "review_required")
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISION_REQUIRED_NOT_AVAILABLE",
+            harness.events,
+        )
+        self.assertNotIn("local:ask", harness.events)
+
+    def test_t04_missing_visual_creates_no_external_work(self):
+        harness = _DispatcherHarness(initial_visual=False)
+        with patch.object(dispatcher.asyncio, "to_thread") as external_thread:
+            harness.execute()
+        external_thread.assert_not_called()
+        self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
+
+    def test_t05_partial_visual_is_review_required(self):
+        harness = _DispatcherHarness(vision_status="partial")
+        harness.execute()
+        self.assertEqual(harness.run.status, "review_required")
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISION_REQUIRED_COVERAGE_INCOMPLETE",
+            harness.events,
+        )
+
+    def test_t06_partial_visual_never_reaches_local_or_advanced(self):
+        harness = _DispatcherHarness(
+            vision_status="partial",
+            response_status="advanced_queued",
+        )
+        harness.execute()
         self.assertNotIn("local:ask", harness.events)
         self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
 
-    def test_t09_visual_without_document_fails_closed(self):
+    def test_t07_missing_or_wrong_visual_schema_fails_closed(self):
+        for schema in (None, "vision_result_v0"):
+            with self.subTest(schema=schema):
+                harness = _DispatcherHarness(vision_schema_version=schema)
+                harness.execute()
+                self.assertEqual(harness.run.status, "review_required")
+                self.assertIn(
+                    "stage:fail:waiting_for_vision:VISION_SCHEMA_INVALID",
+                    harness.events,
+                )
+                self.assertNotIn("local:ask", harness.events)
+                self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
+
+    def test_t08_visual_without_document_fails_closed(self):
         harness = _DispatcherHarness(has_document=False)
-        harness.execute()
+        with patch.object(dispatcher.asyncio, "to_thread") as external_thread:
+            harness.execute()
         self.assertEqual(harness.run.status, "review_required")
-        self.assertEqual(harness.vision_calls, 0)
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISION_DOCUMENT_REQUIRED",
+            harness.events,
+        )
+        external_thread.assert_not_called()
         self.assertNotIn("local:ask", harness.events)
 
-    def test_t10_cancelled_run_does_not_bind_late_visual(self):
-        harness = _DispatcherHarness(cancel_after_vision=True)
+    def test_t09_cancelled_run_has_no_answer_or_evidence_binding(self):
+        harness = _DispatcherHarness(cancelled=True)
         harness.execute()
         self.assertEqual(harness.run.status, "cancelled")
-        self.assertNotIn("stage:complete:analyzing_vision", harness.events)
+        self.assertNotIn("material:bind", harness.events)
+        self.assertFalse(
+            any(event.startswith("run:finish:") for event in harness.events)
+        )
         self.assertNotIn("local:ask", harness.events)
 
-    def test_t11_non_visual_path_does_not_call_vision(self):
-        harness = _DispatcherHarness(visual=False)
-        harness.execute()
-        self.assertEqual(harness.vision_calls, 0)
+    def test_t10_non_visual_path_is_unchanged(self):
+        harness = _DispatcherHarness(visual=False, initial_visual=False)
+        with patch.object(dispatcher.asyncio, "to_thread") as external_thread:
+            harness.execute()
+        external_thread.assert_not_called()
         self.assertIn("local:ask", harness.events)
 
-    def test_t12_terminal_resolution_skips_visual_stages(self):
+    def test_t11_terminal_resolution_skips_visual_stages(self):
         harness = _DispatcherHarness(terminal_resolution=True)
         harness.execute()
         self.assertEqual(harness.stages.status["waiting_for_vision"], "skipped")
         self.assertEqual(harness.stages.status["analyzing_vision"], "skipped")
-        self.assertEqual(harness.vision_calls, 0)
         self.assertNotIn("local:ask", harness.events)
 
-    def test_t13_non_explicit_text_sufficient_behavior_is_unchanged(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            Image.new("RGB", (800, 600), "white").save(root / "p1.png")
-            document = Document(
-                id=13,
-                filename="report.pdf",
-                original_filename="report.pdf",
-                content_type="application/pdf",
-                file_size=100,
-                vision_auto_eligible=True,
-                vision_status="not_evaluated",
-                vision_attempt_count=0,
-            )
-            page = DocumentPage(
-                id=131,
-                document_id=13,
-                page_number=1,
-                extracted_text="Pełna treść tekstowa. " * 20,
-                render_path="p1.png",
-            )
-            supervisor = _CaptureSupervisor()
-            service = VisionProcessingService(object(), supervisor=supervisor)
-            service.data_root = root.resolve()
-            service.spool_root = (root / "vision-spool").resolve()
-            service.documents = _VisionDocuments(document, [page])
-            service.assets = _VisionAssets()
-            result = service.advance(document.id, explicit=False)
-            self.assertEqual(result.status, "not_needed")
-            self.assertEqual(supervisor.payloads, [])
+    def test_t12_dispatcher_has_no_external_vision_reference(self):
+        source = Path(dispatcher.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("process_explicit_vision_document", source)
+        self.assertNotIn("VisionSupervisor", source)
+
+    def test_t13_vision_processing_service_matches_main_blob(self):
+        service_path = (
+            Path(__file__).resolve().parents[1]
+            / "app"
+            / "services"
+            / "vision_processing_service.py"
+        )
+        content = service_path.read_bytes().replace(b"\r\n", b"\n")
+        git_blob = hashlib.sha1(
+            f"blob {len(content)}\0".encode("ascii") + content,
+            usedforsecurity=False,
+        ).hexdigest()
+        self.assertLess(
+            0,
+            len(content),
+        )
+        self.assertEqual(git_blob, "5f0d14de81c16dd314efec4c7cbe9fe4c9d5bd59")
 
     def test_t14_ingestion_still_cannot_invoke_explicit_vision(self):
         claim = PreparationClaim(job_id="prep-14", lease_owner="owner-14")
