@@ -152,7 +152,7 @@ commit lub zatwierdzony artefakt operacyjny.
 | DOC-03 | P1 | present today | FIXED_UNVERIFIED | Expired running preparation blocks eight queued jobs. | Lease recovery, fencing and queue-drain regression test. | Preparation dispatcher | Independent source review PASS; audit `b1dee3d0afff1aefb5235176502cf0256fe975ce`; promoted main source `f601c2c4cb88f58f5095b842b0135316d8721f6f`; focused T01–T18 and consolidated main-based regression `91/91` PASS; queue-drain, child-cancellation and shutdown-propagation probes PASS; deployment/live verification pending. | pending |
 | DOC-04 | P1 | present today | OPEN | Document 8903 contains two unpaired low-surrogate escapes in each of `metadata_raw` and `metadata_normalized`. | Shared recurrence hardening and isolated repair rehearsal, followed by a separate owner-approved controlled data repair with verified backup and audit proof. | DOC-02 safety; DOC-04A; owner write gate | Independent projection review PASS; audit report `9567583fcef4278b32e46d0c81e8328106332499`; promoted main report `5e2167fabf8229b703b8757853f059fc20c14f50`; DOC-04A source hardening independently accepted at final audit `116c43d65e9045d2feac85ffaaf9cdfa380ba9af` and main source `243e6e53df2d293476e2c38ece49bd6c73932ecc`; U/R/G/H/I isolated matrices and PostgreSQL concurrency/parent-control proof PASS; recurrence path and guarded repair source accepted. Windows-host runtime, deployment and production repair remain pending. `SOURCE_HARDENING_FIXED_UNVERIFIED / WINDOWS_RUNTIME_BLOCKED / PRODUCTION_REPAIR_PENDING`. | pending |
 | AUTO-01 | P0 | target V3 design | OPEN | No durable non-Assistant owner exists for automatic Text Intelligence. | Document/material-generation-scoped durable Text Intelligence work ledger or explicitly approved equivalent. | Material V3 schema | — | — |
-| ASST-01 | P0 | present today | OPEN | Visual stages are planned but not executed; Advanced can start before required Visual. | Local-only reasoner, executable Visual branch, local re-synthesis and Advanced ordering proof. | Visual V2 + Text Intelligence V3 | — | — |
+| ASST-01 | P0 | present today | FIXED_UNVERIFIED | Visual stages are planned but not executed; Advanced can start before required Visual. | Local-only reasoner, executable Visual branch, local re-synthesis and Advanced ordering proof. | Visual V2 + Text Intelligence V3 | Independent source review PASS; audit final `10d498230bcb9801d10cd949da6b12819b4b52b1`; promoted main source `da368151461fba4ba9a4d68b2af6cdb16c333658`; focused `16/16` and combined relevant regression `272/272` plus two subtests PASS; migration NO; Assistant external Vision calls 0; complete substantive existing visual evidence is reused before local reasoning, while missing, partial or invalid evidence fails closed before local/Advanced; deployment and live Assistant acceptance pending. | pending |
 | GMAIL-01 | P1 | present today | OPEN | Five mailbox messages are missing from PostgreSQL; six unmatched sources now resolve certainly; one current linked conflict exists. | Bounded, idempotent, owner-approved mailbox/import reconciliation and repair report. | GMAIL-02; backup gate | — | — |
 | GMAIL-02 | P1 | present today | OPEN | New Gmail attachment reconciliation is unreachable because it depends on Vision eligibility. | Trigger deterministic second pass after local Material/Text completion, independent of Vision. | Material/Text runtime | — | — |
 | RES-01 | P1 | present architecture | OPEN | NEXT model ownership is process-local and is lost after backend restart. | Durable/fenced model residency ownership without taking ownership of user or Open WebUI models. | Resource coordinator | — | — |
@@ -423,12 +423,14 @@ AssistantRun: (1) Material V3, następnie (2) local Text Intelligence V3.
 - [ ] Local reasoner nie tworzy `AnalysisJob`.
 - [ ] Utrzymać strict local result contract, source refs i tool refs.
 - [ ] Wykonać `VisualNeedGate` po local pass.
-- [ ] ASST-01: zaimplementować rzeczywiście wykonywalny Visual branch.
-- [ ] Required Visual zawsze kończy się przed możliwością Advanced.
+- [x] ASST-01: source `FIXED_UNVERIFIED`; wykonywalny Visual branch korzysta
+  wyłącznie z istniejącego kompletnego i substantywnego evidence V1.
+- [x] Required Visual zawsze kończy się przed możliwością Advanced.
 - [ ] Utrzymać poprawny `VisualConsumer` lifecycle i isolation per AssistantRun.
 - [ ] App close/minimize/reopen nie anuluje pracy i odtwarza właściwy stan.
-- [ ] Po Visual wykonać local re-synthesis; Temporary Chat output nigdy nie
+- [x] Po Visual wykonać local re-synthesis; Temporary Chat output nigdy nie
   dociera bezpośrednio do użytkownika.
+- [ ] ASST-01: deployment i live Assistant acceptance.
 - [ ] Final answer pozostaje source-bound i przechodzi lokalne validation gates.
 - [ ] Zachować Chat History isolation między conversations.
 - [ ] Explicit cancel anuluje właściwego consumer/run; delete chat nie oznacza
@@ -773,6 +775,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-09-01 | DOC-03 | Independent source/test review, main-based fencing and queue-drain validation | audit `b1dee3d0afff1aefb5235176502cf0256fe975ce`; main `f601c2c4cb88f58f5095b842b0135316d8721f6f` | SOURCE LEASE RECOVERY/FENCING PASS / FIXED_UNVERIFIED; deployment, live queue recovery and Material V3 finalization pending | Owner/Assistant independent Git review |
 | 2026-09-01 | DOC-04 PROJECTION | Independent Git/report review; single-row read-only projection; exact before/candidate hashes; isolated PostgreSQL validation | audit `9567583fcef4278b32e46d0c81e8328106332499`; main `5e2167fabf8229b703b8757853f059fc20c14f50`; `FOLLOWUP_PRECHUNK23_DOC04_METADATA_REPAIR_PROJECTION.md` | PLAN READY FOR OWNER REVIEW / DOC-04 REMAINS OPEN; no production repair; recurrence hardening and write gate pending | Owner/Assistant independent Git review |
 | 2026-09-02 | DOC-04A | Independent cumulative source review; isolated Unicode, repair, backup, locking and fresh-snapshot matrices | audit `116c43d65e9045d2feac85ffaaf9cdfa380ba9af`; main `243e6e53df2d293476e2c38ece49bd6c73932ecc` | SOURCE HARDENING AND REPAIR CONTRACT PASS / FIXED_UNVERIFIED / WINDOWS RUNTIME AND PRODUCTION REPAIR PENDING | Owner/Assistant independent Git review |
+| 2026-09-06 | ASST-01 | Independent final source review and current-main visual-branch regression | audit `10d498230bcb9801d10cd949da6b12819b4b52b1`; main `da368151461fba4ba9a4d68b2af6cdb16c333658` | SOURCE VISUAL ORDERING/FAIL-CLOSED PASS / FIXED_UNVERIFIED; deployment and live Assistant acceptance pending | Owner/Assistant independent Git review |
 | — | — | — | — | — | — |
 
 ## 18. Decision log
@@ -788,6 +791,7 @@ Wszystkie poniższe warunki są obowiązkowe:
 | 2026-09-01 | Promote DOC-03 lease recovery and attempt fencing to main | It prevents stale workers from mutating a reclaimed preparation attempt and keeps recovery active during long intelligence waits | Source accepted; no deployment or production-job recovery; structural side-effect fencing and serial throughput remain Material V3/RES-02 work |
 | 2026-09-01 | Accept DOC-04 minimal lexical repair projection, but do not execute it yet | The plan proves one-row/two-column scope and deterministic candidates, while current metadata persistence still permits recurrence | Report promoted to main; source hardening and isolated repair rehearsal must precede any owner-approved production update |
 | 2026-09-02 | Promote DOC-04A source hardening and guarded repair executable to main | The source now prevents recurrence, uses exact one-row repair semantics, canonical backup/restore coordination and fresh PostgreSQL snapshots | Source accepted without deployment or production write. A dedicated versioned Windows-host runtime remains mandatory before production preflight |
+| 2026-09-06 | Promote ASST-01 executable visual branch to main | Complete substantive existing visual evidence now precedes local reasoning; missing, partial, empty, interpretation-only or invalid evidence fails closed before local or Advanced | Source accepted without deployment or migration; live Assistant acceptance remains required |
 
 ## 19. Current verdicts
 
