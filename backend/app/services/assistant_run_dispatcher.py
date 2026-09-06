@@ -26,6 +26,7 @@ from app.schemas.unified_assistant import (
     UnifiedClaim,
     UnifiedSource,
 )
+from app.schemas.vision import VISION_RESULT_SCHEMA
 from app.services.assistant_run_material_service import (
     AssistantMaterialSourceRefConflict,
     AssistantRunMaterialService,
@@ -50,6 +51,7 @@ from app.services.local_model_time_policy import (
     utc_iso,
 )
 from app.services.unified_assistant_service import UnifiedAssistantService
+from app.services.vision_dispatcher import process_explicit_vision_document
 
 
 logger = logging.getLogger("ai_lab.assistant_pipeline_v2")
@@ -330,6 +332,184 @@ def _review_response(run_id: str, message: str, stage: str) -> UnifiedAssistantR
     )
 
 
+_VISUAL_LATER_STAGES = (
+    "waiting_for_vision",
+    "analyzing_vision",
+    "analyzing_local",
+    "reducing_findings",
+    "synthesizing",
+    "validating_local",
+    "waiting_for_advanced",
+    "analyzing_advanced",
+    "validating_advanced",
+)
+
+
+def _visual_source_count(collected: Any) -> int:
+    for item in collected.tool_payloads:
+        if item.get("tool") != "get_visual_analysis":
+            continue
+        data = item.get("data")
+        values = data.get("visual_results") if isinstance(data, dict) else None
+        if isinstance(values, list):
+            return len(values)
+    return 0
+
+
+def _finish_visual_review(
+    *,
+    db: Any,
+    run: AssistantRun,
+    stage_service: AssistantRunStageService,
+    failed_stage: str,
+    error_code: str,
+    message: str,
+) -> None:
+    stage_service.fail(run, failed_stage, error_code)
+    for stage_type in _VISUAL_LATER_STAGES:
+        if stage_type != failed_stage:
+            stage_service.skip(run, stage_type, error_code)
+    stage_service.start(run, "finalizing")
+    response = _review_response(run.id, message, failed_stage)
+    stage_service.complete(
+        run,
+        "finalizing",
+        result_kind="final_response",
+        result_manifest={
+            "disposition": "review_required",
+            "error_code": error_code,
+        },
+    )
+    AssistantRunService(db).finish(run=run, response=response)
+    db.commit()
+
+
+async def _execute_visual_stages(
+    *,
+    db: Any,
+    run: AssistantRun,
+    request: UnifiedAssistantRequest,
+    document: Document | None,
+    service: UnifiedAssistantService,
+    collected: Any,
+    kb_resolution: Any,
+    stage_service: AssistantRunStageService,
+) -> tuple[Any, bool]:
+    waiting_stage = stage_service.latest(run.id, "waiting_for_vision")
+    analyzing_stage = stage_service.latest(run.id, "analyzing_vision")
+    if waiting_stage is None and analyzing_stage is None:
+        return collected, True
+    if waiting_stage is None or analyzing_stage is None:
+        _finish_visual_review(
+            db=db,
+            run=run,
+            stage_service=stage_service,
+            failed_stage=(
+                "waiting_for_vision"
+                if waiting_stage is not None
+                else "analyzing_vision"
+            ),
+            error_code="VISION_STAGE_PLAN_INVALID",
+            message="Plan analizy wizualnej jest niekompletny i wymaga weryfikacji.",
+        )
+        return collected, False
+    if document is None or request.document_id is None:
+        _finish_visual_review(
+            db=db,
+            run=run,
+            stage_service=stage_service,
+            failed_stage="waiting_for_vision",
+            error_code="VISION_DOCUMENT_REQUIRED",
+            message="Wybierz dokument zawierający materiał wizualny do analizy.",
+        )
+        return collected, False
+
+    generated = not collected.visual_available
+    if generated:
+        stage_service.wait(
+            run,
+            "waiting_for_vision",
+            manifest={
+                "document_id": document.id,
+                "mode": "generated",
+                "vision_status": document.vision_status,
+            },
+        )
+        db.commit()
+        await asyncio.to_thread(process_explicit_vision_document, document.id)
+        db.expire_all()
+        current_run = (
+            db.query(AssistantRun)
+            .filter(AssistantRun.id == run.id)
+            .with_for_update()
+            .one_or_none()
+        )
+        if (
+            current_run is None
+            or current_run.status == "cancelled"
+            or current_run.cancel_requested_at is not None
+        ):
+            db.rollback()
+            return collected, False
+        run = current_run
+        document = db.get(Document, document.id)
+    else:
+        stage_service.start(run, "waiting_for_vision")
+
+    if document is None:
+        error_code = "VISION_DOCUMENT_UNAVAILABLE"
+    elif document.vision_status not in {"complete", "partial"}:
+        error_code = (
+            document.vision_error_code
+            or f"VISION_{document.vision_status.upper()}"
+        )[:100]
+    elif document.vision_schema_version != VISION_RESULT_SCHEMA:
+        error_code = "VISION_SCHEMA_INVALID"
+    else:
+        recollected = service._collect(
+            request,
+            kb_resolution=kb_resolution,
+        )
+        source_count = _visual_source_count(recollected)
+        if recollected.visual_available and source_count > 0:
+            manifest = {
+                "document_id": document.id,
+                "mode": "generated" if generated else "reused",
+                "vision_status": document.vision_status,
+                "visual_source_count": source_count,
+                "schema_version": document.vision_schema_version,
+            }
+            stage_service.complete(
+                run,
+                "waiting_for_vision",
+                result_kind="visual_evidence",
+                result_manifest=manifest,
+            )
+            stage_service.start(run, "analyzing_vision")
+            AssistantRunMaterialService(db).bind_collected_sources(
+                run_id=run.id,
+                sources=recollected.sources,
+            )
+            stage_service.complete(
+                run,
+                "analyzing_vision",
+                result_kind="visual_evidence",
+                result_manifest=manifest,
+            )
+            return recollected, True
+        error_code = "VISION_VALIDATED_EVIDENCE_MISSING"
+
+    _finish_visual_review(
+        db=db,
+        run=run,
+        stage_service=stage_service,
+        failed_stage="waiting_for_vision",
+        error_code=error_code,
+        message="Analiza wizualna nie dostarczyła zweryfikowanego wyniku.",
+    )
+    return collected, False
+
+
 def _kb_catalog_response(run_id: str) -> UnifiedAssistantResponse:
     db = SessionLocal()
     try:
@@ -456,7 +636,8 @@ async def _execute_run(run_id: str) -> None:
             )
             for name in (
                 "waiting_for_material", "building_intelligence", "validating_intelligence",
-                "retrieving_case_evidence", "retrieving_knowledge_base", "analyzing_local",
+                "retrieving_case_evidence", "retrieving_knowledge_base",
+                "waiting_for_vision", "analyzing_vision", "analyzing_local",
                 "reducing_findings", "synthesizing", "validating_local",
                 "waiting_for_advanced", "analyzing_advanced", "validating_advanced",
             ):
@@ -602,6 +783,19 @@ async def _execute_run(run_id: str) -> None:
                 run, "retrieving_knowledge_base",
                 result_manifest={"source_count": kb_count, "fail_open": True},
             )
+
+        collected, visual_ready = await _execute_visual_stages(
+            db=db,
+            run=run,
+            request=request,
+            document=document,
+            service=service,
+            collected=collected,
+            kb_resolution=kb_resolution,
+            stage_service=stage_service,
+        )
+        if not visual_ready:
+            return
 
         analysis_stage = stage_service.start(run, "analyzing_local")
         db.commit()

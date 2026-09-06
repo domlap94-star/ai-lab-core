@@ -56,6 +56,7 @@ class VisionDocumentUnsupported(RuntimeError):
 class VisionProcessingService:
     MAX_IMAGE_EDGE = 2048
     MAX_PREPARED_BYTES = 12 * 1024 * 1024
+    MAX_VISUAL_SOURCES = 4
 
     def __init__(self, db: Session, *, supervisor=None, classifier=None) -> None:
         self.db = db
@@ -82,6 +83,13 @@ class VisionProcessingService:
         pages = self.documents.get_pages(document.id)
         assets = self.assets.get_for_document(document.id)
         classification = self.classifier.classify(document=document, pages=pages, assets=assets)
+        if explicit:
+            classification = self._explicit_classification(
+                document=document,
+                pages=pages,
+                assets=assets,
+                classification=classification,
+            )
         if not classification.sources and classification.reason in {"IMAGE_AWAITS_NORMAL_PROCESSING", "DOCUMENT_AWAITS_PAGE_RENDER"}:
             return self._result(document)
         document.vision_classification = classification.classification
@@ -129,7 +137,9 @@ class VisionProcessingService:
         descriptors = []
         source_map: dict[str, VisionSourceCandidate] = {}
         prepared: list[tuple[VisionSourceCandidate, Path, str]] = []
-        for index, candidate in enumerate(classification.sources[:4], 1):
+        for index, candidate in enumerate(
+            classification.sources[: self.MAX_VISUAL_SOURCES], 1
+        ):
             source_path = self._source_path(document, candidate)
             prepared_path, extension = self._prepare_path(source_path)
             checksum = self._sha256(prepared_path)
@@ -154,6 +164,61 @@ class VisionProcessingService:
                 "incoming_relative_path": f"incoming/{request_key}/{target.name}",
             }
         return request_key, {"request_key": request_key, "sources": descriptors}, source_map
+
+    def _explicit_classification(
+        self,
+        *,
+        document: Document,
+        pages: list[DocumentPage],
+        assets: list[DocumentAsset],
+        classification: VisionClassificationResult,
+    ) -> VisionClassificationResult:
+        """Select existing raster evidence when an explicit request needs it."""
+        if classification.classification != "text_sufficient":
+            return classification
+
+        ordered_pages = sorted(pages, key=lambda item: (item.page_number, item.id or 0))
+        ordered_assets = sorted(assets, key=lambda item: (item.asset_index, item.id or 0))
+        candidates: list[VisionSourceCandidate] = []
+        extension = Path(
+            document.original_filename or document.filename or ""
+        ).suffix.casefold()
+        content_type = (document.content_type or "").casefold()
+        is_image = (
+            extension in self.classifier.IMAGE_EXTENSIONS
+            or content_type in self.classifier.IMAGE_TYPES
+        )
+
+        if is_image and ordered_pages and document.storage_path:
+            candidates.append(
+                VisionSourceCandidate(
+                    page=ordered_pages[0],
+                    use_document_file=True,
+                )
+            )
+        else:
+            candidates.extend(
+                VisionSourceCandidate(page=page)
+                for page in ordered_pages
+                if page.render_path
+            )
+
+        candidates.extend(
+            VisionSourceCandidate(asset=asset)
+            for asset in ordered_assets
+            if asset.storage_path and self.classifier._valuable_asset(asset)
+        )
+        if not candidates:
+            return VisionClassificationResult(
+                "unsupported",
+                "NO_SAFE_VISUAL_RENDER",
+            )
+        return VisionClassificationResult(
+            "vision_required",
+            "EXPLICIT_VISUAL_REQUEST",
+            tuple(candidates[: self.MAX_VISUAL_SOURCES]),
+            len(candidates) > self.MAX_VISUAL_SOURCES,
+        )
 
     def _apply_job(self, document, classification, request_key, source_map, job):
         state = str(job.get("state") or "FAILED").upper()
