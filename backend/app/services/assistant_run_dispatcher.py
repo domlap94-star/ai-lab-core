@@ -351,7 +351,24 @@ def _visual_source_count(collected: Any) -> int:
         data = item.get("data")
         values = data.get("visual_results") if isinstance(data, dict) else None
         if isinstance(values, list):
-            return len(values)
+            substantive = 0
+            for result in values:
+                if not isinstance(result, dict):
+                    continue
+                has_direct_evidence = any(
+                    isinstance(evidence, dict)
+                    and isinstance(evidence.get("text"), str)
+                    and bool(evidence["text"].strip())
+                    for key in ("observations", "visible_text")
+                    for evidence in (
+                        result.get(key)
+                        if isinstance(result.get(key), list)
+                        else ()
+                    )
+                )
+                if has_direct_evidence:
+                    substantive += 1
+            return substantive
     return 0
 
 

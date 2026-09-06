@@ -145,7 +145,7 @@ class _FakeUnifiedService:
             payloads.append(
                 {
                     "tool": "get_visual_analysis",
-                    "data": {"visual_results": [{"observations": []}]},
+                    "data": {"visual_results": self.harness.visual_results},
                     "source_keys": [("document", 71, "/documents/71")],
                 }
             )
@@ -218,6 +218,7 @@ class _DispatcherHarness:
         has_document: bool = True,
         vision_status: str | None = None,
         vision_schema_version: str | None = VISION_RESULT_SCHEMA,
+        visual_results: list[dict] | None = None,
         response_status: str = "accepted_local",
         cancelled: bool = False,
         terminal_resolution: bool = False,
@@ -225,6 +226,23 @@ class _DispatcherHarness:
         self.events: list[str] = []
         self.visual_planned = visual
         self.visual_available = initial_visual
+        self.visual_results = (
+            visual_results
+            if visual_results is not None
+            else [
+                {
+                    "observations": [
+                        {
+                            "source_ref": "S1",
+                            "text": "Na stronie widoczny jest przekrój warstw.",
+                        }
+                    ],
+                    "possible_interpretations": [],
+                    "uncertainties": [],
+                    "visible_text": [],
+                }
+            ]
+        )
         self.response_status = response_status
         document_id = 71 if has_document else None
         request = UnifiedAssistantRequest(
@@ -339,6 +357,20 @@ class AssistantVisualBranchTests(unittest.TestCase):
             harness.stages.manifests["analyzing_vision"]["mode"],
             "reused",
         )
+        visible_text = _DispatcherHarness(
+            visual_results=[
+                {
+                    "observations": [],
+                    "possible_interpretations": [],
+                    "uncertainties": [],
+                    "visible_text": [
+                        {"source_ref": "S1", "text": "1,8 m"}
+                    ],
+                }
+            ]
+        )
+        visible_text.execute()
+        self.assertIn("local:ask", visible_text.events)
 
     def test_t02_local_reasoning_precedes_advanced(self):
         harness = _DispatcherHarness(response_status="advanced_queued")
@@ -501,6 +533,55 @@ class AssistantVisualBranchTests(unittest.TestCase):
             )
         self.assertFalse(result)
         explicit.assert_not_called()
+
+    def test_t15_complete_but_empty_visual_fails_closed(self):
+        harness = _DispatcherHarness(
+            visual_results=[
+                {
+                    "observations": [],
+                    "possible_interpretations": [],
+                    "uncertainties": [],
+                    "visible_text": [],
+                }
+            ]
+        )
+        harness.execute()
+        self.assertEqual(harness.run.status, "review_required")
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISION_REQUIRED_NOT_AVAILABLE",
+            harness.events,
+        )
+        self.assertEqual(harness.events.count("material:bind"), 1)
+        self.assertNotIn("stage:complete:analyzing_vision", harness.events)
+        self.assertNotIn("local:ask", harness.events)
+        self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
+
+    def test_t16_interpretation_only_visual_fails_closed(self):
+        harness = _DispatcherHarness(
+            visual_results=[
+                {
+                    "observations": [],
+                    "possible_interpretations": [
+                        {
+                            "source_ref": "S1",
+                            "text": "Możliwe uszkodzenie konstrukcyjne.",
+                        }
+                    ],
+                    "uncertainties": [],
+                    "visible_text": [],
+                }
+            ]
+        )
+        harness.execute()
+        self.assertEqual(harness.run.status, "review_required")
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISION_REQUIRED_NOT_AVAILABLE",
+            harness.events,
+        )
+        self.assertEqual(harness.events.count("material:bind"), 1)
+        self.assertNotIn("stage:complete:analyzing_vision", harness.events)
+        self.assertNotIn("local:ask", harness.events)
+        self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
 
 
 if __name__ == "__main__":
