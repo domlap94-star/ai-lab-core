@@ -204,6 +204,11 @@ class UnifiedAssistantService:
         advanced_external_hard_seconds: int = ADVANCED_EXTERNAL_HARD_SECONDS,
         release_db_before_model: bool = False,
         document_intelligence_payload: dict[str, Any] | None = None,
+        supplemental_sources: list[AgentSource] | None = None,
+        supplemental_tool_payloads: list[dict[str, Any]] | None = None,
+        allow_advanced_escalation: bool = True,
+        allow_existing_advanced_result: bool = True,
+        expire_durable_advanced_wait: bool = True,
     ) -> None:
         self.db = db
         self.llm = llm_client or OllamaClient()
@@ -216,6 +221,11 @@ class UnifiedAssistantService:
         self.advanced_external_hard_seconds = advanced_external_hard_seconds
         self.release_db_before_model = release_db_before_model
         self.document_intelligence_payload = document_intelligence_payload
+        self.supplemental_sources = list(supplemental_sources or [])
+        self.supplemental_tool_payloads = list(supplemental_tool_payloads or [])
+        self.allow_advanced_escalation = allow_advanced_escalation
+        self.allow_existing_advanced_result = allow_existing_advanced_result
+        self.expire_durable_advanced_wait = expire_durable_advanced_wait
         self.local_truncation_retry_used = False
         self._model_resource_context = None
 
@@ -282,7 +292,11 @@ class UnifiedAssistantService:
             return await self._answer_kb_overview(
                 model_request, collected, kb_resolution, request_id
             )
-        existing = self.db.get(AnalysisJob, request_id)
+        existing = (
+            self.db.get(AnalysisJob, request_id)
+            if self.allow_existing_advanced_result
+            else None
+        )
         if existing is not None:
             analysis_request, _ = self._advanced_request(
                 model_request, collected, user_id, request_id
@@ -484,6 +498,8 @@ class UnifiedAssistantService:
             model_request, parsed, collected, query_mode=query_mode
         )
         if advanced_reason is not None:
+            if not self.allow_advanced_escalation:
+                return self._safe_output_failure_response(request_id, collected)
             if any(source.source_type == "knowledge_base" for source in collected.sources):
                 # KB currently has no per-item external sensitivity contract.
                 # Proprietary technical memory therefore remains local-only.
@@ -2100,6 +2116,8 @@ class UnifiedAssistantService:
         )
 
     def _expire_advanced(self, job: AnalysisJob) -> bool:
+        if not self.expire_durable_advanced_wait:
+            return False
         if job.status not in {"advanced_queued", "advanced_processing", "awaiting_auth", "awaiting_ui_fix", "advanced_validating"}:
             return False
         started = job.started_at or job.created_at
@@ -2646,6 +2664,27 @@ class UnifiedAssistantService:
                     "source_keys": document_keys,
                 })
                 tools.append("document_intelligence")
+        if self.supplemental_sources:
+            # Reserve source slots for already validated local artifacts such
+            # as Visual V2; they must not disappear behind broad retrieval.
+            bounded = self.supplemental_sources[:MAX_SOURCES]
+            sources = sources[: max(0, MAX_SOURCES - len(bounded))]
+            for source in bounded:
+                key = (source.source_type, source.source_id, source.route)
+                if not any(
+                    (item.source_type, item.source_id, item.route) == key
+                    for item in sources
+                ):
+                    sources.append(source)
+        for item in self.supplemental_tool_payloads:
+            if not isinstance(item, dict):
+                continue
+            payloads.append(item)
+            tool_name = str(item.get("tool") or "")
+            if tool_name and tool_name not in tools:
+                tools.append(tool_name)
+            if tool_name == "get_visual_v2":
+                visual_available = True
         target_labels: list[str] = []
         if client_id is not None:
             # Reuse the canonical selected Client row.  User wording and model

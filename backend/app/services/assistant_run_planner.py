@@ -182,7 +182,9 @@ class AssistantRunPlanner:
             definitions += [("retrieving_case_evidence", 30, 120)]
             if intent in {"document_reasoning", "evidence_reasoning"}:
                 definitions += [("retrieving_knowledge_base", 30, 120)]
-            if complexity == "visual":
+            # Every document request executes the deterministic Visual V2 gate.
+            # Text-only documents skip these stages without external work.
+            if intent == "document_reasoning" or complexity == "visual":
                 definitions += [("waiting_for_vision", 180, 3600), ("analyzing_vision", 180, 3600)]
             definitions += [(
                 "analyzing_local",
@@ -204,6 +206,12 @@ class AssistantRunPlanner:
                         DEEP_LOCAL_SUBSTAGE_ABSOLUTE_SECONDS,
                     ),
                 ]
+            else:
+                definitions += [(
+                    "synthesizing",
+                    GENERATION_INACTIVITY_SECONDS,
+                    STANDARD_LOCAL_ABSOLUTE_SECONDS,
+                )]
             definitions += [
                 ("validating_local", 60, 300),
                 ("waiting_for_advanced", 180, 1800),

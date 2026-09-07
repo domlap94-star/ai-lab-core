@@ -14,7 +14,7 @@ from app.schemas.vision import VISION_RESULT_SCHEMA
 from app.services import assistant_run_dispatcher as dispatcher
 from app.services import document_preparation_dispatcher as preparation_dispatcher
 from app.services.assistant_run_planner import AssistantRunPlanner
-from app.services.document_preparation_service import PreparationClaim
+from app.schemas.agent import AgentSource
 
 
 class _FakeQuery:
@@ -117,6 +117,29 @@ class _FakeUnifiedService:
     def __init__(self, _db, **_kwargs):
         self.harness = _ACTIVE_HARNESS
         self.local_truncation_retry_used = False
+        self.supplemental_sources = list(_kwargs.get("supplemental_sources") or [])
+        self.supplemental_tool_payloads = list(
+            _kwargs.get("supplemental_tool_payloads") or []
+        )
+        self.supervisor = None
+        self.allow_advanced_escalation = _kwargs.get(
+            "allow_advanced_escalation", True
+        )
+        self.allow_existing_advanced_result = _kwargs.get(
+            "allow_existing_advanced_result", True
+        )
+        self.harness.service_configurations.append({
+            "allow_advanced_escalation": self.allow_advanced_escalation,
+            "allow_existing_advanced_result": self.allow_existing_advanced_result,
+            "expire_durable_advanced_wait": _kwargs.get(
+                "expire_durable_advanced_wait", True
+            ),
+            "supplemental_tools": [
+                item.get("tool")
+                for item in self.supplemental_tool_payloads
+                if isinstance(item, dict)
+            ],
+        })
 
     def _resolve_required_document(self, _request):
         return self.harness.resolution
@@ -128,7 +151,7 @@ class _FakeUnifiedService:
         return None
 
     def _collect(self, _request, **_kwargs):
-        available = self.harness.visual_available
+        available = bool(self.supplemental_tool_payloads)
         self.harness.events.append(
             "collect:visual" if available else "collect:no-visual"
         )
@@ -139,19 +162,15 @@ class _FakeUnifiedService:
             snippet="synthetic",
             title="synthetic",
         )
+        sources = [source]
         payloads = []
         tools = ["get_document_summary"]
         if available:
-            payloads.append(
-                {
-                    "tool": "get_visual_analysis",
-                    "data": {"visual_results": self.harness.visual_results},
-                    "source_keys": [("document", 71, "/documents/71")],
-                }
-            )
-            tools.append("get_visual_analysis")
+            sources.extend(self.supplemental_sources)
+            payloads.extend(self.supplemental_tool_payloads)
+            tools.append("get_visual_v2")
         return SimpleNamespace(
-            sources=[source],
+            sources=sources,
             tool_payloads=payloads,
             tools=tools,
             client_id=None,
@@ -164,8 +183,72 @@ class _FakeUnifiedService:
         current = self._collect(request)
         if self.harness.visual_planned:
             assert current.visual_available
-        self.harness.events.append("local:ask")
-        return self.harness.response(self.harness.response_status)
+        status = self.harness.next_response_status()
+        self.harness.events.append(f"reasoner:ask:{status}")
+        return self.harness.response(status)
+
+
+class _VisualResolution:
+    def __init__(self, state, reason, job_id="visual-job-1", payload=None):
+        self.state = state
+        self.reason = reason
+        self.analysis_job_id = job_id
+        self.result_payload = payload
+
+    @property
+    def waiting(self):
+        return self.state in {"queued", "processing", "awaiting_auth", "awaiting_ui_fix"}
+
+
+class _FakeVisualService:
+    def __init__(self, _db, **_kwargs):
+        self.harness = _ACTIVE_HARNESS
+
+    def ensure(self, **_kwargs):
+        if not self.harness.visual_planned:
+            return _VisualResolution("not_required", "EXTRACTED_TEXT_SUFFICIENT", None)
+        if self.harness.vision_status == "partial":
+            return _VisualResolution("review_required", "VISION_REQUIRED_COVERAGE_INCOMPLETE")
+        if self.harness.vision_schema_version != VISION_RESULT_SCHEMA:
+            return _VisualResolution("review_required", "VISION_SCHEMA_INVALID")
+        if not self.harness.visual_available:
+            return _VisualResolution("review_required", "VISION_REQUIRED_NOT_AVAILABLE")
+        return _VisualResolution(
+            "accepted",
+            "VISUAL_V2_ACCEPTED",
+            payload={"schema_version": "ASSISTANT_VISUAL_EVIDENCE_V2"},
+        )
+
+    def assistant_evidence(self, _resolution, **_kwargs):
+        evidence = []
+        for result in self.harness.visual_results:
+            for key, kind in (("observations", "observation"), ("visible_text", "visible_text")):
+                for item in result.get(key) or []:
+                    if isinstance(item, dict) and str(item.get("text") or "").strip():
+                        evidence.append({
+                            "kind": kind,
+                            "source_ref": "V01",
+                            "page_number": 1,
+                            "text": item["text"],
+                        })
+        if not evidence:
+            return [], [{
+                "tool": "get_visual_v2",
+                "data": {"evidence": []},
+                "source_keys": [],
+            }]
+        source = AgentSource(
+            source_type="visual",
+            source_id=71,
+            title="visual",
+            route="/documents/71?page=1",
+            snippet=evidence[0]["text"],
+        )
+        return [source], [{
+            "tool": "get_visual_v2",
+            "data": {"evidence": evidence},
+            "source_keys": [(source.source_type, source.source_id, source.route)],
+        }]
 
 
 class _FakeIntelligenceService:
@@ -220,10 +303,14 @@ class _DispatcherHarness:
         vision_schema_version: str | None = VISION_RESULT_SCHEMA,
         visual_results: list[dict] | None = None,
         response_status: str = "accepted_local",
+        response_statuses: list[str] | None = None,
         cancelled: bool = False,
         terminal_resolution: bool = False,
     ) -> None:
         self.events: list[str] = []
+        self.service_configurations: list[dict] = []
+        self.response_statuses = list(response_statuses or [response_status])
+        self.response_index = 0
         self.visual_planned = visual
         self.visual_available = initial_visual
         self.visual_results = (
@@ -244,6 +331,10 @@ class _DispatcherHarness:
             ]
         )
         self.response_status = response_status
+        self.vision_status = vision_status or (
+            "complete" if initial_visual else "not_evaluated"
+        )
+        self.vision_schema_version = vision_schema_version
         document_id = 71 if has_document else None
         request = UnifiedAssistantRequest(
             question=("Co widać na obrazie?" if visual else "Podsumuj dokument."),
@@ -273,10 +364,9 @@ class _DispatcherHarness:
                 checksum_sha256="b" * 64,
                 processing_status="processed",
                 vision_status=(
-                    vision_status
-                    or ("complete" if initial_visual else "not_evaluated")
+                    self.vision_status
                 ),
-                vision_schema_version=vision_schema_version,
+                vision_schema_version=self.vision_schema_version,
             )
             if has_document
             else None
@@ -299,6 +389,11 @@ class _DispatcherHarness:
         self.db = _FakeDb(self)
         self.stages = _FakeStages(self, visual)
 
+    def next_response_status(self) -> str:
+        index = min(self.response_index, len(self.response_statuses) - 1)
+        self.response_index += 1
+        return self.response_statuses[index]
+
     def response(self, status):
         return UnifiedAssistantResponse(
             request_id="00000000-0000-0000-0000-000000000071",
@@ -306,7 +401,16 @@ class _DispatcherHarness:
             status=status,
             progress="complete",
             target_scope="TARGET_01",
-            claims=[],
+            claims=(
+                [{
+                    "claim_id": "C01",
+                    "claim_class": "FACT",
+                    "text": "Zwalidowany wynik rozszerzony.",
+                    "source_refs": ["S1"],
+                }]
+                if status == "accepted_advanced"
+                else []
+            ),
             sources=[],
             used_tools=[],
             model="synthetic" if status != "review_required" else None,
@@ -337,6 +441,7 @@ class _DispatcherHarness:
                 _FakeMaterialService,
             ),
             patch.object(dispatcher, "AssistantRunService", _FakeRunService),
+            patch.object(dispatcher, "VisualV2Service", _FakeVisualService),
         ):
             asyncio.run(dispatcher._execute_run(self.run.id))
         _ACTIVE_HARNESS = None
@@ -355,7 +460,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
         self.assertLess(analyzed, local)
         self.assertEqual(
             harness.stages.manifests["analyzing_vision"]["mode"],
-            "reused",
+            "visual_v2",
         )
         visible_text = _DispatcherHarness(
             visual_results=[
@@ -370,13 +475,13 @@ class AssistantVisualBranchTests(unittest.TestCase):
             ]
         )
         visible_text.execute()
-        self.assertIn("local:ask", visible_text.events)
+        self.assertIn("reasoner:ask:accepted_local", visible_text.events)
 
     def test_t02_local_reasoning_precedes_advanced(self):
         harness = _DispatcherHarness(response_status="advanced_queued")
         harness.execute()
         visual = harness.events.index("stage:complete:analyzing_vision")
-        local = harness.events.index("local:ask")
+        local = harness.events.index("reasoner:ask:advanced_queued")
         advanced = harness.events.index("stage:wait:waiting_for_advanced")
         self.assertLess(visual, local)
         self.assertLess(local, advanced)
@@ -389,7 +494,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
             "stage:fail:waiting_for_vision:VISION_REQUIRED_NOT_AVAILABLE",
             harness.events,
         )
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
 
     def test_t04_missing_visual_creates_no_external_work(self):
         harness = _DispatcherHarness(initial_visual=False)
@@ -413,7 +518,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
             response_status="advanced_queued",
         )
         harness.execute()
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
         self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
 
     def test_t07_missing_or_wrong_visual_schema_fails_closed(self):
@@ -426,7 +531,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
                     "stage:fail:waiting_for_vision:VISION_SCHEMA_INVALID",
                     harness.events,
                 )
-                self.assertNotIn("local:ask", harness.events)
+                self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
                 self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
 
     def test_t08_visual_without_document_fails_closed(self):
@@ -439,7 +544,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
             harness.events,
         )
         external_thread.assert_not_called()
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
 
     def test_t09_cancelled_run_has_no_answer_or_evidence_binding(self):
         harness = _DispatcherHarness(cancelled=True)
@@ -449,21 +554,21 @@ class AssistantVisualBranchTests(unittest.TestCase):
         self.assertFalse(
             any(event.startswith("run:finish:") for event in harness.events)
         )
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
 
     def test_t10_non_visual_path_is_unchanged(self):
         harness = _DispatcherHarness(visual=False, initial_visual=False)
         with patch.object(dispatcher.asyncio, "to_thread") as external_thread:
             harness.execute()
         external_thread.assert_not_called()
-        self.assertIn("local:ask", harness.events)
+        self.assertIn("reasoner:ask:accepted_local", harness.events)
 
     def test_t11_terminal_resolution_skips_visual_stages(self):
         harness = _DispatcherHarness(terminal_resolution=True)
         harness.execute()
         self.assertEqual(harness.stages.status["waiting_for_vision"], "skipped")
         self.assertEqual(harness.stages.status["analyzing_vision"], "skipped")
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
 
     def test_t12_dispatcher_has_no_external_vision_reference(self):
         source = Path(dispatcher.__file__).read_text(encoding="utf-8")
@@ -489,50 +594,9 @@ class AssistantVisualBranchTests(unittest.TestCase):
         self.assertEqual(git_blob, "5f0d14de81c16dd314efec4c7cbe9fe4c9d5bd59")
 
     def test_t14_ingestion_still_cannot_invoke_explicit_vision(self):
-        claim = PreparationClaim(job_id="prep-14", lease_owner="owner-14")
-        job = SimpleNamespace(
-            id=claim.job_id,
-            status="running",
-            lease_owner=claim.lease_owner,
-            stage="vision_processing",
-            trigger="ingestion",
-            document_id=14,
-        )
-
-        class Db:
-            def query(self, _model):
-                return _FakeQuery(job)
-
-            def commit(self):
-                return None
-
-            def close(self):
-                return None
-
-        class Preparation:
-            def __init__(self, _db):
-                return None
-
-            def contain_ingestion_external_vision(self, _claim):
-                return True
-
-        with (
-            patch.object(preparation_dispatcher, "SessionLocal", return_value=Db()),
-            patch.object(
-                preparation_dispatcher,
-                "DocumentPreparationService",
-                Preparation,
-            ),
-            patch.object(
-                preparation_dispatcher,
-                "process_explicit_vision_document",
-            ) as explicit,
-        ):
-            result = asyncio.run(
-                preparation_dispatcher.process_preparation_vision(claim)
-            )
-        self.assertFalse(result)
-        explicit.assert_not_called()
+        source = Path(preparation_dispatcher.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("process_explicit_vision_document", source)
+        self.assertIn("VisualV2Service", source)
 
     def test_t15_complete_but_empty_visual_fails_closed(self):
         harness = _DispatcherHarness(
@@ -553,7 +617,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
         )
         self.assertEqual(harness.events.count("material:bind"), 1)
         self.assertNotIn("stage:complete:analyzing_vision", harness.events)
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
         self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
 
     def test_t16_interpretation_only_visual_fails_closed(self):
@@ -580,8 +644,50 @@ class AssistantVisualBranchTests(unittest.TestCase):
         )
         self.assertEqual(harness.events.count("material:bind"), 1)
         self.assertNotIn("stage:complete:analyzing_vision", harness.events)
-        self.assertNotIn("local:ask", harness.events)
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
         self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
+
+    def test_t17_accepted_advanced_returns_to_one_final_local_synthesis(self):
+        harness = _DispatcherHarness(
+            response_statuses=[
+                "advanced_queued",
+                "accepted_advanced",
+                "accepted_local",
+            ]
+        )
+        harness.execute()
+        self.assertEqual(harness.run.status, "waiting")
+        harness.execute()
+
+        external = harness.events.index("reasoner:ask:accepted_advanced")
+        synthesis = harness.events.index("stage:start:synthesizing")
+        final_local = harness.events.index("reasoner:ask:accepted_local")
+        self.assertLess(external, synthesis)
+        self.assertLess(synthesis, final_local)
+        self.assertEqual(harness.run.status, "completed")
+        self.assertNotIn("run:finish:accepted_advanced", harness.events)
+        self.assertEqual(harness.events.count("run:finish:accepted_local"), 1)
+        final_configuration = next(
+            value
+            for value in reversed(harness.service_configurations)
+            if "validated_advanced_analysis" in value["supplemental_tools"]
+        )
+        self.assertFalse(final_configuration["allow_advanced_escalation"])
+        self.assertFalse(final_configuration["allow_existing_advanced_result"])
+
+    def test_t18_final_local_synthesis_cannot_reenter_advanced(self):
+        harness = _DispatcherHarness(
+            response_statuses=[
+                "advanced_queued",
+                "accepted_advanced",
+                "review_required",
+            ]
+        )
+        harness.execute()
+        harness.execute()
+        self.assertEqual(harness.run.status, "review_required")
+        self.assertEqual(harness.events.count("stage:wait:waiting_for_advanced"), 1)
+        self.assertEqual(harness.events.count("run:finish:review_required"), 1)
 
 
 if __name__ == "__main__":
