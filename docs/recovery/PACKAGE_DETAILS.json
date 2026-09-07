@@ -66,7 +66,7 @@
     "approval": "Osobna zgoda na dokładne wycofywane ścieżki, aktualizację nagłówków/odwołań i dokumentacyjny commit/push R01. Zgoda na rejestrację roadmapy w R00 nie jest zgodą na delete ani przyszłe wdrożenia.",
     "rollback": "Odtworzenie dokładnych wersji dokumentów i odwołań z zatwierdzonego commita; zachowanie audytu.",
     "exclude": "Usuwanie blueprinta, raportów, workerów, modeli, migracji lub buildów. Narzucanie nowych wymagań ze starych roadmap.",
-    "status": "READY_FOR_REVIEW",
+    "status": "ACCEPTED",
     "primary_requirements": [],
     "linked_requirements": [
       "M-008",
@@ -109,7 +109,7 @@
     "approval": "Zgoda na pakiet źródłowy/testowy i jego oddzielny commit. Brak zgody na deployment.",
     "rollback": "Revert wyłącznie zmian testów; dokładnie nazwane zasoby syntetyczne usuwane według własności.",
     "exclude": "Sztuczne usuwanie testów, przepisywanie całego harnessu, pobieranie nowego modelu, podmienianie production data.",
-    "status": "PLANNED",
+    "status": "IN_PROGRESS",
     "primary_requirements": [
       "M-033"
     ],
