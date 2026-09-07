@@ -21,7 +21,7 @@ from app.services.document_preparation_service import (
     is_document_intelligence_resource_wait,
 )
 from app.services.document_intelligence_service import build_document_intelligence
-from app.services.vision_dispatcher import process_explicit_vision_document
+from app.services.visual_v2_service import VisualV2Service
 
 
 logger = logging.getLogger("ai_lab.document_preparation")
@@ -67,12 +67,14 @@ class _PreparationIntelligenceHeartbeat:
         session_factory=None,
         now_factory=None,
         sleep=None,
+        expected_stage: str = "local_analysis",
     ) -> None:
         self.claim = claim
         self.interval_seconds = interval_seconds
         self.session_factory = session_factory or SessionLocal
         self.now_factory = now_factory or (lambda: datetime.now(UTC))
         self.sleep = sleep or asyncio.sleep
+        self.expected_stage = expected_stage
         self.owner_task: asyncio.Task | None = None
         self.task: asyncio.Task | None = None
 
@@ -97,7 +99,7 @@ class _PreparationIntelligenceHeartbeat:
             job = db.query(DocumentPreparationJob).filter(
                 DocumentPreparationJob.id == self.claim.job_id,
                 DocumentPreparationJob.status == "running",
-                DocumentPreparationJob.stage == "local_analysis",
+                DocumentPreparationJob.stage == self.expected_stage,
                 DocumentPreparationJob.lease_owner == self.claim.lease_owner,
             ).with_for_update().one_or_none()
             if job is None:
@@ -280,7 +282,7 @@ async def process_preparation_intelligence(
 
 
 async def process_preparation_vision(claim: PreparationClaim) -> bool:
-    """Advance one exact preparation through the existing private Vision route."""
+    """Hand off bounded Visual V2 work without blocking the preparation queue."""
     db = SessionLocal()
     try:
         job = db.query(DocumentPreparationJob).filter(
@@ -292,38 +294,35 @@ async def process_preparation_vision(claim: PreparationClaim) -> bool:
             return False
         if job.stage != "vision_processing":
             return job.stage == "local_analysis"
-        if job.trigger == "ingestion":
-            contained = DocumentPreparationService(
-                db
-            ).contain_ingestion_external_vision(claim)
-            db.commit()
-            return False if contained else job.stage == "local_analysis"
         document_id = job.document_id
+        document = db.get(Document, document_id)
+        if document is None:
+            DocumentPreparationService(db).fail_intelligence(
+                claim, "VISUAL_V2_DOCUMENT_NOT_FOUND", expected_stage="vision_processing"
+            )
+            db.commit()
+            return False
+        resolution = VisualV2Service(db).ensure(
+            document=document,
+            created_by_user_id=job.created_by_user_id,
+            preparation_job_id=job.id,
+        )
+        db.commit()
     finally:
         db.close()
 
-    await asyncio.to_thread(process_explicit_vision_document, document_id)
     finish_db = SessionLocal()
     try:
-        job = finish_db.query(DocumentPreparationJob).filter(
-            DocumentPreparationJob.id == claim.job_id,
-            DocumentPreparationJob.status == "running",
-            DocumentPreparationJob.stage == "vision_processing",
-            DocumentPreparationJob.lease_owner == claim.lease_owner,
-        ).with_for_update().one_or_none()
-        document = finish_db.get(Document, document_id)
-        if job is None or document is None:
-            return False
-        if document.vision_status in {"complete", "partial"}:
-            job.stage = "local_analysis"
-            job.status = "running"
-            job.error_code = None
-            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
+        service = DocumentPreparationService(finish_db)
+        if resolution.analysis_job_id and (
+            resolution.waiting or resolution.state == "accepted"
+        ):
+            service.complete_visual_handoff(claim, resolution.analysis_job_id)
             finish_db.commit()
-            return True
-        DocumentPreparationService(finish_db).fail_intelligence(
+            return False
+        service.fail_intelligence(
             claim,
-            f"VISION_{(document.vision_error_code or document.vision_status or 'FAILED').upper()}",
+            resolution.reason,
             expected_stage="vision_processing",
         )
         finish_db.commit()

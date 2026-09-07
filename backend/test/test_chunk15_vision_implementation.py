@@ -185,17 +185,25 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
                 historical = Document(
                     id=99, filename="old.txt", original_filename="old.txt",
                     content_type="text/plain", file_size=3, source_type="manual_upload",
+                    checksum_sha256=hashlib.sha256(
+                        b"new synthetic document"
+                    ).hexdigest(),
                     vision_auto_eligible=False, vision_status="not_evaluated",
                 )
                 service.repository = _StoreRepository(existing=historical)
-                duplicate = service.store_document(
-                    content=b"new synthetic document",
-                    original_filename="fixture.txt",
-                    content_type="text/plain",
-                    source_type="manual_upload",
-                )
+                with patch(
+                    "app.services.document_preparation_service."
+                    "DocumentPreparationService.get_or_create"
+                ) as ensure_reused:
+                    duplicate = service.store_document(
+                        content=b"new synthetic document",
+                        original_filename="fixture.txt",
+                        content_type="text/plain",
+                        source_type="manual_upload",
+                    )
                 self.assertFalse(duplicate.created)
                 self.assertFalse(duplicate.document.vision_auto_eligible)
+                ensure_reused.assert_called_once()
             finally:
                 settings.data_dir = original_data_dir
 

@@ -192,6 +192,12 @@ class DocumentService:
             )
 
             if existing_document is not None:
+                self._ensure_current_preparation(
+                    existing_document,
+                    source_type=source_type,
+                    actor_user_id=(sanitized_intake_metadata or {}).get("actor_user_id"),
+                    commit=commit,
+                )
                 return StoredDocumentResult(
                     document=existing_document,
                     created=False,
@@ -232,6 +238,12 @@ class DocumentService:
             )
 
             if existing_document is not None:
+                self._ensure_current_preparation(
+                    existing_document,
+                    source_type=source_type,
+                    actor_user_id=(sanitized_intake_metadata or {}).get("actor_user_id"),
+                    commit=commit,
+                )
                 return StoredDocumentResult(
                     document=existing_document,
                     created=False,
@@ -371,6 +383,26 @@ class DocumentService:
             raise DocumentStorageError(
                 "Could not store the document."
             ) from error
+
+    def _ensure_current_preparation(
+        self,
+        document: Document,
+        *,
+        source_type: str,
+        actor_user_id: object,
+        commit: bool,
+    ) -> None:
+        """A reused canonical document must not bypass current durable work."""
+        from app.services.document_preparation_service import DocumentPreparationService
+
+        DocumentPreparationService(self.repository.db).get_or_create(
+            document=document,
+            trigger="ingestion",
+            priority=2 if source_type == "gmail_attachment" else 1,
+            created_by_user_id=(actor_user_id if isinstance(actor_user_id, int) else None),
+        )
+        if commit:
+            self.repository.commit()
 
     def discard_uncommitted_file(self, document: Document) -> None:
         """Remove only a just-created, uncommitted file after outer rollback."""

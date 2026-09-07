@@ -134,7 +134,7 @@ class DocumentsApi {
     required String tokenType,
   }) async {
     await _dio.post<Map<String, dynamic>>(
-      '$_path/$documentId/vision/analyze',
+      '$_path/$documentId/analyze',
       options: Options(headers: _headers(accessToken, tokenType)),
     );
   }
