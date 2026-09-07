@@ -20,24 +20,24 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | `LOCAL_BOOTSTRAP_IN_PROGRESS` — remote jeszcze nie opublikowany |
-| Checkpoint ID | `R00-20260907T201254Z-BOOTSTRAP-A1` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T20:12:54Z` |
+| Stan rejestracji | `REMOTE_BOOTSTRAP_VERIFIED` — bootstrap `a4b0260ed04d1cc84b42a58ba6ed194adaa2dfc4`; końcowy checkpoint oczekuje na publikację tego commita |
+| Checkpoint ID | `R00-20260907T204252Z-HANDOFF-B1` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T20:42:52Z` |
 | Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R00 v1.1 |
-| Aktywny pakiet / podetap | `R00 / BOOTSTRAP` — przygotowanie pierwszego commita dokumentacyjnego |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`, clean base przed bootstrapem |
-| Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue oceniane osobno, nieadoptowane |
+| Aktywny pakiet / podetap | `R00 / HANDOFF` — baseline zakończony, gotowy do review |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; bootstrap remote zweryfikowany, końcowy commit jeszcze nieutworzony |
+| Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
-| Źródła runtime / release / DB | `NOT_VERIFIED` w bootstrapie — bounded aktualny odczyt jest pozostałą częścią R00 |
-| Ostatnia faktycznie zakończona czynność | Preflight: refs/worktrees/hooks/CI, pakiet 18/18 hashów, allowlista i brak równoległego autora; utworzono ten worktree od main |
-| Potwierdzone testy bieżącego wykonania | Pakiet: 19 wpisów, 18/18 manifest hash PASS, safe paths PASS, registry 108/36/61/16/14/25 i dependencies PASS; testy aplikacji `NOT_RUN` |
-| Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0; pełny manifest i chroniona kopia to pozostała część R00 |
-| Niezakończone procesy i skutki operacyjne | Brak drugiego autora z markerem R00/recovery; runtime nieprzejęty i nierestartowany; bounded baseline jeszcze niewykonany |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T201254Z-R00-BOOTSTRAP-A1.md` |
+| Źródła runtime / release / DB | Bounded read-only: backend z clean main; Supervisor/gatewaye/workery mają mixed path/hash; DB head `followup_assistant_chat_history_20260829`; live Web `1.0.2+41`, source Flutter `1.0.2+29`, backend `1.0.0` |
+| Ostatnia faktycznie zakończona czynność | Zweryfikowano 15/15 członków audit ZIP, zachowano 203-elementowy dirty manifest bez driftu, wykonano bounded runtime/DB/model/Qdrant/Supervisor odczyt i propozycję integracyjną |
+| Potwierdzone testy bieżącego wykonania | Package 18/18 i audit ZIP 15/15 hash PASS; registry 108/36/61/16/14/25 PASS; dirty preservation 203/203 PASS; testy aplikacji `NOT_RUN` zgodnie ze scope R00 |
+| Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
+| Niezakończone procesy i skutki operacyjne | Ta sesja nie uruchomiła długich zadań; runtime nieprzejęty/nierestartowany; 15 preparation queued i 16 advanced_queued tylko zaobserwowane, bez zgody na wykonanie |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T204252Z-R00-HANDOFF-B1.md` |
 | Zakres aktualnej zgody | R00 v1.1: dokumentacja/checkpoint commit+push na recovery, baseline read-only i lokalna ochrona niesekretnej pracy; R01–R24 bez zgody |
-| Blokada / wymagana decyzja | Brak blokady bootstrapu; R00 pozostaje IN_PROGRESS do baseline i końcowego handoff |
-| Jeden następny bezpieczny krok | Zwalidować/stage exact allowlist, commit/push bootstrap na recovery, potem bounded baseline R00 |
-| Warunek STOP | R00 gotowe do odbioru albo konkretny blokujący preflight; nie rozpoczynać R01 samodzielnie |
+| Blokada / wymagana decyzja | Brak blokady R00; `READY_FOR_REVIEW` nie oznacza `ACCEPTED`. Mixed runtime i wybór adopcji rescue/lokalnej pracy pozostają do późniejszych zatwierdzonych pakietów |
+| Jeden następny bezpieczny krok | Właściciel ocenia R00 i osobno zatwierdza albo odrzuca rozpoczęcie R01 |
+| Warunek STOP | Po publikacji tego checkpointu zatrzymać pracę; nie rozpoczynać R01–R24 samodzielnie |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
 odczytuje się z Git (`git log -1 --format=%H -- NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`).
@@ -60,7 +60,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 
 | Pakiet | Status | Aktywny podetap / ostatni checkpoint | Dowód / review / pozostała bramka |
 |---|---|---|---|
-| R00 | IN_PROGRESS | `R00-20260907T201254Z-BOOTSTRAP-A1` / BOOTSTRAP | Preflight i local install wykonane; bootstrap push oraz baseline pozostały |
+| R00 | READY_FOR_REVIEW | `R00-20260907T204252Z-HANDOFF-B1` / HANDOFF | Bootstrap remote zweryfikowany; bounded baseline i LOCAL_ONLY preservation zakończone; odbiór właściciela pozostaje |
 | R01 | PLANNED | — | Osobna zgoda na konsolidację/delete |
 | R02 | PLANNED | — | — |
 | R03 | PLANNED | — | Osobne zgody restore/escrow |

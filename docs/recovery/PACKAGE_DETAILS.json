@@ -27,7 +27,7 @@
     "approval": "Uruchomienie promptu R00 v1.1 autoryzuje dokumentacyjny bootstrap oraz checkpoint commit/push wyłącznie na recovery/next-stabil-repair-completion. Nie zatwierdza R01–R24, usuwania roadmap, zmian zakresu ani operacji produkcyjnych/escrow.",
     "rollback": "Zachować oryginalne drzewo. Błędną opublikowaną dokumentację korygować nowym commitem; bez force push/reset. Usunięcie worktree dopiero po osobnej kontroli własności i lokalnej pracy, nie jako automatyczny rollback.",
     "exclude": "Naprawy aplikacji, pełny ponowny audyt, adopcja rescue/dirty changes, modyfikacja main/followup/masterplanu, usuwanie starych roadmap, R01–R24, migracje, restarty, modele, queue drain, runtime writes.",
-    "status": "IN_PROGRESS",
+    "status": "READY_FOR_REVIEW",
     "primary_requirements": [],
     "linked_requirements": [
       "M-072",
