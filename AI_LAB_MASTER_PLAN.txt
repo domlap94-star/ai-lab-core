@@ -5,6 +5,16 @@ AI-LAB — MASTER PLAN / SPECYFIKACJA SYSTEMU
 Status dokumentu:
 AKTYWNA SPECYFIKACJA PROJEKTOWA
 
+ZASADA ODCZYTU STANU:
+Ten dokument pozostaje aktywną specyfikacją produktu. Historyczne checkpointy,
+checkboxy realizacji i deklaracje COMPLETE zapisują stan wcześniejszych
+snapshotów, ale nie dowodzą aktualnego wykonania pełnych wymagań. Wymaganie nie
+zostaje wycofane tylko dlatego, że historyczny wpis nazwał wcześniejszą
+implementację zakończoną. Aktualna kolejność, statusy i punkt wznowienia są
+wyłącznie w §0 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` na gałęzi
+`recovery/next-stabil-repair-completion`. `AI_LAB_FOLLOWUP_PLAN.md` zachowuje
+uzupełnienia, decyzje i wszystkie zabezpieczenia.
+
 Data aktualizacji:
 2026-08-19
 
@@ -22,7 +32,7 @@ rozwój systemu.
 Przed rozpoczęciem większej zmiany architektury należy sprawdzić, czy jest ona
 zgodna z założeniami tego dokumentu.
 
-AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+22
+HISTORYCZNY CHECKPOINT — NEXT STABIL 1.0.2+22 (NIE BIEŻĄCY STATUS)
 
 [✓] RELEASE B — PUBLISHED IN NEXT STABIL 1.0.2+22. FOLLOW-UP CHUNK 06, 07,
     09, 10 and 05 are complete: Activity/Timeline V2, Change History, Global
@@ -75,6 +85,7 @@ AKTUALNY CHECKPOINT — NEXT STABIL 1.0.2+22
     restore remains technically blocked; protected environment-secret escrow
     is a manual external requirement; physical Android final smoke remains
     unverified without ADB. No destructive retention or cleanup was enabled.
+HISTORYCZNA DEKLARACJA DLA ÓWCZESNEGO SNAPSHOTU — NIE BIEŻĄCY STATUS:
 [✓] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT COMPLETE.
     Canonical reconciliation, residual-risk register and evidence are recorded
     in `FINAL_SYSTEM_AUDIT.md`. Earlier unchecked target checklists remain as
@@ -5520,6 +5531,7 @@ STABILIZATION RELEASE — NEXT STABIL 1.0.2+11:
     secret escrow is manual, and physical Android final smoke is unverified.
     No destructive retention, historical cleanup, Qdrant write/backfill/
     upgrade or business-data mutation occurred.
+HISTORYCZNA DEKLARACJA DLA ÓWCZESNEGO SNAPSHOTU — NIE BIEŻĄCY STATUS:
 [✓] MASTERPLAN IMPLEMENTATION COMPLETE — FINAL SYSTEM AUDIT COMPLETE.
     See `FINAL_SYSTEM_AUDIT.md` for the evidence-based current state and the
     explicit deferred/blocked/future-decision register.

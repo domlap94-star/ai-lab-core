@@ -20,21 +20,21 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8`; R00 zaakceptowane przez właściciela; konsolidacja R01 gotowa do review |
-| Checkpoint ID | `R01-20260907T214615Z-CONSOLIDATION-C1` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T21:46:15Z` |
+| Stan rejestracji | `ROADMAP_SYNCED@0123ecce6edde068eb838f419809951d3dc30e42`; R00 zaakceptowane przez właściciela; korekta etykiet historii R01 gotowa do publikacji i review |
+| Checkpoint ID | `R01-20260907T224502Z-HISTORY-C2` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T22:45:02Z` |
 | Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R01 |
-| Aktywny pakiet / podetap | `R01 / CONSOLIDATION` — exact-path retirement i reference closure zakończone lokalnie, oczekują na publikację/review |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; starting local/remote `9af4026eeffed2509af943bff1e37b2514bfd5e8` |
+| Aktywny pakiet / podetap | `R01 / HISTORY LABEL MICROFIX` — historyczne checkpointy i deklaracje COMPLETE w masterplanie jednoznacznie oddzielone od bieżącego statusu; oczekuje publikacji/review |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; starting local/remote `0123ecce6edde068eb838f419809951d3dc30e42` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: backend z clean main; Supervisor/gatewaye/workery mają mixed path/hash; DB head `followup_assistant_chat_history_20260829`; live Web `1.0.2+41`, source Flutter `1.0.2+29`, backend `1.0.0` |
-| Ostatnia faktycznie zakończona czynność | Przeczytano i zmapowano RT-011/RT-052/RT-057, zamknięto aktywne referencje, zachowano provenance/hash/recovery i wycofano dokładnie trzy zatwierdzone pliki z aktywnego drzewa |
-| Potwierdzone testy bieżącego wykonania | Reference scan i consolidation ledger PASS; registry 108/36/61/16/14/25 PASS; R02–R24 payload unchanged; testy aplikacji `NOT_RUN` — R01 jest wyłącznie dokumentacyjny |
+| Ostatnia faktycznie zakończona czynność | Dodano nadrzędną zasadę odczytu stanu masterplanu, zmieniono nagłówek checkpointu +22 na historyczny i oznaczono oba bloki `MASTERPLAN IMPLEMENTATION COMPLETE` jako historyczne bez zmiany ich treści |
+| Potwierdzone testy bieżącego wykonania | Role masterplan/followup/roadmapa/AGENTS PASS; registry 108/36/61/16/14/25 PASS; R02–R24 payload/status unchanged; `git diff --check` PASS; testy aplikacji `NOT_RUN` — zmiana wyłącznie dokumentacyjna |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
 | Niezakończone procesy i skutki operacyjne | Ta sesja nie uruchomiła długich zadań; runtime nieprzejęty/nierestartowany; 15 preparation queued i 16 advanced_queued tylko zaobserwowane, bez zgody na wykonanie |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T214615Z-R01-CONSOLIDATION-C1.md` |
-| Zakres aktualnej zgody | R01: konsolidacja dokumentacji, exact retirement RT-011/052/057 i commit/push wyłącznie na recovery; R02–R24 bez zgody |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T224502Z-R01-HISTORY-C2.md` |
+| Zakres aktualnej zgody | R01: wyłącznie dokumentacyjna korekta historycznych etykiet masterplanu, checkpoint i commit/push na recovery; R02–R24 bez zgody |
 | Blokada / wymagana decyzja | Brak nierozwiązanego wymagania R01; `READY_FOR_REVIEW` nie oznacza `ACCEPTED`. Runtime/source/rescue/LOCAL_ONLY pozostają nieprzejęte |
 | Jeden następny bezpieczny krok | Właściciel ocenia wynik R01 i osobno zatwierdza albo odrzuca rozpoczęcie R02 |
 | Warunek STOP | Po publikacji checkpointu R01 zatrzymać pracę; nie rozpoczynać R02–R24 samodzielnie |
@@ -61,7 +61,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | Pakiet | Status | Aktywny podetap / ostatni checkpoint | Dowód / review / pozostała bramka |
 |---|---|---|---|
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
-| R01 | READY_FOR_REVIEW | `R01-20260907T214615Z-CONSOLIDATION-C1` / CONSOLIDATION | RT-011/052/057 wycofane z aktywnego drzewa po mapowaniu; odbiór właściciela pozostaje |
+| R01 | READY_FOR_REVIEW | `R01-20260907T224502Z-HISTORY-C2` / HISTORY LABEL MICROFIX | RT-011/052/057 wycofane; masterplan jednoznacznie oddziela historyczne deklaracje COMPLETE od bieżącego statusu; odbiór właściciela pozostaje |
 | R02 | PLANNED | — | — |
 | R03 | PLANNED | — | Osobne zgody restore/escrow |
 | R04 | PLANNED | — | — |
