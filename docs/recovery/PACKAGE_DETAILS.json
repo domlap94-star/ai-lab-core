@@ -1,0 +1,1314 @@
+[
+  {
+    "package_id": "R00",
+    "name": "Wspólna roadmapa w Git i zabezpieczenie punktu startu",
+    "phase": "A — Sterowanie i bezpieczna baza",
+    "type": "DOC_BOOTSTRAP / VERIFY",
+    "dependencies": [],
+    "goal": "Udostępnić jedną roadmapę lokalnie i na GitHub, z checkpointem wznowienia; zachować istniejącą pracę oraz odróżnić stan kodu od runtime.",
+    "scope": [
+      "Zachować pierwotny preflight, brakujące dowody i ochronę pracy z R00 v1.0. Nie powtarzać zakończonego R00; wykorzystać dowody po sprawdzeniu aktualności. Nie uruchamiać drugiej równoległej sesji.",
+      "Po sprawdzeniu remote i skutków hooków/CI utworzyć lub bezpiecznie wznowić gałąź recovery/next-stabil-repair-completion w osobnym lokalnym worktree. Bazą nowej gałęzi dokumentacyjnej jest zweryfikowany origin/main; nie przełączać oryginalnego brudnego drzewa i nie adoptować automatycznie rescue.",
+      "Skopiować dostarczony plik NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md v1.1 do root repo oraz jawny allowlist załączników planistycznych do docs/recovery/. Nie generować na nowo wymagań i pakietów. W AGENTS wykonać wyłącznie zmianę wskaźnika na nową roadmapę i reguł checkpoint/wznowienia; reszta konsolidacji dopiero R01.",
+      "Zapisać prawdziwy checkpoint R00, sprawdzić diff/sekrety/referencje i opublikować dokumentacyjny bootstrap przed długą częścią baseline. Push tylko na wskazaną gałąź po wykluczeniu automatycznego deploymentu. Zgoda nie obejmuje main, PR/merge, tagu ani release.",
+      "Zweryfikować audit ZIP i dostępność brakującego historycznego manifestu; zachować odtwarzalną kopię niesekretnej lokalnej pracy poza repo/runtime oraz zapisać porównanie manifestów. Nie odtwarzać historycznych wyników przez zgadywanie.",
+      "Ustalić bounded read-only zestaw wykonawczy i propozycję przyszłego adoptowania rescue/lokalnych zmian. Fakty source i runtime zapisać osobno. Niczego nie restartować, nie opróżniać kolejek, nie kopiować sekretów do repo.",
+      "Po każdym znaczącym podetapie i przed pauzą zapisać checkpoint oraz bezpieczny commit/push dokumentacji. Na końcu opublikować mały zanonimizowany raport wznowienia, zgłosić wynik i czekać na odbiór; nie oznaczać samodzielnie ACCEPTED."
+    ],
+    "checks": [
+      "Oryginalny worktree, jego staged/unstaged/untracked i runtime zachowane; skutki utworzenia refs/worktree oraz commity dokumentacyjne są jawnie wykazane, nie raportowane jako Git changes=0.",
+      "108/108 wymagań, 36/36 ustaleń, 61/61 kandydatur i 25/25 pakietów zachowane. Statusy historycznego audytu nie zostały zmienione.",
+      "Istnieje tylko jeden kanoniczny plik roadmapy i jedno źródło bieżących statusów (§0.2). Rejestry maszynowe są jego lustrzanym indeksem, nie osobną instrukcją.",
+      "Lokalny commit jest odczytany na origin/recovery/next-stabil-repair-completion i roadmapa jest dostępna pod tym ref. Odpowiedź zawiera pełny SHA publikacji. Brak sieci oznacza LOCAL_ONLY, nie PUSH_PASS.",
+      "Checkpoint wskazuje ostatnią zakończoną czynność, niewykonane kroki, zachowaną pracę niezacommitowaną, pending gates i jeden następny krok. Nowa sesja nie musi korzystać z historii rozmowy."
+    ],
+    "done": "Roadmapa i bezpieczny checkpoint są w lokalnym worktree i na wskazanej gałęzi GitHub. BASELINE_LOCK opisuje źródła, rescue, lokalną pracę, runtime i recovery. Codex kończy READY_FOR_REVIEW; ACCEPTED dopiero po rzeczywistym odbiorze właściciela.",
+    "impact": "Tylko dokumentacja na allowliście, mała korekta AGENTS, nowe refs/worktree i kontrolowana kopia niesekretnej pracy poza repo. Brak zmian aplikacji/config/DB/modeli/deploymentu.",
+    "approval": "Uruchomienie promptu R00 v1.1 autoryzuje dokumentacyjny bootstrap oraz checkpoint commit/push wyłącznie na recovery/next-stabil-repair-completion. Nie zatwierdza R01–R24, usuwania roadmap, zmian zakresu ani operacji produkcyjnych/escrow.",
+    "rollback": "Zachować oryginalne drzewo. Błędną opublikowaną dokumentację korygować nowym commitem; bez force push/reset. Usunięcie worktree dopiero po osobnej kontroli własności i lokalnej pracy, nie jako automatyczny rollback.",
+    "exclude": "Naprawy aplikacji, pełny ponowny audyt, adopcja rescue/dirty changes, modyfikacja main/followup/masterplanu, usuwanie starych roadmap, R01–R24, migracje, restarty, modele, queue drain, runtime writes.",
+    "status": "IN_PROGRESS",
+    "primary_requirements": [],
+    "linked_requirements": [
+      "M-072",
+      "F-030",
+      "F-031"
+    ],
+    "findings": [
+      "FND-014",
+      "FND-028",
+      "FND-032"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R01",
+    "name": "Jedna roadmapa i wycofanie konkurencyjnych instrukcji",
+    "phase": "A — Sterowanie i bezpieczna baza",
+    "type": "DOC_CONSOLIDATION",
+    "dependencies": [
+      "R00"
+    ],
+    "goal": "Usunąć konflikt dokumentów sterujących bez usuwania wymagań i zabezpieczeń.",
+    "scope": [
+      "Wykorzystać roadmapę już opublikowaną w R00; nie tworzyć nowego pliku, drugiej gałęzi kanonicznej ani planu v2 od zera. Uzgodnić resztę kolejności i sprzeczności kanonicznych nagłówków bez zmiany wymagań.",
+      "Zweryfikować pokrycie podpunktów masterplanu przez 108 agregatów. Dopisać kryteria do istniejących rodziców, nie ogłaszać, że 108 wierszy dowodzi atomowego pokrycia każdego checkboxa.",
+      "Przenieść zgodne unikalne decyzje z dokładnie trzech starych roadmap; nadać historycznym dowodom datę/commit i zachować możliwość odtworzenia.",
+      "Sprawdzić małą zmianę AGENTS wykonaną w R00 i uzupełnić rzeczywiste odwołania w nagłówkach masterplanu/followup oraz README/runbookach. Nie usuwać treści projektowej ani globalnych approval gates; nie przepisywać całego AGENTS.",
+      "Wycofać CODEX_MASTER_EXECUTION.md, FOLLOWUP_PRECHUNK23_FULL_SYSTEM_ROADMAP.md oraz frontend/POST_BATCH_AUTH_REMOTE_PLAN.md w osobnym dokumentacyjnym commicie po akceptacji dokładnego diffu."
+    ],
+    "checks": [
+      "Każde aktywne odwołanie do starego planu zostało poprawione; wzmianki historyczne są oznaczone i nie są instrukcją.",
+      "108/108 wymagań, 36/36 ustaleń i 61/61 kandydatów mają mapowanie; nie ma usuniętej bramki zgody, zmienionego modelu ani instrukcji uruchomienia CHUNK23 bez zatwierdzenia nowej kolejności."
+    ],
+    "done": "W aktywnym sterowaniu są dwa kanoniczne plany i dokładnie jedna roadmapa; małe rejestry CSV są jej załącznikami, nie odrębnymi planami.",
+    "impact": "Dokumentacja/Git wyłącznie. Brak zmian aplikacji, runtime i danych.",
+    "approval": "Osobna zgoda na dokładne wycofywane ścieżki, aktualizację nagłówków/odwołań i dokumentacyjny commit/push R01. Zgoda na rejestrację roadmapy w R00 nie jest zgodą na delete ani przyszłe wdrożenia.",
+    "rollback": "Odtworzenie dokładnych wersji dokumentów i odwołań z zatwierdzonego commita; zachowanie audytu.",
+    "exclude": "Usuwanie blueprinta, raportów, workerów, modeli, migracji lub buildów. Narzucanie nowych wymagań ze starych roadmap.",
+    "status": "PLANNED",
+    "primary_requirements": [],
+    "linked_requirements": [
+      "M-008",
+      "M-072",
+      "M-073",
+      "F-026",
+      "F-029"
+    ],
+    "findings": [
+      "FND-027"
+    ],
+    "retirement_ids": [
+      "RT-011",
+      "RT-052",
+      "RT-057"
+    ]
+  },
+  {
+    "package_id": "R02",
+    "name": "Odtwarzalne i izolowane testy",
+    "phase": "A — Sterowanie i bezpieczna baza",
+    "type": "FIX / VERIFY",
+    "dependencies": [
+      "R00"
+    ],
+    "goal": "Uzyskać wiarygodny wynik testów właściwego commita, nie wynik zależny od kolejności fixture lub brakujących bibliotek.",
+    "scope": [
+      "Przygotować oddzielne, przypięte środowisko testowe z pytest i potrzebnymi bibliotekami; nie instalować narzędzi do niezmiennego obrazu produkcyjnego.",
+      "Naprawić izolację DOC-03: własna DB/schema albo testowy namespace i wybór własnych rekordów; nie osłabiać asercji produkcyjnej logiki leasingu.",
+      "Uruchomić main jako bazę i wybrane testy rescue jako kandydata z pełnym drzewem niezbędnych fixture. Sprawdzić schemat wymagany przez rescue, nie utożsamiać nazwy Visual V2 z potrzebą nowej migracji.",
+      "Zapisać uruchamialne reprodukcje REP-001–004 i spornego przypadku KB+supplemental Visual na rzeczywistych modułach. Utworzyć evidence log z dokładną komendą, commit, konfiguracją izolacji, stdout/stderr i exit code."
+    ],
+    "checks": [
+      "DOC-03 przechodzi sam oraz ze wspólnymi suite w co najmniej dwóch ustalonych kolejnościach, w tym permutacji z zapisanym seedem.",
+      "Pytest-only suite uruchamiają się w test image; brak dostępu do produkcyjnych DB/storage/Gmail/workerów/modeli bez osobnej zgody.",
+      "Błąd harnessu jest odróżniony od source failure; wynik main nie jest podstawiony za rescue."
+    ],
+    "done": "Zapisany powtarzalny baseline suite, brak niejawnych produkcyjnych zależności i uruchamialne testy naprawianych reguł.",
+    "impact": "Test code/config i syntetyczne DB. Brak zmian produkcyjnego obrazu i danych.",
+    "approval": "Zgoda na pakiet źródłowy/testowy i jego oddzielny commit. Brak zgody na deployment.",
+    "rollback": "Revert wyłącznie zmian testów; dokładnie nazwane zasoby syntetyczne usuwane według własności.",
+    "exclude": "Sztuczne usuwanie testów, przepisywanie całego harnessu, pobieranie nowego modelu, podmienianie production data.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-033"
+    ],
+    "linked_requirements": [
+      "M-031",
+      "M-073"
+    ],
+    "findings": [
+      "FND-019",
+      "FND-033",
+      "FND-034"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R03",
+    "name": "Odtwarzalność i chronione sekrety przed ryzykowną zmianą",
+    "phase": "A — Sterowanie i bezpieczna baza",
+    "type": "VERIFY / COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R00",
+      "R02"
+    ],
+    "goal": "Przed migracją lub wdrożeniem wykazać możliwość odtworzenia, a nie wyłącznie istnienie pliku backupu.",
+    "scope": [
+      "Uzgodnić z właścicielem wcześniejszy termin escrow względem historycznej sekwencji CHUNK23. Nie traktować tego dokumentu jako skonsumowania dawnego tokenu.",
+      "Sprawdzić istniejący backup DB/storage/konfiguracji oraz izolowany restore Qdrant ze zgodnością kolekcji, zakresów i generacji; nie odtwarzać niczego na aktywnym celu.",
+      "Wykorzystać istniejący Windows DR tool/runbook. Zmierzyć osiągnięte RTO/RPO i dopiero uzgodnić dopuszczalne wartości; nie wpisywać zmyślonego SLA.",
+      "Escrow: zaszyfrowane medium/vault, odrębny recovery key, ACL, wersja/inventory i próba odczytu. Żadnych wartości sekretów w Git, raporcie, ZIP lub promptach."
+    ],
+    "checks": [
+      "Restore do odizolowanego targetu odtwarza reprezentatywną sprawę, pliki i indeksy; hashe/counts/scope są zgodne.",
+      "Można odzyskać niezbędną konfigurację według instrukcji bez pamięci operatora; brak przypadkowej wysyłki czy uruchomienia produkcyjnych kolejek po restore."
+    ],
+    "done": "Zatwierdzony dowód odzyskania oraz punkt odtworzenia dla najbliższej zmiany. W przypadku odmowy escrow odnotowany konkretny blocker odpowiednich wdrożeń, nie zakaz lokalnych poprawek.",
+    "impact": "Nowe izolowane zasoby i chronione backupy. Brak production restore, purge lub rotacji credentials.",
+    "approval": "Osobna zgoda operacyjna na restore/escrow i zmianę kolejności historycznego CHUNK23; rotacja nadal wymaga oddzielnej zgody.",
+    "rollback": "Usunąć wyłącznie nazwane izolowane cele po zatwierdzeniu; zachować zweryfikowane kopie. Nigdy nie nadpisywać czynnego systemu.",
+    "exclude": "Sekrety w dokumentacji, automatyczne włączenie retencji, uznanie verified backup za restore PASS.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-066",
+      "M-067",
+      "F-017",
+      "F-021",
+      "F-026"
+    ],
+    "linked_requirements": [
+      "M-037",
+      "F-016"
+    ],
+    "findings": [
+      "FND-014",
+      "FND-025",
+      "FND-026"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R04",
+    "name": "Jednoznaczny release i wersje wszystkich komponentów",
+    "phase": "A — Sterowanie i bezpieczna baza",
+    "type": "FIX / VERIFY",
+    "dependencies": [
+      "R00",
+      "R02"
+    ],
+    "goal": "Testować i uruchamiać ten sam zatwierdzony zestaw bez utraty pracy lokalnej.",
+    "scope": [
+      "Z clean base main zbudować kontrolowaną gałąź integracyjną. Ocenić pięć commitów rescue i lokalne różnice; przyjąć tylko potrzebne, przejrzane zmiany. Bez ślepego merge całego dirty repo.",
+      "Manifest łączy backend commit/image, API/schema, Web/Windows/Android build/hash/podpis, Supervisor, analysis/vision workers i efektywną niesekretną konfigurację.",
+      "Przypiąć procesy do odtwarzalnych deployment roots; wspólny fizyczny katalog nie jest obowiązkowy. Usunąć zależność runtime od zmiennego worktree dopiero w kontrolowanym rollout.",
+      "Naprawić kontrakt /version/stable/minimum/debug i zgodność starych klientów. Nie zrównywać sztucznie różnych numerów API/schema/app; muszą tworzyć poprawną macierz zgodności.",
+      "Przygotować odtwarzalny build Windows i aktualny build testowy Android z zatwierdzonym certyfikatem; nie publikować ani zużywać numeru release bez osobnej zgody."
+    ],
+    "checks": [
+      "Każdy runtime hash ma odpowiednik zatwierdzonego artefaktu; publiczny /control nadal niedostępny, rzeczywista konfiguracja debug bezpieczna.",
+      "Aktualny stable klient zachowuje kompatybilność; candidate klient używa właściwego API; rollback komponentu udowodniony."
+    ],
+    "done": "RELEASE_ID + compatibility manifest gotowe. Stan source-ready/staged/deployed/accepted jest rozdzielony. Samo przygotowanie nie oznacza promocji rescue.",
+    "impact": "Źródła wersjonowania/build/config. Operacyjne przepięcie i restart to oddzielne działania po R03, privacy gate i zgodzie.",
+    "approval": "Commit źródłowy oddzielnie; przed operacyjnym przepięciem: R03 i osobny approval konfiguracji/deploy/gateway. Brak zmian firewall/Tailscale.",
+    "rollback": "Poprzedni podpisany lub hashowany zestaw wraz z konfiguracją i schema compatibility; zachowane stare ścieżki do czasu odbioru.",
+    "exclude": "Usuwanie live Web lub zewnętrznego workera, podwyższanie minimum dla wymuszenia pozornego sukcesu, reset lokalnego repo.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-003",
+      "M-004",
+      "M-065",
+      "M-072",
+      "F-023",
+      "F-034"
+    ],
+    "linked_requirements": [
+      "M-015",
+      "M-057",
+      "M-064",
+      "F-022",
+      "F-024",
+      "F-031"
+    ],
+    "findings": [
+      "FND-004",
+      "FND-006",
+      "FND-013",
+      "FND-014",
+      "FND-015",
+      "FND-016",
+      "FND-023",
+      "FND-028"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R05",
+    "name": "Działające Visual z kontrolą prywatności pikseli",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX",
+    "dependencies": [
+      "R02",
+      "R04"
+    ],
+    "goal": "Zachować Temporary Chat dla Visual, nie wysyłając niedopuszczonej tożsamości lub danych ukrytych w rastrze.",
+    "scope": [
+      "W istniejącej bramce eksportu określić dopuszczalność rzeczywistych bajtów obrazu, jego treści i metadanych. Wybrać z właścicielem bezpieczną politykę: zatwierdzona lokalna redakcja albo jawnie dopuszczony materiał; niepewne i restricted pozostają zablokowane.",
+      "Nie traktować resize, EXIF strip, regex/OCR bez oceny jakości ani pola customer_sanitizable jako certyfikatu anonimowości. Żaden niedopuszczony raster nie może być wysłany do usługi po to, aby dopiero tam go zanonimizować.",
+      "Sprawdzić mapę oryginał → wersja eksportowa → hash manifestu → dokładne bytes uploadu. Zmiana obrazu po zatwierdzeniu unieważnia zgodę.",
+      "Minimalnie skorygować obecny service/spool/privacy contract. Bez nowego pipeline ani gwarancji bezbłędnego automatycznego rozpoznawania wszystkich PII."
+    ],
+    "checks": [
+      "Negatywne: syntetyczny adres/nazwisko w pikselach, niepewny skan i restricted dają 0 uploadów; błędny hash i podmieniony plik są blokowane.",
+      "Pozytywne: dopuszczony public-safe/sanitized materiał jest pakowany i później przechodzi R15. Samo blokowanie wszystkich obrazów nie zamyka wymagania."
+    ],
+    "done": "Privacy gate ma dowód zgodności faktycznych bajtów i obustronne testy: blokuje niedopuszczone, przepuszcza dopuszczone. P0 blokuje eksport/promocję Visual, nie każdą lokalną poprawkę.",
+    "impact": "Domyślnie bez migracji i zmian danych firmy; ewentualna zmiana kontraktu klasyfikacji wymaga projektu.",
+    "approval": "Zgoda na politykę prywatności, source commit oraz osobno każdy live Temporary Chat smoke i deploy.",
+    "rollback": "Bezpieczne wyłączenie wyłącznie nowej gałęzi eksportu; nie wracać do niekontrolowanego V1. Wyniki i historia zachowane.",
+    "exclude": "Permanentne wyłączenie Visual jako końcowa naprawa, API zamiast Temporary Chat, usuwanie oryginałów, zniesienie restricted.",
+    "status": "PLANNED",
+    "primary_requirements": [],
+    "linked_requirements": [
+      "M-002",
+      "M-028",
+      "M-057",
+      "M-058",
+      "M-061",
+      "F-019",
+      "F-022"
+    ],
+    "findings": [
+      "FND-004",
+      "FND-005",
+      "FND-013",
+      "FND-036"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R06",
+    "name": "Trwały czat, publikacja i zakres Visual",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX / VERIFY",
+    "dependencies": [
+      "R02",
+      "R04"
+    ],
+    "goal": "Włączyć już istniejące poprawki do właściwego kandydata i sprawdzić granice współbieżności.",
+    "scope": [
+      "Przyjąć z rescue świeży blokowany odczyt rozmowy i current-request coverage, zamiast pisać oba mechanizmy ponownie.",
+      "Przeprowadzić test dwóch sesji dla delete/publication ze starym obiektem ORM i idempotentną ponowną finalizacją.",
+      "Sprawdzić reuse broad → explicit oraz explicit → broad na tych samych źródłach; strona niepokryta i częściowy dokument nie mogą zostać nazwane kompletnym.",
+      "Zachować limit 4 źródeł pojedynczego zadania Visual, trwały wynik AssistantRun oraz rozróżnienie delete/cancel/background. Wieloetapowe pokrycie dokumentu należy do R10/R15."
+    ],
+    "checks": [
+      "Deletion wins = 0 późnych wiadomości i brak przesunięcia last_activity; publication wins = co najwyżej 1 wiadomość, bez duplikatu.",
+      "Wynik runu zachowany po delete; zmiana ekranu lub tło nie anuluje; explicit cancel respektuje współdzielony/preparation-owned Visual.",
+      "Bieżący zakres pytania determinuje gate, a wynik współdzielony pozostaje niemutowany."
+    ],
+    "done": "Poprawki działają na docelowym kandydacie z izolowaną integracją; po R16 także w aplikacji. Nie przenosić statusu rescue PASS do produkcji bez deploy evidence.",
+    "impact": "Backend i testy; bez migracji według obecnego diffu. Potwierdzić faktycznie używane tabele.",
+    "approval": "Source commit; operacyjne wdrożenie osobno, po zgodności R03/R04 i właściwych bramkach dla eksportu.",
+    "rollback": "Revert kandydata lub poprzedni kompatybilny release; brak usuwania rozmów i historycznych wyników.",
+    "exclude": "Anulowanie runu przez delete/background, przenoszenie blokady DB na czas pracy modelu, nowe usługi czatu.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-012",
+      "M-047",
+      "M-048",
+      "M-049",
+      "M-059"
+    ],
+    "linked_requirements": [
+      "M-005",
+      "M-031",
+      "M-057",
+      "M-062",
+      "M-070",
+      "F-025"
+    ],
+    "findings": [
+      "FND-004",
+      "FND-006"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R07",
+    "name": "Naturalne polecenia i pytania mieszane",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX",
+    "dependencies": [
+      "R02"
+    ],
+    "goal": "Pytanie użytkownika wykonuje właściwe zadanie, a nie opisuje możliwości systemu.",
+    "scope": [
+      "Dodać parafrazy do testu rzeczywistego routera i endpointu: wybrany dokument, jawny tytuł, pytanie ogólne o funkcje i brak/niejednoznaczny cel.",
+      "Rozdzielić polecenie działania od pytania o możliwości. Brak zaznaczonego pliku nie oznacza automatycznie SYSTEM_META: zastosować istniejące bezpieczne rozwiązywanie celu albo poprosić o wskazanie.",
+      "Zapytanie techniczne + adres ma zachować techniczne retrieval KB oraz autoryzowany odczyt CRM. Nie doklejać adresu do zewnętrznego pakietu tylko dlatego, że był częścią pytania.",
+      "Nie tworzyć kolejnego planner LLM. Doprecyzować istniejące reguły oraz testy ich priorytetu."
+    ],
+    "checks": [
+      "„Czy możesz przeanalizować ten dokument?” przy wybranym materiale uruchamia analizę; prawdziwe pytanie o możliwości nadal otrzymuje opis.",
+      "Technika + adres ma oba lokalne zakresy i poprawną izolację klienta; brak celu jest jawny, a nie domyślnie zgadywany."
+    ],
+    "done": "Reprezentatywny zestaw parafraz daje zgodny plan/intencję i prawidłowe zachowanie uprawnień.",
+    "impact": "Kod routingu i testy, bez produkcyjnych zapisów i migracji.",
+    "approval": "Zgoda source; deploy oddzielnie.",
+    "rollback": "Revert małego commita i zachowanie testu regresji do ponownej naprawy.",
+    "exclude": "Zmiana modelu, wymaganie od użytkownika specjalnych komend, omijanie autoryzacji.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-046"
+    ],
+    "linked_requirements": [
+      "F-025"
+    ],
+    "findings": [
+      "FND-007",
+      "FND-008"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R08",
+    "name": "Retrieval i składanie kompletnego kontekstu",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX",
+    "dependencies": [
+      "R02",
+      "R07"
+    ],
+    "goal": "Właściwe źródła trafiają do modelu i walidatora, zamiast znikać po późniejszym przycięciu listy.",
+    "scope": [
+      "Przenieść ograniczenie po materiale/statusie/scope przed ranking i limit w KB; test z właściwym źródłem poza globalnym top-N. Zachować filtrowanie uprawnień w DB, nie tylko po pobraniu.",
+      "Oddzielić ERROR, NOT_READY, EMPTY_CORPUS, NO_MATCH i PARTIAL; fault injection nie może być interpretowane jako brak wiedzy. Ewentualny lexical fallback jest jawny.",
+      "Na rzeczywistym _collect() rescue rozstrzygnąć C-004: 5 źródeł sprawy + 3 KB + 4 supplemental Visual. Zastosować jeden końcowy dobór uwzględniający wymagane warstwy i deduplikację, nie zwykłe odcinanie końca.",
+      "Sprawdzić zgodność listy źródeł, tool payloads, mapy handle i final prompt. Source count nie jest jedyną miarą: fragment KB musi rzeczywiście zawierać potrzebną zasadę.",
+      "Zawęzić filtrowanie wewnętrznych uchwytów do rzeczywistego manifestu/kontraktu; S235/S355 mają przejść bez usuwania treści technicznej."
+    ],
+    "checks": [
+      "Test 5+3+4 nie traci całej wymaganej KB; kontekst mieści się w zatwierdzonym budżecie 9B. Gdy wymagania nie mieszczą się, system etapuje lub zgłasza zakres, nie twierdzi complete.",
+      "Cel poza globalnym top-N jest znaleziony; fault injection odróżnia awarię; S235/S355 dozwolone, rzeczywiste niedopuszczone handle/obce źródła odrzucone.",
+      "Dla explicit covered page wynik przechodzi; broad partial wymaga uzupełnienia; żadne evidence nie pochodzi od innego klienta."
+    ],
+    "done": "Spójny ślad retrieved → selected → actually provided → claimed. Sporna teza ma rozstrzygnięcie na właściwym commicie, nie etykietę z innej gałęzi.",
+    "impact": "Istniejące retrieval/context/validator i testy. Brak masowej indeksacji, zmiany modelu i migracji bez potrzeby.",
+    "approval": "Zgoda source; Qdrant/live test tylko osobno na wydzielonym namespace.",
+    "rollback": "Revert zmian retrieval; testowe kolekcje według własności; nie kasować produkcyjnego indeksu.",
+    "exclude": "Nieograniczony kontekst, wyłączenie źródeł lub walidacji, ogólne „Visual zawsze usuwa KB” bez wskazania ścieżki.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-039",
+      "M-040",
+      "M-042"
+    ],
+    "linked_requirements": [
+      "M-041",
+      "M-047",
+      "M-060",
+      "F-018",
+      "F-020",
+      "F-025"
+    ],
+    "findings": [
+      "FND-008",
+      "FND-009",
+      "FND-010",
+      "FND-011"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R09",
+    "name": "Qwen 9B, starsze wejścia AI i zasoby",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX / VERIFY",
+    "dependencies": [
+      "R02",
+      "R04",
+      "R07",
+      "R08"
+    ],
+    "goal": "Zachować 9B jako wspólny reasoner i sprawdzić jego działanie, bez dalszego konkursu modeli.",
+    "scope": [
+      "Zmapować użytkowników aktywnych legacy RAG/Client Knowledge/Business/Technical/Agent. Przepiąć lub zaadaptować je do istniejącej ścieżki 9B i guardów z zachowaniem kontraktów klientów i zamkniętego katalogu narzędzi.",
+      "Usunąć problem process-local ownership po restarcie na podstawie dowodów własności; ta sama nazwa/digest nie dowodzi, że wolno rozładować model cudzej aktywnej sesji.",
+      "Wykonać kontrolowany local smoke 9B + embedding, timeout/unload/retry/restart recovery. Zapisać model digest, parametry, czas, Windows/WSL RAM/swap i zachowanie po błędzie.",
+      "FND-024 pozostaje hipotezą do testu 1–2 kontrolowanych overlap. Dopiero stwierdzony problem uzasadnia minimalną koordynację istniejących dispatcherów; nie budować nowego globalnego schedulera dla samego podejrzenia."
+    ],
+    "checks": [
+      "Każde zachowane aktywne wejście AI używa zatwierdzonego 9B lub jawnej deterministycznej odpowiedzi; brak ukrytego llama fallback.",
+      "Brak permanent wait po restarcie, brak rozładowania obcej aktywnej pracy, zakończenie/timeout pozostają trwałe.",
+      "Realna telemetria nie narusza dotychczasowych zatwierdzonych limitów; limity nie są obniżane, aby uzyskać PASS."
+    ],
+    "done": "Local-only użyteczny scenariusz i zasoby odebrane na właściwym zestawie; modele historyczne zachowane do końcowego consumer audit.",
+    "impact": "Adaptery/model ownership/testy; live model calls po zgodzie. Bez pobierania/usuwania modeli i strojenia systemu operacyjnego.",
+    "approval": "Source i oddzielne okno live 9B/restart test. Produkcyjny restart wymaga R03.",
+    "rollback": "Poprzednie kompatybilne adaptery i konfiguracja; brak model delete.",
+    "exclude": "Nowy model, wielomodelowy pipeline, wyłączanie embedding, migracja Linux, zwiększanie RAM/context bez projektu.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-036",
+      "M-043",
+      "M-050",
+      "M-063"
+    ],
+    "linked_requirements": [
+      "M-002",
+      "M-031",
+      "M-045",
+      "M-048",
+      "M-062",
+      "M-069",
+      "M-070",
+      "M-072",
+      "F-025",
+      "F-032"
+    ],
+    "findings": [
+      "FND-002",
+      "FND-023",
+      "FND-024",
+      "FND-029"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R10",
+    "name": "Document Preparation/Intelligence i rzeczywiste formaty",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX / VERIFY / COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R02",
+      "R06",
+      "R09"
+    ],
+    "goal": "Nowy wspierany dokument sam przechodzi trwały proces i staje się materiałem użytecznym dla Asystenta.",
+    "scope": [
+      "Sprawdzić validate → metadata → native/OCR → pages/assets → current intelligence → index z checksum/generation, lease, heartbeat, retry i idempotencją.",
+      "Ujednolicić obsługę PDF/Office/obrazów/EML/ZIP; ODP/ODS i XLSX charts/shapes mają jawny kontrakt tekst/render/asset/limitation. Przy długich dokumentach dzielić pracę z checkpointami i kontrolą pełnego zakresu.",
+      "Rozróżnić READ, MATERIAL_READY, INTELLIGENCE_READY, INDEXED i SUFFICIENT_FOR_QUESTION. Sam processed/ready nie dowodzi gotowości odpowiedzi.",
+      "Najpierw syntetyczny end-to-end w izolacji. Następnie po odrębnej zgodzie mały zestaw allowlisted nowych dokumentów; sprawdzić, czy istniejący dispatcher potrafi wybrać tylko te ID. Jeżeli nie, nie włączać globalnej flagi „na próbę”.",
+      "15 queued to snapshot audytu, nie autoryzacja ich drainu. Przed każdym krokiem odczytać aktualny stan; nie uruchamiać V1 auto-externalization."
+    ],
+    "checks": [
+      "Jeden dokument każdego zatwierdzonego typu i przypadki corrupt/no_text/unsupported/duplikat przechodzą realne moduły; żaden unsupported nie udaje sukcesu.",
+      "Restart/fencing nie tworzą podwójnych artefaktów; superseded checksum nie jest podawany jako current; długi dokument ma jawne pokrycie.",
+      "Kontrolowany nowy materiał uzyskuje accepted artifact bez ręcznego utworzenia AssistantRun i bez nieuprawnionych external calls."
+    ],
+    "done": "Proces istniejący działa dla zatwierdzonych formatów i ograniczeń. Aktywacja nowej pracy produkcyjnej dopiero po osobnym planie rollout/pause.",
+    "impact": "Kod istniejącego pipeline; możliwe normalne zapisy jobów/artifacts w zatwierdzonym canary. Backfill i schema poza automatyczną zgodą.",
+    "approval": "Source; oddzielnie production flag/canary IDs/Qdrant writes i zatrzymanie testu. Przed deploy R03.",
+    "rollback": "Pause dopuszczonego dispatchera/bezpieczna konfiguracja poprzednia; zachowanie oryginałów i audytu jobów, bez ręcznego kasowania rekordów.",
+    "exclude": "Cała historia 5988 dokumentów, „enable i obserwuj wszystkie 15”, nowy równoległy pipeline i usuwanie ograniczeń safety.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-011",
+      "M-019",
+      "M-020",
+      "M-024",
+      "M-025",
+      "M-027",
+      "M-028",
+      "M-029",
+      "M-030",
+      "M-031",
+      "M-032",
+      "M-070",
+      "F-001"
+    ],
+    "linked_requirements": [
+      "M-018",
+      "M-023",
+      "M-026",
+      "M-033",
+      "M-034",
+      "M-069",
+      "F-025"
+    ],
+    "findings": [
+      "FND-002",
+      "FND-003",
+      "FND-004",
+      "FND-019",
+      "FND-020",
+      "FND-021",
+      "FND-022",
+      "FND-024",
+      "FND-034"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R11",
+    "name": "Punktowa naprawa historycznego Unicode",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX_DATA / VERIFY",
+    "dependencies": [
+      "R02",
+      "R03"
+    ],
+    "goal": "Usunąć konkretną przeszkodę zapytań JSON bez przebudowy historycznych danych.",
+    "scope": [
+      "Sprawdzić, czy Document 8903 nadal ma ten sam problem i preimage hash. Jeżeli został naprawiony poza roadmapą, zweryfikować efekt i nie wykonywać apply ponownie.",
+      "Użyć istniejącego deterministic projection/dry-run; pokazać zakres różnicy bez danych klienta. Brak zmian semantycznych poza usunięciem nieprawidłowej reprezentacji.",
+      "Po zgodzie na dokładnie wskazany rekord wykonać bounded apply, audyt oraz powtórzenie zapytań i recurrence tests. Oddzielić naprawę od globalnego cleanupu."
+    ],
+    "checks": [
+      "Pre/post hash, oczekiwany row count = 1 przy faktycznej naprawie; JSON operators i serializacja działają; ponowne uruchomienie idempotentne.",
+      "Test tworzenia nowych metadanych nadal blokuje invalid surrogates i nie obcina prawidłowego Unicode."
+    ],
+    "done": "Błąd naprawiony lub potwierdzone wcześniejsze usunięcie; zachowany chroniony dowód i reversibility.",
+    "impact": "Jedna jawna produkcyjna mutacja danych po zgodzie; bez schema migration i model reconstruction.",
+    "approval": "Odrębna approval historycznej naprawy: dokładny ID, preimage, projection, limit i backup.",
+    "rollback": "Chroniony preimage oraz kontrolowana przywracająca procedura; nie przywracać uszkodzenia automatycznie do czynnego systemu.",
+    "exclude": "Bulk SQL replace, cała tabela, usuwanie dokumentu lub naprawa przez model.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-023"
+    ],
+    "linked_requirements": [
+      "F-001",
+      "F-033"
+    ],
+    "findings": [
+      "FND-019"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R12",
+    "name": "Gmail, załączniki i dowodliwe dopasowania",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX / VERIFY",
+    "dependencies": [
+      "R02",
+      "R10"
+    ],
+    "goal": "Przetworzony lokalnie załącznik trafia do właściwej sprawy lub review, a historia nie jest przepinana po cichu.",
+    "scope": [
+      "Spiąć lokalny terminal z istniejącym bounded reconciliation oraz jego eligibility; nie wystarczy dopisać call-site, jeżeli wewnętrzna bramka nadal wymaga V1 Vision.",
+      "Sprawdzić exactly-once/idempotency, retry i konflikty certain/ambiguous/unresolved dla PDF/TXT oraz metadanych nadawcy.",
+      "Przygotować read-only mailbox ID/window comparison bez bodies, mark-read i zmian labels. Rozróżnić permission/window gap od braku wiadomości w DB.",
+      "Dla 4262 historycznych źródeł najpierw aktualny raport dry-run i conflict review. Nowe zachowanie matcher ≠ zgoda na masowy relink; apply tylko wskazanego batcha po osobnej zgodzie."
+    ],
+    "checks": [
+      "Local success przy vision_auto_eligible=false wywołuje drugi pass bez Vision; brak duplikatów i cross-client links.",
+      "Niejednoznaczne pozostają do review; forced failure/retry nie nadpisuje ręcznej decyzji.",
+      "Provider/DB comparison podaje wyraźne okno i kompletność; compose/send test używa stub/sandbox i potwierdzenia człowieka."
+    ],
+    "done": "Nowy przepływ przyjęcia i powiązania odebrany; historyczne rekordy mają rozstrzygniętą klasę lub jawny backlog zaakceptowany przez właściciela.",
+    "impact": "Kod matcher/call-sites; normalne link writes i historyczny apply oddzielnie gated. Brak provider writes w audycie coverage.",
+    "approval": "Source/deploy; provider read scope; osobne batch IDs i approval dla historycznych relacji.",
+    "rollback": "Revert call-site; odtworzenie konkretnych starych linków z provenance, nie masowy unlink.",
+    "exclude": "Automatyczne uznanie confidence za zgodę na konflikt, full mailbox export, automatyczna wysyłka.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-018",
+      "M-021",
+      "F-009",
+      "F-010",
+      "F-011"
+    ],
+    "linked_requirements": [
+      "F-005",
+      "F-033"
+    ],
+    "findings": [
+      "FND-003",
+      "FND-017",
+      "FND-018"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R13",
+    "name": "Użyteczna, wersjonowana baza wiedzy",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FIX / COMPLETE_REQUIREMENT / VERIFY",
+    "dependencies": [
+      "R08",
+      "R09",
+      "R10"
+    ],
+    "goal": "Asystent otrzymuje zasady, wzory i ograniczenia z zatwierdzonej KB, a nie sam spis tematów.",
+    "scope": [
+      "Rozstrzygnąć statusy current not_ready/failed/superseded; istniejące narzędzia admin process/review/index mają aktualne i jawne błędy.",
+      "Zdefiniować minimalny korpus dla fundamentów, gruntów, osiadań, posadzek i robót firmy na legalnych źródłach. Rejestr źródła zawiera wersję, datę dostępu, typ, URL/pochodzenie, licencję/uprawnienie i status review.",
+      "Dostarczyć kontrolowane pobieranie/odświeżanie zatwierdzonych źródeł internetowych z ograniczeniami i audytem; ręczny upload jest etapem przejściowym, nie pełną realizacją masterplanu §28.",
+      "Trzymać osobno fakty klienta, reguły KB i zewnętrzne publikacje. Nie nazywać tekstu aktualną normą bez jej identyfikacji; brak dostępu licencyjnego i nieaktualność są jawne.",
+      "Sprawdzić abstrakt vs treść: na pytanie analityczne deterministic topic inventory nie kończy się accepted analysis. Wymagana lokalna synteza i poprawne źródła."
+    ],
+    "checks": [
+      "Każdy zatwierdzony current item jest wyszukiwalny albo jawnie wyłączony z uzasadnieniem; zmiana wersji unieważnia stale artifact/index.",
+      "Pytanie wymaga połączenia faktu sprawy z zasadą KB; ślad pokazuje fragment faktycznie podany 9B i twierdzenie oparte na nim.",
+      "Brak normy/licencji/danych wywołuje właściwy MISSING/review, nie fikcyjny cytat; public-safe źródło internetowe przechodzi kontrolowany import z provenance."
+    ],
+    "done": "Zatwierdzony korpus i mechanizm świeżości działają; nie wystarcza liczba itemów ani sam indeks green.",
+    "impact": "Istniejące KB/retrieval/źródła; Qdrant i corpus writes po zgodzie. Możliwa mała additive schema po projekcie, nie domyślne NO za wszelką cenę.",
+    "approval": "Zatwierdzenie źródeł/licencji, zakresu kontrolowanego Internetu, danych i indeksacji; osobno migracja w razie potrzeby.",
+    "rollback": "Powrót do poprzedniej zatwierdzonej generacji; historyczne źródła zachowane, nie usuwać całej kolekcji.",
+    "exclude": "General web agent bez ograniczeń, pozyskiwanie płatnych norm bez uprawnień, udawanie analizy przez opis zawartości.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-041",
+      "M-056",
+      "F-018"
+    ],
+    "linked_requirements": [
+      "M-002",
+      "M-026",
+      "M-036",
+      "M-037",
+      "M-054",
+      "M-060",
+      "F-020",
+      "F-025"
+    ],
+    "findings": [
+      "FND-009",
+      "FND-011",
+      "FND-012",
+      "FND-022",
+      "FND-030",
+      "FND-031"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R14",
+    "name": "Archiwum i podobne realizacje",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "COMPLETE_REQUIREMENT / VERIFY",
+    "dependencies": [
+      "R08",
+      "R10",
+      "R11",
+      "R12",
+      "R13"
+    ],
+    "goal": "Znajdować porównywalne wykonane sprawy i wyjaśniać podobieństwa oraz różnice, a nie wyłącznie podobne słowa.",
+    "scope": [
+      "Opracować aktualny coverage report per format/status/generation: liczby document/page/asset/chunk/vector są różnymi jednostkami i nie wolno dzielić 57 wektorów przez 5988 dokumentów jako miary recall.",
+      "Po zatwierdzeniu reprezentatywnej próbki uruchamiać małe checkpointowane batch historycznych dokumentów z resume/pause, bez nadpisywania ręcznych powiązań.",
+      "Zbudować/dokończyć podobne realizacje na istniejącym retrieval: porównywane zjawisko, materiał, warunki, prace, wynik i ograniczenia; samo retrieval dokumentów nie zamyka biznesowego case similarity.",
+      "Dodać zaakceptowane scenariusze wyszukiwania opisów obrazów/uszkodzeń i porównania before/after. Image embeddings są osobnym punktem scope, nie pretekstem do lokalnego modelu Vision."
+    ],
+    "checks": [
+      "Gold set ma jawne relewantne i nierelewantne sprawy; wyniki wskazują prawidłowe klient/project/doc/page i różnice.",
+      "Cross-client visibility odpowiada uprawnieniom; citation otwiera właściwą stronę/zdjęcie.",
+      "Batch jest idempotentny i wznawialny; stare niewłączone materiały nie są przedstawiane jako przeszukane."
+    ],
+    "done": "Mierzalne, uzgodnione pokrycie i jakość podobnych realizacji, ze wskazaniem jakiej części archiwum faktycznie dotyczy odpowiedź.",
+    "impact": "Nowe/odświeżone artefakty i indeksy w zatwierdzonych batchach. Brak relink bez osobnej zgody.",
+    "approval": "Każdy historyczny batch/backfill ma osobny approval zakresu i limitu; mechanizm snapshot przed indeksem.",
+    "rollback": "Przywrócenie generacji i usunięcie wyłącznie własnych testowych/potwierdzonych punktów; nie rebuild wszystkiego w ciemno.",
+    "exclude": "Full corpus drain na starcie, deklaracja pełnego archive search dla ograniczonego indeksu.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-034",
+      "M-035",
+      "M-037",
+      "M-038",
+      "M-044",
+      "F-020"
+    ],
+    "linked_requirements": [
+      "M-011",
+      "M-036",
+      "M-060",
+      "M-071",
+      "F-001",
+      "F-004",
+      "F-011",
+      "F-018"
+    ],
+    "findings": [
+      "FND-002",
+      "FND-018",
+      "FND-022",
+      "FND-031"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R15",
+    "name": "Realne Visual i trudna analiza przez Temporary Chat",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "COMPLETE_REQUIREMENT / VERIFY",
+    "dependencies": [
+      "R05",
+      "R06",
+      "R08",
+      "R09",
+      "R10",
+      "R13"
+    ],
+    "goal": "Udowodnić pełną analizę z wiedzą i obrazem na obecnym zestawie, bez bezpośredniej publikacji zewnętrznej odpowiedzi.",
+    "scope": [
+      "W kontrolowanej ścieżce syntetycznej wykonać material → visual need → approved raster → Temporary Chat → strict binding/validation → local Qwen synthesis.",
+      "Oddzielnie sprawdzić trudną analizę: najpierw 9B i deterministic gate, potem minimalny pakiet bez zbędnej tożsamości, wynik bound do job/target/evidence i lokalna kontrola merytoryczna.",
+      "Obserwować rzeczywisty temporary mode, AUTH_REQUIRED/UI_CHANGED, brak zwykłego-chat fallback, bounded retry/spool i izolację równoległych klientów. Nie obchodzić login/auth/protections.",
+      "Dla dokumentu >4 źródeł odebrać etapowanie ograniczonych porcji i końcową agregację zakresu. Gdy potrzebny następny etap, wykonać go lub jawnie zawęzić pytanie; nie oznaczać połowy dokumentu jako complete.",
+      "Zamrozić użyteczne zadania: analiza osiadania z materiału sprawy i KB, rysy na obrazie, różne hipotezy z brakującymi badaniami, odmowa wyliczenia przy brakach. Zachować przyjęte wcześniej progi i hard safety gates; rozszerzać zestaw, nie obniżać progów po wyniku."
+    ],
+    "checks": [
+      "Pozytywny public-safe Visual i realna trudna analiza kończą się poprawnym lokalnym wynikiem; privacy/wrong-source/target-binding negative dają zero fałszywej akceptacji.",
+      "Sam summary/overview nie liczy się jako wykonanie zadania analitycznego; każda hipoteza ma status i podstawę, brak danych nie jest zastępowany fantazją.",
+      "Eskalacja pozostaje wyjątkową, kontrolowaną ścieżką; wynik zewnętrzny nie wykonuje biznesowych zapisów ani indeksacji."
+    ],
+    "done": "Obie ścieżki Temporary Chat mają dzisiejszy evidence i wersję workerów; poprawność, użyteczność i bezpieczeństwo odebrane razem.",
+    "impact": "Syntetyczne external/model jobs i lokalne wyniki w wyznaczonym środowisku; produkcyjne kolejki nadal bez drainu.",
+    "approval": "Odrębna zgoda na exact synthetic external smoke i ewentualny testowy session setup; po privacy R05.",
+    "rollback": "Zatrzymanie własnych testów, bezpieczna blokada niedopuszczonej eskalacji; zachowanie audytu i brak zwykłego-chat fallback.",
+    "exclude": "Test na realnych danych klientów bez klasyfikacji, ocena pipeline tylko po JSON, zastąpienie tempchat API.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-002",
+      "M-026",
+      "M-054",
+      "M-057",
+      "M-058",
+      "M-060",
+      "M-062",
+      "F-019"
+    ],
+    "linked_requirements": [
+      "M-028",
+      "M-041",
+      "M-042",
+      "M-044",
+      "M-045",
+      "M-050",
+      "M-056",
+      "M-059",
+      "M-070",
+      "F-025"
+    ],
+    "findings": [
+      "FND-004",
+      "FND-005",
+      "FND-008",
+      "FND-011",
+      "FND-012",
+      "FND-013",
+      "FND-016",
+      "FND-035",
+      "FND-036"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R16",
+    "name": "Odbiór aplikacji: emulator, Windows i Web",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "VERIFY / FIX",
+    "dependencies": [
+      "R04",
+      "R06",
+      "R07",
+      "R08",
+      "R09",
+      "R10",
+      "R12",
+      "R15"
+    ],
+    "goal": "Uzyskać pierwszą realnie używalną wersję CRM + AI bez czekania na wszystkie późniejsze moduły.",
+    "scope": [
+      "Użyć istniejącego AVD Pixel_8: uruchomić po sprawdzeniu zasobów, nie żądać telefonu, nie wipe/reinstall dla wygody. Połączyć z bezpiecznym backendem syntetycznym.",
+      "Najpierw sprawdzić zainstalowaną wersję i kompatybilność. Nowy candidate APK tylko po osobnej zgodzie, zachowując certyfikat i dane. Test starego APK nie potwierdza nowego UI.",
+      "Przejść login/expiry, Client 360, upload/source viewer, chat, tło, powrót, przerwanie sieci, rename/delete/cancel, wielokrotne finalizacje i wiadomości błędu.",
+      "Odebrać analogiczny zakres na Windows/Web z tego samego RELEASE_ID; dotyk/układ/loading/back/deep links, role i brak rzeczywistych wysyłek.",
+      "W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu."
+    ],
+    "checks": [
+      "Operator wykonuje syntetyczną sprawę od kliknięcia do zapisanej odpowiedzi z prawidłowym źródłem i wraca do niej po zamknięciu klienta.",
+      "Background nie anuluje; cancel jest jawny; usunięta rozmowa nie pojawia się ponownie; utrata sieci nie dubluje runu.",
+      "Każdy wspierany target ma zidentyfikowany build i zaakceptowany krytyczny przepływ."
+    ],
+    "done": "Kamień K1: działający CRM + analityczny Asystent, gotowy do osobnego kontrolowanego wydania, mimo nadal otwartych ofert/umów/metod. Nie oznaczać pełnego Masterplan PASS.",
+    "impact": "Testy runtime i ewentualne małe UX fixes. Brak automatycznej publikacji lub kasowania AVD.",
+    "approval": "Okno emulatora/modeli/tempchat oraz osobno candidate install/release; before production deploy R03.",
+    "rollback": "Zachowany build/aplikacja/dane i kompatybilny backend; nie downgrade niekompatybilnego schema w ciemno.",
+    "exclude": "Wymóg fizycznego telefonu, mylenie 341 testów Flutter z E2E, końcowy globalny redesign UI.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-015",
+      "M-045",
+      "M-064",
+      "F-024",
+      "F-025"
+    ],
+    "linked_requirements": [
+      "M-001",
+      "M-010",
+      "M-012",
+      "M-022",
+      "M-043",
+      "M-048",
+      "M-049",
+      "M-057",
+      "M-073",
+      "F-035"
+    ],
+    "findings": [
+      "FND-006",
+      "FND-007",
+      "FND-014",
+      "FND-015",
+      "FND-016",
+      "FND-029",
+      "FND-036"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R17",
+    "name": "Zweryfikowane metody techniczne i obliczenia",
+    "phase": "C — Dokończenie wymagań",
+    "type": "COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R09",
+      "R13",
+      "R15"
+    ],
+    "goal": "Dostarczyć realne narzędzia techniczne, nie jedynie dowolny kalkulator wzorów.",
+    "scope": [
+      "Uzgodnić rejestr metod masterplanu: parametry gruntów/CPT/sondowania, nośność, osiadania, obciążenia, fundamenty, posadzki i elementy konstrukcyjne. Każda rodzina ma osobny mały podpakiet R17.x.",
+      "Wykorzystać istniejący deterministic calculation engine. Dla metody zapisać wersję, wiarygodne źródło/wzór, zakres stosowalności, jednostki, wymagane dane, założenia, wyniki pośrednie i końcowe, autor/date/status weryfikacji.",
+      "Qwen dobiera metodę i wyjaśnia; nie generuje kluczowej wartości rachunku jako tekstowej odpowiedzi bez wykonania narzędzia.",
+      "Dodać trwały artefakt obliczenia związany ze sprawą i wejściami, jeżeli obecny model tego nie zapewnia. Migracja tylko po projekcie i approval.",
+      "Odbiór poprawności dziedzinowej wymaga uzgodnionych przykładów referencyjnych oraz kompetentnej weryfikacji; wynik AI nie staje się końcową ekspertyzą bez człowieka."
+    ],
+    "checks": [
+      "Każda metoda: co najmniej przypadek referencyjny z udokumentowaną tolerancją, konwersja jednostek, wartości graniczne, brak danych i wejście poza stosowalnością.",
+      "Brak danych prowadzi do jasnej odmowy wyliczenia lub oznaczonej estymacji tylko wtedy, gdy kontrakt ją dopuszcza; brak wymyślonych parametrów gruntu.",
+      "Re-run tej samej metody/wersji/inputs daje ten sam wynik i historię; zmiana danych tworzy nową wersję."
+    ],
+    "done": "Rejestr metod rozstrzygnięty: wymagane metody zwalidowane; pozostałe jawnie odroczone decyzją scope i nie liczone do pełnej realizacji. Funkcje nie są zamykane samym green engine test.",
+    "impact": "Metody, API/UI artefaktu, możliwa additive migration i dane testowe. Finalne obliczenia wymagają human review.",
+    "approval": "Lista metod/źródeł i odbioru technicznego, source, migration, rollout oddzielnie.",
+    "rollback": "Wyłączenie wadliwej wersji metody; stare artefakty zachowane z oznaczeniem, bez przepisywania historycznych wyników.",
+    "exclude": "Nowy framework obliczeń bez potrzeby, arbitralne jednostki, uznanie sztucznego przykładu za zatwierdzoną normę.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-055"
+    ],
+    "linked_requirements": [
+      "M-005",
+      "M-026",
+      "M-054",
+      "M-056",
+      "M-061",
+      "M-071"
+    ],
+    "findings": [
+      "FND-010",
+      "FND-030"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R18",
+    "name": "Oferty jako wersjonowany obieg",
+    "phase": "C — Dokończenie wymagań",
+    "type": "COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R13",
+      "R16"
+    ],
+    "goal": "Przygotować ofertę ze sprawy i firmowych reguł, z pełną kontrolą wersji i akceptacji.",
+    "scope": [
+      "Najpierw zatwierdzić minimalny model danych: oferta, wersja, status, pozycje/zakres, źródła, firma/klient, założenia, ceny/reguły, termin i approval. Nie dopisywać ERP.",
+      "Zaimplementować jeden pionowy slice istniejącego backend/Flutter: draft → AI prepared/review → approved → sent/rejected/superseded, z autoryzacją i audytem.",
+      "Powiązać draft z wybranymi dokumentami, analizą, historycznymi ofertami i szablonem. AI nie wymyśla stawek, ilości ani decyzji handlowych; brak jest jawny.",
+      "Eksport czytelnego dokumentu i porównanie wersji; wygenerowany przez AI draft jest oznaczony. Edycja zatwierdzonej wersji tworzy rewizję i wymaga ponownej akceptacji.",
+      "Integracja z istniejącym compose/send wymaga osobnej akceptacji dokładnej wersji i adresata. Approval dokumentu nie jest automatyczną zgodą na wysłanie."
+    ],
+    "checks": [
+      "Syntetyczna sprawa → draft → poprawka → approve/reject → nowa rewizja → eksport; źródła i historia nie giną.",
+      "Stare approval nie obejmuje nowszej treści; konflikt równoczesnej edycji wykrywany; obcy user/klient nie otrzymuje dostępu.",
+      "Wysłanie jest testowane na sandbox/stub z jawnym potwierdzeniem, bez realnej korespondencji."
+    ],
+    "done": "M-013/M-051/M-052 mają działające encje, API/UI i odbiór właściciela; sam wygenerowany tekst nie wystarcza.",
+    "impact": "Oczekiwana migration danych domeny po design/isolated upgrade/downgrade/report/approval; brak auto wysyłki.",
+    "approval": "Model domeny i reguły firmy; osobno schema, source, deploy i wysyłka.",
+    "rollback": "Feature disable lub zgodna poprawka forward; nie kasować zatwierdzonych ofert ani ich historii.",
+    "exclude": "Podpis elektroniczny, ERP/księgowość bez wymagania, automatyczne ustalanie cen z wyobraźni modelu.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-013",
+      "M-051",
+      "M-052"
+    ],
+    "linked_requirements": [
+      "M-001",
+      "M-005",
+      "M-017",
+      "M-055",
+      "M-061",
+      "M-063",
+      "M-071"
+    ],
+    "findings": [
+      "FND-001"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R19",
+    "name": "Umowy z zaakceptowanej oferty",
+    "phase": "C — Dokończenie wymagań",
+    "type": "COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R18"
+    ],
+    "goal": "Wersjonowana umowa dziedziczy właściwe, zatwierdzone warunki zamiast bazować na zmiennym szkicu.",
+    "scope": [
+      "Zaprojektować minimalny trwały obiekt umowy/wersji powiązany z konkretną approved offer version i zatwierdzonym szablonem.",
+      "Mapować zakres, cenę, adres, terminy, firmę i uzgodnienia; brakujące dane wymagają uzupełnienia. AI nie dopisuje niezleconych zobowiązań.",
+      "Obsłużyć draft/review/approved/superseded, diff wersji, historię, eksport i kontrolę dostępu.",
+      "Zmiana oferty po utworzeniu umowy nie aktualizuje po cichu zaakceptowanego dokumentu; pokaż niezgodność i wymuś nową decyzję.",
+      "Finalne użycie/wysłanie wymaga odrębnego potwierdzenia człowieka i właściwej wersji."
+    ],
+    "checks": [
+      "Offer v1 approved → contract draft v1 → review → approve; offer v2 nie mutuje starej umowy.",
+      "Brak akceptacji oferty lub danych blokuje finalizację; zmiana szablonu zachowuje historyczną wersję.",
+      "Eksport zgadza się z zaakceptowanymi polami; brak nieuprawnionej wysyłki."
+    ],
+    "done": "M-014/M-053 i końcowa część §42 działają w UI ze źródłem warunków i pełnym audytem.",
+    "impact": "Oczekiwana additive migration i szablony po zatwierdzeniu; bez automatycznych działań prawnych/finansowych.",
+    "approval": "Zatwierdzenie szablonów/warunków przez właściciela; osobno migracja, source, deploy i użycie finalne.",
+    "rollback": "Zachowanie poprzedniej kompatybilnej wersji i wszystkich zaakceptowanych dokumentów; forward correction zamiast destructive downgrade.",
+    "exclude": "Swobodne generowanie finalnych postanowień jako porady prawnej, podpis/wysłanie bez zgody.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-014",
+      "M-053"
+    ],
+    "linked_requirements": [
+      "M-001",
+      "M-005",
+      "M-017",
+      "M-061",
+      "M-063",
+      "M-071"
+    ],
+    "findings": [
+      "FND-001"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R20",
+    "name": "Domknięcie CRM, pracy terenowej i uprawnień",
+    "phase": "C — Dokończenie wymagań",
+    "type": "VERIFY / FIX / COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R16",
+      "R18",
+      "R19"
+    ],
+    "goal": "Zachować działający CRM i domknąć jego rolę jako miejsca całej historii sprawy.",
+    "scope": [
+      "Odebrać Client 360, statusy/daty, global search, Candidate preview/merge, activity/change history, mail, dashboard, calendar/tasks/notes, inspections i Trash.",
+      "Nie otwierać na nowo wyboru A/B ContactPerson: followup dokumentuje B i migrację z 22.08.2026. Zweryfikować rzeczywiste działanie preferred/multiple decision-makers/generic coordinates/cross-client guard/archive.",
+      "Sprawdzić upload folder/multi-file/drag-drop, przypinanie/odpinanie/przenoszenie dokumentów z kontrolą, mapę/foreground GPS/EXIF/orientation/device metadata w zakresie masterplanu.",
+      "Dostarczyć brakujące drafts notatki/zadania/e-maila/raportu oraz porównanie dokumentów, jeżeli obecne wejścia ich nie realizują. Zapis narzędziowy tylko allowlisted i z wymaganym approval; bez dowolnego shell/SQL.",
+      "Rozstrzygnąć powiązanie finansowych dokumentów potrzebnych sprawie w istniejącym archiwum; nie zakładać budowy pełnej księgowości."
+    ],
+    "checks": [
+      "Właściciel wykonuje kompletną syntetyczną sprawę z dokumentami, osobami, zadaniem, wizją, ofertą i umową; historia i deep links są spójne.",
+      "Role mają negatywne testy działań; optimistic conflict, merge review, Trash restore/purge tylko w izolacji i zgodnie z polityką.",
+      "UI zachowuje stany loading/error/empty/offline/back i brak N+1 w krytycznych listach."
+    ],
+    "done": "Istniejące DEMONSTRATED pozostają objęte regresją, braki mają małe zakończone slice, a nie nową implementację CRM.",
+    "impact": "Najpierw verification, minimalne fixes; możliwe potrzebne uzupełnienia schema po projekcie. Production business actions nie wchodzą do automatycznych testów.",
+    "approval": "Source; osobno nowe tool write authority, schema i deploy. Bez powtórnej decyzji o już przyjętym ContactPerson B.",
+    "rollback": "Poprzedni kompatybilny build/feature switch; nie odwracać historycznych powiązań klientów globalnie.",
+    "exclude": "Przebudowa całego CRM, nowe nieograniczone Agent write tools, testy realnego purge/send.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-005",
+      "M-006",
+      "M-007",
+      "M-008",
+      "M-009",
+      "M-010",
+      "M-016",
+      "M-017",
+      "M-022",
+      "M-069",
+      "F-002",
+      "F-003",
+      "F-004",
+      "F-005",
+      "F-006",
+      "F-007",
+      "F-008",
+      "F-012",
+      "F-013",
+      "F-014",
+      "F-015",
+      "F-029",
+      "F-035"
+    ],
+    "linked_requirements": [
+      "M-001",
+      "M-015",
+      "M-018",
+      "M-038",
+      "M-043",
+      "M-047",
+      "M-061",
+      "M-063",
+      "M-064",
+      "M-071",
+      "F-009",
+      "F-022"
+    ],
+    "findings": [],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R21",
+    "name": "Zakres CAD i pozostałych możliwości docelowych",
+    "phase": "C — Dokończenie wymagań",
+    "type": "OWNER_DECISION / COMPLETE_REQUIREMENT",
+    "dependencies": [
+      "R10",
+      "R16"
+    ],
+    "goal": "Nie udawać wsparcia całej dokumentacji technicznej i nie rozszerzać projektu bez końca.",
+    "scope": [
+      "Właściciel na początku planu rozstrzyga docelową macierz: DWG i ewentualnie DXF/IFC/DGN, multimedia, porównania obrazów, image embeddings, opcjonalny iOS i przyszłe Agent actions.",
+      "Dla potrzebnego CAD preferować istniejący bezpieczny renderer/converter/preview zamiast własnego CAD engine. Uwzględnić licencję, brak zewnętrznego wysyłania oryginałów, jednostki/skale/warstwy/odwołania.",
+      "Wspierane funkcje wykonać jako oddzielne małe R21.x z representative fixture. Jawny unsupported jest bezpiecznym stanem pilota, ale nie dowodem realizacji przyjętego wymagania CAD.",
+      "Image embeddings nie są zmianą modelu rozumującego 9B, ale wymagają oddzielnego zatwierdzenia zakresu, zasobów i indeksu. Do tego czasu wyszukiwanie obrazów może używać zatwierdzonych opisów Visual z jawnym ograniczeniem.",
+      "Odraczane możliwości pozostają w rejestrze ze źródłem, uzasadnieniem i decyzją; nie znikają, by podnieść procent ukończenia."
+    ],
+    "checks": [
+      "Każdy wybrany format ma osobno status metadata/text/render/Visual/index i bounded safety tests; rysunek ma identyfikowalny widok/skalę.",
+      "Nieobsługiwany plik zachowuje oryginał i informację użytkownika, nie tworzy fikcyjnego success.",
+      "Wszystkie wymagania/aspiracje masterplanu są powiązane lub jawnie odroczone przez właściciela."
+    ],
+    "done": "Zatwierdzony zakres kompatybilności zrealizowany i odebrany. Nierozstrzygnięta decyzja nie blokuje K1, ale blokuje twierdzenie o pełnej zgodności z danym wymaganiem.",
+    "impact": "Możliwy nowy kontrolowany dependency lub additive metadata/schema po projekcie; żadnych samowolnych instalacji.",
+    "approval": "Wybór zakresu i licencji; osobno dependency/security review, schema oraz deploy.",
+    "rollback": "Wyłączenie adaptera i pozostawienie explicit unsupported; zachowanie oryginałów i provenance.",
+    "exclude": "Własny silnik CAD, nieograniczone web/Agent, iOS jako narzucony blocker mimo opcjonalności.",
+    "status": "PLANNED",
+    "primary_requirements": [],
+    "linked_requirements": [
+      "M-019",
+      "M-028",
+      "M-044",
+      "M-063"
+    ],
+    "findings": [
+      "FND-020",
+      "FND-021"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R22",
+    "name": "Operacje, alerty i retencja",
+    "phase": "C — Dokończenie wymagań",
+    "type": "COMPLETE_REQUIREMENT / VERIFY",
+    "dependencies": [
+      "R03",
+      "R04",
+      "R09",
+      "R16"
+    ],
+    "goal": "Wykrywać awarie i chronić odtwarzalność bez automatycznego kasowania danych dla samego „porządku”.",
+    "scope": [
+      "Domknąć backup stale/failure, disk low, DB down, Vision AUTH/UI_CHANGED, orphan job, schema mismatch i n8n down. Wybrany zewnętrzny kanał alertów wymaga osobnej zgody.",
+      "Zweryfikować aktualne schedule/UI i dry-run polityki E/F: próg 10%, cel 12%, wiek 60/14 dni i priorytety kopii zgodnie z zatwierdzoną decyzją. Przypisanie wieku do celu potwierdzić z rzeczywistym planem, nie odgadywać z samych liczb.",
+      "Retencja usuwa wyłącznie zarządzane, kwalifikujące się kopie, zachowując punkt odzyskania; stan z audytu auto_delete=false nie jest błędem do samowolnego przełączenia.",
+      "Audytować i uzgodnić n8n execution retention, log/audit policy oraz security-header compatibility; brak cleanup przed właściwym approval.",
+      "Powtórzyć potrzebne granice auth/rate/CORS/debug/secrets i admission backup/OCR/model na aktualnym zestawie."
+    ],
+    "checks": [
+      "Fault injection w izolacji wywołuje właściwy alert bez ujawnienia sekretów; przejściowy błąd nie powoduje nieograniczonych powiadomień.",
+      "Dry-run retention daje dokładny manifest plików/rozmiarów/przyczyn i zachowanych kopii; apply tylko po osobnej zgodzie.",
+      "Operacje nie blokują hot-path UI i mają jawny status, historię oraz możliwość bezpiecznego pause."
+    ],
+    "done": "Operacje wymagane w followup odebrane; wyłączona retencja jest akceptowana wyłącznie jako jawna decyzja właściciela, a nie ukryte COMPLETE.",
+    "impact": "Konfiguracja/alerty; destructive retention i n8n purge oddzielnie gated, niezależnie od source PASS.",
+    "approval": "Zachować istniejące FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED i FOLLOWUP_N8N_RETENTION_APPROVAL_REQUIRED; kanał zewnętrzny osobno.",
+    "rollback": "Wycofanie konfiguracji; skasowany backup nie ma automatycznego rollbacku — przed deletion wymagany zachowany restore chain i świadoma zgoda.",
+    "exclude": "Docker prune, kasowanie kopii niezarządzanych, retencja traktowana jako bezpiecznie odwracalna.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-068",
+      "F-016",
+      "F-022",
+      "F-027",
+      "F-028"
+    ],
+    "linked_requirements": [
+      "M-003",
+      "M-004",
+      "M-062",
+      "M-066",
+      "M-069",
+      "F-015"
+    ],
+    "findings": [
+      "FND-015",
+      "FND-024",
+      "FND-025"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R23",
+    "name": "Odbiór §42 i kontrolowane wydanie systemu",
+    "phase": "D — Odbiór całości",
+    "type": "VERIFY / RELEASE",
+    "dependencies": [
+      "R03",
+      "R04",
+      "R11",
+      "R12",
+      "R13",
+      "R14",
+      "R16",
+      "R17",
+      "R18",
+      "R19",
+      "R20",
+      "R21",
+      "R22"
+    ],
+    "goal": "Udowodnić działanie całego uzgodnionego produktu jako narzędzia pracy właściciela.",
+    "scope": [
+      "Zrealizować workflow §42: klient → lokalizacja/wizja/zdjęcia → dokumenty → intelligence/index → analiza z KB/Visual → podobne realizacje → obliczenie → oferta approved → umowa approved → historia.",
+      "Zamrozić release manifest i wykonać właściwe pełne regresje oraz aktualny restore drill dla tego schema/artefaktów. Stary restore PASS nie pokrywa automatycznie nowych ofert/umów.",
+      "Rozstrzygnąć każdy z 108 wpisów oraz dodatkowe podkryteria: ACCEPTED albo jawna podpisana decyzja scope. NOT_VERIFIED/OWNER_DECISION nie są ukrytym PASS.",
+      "Promocja source, deploy, migracja, aktualizacja aplikacji i praca na prawdziwych danych mają oddzielne zgody i log. Nie promować całego rescue dlatego, że jeden podpakiet przeszedł.",
+      "Wykonać ograniczony canary prawdziwej pracy po zgodzie i monitoring; progi czasowe/zasobowe z pomiarów, nie fikcyjne terminy zakończenia."
+    ],
+    "checks": [
+      "Przepływ biznesowy daje poprawne artefakty, źródła i wersje; człowiek zatwierdza wyniki wysokiego ryzyka.",
+      "Brak otwartego P0 i potwierdzonego krytycznego błędu poprawności w wydawanym zakresie; niepewne materiały fail-closed bez niszczenia użyteczności pozytywnych przypadków.",
+      "Aktualny stable i wspierane klienty działają; release/rollback i restore są odtwarzalne."
+    ],
+    "done": "Kamień K2: odebrany zakres operacyjny. „Pełny Masterplan” wolno napisać tylko przy spełnieniu wszystkich wymaganych pozycji albo z jawnym opisem zatwierdzonej zmiany specyfikacji.",
+    "impact": "Wydanie i normalne operacje po zgodzie; migracje wyłącznie przygotowane w wcześniejszych pakietach.",
+    "approval": "Osobny release/migration/deploy/canary approval i odbiór właściciela. Nie konsumuje approval final cleanup.",
+    "rollback": "Poprzedni release tylko gdy schema compatible; inaczej bezpieczny forward fix/feature disable lub zatwierdzone odtworzenie. Nie utracić nowych danych.",
+    "exclude": "Kolejny pełny redesign, masowe historyczne apply jako test, ogłoszenie sukcesu samym licznikiem testów.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "M-001",
+      "M-061",
+      "M-071",
+      "M-073"
+    ],
+    "linked_requirements": [
+      "M-067",
+      "F-026",
+      "F-035"
+    ],
+    "findings": [
+      "FND-001",
+      "FND-026"
+    ],
+    "retirement_ids": []
+  },
+  {
+    "package_id": "R24",
+    "name": "Końcowe sprzątanie bez utraty funkcji",
+    "phase": "E — Sprzątanie końcowe",
+    "type": "FINAL_CLEANUP",
+    "dependencies": [
+      "R23"
+    ],
+    "goal": "Usunąć zbędne pozostałości dopiero po kontroli zależności i odbiorze ich zastępstw.",
+    "scope": [
+      "Przejść 61 kandydatów RETIREMENT_EXECUTION_MAP.csv po dokładnych ścieżkach. Trzy roadmapy rozstrzygnięte już w R01; nie usuwać ich drugi raz.",
+      "51 ARCHIVE_EVIDENCE zachować w Git lub nieinstrukcyjnym archiwum z datą/commit/provenance; nie zmieniać historycznych wyników w aktualne polecenia. Sprawdzić czy nie są potrzebne runbookom/restore.",
+      "Cztery REMOVE_CANDIDATE: pusty blueprint, dwie kopie .before_rfc822 i wycofany runner. Warunek usunięcia osobny dla każdego: aktualny consumer audit, hash, bezpieczna kopia, exact-path approval.",
+      "Live Web oraz external worker pozostają KEEP_RUNTIME aż do odebranego zastąpienia R04/R15/R16; C:\\Ollama-Vision-Pilot pozostaje HOLD do wyjaśnienia launcherów. PostgreSQL:10 nie należy do AI-Lab bez dowodu — nie stop/delete.",
+      "16 advanced_queued: najpierw provenance i dowód inert, poprawna prezentacja stanu. Ewentualne terminalization/archive tylko existing service + zatwierdzone ID; nie DELETE dla upiększenia kolejki.",
+      "Modele stare usuwać wyłącznie po R09 consumer/rollback proof. qwen3.5:9b i aktywny embedding są chronione mimo historycznej listy cleanup. Resztę danych historycznych oraz storage orphans tylko dry-run → approval → bounded apply."
+    ],
+    "checks": [
+      "Pre/post exact manifests, link/import/build/runtime smoke oraz cały krytyczny §42 smoke po sprzątaniu; żadnej utraty danych lub niezaplanowanego restartu.",
+      "Nie ma aktywnych instrukcji konkurencyjnych; każdy usunięty plik ma dowód braku konsumentów i realny recovery dla właściwego typu.",
+      "Unknown nie zmienia się automatycznie w delete; potrzeby innych systemów są zachowane."
+    ],
+    "done": "Kamień K3: porządek i odbiór po cleanup. Rejestr ma finalny werdykt dla wszystkich kandydatów: usunięto/archiwum/zachowano/pozostaje jawny HOLD z właścicielem.",
+    "impact": "Exact-path usuwanie/archiwizacja oraz ewentualne bounded data cleanup oddzielnie autoryzowane; brak ogólnego prune.",
+    "approval": "Osobne zgody FOLLOWUP_STORAGE_CLEANUP_APPROVAL_REQUIRED, FOLLOWUP_OLD_MODEL_CLEANUP_APPROVAL_REQUIRED, FOLLOWUP_HISTORICAL_DATA_CLEANUP_APPROVAL_REQUIRED zgodnie z zakresem; nie dotyczą chronionego 9B.",
+    "rollback": "Tracked: commit+path; untracked/outside: niezależna zweryfikowana kopia; dane: chroniony preimage/backup. Irreversible retention jawnie oznaczona.",
+    "exclude": "Wildcard delete, git clean/reset, modele 9B/embedding, migracje/lockfile/licencje/regresje, live builds/workers przed zastąpieniem, obcy PostgreSQL.",
+    "status": "PLANNED",
+    "primary_requirements": [
+      "F-030",
+      "F-031",
+      "F-032",
+      "F-033"
+    ],
+    "linked_requirements": [
+      "M-003",
+      "M-061",
+      "M-072",
+      "M-073",
+      "F-015",
+      "F-019"
+    ],
+    "findings": [
+      "FND-018",
+      "FND-029",
+      "FND-032",
+      "FND-035"
+    ],
+    "retirement_ids": [
+      "RT-001",
+      "RT-002",
+      "RT-003",
+      "RT-004",
+      "RT-005",
+      "RT-006",
+      "RT-007",
+      "RT-008",
+      "RT-009",
+      "RT-010",
+      "RT-012",
+      "RT-013",
+      "RT-014",
+      "RT-015",
+      "RT-016",
+      "RT-017",
+      "RT-018",
+      "RT-019",
+      "RT-020",
+      "RT-021",
+      "RT-022",
+      "RT-023",
+      "RT-024",
+      "RT-025",
+      "RT-026",
+      "RT-027",
+      "RT-028",
+      "RT-029",
+      "RT-030",
+      "RT-031",
+      "RT-032",
+      "RT-033",
+      "RT-034",
+      "RT-035",
+      "RT-036",
+      "RT-037",
+      "RT-038",
+      "RT-039",
+      "RT-040",
+      "RT-041",
+      "RT-042",
+      "RT-043",
+      "RT-044",
+      "RT-045",
+      "RT-046",
+      "RT-047",
+      "RT-048",
+      "RT-049",
+      "RT-050",
+      "RT-051",
+      "RT-053",
+      "RT-054",
+      "RT-055",
+      "RT-056",
+      "RT-058",
+      "RT-059",
+      "RT-060",
+      "RT-061"
+    ]
+  }
+]

@@ -1,0 +1,41 @@
+{
+  "REQUIREMENT_PACKAGE_MAP.csv": {
+    "rows": 108,
+    "expected_rows": 108,
+    "unchanged_bytes_vs_v1_0": true
+  },
+  "FINDING_PACKAGE_MAP.csv": {
+    "rows": 36,
+    "expected_rows": 36,
+    "unchanged_bytes_vs_v1_0": true
+  },
+  "RETIREMENT_EXECUTION_MAP.csv": {
+    "rows": 61,
+    "expected_rows": 61,
+    "unchanged_bytes_vs_v1_0": true
+  },
+  "SCOPE_DETAIL_CHECKLIST.csv": {
+    "rows": 16,
+    "expected_rows": 16,
+    "unchanged_bytes_vs_v1_0": true
+  },
+  "R02_R24_details_unchanged": true,
+  "artifact_version": "1.1",
+  "package_count": 25,
+  "all_cards_and_status_rows_present": true,
+  "package_csv_json_in_sync": true,
+  "acyclic_dependencies": true,
+  "all_61_cleanup_actions_not_authorized": true,
+  "owner_decision_records": 14,
+  "audit_zip_sha256": "B38CF3DA7CB2699C97891DBC64FE03B4770D1E86F7C90A5280D9A72AC15CF2F9",
+  "audit_zip_entries": 15,
+  "audit_crc_pass": true,
+  "canonical_roadmap_same_filename": true,
+  "roadmap_runtime_checkpoints": "TEMPLATE / NOT_STARTED — no actual execution claimed",
+  "input_only_not_to_commit": true,
+  "git_user_repo_changes_by_this_preparation": 0,
+  "production_changes_by_this_preparation": 0,
+  "source_tests_run_by_this_preparation": 0,
+  "validation_scope": "Kontrola struktury i zachowania danych planu v1.1. Nie testy NEXT Stabil; nie wykonano R00 ani publikacji.",
+  "credential_pattern_check": "Brak trafień wybranych wzorców kluczy/tokenów w plikach tekstowych paczki; nie gwarancja pełnej detekcji danych wrażliwych."
+}
