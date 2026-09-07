@@ -1,6 +1,6 @@
 # NEXT STABIL / AI LAB — POST-PROJECT FOLLOW-UP PLAN
 
-Status: **AKTYWNY PLAN ROZWOJU PO FINAL SYSTEM AUDIT**
+Status: **KANONICZNE UZUPEŁNIENIA, DECYZJE I ZABEZPIECZENIA PRODUKTU**
 
 ## Źródła i punkt bazowy
 
@@ -17,9 +17,13 @@ Punkt bazowy:
 - HEAD: `a16e26eafce1a149cef2cf5a2edc27a807a45f17`,
 - DB: `chunk16audit_20260819`.
 
-Zakończony `AI_LAB_MASTER_PLAN.txt` pozostaje historycznym masterplanem głównej
-implementacji. `FINAL_SYSTEM_AUDIT.md` jest kanonicznym audytem stanu bazowego.
-Ten dokument jest od teraz jedyną aktywną roadmapą kolejności dalszych prac.
+`AI_LAB_MASTER_PLAN.txt` pozostaje kanoniczną specyfikacją produktu i
+architektury. `FINAL_SYSTEM_AUDIT.md` jest historycznym audytem stanu bazowego.
+Ten dokument zachowuje uzupełnienia, decyzje, zabezpieczenia i historię; nie
+steruje już kolejnością wykonania. Jedyną roadmapą kolejności i punktem
+wznowienia jest `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` na zatwierdzonej
+gałęzi recovery. Historyczne sekcje kolejności poniżej są dowodem, nie
+instrukcją rozpoczęcia CHUNK-a ani konsumpcją approval gate.
 
 ## Global execution rules
 

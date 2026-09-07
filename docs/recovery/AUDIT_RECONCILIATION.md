@@ -63,7 +63,26 @@ Zachowano wszystkie 108 ID i cztery osie statusów, 36 FND i ich stopień dowodu
 
 Audyt jest wystarczającą podstawą planowania po wskazanych korektach. **Nie potrzebujemy kolejnego pełnego audytu przed R00/R01/R02.** Niewiadome trafiają do konkretnego pakietu i rozstrzygającego testu. Pierwszy realny odbiór operacyjny K1 następuje po krytycznym CRM+AI, przed dokończeniem ofert/umów, zaś pełny uzgodniony workflow ma osobny K2.
 
-## Źródła
+## 5. R01 — mapa konsolidacji trzech starych roadmap
+
+Właściciel zaakceptował R00 przy `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` i osobno zezwolił R01 na wycofanie dokładnie trzech ścieżek. Każdy dokument przeczytano w całości, sprawdzono jego odwołania i zachowano nadal obowiązujące treści w poniższych kanonicznych miejscach. Usunięcie z aktywnego drzewa nie usuwa historii Git ani nie stanowi akceptacji R02–R24.
+
+| ID | Wycofane źródło | Nadal obowiązująca treść | Kanoniczne miejsce po R01 | Dowód historyczny |
+|---|---|---|---|---|
+| RT-011 | `CODEX_MASTER_EXECUTION.md` | zgodność API wdrożonych klientów; granica publicznego/prywatnego gatewaya; role i cykl haseł; wersjonowanie i release; Alembic, human approval i ochrona danych; rozróżnienie source/runtime/release | `AGENTS.md`; M-003/M-006/M-064/M-065/M-072/M-073; followup safeguards; R03/R04/R16/R20/R22/R23/R24 | pełne bajty: `git show 9af4026eeffed2509af943bff1e37b2514bfd5e8:CODEX_MASTER_EXECUTION.md`; blob `3073e7277fbd280fe50ae289147c67f069d3685d`; SHA-256 `81A89A90AD347FDC49D8E1C248AAEE57EF04EEA2BB14BD56FE72C347218C4E32` |
+| RT-052 | `FOLLOWUP_PRECHUNK23_FULL_SYSTEM_ROADMAP.md` | privacy i pokrycie bieżącego requestu Visual; Material/Text Intelligence i formaty dokumentów; Gmail; zasoby; backup E/F; bramki migracji, odbioru funkcjonalnego i CHUNK23 | M-026–M-032/M-039–M-060/M-066–M-073 i F-016–F-035; rejestry FND; R03/R05/R06/R09/R10/R11/R12/R15/R21/R22/R23 | pełne bajty: `git show 9af4026eeffed2509af943bff1e37b2514bfd5e8:FOLLOWUP_PRECHUNK23_FULL_SYSTEM_ROADMAP.md`; blob `e444d69a6ab99f62d3c01493721ad201f197b460`; SHA-256 `DA9E725871FBC4A05FAD9E331F490CCC731475011C3C7775F7AE1A3B6DA0C44C` |
+| RT-057 | `frontend/POST_BATCH_AUTH_REMOTE_PLAN.md` | role Administrator/User i wymuszenie zmiany hasła; kompatybilność/version; CORS/loopback/HTTPS; Windows/Android/Web | M-003/M-006/M-015/M-064/M-065; F-005/F-022/F-023/F-024/F-034; `AGENTS.md`; R04/R16/R20/R22 | pełne bajty: `git show 9af4026eeffed2509af943bff1e37b2514bfd5e8:frontend/POST_BATCH_AUTH_REMOTE_PLAN.md`; blob `3b61ec6fe6b400b9ebd081ad3d0cfc6ed2b7bffd`; SHA-256 `CD62826710264AB755594EB32F61FF1C0FC2E11F4C7E5AE63B1643E72573C663` |
+
+### Referencje po konsolidacji
+
+- Aktywne wskazania w `AGENTS.md`, `AI_LAB_MASTER_PLAN.txt`, `AI_LAB_FOLLOWUP_PLAN.md` i `backend/docs/architecture/domain-model.md` prowadzą do masterplanu, followup i jednej wspólnej roadmapy.
+- Wzmianki w karcie R01, mapach recovery i tym rejestrze opisują zakres/proweniencję, a nie polecenia wykonawcze.
+- `FINAL_SYSTEM_AUDIT.md` oraz `docs/recovery/prompts/R00_BASELINE.md` pozostają jednoznacznie historycznymi dowodami.
+- Obowiązujące środowiska Flutter to Windows, Android i Web. Historyczne iOS/macOS nie wracają do zakresu bez nowej decyzji właściciela.
+
+Żadna bramka approval, decyzja o Qwen 9B, osobnym embeddingu, KB ani Temporary Chat nie została usunięta. R01 nie autoryzuje CHUNK23, R02 ani żadnej zmiany aplikacji lub runtime.
+
+## 6. Źródła
 
 - Otrzymane archiwum: `evidence/NEXT_STABIL_FULL_AUDIT_20260907.zip` — oryginalne pliki AUDIT_REPORT, REQUIREMENTS_MATRIX, FINDINGS_REGISTER, REPAIR_INPUT, TEST_EVIDENCE, COVERAGE_AND_UNKNOWNS, RUNTIME_MANIFEST i manifesty worktree.
 - Masterplan (wymagania i kryteria): https://github.com/domlap94-star/ai-lab-core/blob/483f9bf8b1a591ded8a42df5da87663c664ed5d4/AI_LAB_MASTER_PLAN.txt — szczególnie §7–8, §12, §23–33, §35–38, §42–47.

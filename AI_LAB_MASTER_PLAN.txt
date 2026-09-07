@@ -4580,8 +4580,10 @@ READ-ONLY CRM AUDIT 2026-08-14:
 - linked/candidate-only/unlinked: 5639 / 161 / 99,
 - Gmail sources linked to clients: 4095.
 
-Szczegółowy podział na małe, testowalne checkpointy znajduje się w
-CODEX_MASTER_EXECUTION.md.
+Historyczny podział wykonania pozostaje odtwarzalny z historii Git. Bieżąca
+kolejność małych, testowalnych pakietów i aktualny checkpoint znajdują się w
+NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md; uzupełnienia, decyzje i zabezpieczenia
+pozostają w AI_LAB_FOLLOWUP_PLAN.md.
 
 ================================================================================
 END RECONCILIATION 2026-08-14 — CHUNK 0

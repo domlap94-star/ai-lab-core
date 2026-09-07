@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status dostarczonego pliku: READY_FOR_R00_REGISTRATION — publikacja w Git nie została jeszcze wykonana.**
+**Status rejestracji: R00 ACCEPTED; wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,24 +20,24 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | `REMOTE_BOOTSTRAP_VERIFIED` — bootstrap `a4b0260ed04d1cc84b42a58ba6ed194adaa2dfc4`; końcowy checkpoint oczekuje na publikację tego commita |
-| Checkpoint ID | `R00-20260907T204252Z-HANDOFF-B1` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T20:42:52Z` |
-| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R00 v1.1 |
-| Aktywny pakiet / podetap | `R00 / HANDOFF` — baseline zakończony, gotowy do review |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; bootstrap remote zweryfikowany, końcowy commit jeszcze nieutworzony |
+| Stan rejestracji | `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8`; R00 zaakceptowane przez właściciela; konsolidacja R01 gotowa do review |
+| Checkpoint ID | `R01-20260907T214615Z-CONSOLIDATION-C1` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T21:46:15Z` |
+| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R01 |
+| Aktywny pakiet / podetap | `R01 / CONSOLIDATION` — exact-path retirement i reference closure zakończone lokalnie, oczekują na publikację/review |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; starting local/remote `9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: backend z clean main; Supervisor/gatewaye/workery mają mixed path/hash; DB head `followup_assistant_chat_history_20260829`; live Web `1.0.2+41`, source Flutter `1.0.2+29`, backend `1.0.0` |
-| Ostatnia faktycznie zakończona czynność | Zweryfikowano 15/15 członków audit ZIP, zachowano 203-elementowy dirty manifest bez driftu, wykonano bounded runtime/DB/model/Qdrant/Supervisor odczyt i propozycję integracyjną |
-| Potwierdzone testy bieżącego wykonania | Package 18/18 i audit ZIP 15/15 hash PASS; registry 108/36/61/16/14/25 PASS; dirty preservation 203/203 PASS; testy aplikacji `NOT_RUN` zgodnie ze scope R00 |
+| Ostatnia faktycznie zakończona czynność | Przeczytano i zmapowano RT-011/RT-052/RT-057, zamknięto aktywne referencje, zachowano provenance/hash/recovery i wycofano dokładnie trzy zatwierdzone pliki z aktywnego drzewa |
+| Potwierdzone testy bieżącego wykonania | Reference scan i consolidation ledger PASS; registry 108/36/61/16/14/25 PASS; R02–R24 payload unchanged; testy aplikacji `NOT_RUN` — R01 jest wyłącznie dokumentacyjny |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
 | Niezakończone procesy i skutki operacyjne | Ta sesja nie uruchomiła długich zadań; runtime nieprzejęty/nierestartowany; 15 preparation queued i 16 advanced_queued tylko zaobserwowane, bez zgody na wykonanie |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T204252Z-R00-HANDOFF-B1.md` |
-| Zakres aktualnej zgody | R00 v1.1: dokumentacja/checkpoint commit+push na recovery, baseline read-only i lokalna ochrona niesekretnej pracy; R01–R24 bez zgody |
-| Blokada / wymagana decyzja | Brak blokady R00; `READY_FOR_REVIEW` nie oznacza `ACCEPTED`. Mixed runtime i wybór adopcji rescue/lokalnej pracy pozostają do późniejszych zatwierdzonych pakietów |
-| Jeden następny bezpieczny krok | Właściciel ocenia R00 i osobno zatwierdza albo odrzuca rozpoczęcie R01 |
-| Warunek STOP | Po publikacji tego checkpointu zatrzymać pracę; nie rozpoczynać R01–R24 samodzielnie |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T214615Z-R01-CONSOLIDATION-C1.md` |
+| Zakres aktualnej zgody | R01: konsolidacja dokumentacji, exact retirement RT-011/052/057 i commit/push wyłącznie na recovery; R02–R24 bez zgody |
+| Blokada / wymagana decyzja | Brak nierozwiązanego wymagania R01; `READY_FOR_REVIEW` nie oznacza `ACCEPTED`. Runtime/source/rescue/LOCAL_ONLY pozostają nieprzejęte |
+| Jeden następny bezpieczny krok | Właściciel ocenia wynik R01 i osobno zatwierdza albo odrzuca rozpoczęcie R02 |
+| Warunek STOP | Po publikacji checkpointu R01 zatrzymać pracę; nie rozpoczynać R02–R24 samodzielnie |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
 odczytuje się z Git (`git log -1 --format=%H -- NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`).
@@ -60,8 +60,8 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 
 | Pakiet | Status | Aktywny podetap / ostatni checkpoint | Dowód / review / pozostała bramka |
 |---|---|---|---|
-| R00 | READY_FOR_REVIEW | `R00-20260907T204252Z-HANDOFF-B1` / HANDOFF | Bootstrap remote zweryfikowany; bounded baseline i LOCAL_ONLY preservation zakończone; odbiór właściciela pozostaje |
-| R01 | PLANNED | — | Osobna zgoda na konsolidację/delete |
+| R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
+| R01 | READY_FOR_REVIEW | `R01-20260907T214615Z-CONSOLIDATION-C1` / CONSOLIDATION | RT-011/052/057 wycofane z aktywnego drzewa po mapowaniu; odbiór właściciela pozostaje |
 | R02 | PLANNED | — | — |
 | R03 | PLANNED | — | Osobne zgody restore/escrow |
 | R04 | PLANNED | — | — |
@@ -149,6 +149,7 @@ Udostępnienie roadmapy i checkpointów zostało zlecone jako cel R00 v1.1. Nie 
 - Lokalny reasoner: **`qwen3.5:9b`**. Nie pobieramy modeli „na próbę”, nie wracamy do konkursu 4B/7B/12B. Embedding pozostaje odrębną aktywną funkcją, nie modelem do zastąpienia reasonera.
 - **Temporary Chat pozostaje** dla Visual oraz trudniejszej analizy po lokalnym gate. Brak fallback do zwykłego czatu, brak bezpośrednich biznesowych zapisów odpowiedzi zewnętrznej.
 - **KB pozostaje i służy wnioskowaniu**: dane sprawy + reguła/źródło + zakres stosowalności + hipoteza/wniosek + brakujące dane. Streszczenie tematów nie zastępuje analizy.
+- Wspierane targety Flutter to **Windows, Android i Web**. iOS/macOS nie są bieżącym zakresem; historyczny pomysł iOS nie jest aktywnym wymaganiem ani blockerem.
 - Obliczenia kluczowe wykonuje deterministyczny engine, z wersją metody/jednostek/źródła; finalny wynik techniczny wymaga człowieka.
 - Dane firmy i cudza praca są chronione. Brak destructive cleanup, backfill, model delete, deployment lub migracji „przy okazji”.
 - Test mobilny korzysta z **istniejącego emulatora Pixel_8**. Nie wymagamy telefonu i nie kasujemy AVD ani jego danych. Candidate install wymaga osobnej zgody i zachowania zgodności podpisu.
@@ -1109,7 +1110,7 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 
 ### Wczesne wycofanie instrukcji — R01
 
-Wyłącznie po przeniesieniu zgodnych decyzji i poprawieniu aktywnych odwołań:
+R01 wycofało z aktywnego drzewa dokładnie:
 
 ```
 CODEX_MASTER_EXECUTION.md
@@ -1117,7 +1118,13 @@ FOLLOWUP_PRECHUNK23_FULL_SYSTEM_ROADMAP.md
 frontend/POST_BATCH_AUTH_REMOTE_PLAN.md
 ```
 
-`AGENTS.md`, nagłówki obu kanonicznych planów i rzeczywiste linki wymagają aktualizacji, nie usunięcia. Masterplan i followup zachowujemy wraz z historycznymi dowodami; ich stare „jedyny plan”/„masterplan historyczny” i polecenia nowego modelu muszą być jawnie oznaczone jako nieobowiązujące wobec aktualnej decyzji właściciela.
+Aktywne odwołania w `AGENTS.md`, obu kanonicznych planach, recovery README i
+dokumentacji domenowej zostały zaktualizowane. Nadal ważne wymagania, bramki i
+provenance są zmapowane w `docs/recovery/AUDIT_RECONCILIATION.md`; dokładne
+bajty pozostają odtwarzalne z zaakceptowanego punktu
+`9af4026eeffed2509af943bff1e37b2514bfd5e8`. Wzmianki w karcie R01,
+rejestrze retirement, roadmapie i historycznym promptcie/audycie są dowodem
+zakresu, nie aktywną instrukcją wznowienia starego planu.
 
 ### Cztery kandydatury do późniejszego usunięcia — R24
 

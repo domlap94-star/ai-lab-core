@@ -5,8 +5,9 @@
 - Treat `AI_LAB_MASTER_PLAN.txt` as the product specification,
   `AI_LAB_FOLLOWUP_PLAN.md` as its supplements, decisions, and safeguards, and
   `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` as the sole execution order and
-  resume state. Old roadmaps awaiting R01 consolidation are history, not an
-  instruction to switch packages; do not remove them during R00.
+  resume state. The three roadmaps retired by R01 remain recoverable in Git
+  history but are not active instructions and must not be used to select or
+  resume a package.
 - Work in one small, reviewable, testable chunk at a time. Update the execution
   plan after every completed chunk.
 - Supported Flutter targets are Windows, Android, and Web. Do not restore iOS

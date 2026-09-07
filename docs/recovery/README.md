@@ -37,4 +37,6 @@ nie raw logi, sekrety, dane firmy albo backup. Nie twórz kopii całej roadmapy
 w checkpointach. §0 wskazuje najnowszy; historyczne są dowodem, nie poleceniem.
 
 Prompty instalowane przez R00: `prompts/R00_BASELINE.md` i `prompts/RESUME.md`.
-Służą odpowiednio publikacji i wznowieniu, nie rozszerzają zgód na R01–R24.
+`R00_BASELINE.md` jest po akceptacji R00 historycznym materiałem wejściowym,
+nie aktywną instrukcją ponownego bootstrapu. `RESUME.md` prowadzi wyłącznie do
+§0 roadmapy. Żaden z nich nie rozszerza zgód na następny pakiet.
