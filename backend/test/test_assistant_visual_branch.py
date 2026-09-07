@@ -216,8 +216,14 @@ class _FakeVisualService:
         return _VisualResolution(
             "accepted",
             "VISUAL_V2_ACCEPTED",
-            payload={"schema_version": "ASSISTANT_VISUAL_EVIDENCE_V2"},
+            payload={
+                "schema_version": "ASSISTANT_VISUAL_EVIDENCE_V2",
+                "coverage": self.harness.visual_coverage,
+            },
         )
+
+    def validated_coverage(self, resolution):
+        return resolution.result_payload["coverage"]
 
     def assistant_evidence(self, _resolution, **_kwargs):
         evidence = []
@@ -306,6 +312,8 @@ class _DispatcherHarness:
         response_statuses: list[str] | None = None,
         cancelled: bool = False,
         terminal_resolution: bool = False,
+        question: str | None = None,
+        visual_coverage: dict | None = None,
     ) -> None:
         self.events: list[str] = []
         self.service_configurations: list[dict] = []
@@ -313,6 +321,15 @@ class _DispatcherHarness:
         self.response_index = 0
         self.visual_planned = visual
         self.visual_available = initial_visual
+        self.visual_coverage = visual_coverage or {
+            "selected_source_count": 1,
+            "covered_source_count": 1,
+            "omitted_source_count": 0,
+            "required_page": None,
+            "required_page_covered": False,
+            "complete": True,
+            "limitation_code": None,
+        }
         self.visual_results = (
             visual_results
             if visual_results is not None
@@ -337,7 +354,10 @@ class _DispatcherHarness:
         self.vision_schema_version = vision_schema_version
         document_id = 71 if has_document else None
         request = UnifiedAssistantRequest(
-            question=("Co widać na obrazie?" if visual else "Podsumuj dokument."),
+            question=(
+                question
+                or ("Co widać na obrazie?" if visual else "Podsumuj dokument.")
+            ),
             document_id=document_id,
             conversation=[],
         )
@@ -688,6 +708,72 @@ class AssistantVisualBranchTests(unittest.TestCase):
         self.assertEqual(harness.run.status, "review_required")
         self.assertEqual(harness.events.count("stage:wait:waiting_for_advanced"), 1)
         self.assertEqual(harness.events.count("run:finish:review_required"), 1)
+
+    def test_v22_general_assistant_partial_visual_fails_closed(self):
+        harness = _DispatcherHarness(
+            visual_coverage={
+                "selected_source_count": 4,
+                "covered_source_count": 4,
+                "omitted_source_count": 2,
+                "required_page": None,
+                "required_page_covered": False,
+                "complete": False,
+                "limitation_code": "VISUAL_V2_SOURCE_LIMIT_PARTIAL",
+            }
+        )
+        harness.execute()
+
+        self.assertEqual(harness.run.status, "review_required")
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISION_REQUIRED_COVERAGE_INCOMPLETE",
+            harness.events,
+        )
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
+        self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
+
+    def test_v23_explicit_page_covered_may_continue(self):
+        harness = _DispatcherHarness(
+            question="Co widać na stronie 5?",
+            visual_coverage={
+                "selected_source_count": 4,
+                "covered_source_count": 1,
+                "omitted_source_count": 2,
+                "required_page": 5,
+                "required_page_covered": True,
+                "complete": False,
+                "limitation_code": "VISUAL_V2_SOURCE_LIMIT_PARTIAL",
+            },
+        )
+        harness.execute()
+
+        self.assertEqual(harness.run.status, "completed")
+        self.assertIn("reasoner:ask:accepted_local", harness.events)
+        self.assertNotIn(
+            "stage:fail:waiting_for_vision:VISION_REQUIRED_COVERAGE_INCOMPLETE",
+            harness.events,
+        )
+
+    def test_v24_explicit_page_not_covered_fails_closed(self):
+        harness = _DispatcherHarness(
+            question="Co widać na stronie 5?",
+            visual_coverage={
+                "selected_source_count": 4,
+                "covered_source_count": 1,
+                "omitted_source_count": 2,
+                "required_page": 5,
+                "required_page_covered": False,
+                "complete": False,
+                "limitation_code": "VISUAL_V2_SOURCE_LIMIT_PARTIAL",
+            },
+        )
+        harness.execute()
+
+        self.assertEqual(harness.run.status, "review_required")
+        self.assertIn(
+            "stage:fail:waiting_for_vision:VISUAL_V2_REQUIRED_PAGE_NOT_COVERED",
+            harness.events,
+        )
+        self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
 
 
 if __name__ == "__main__":

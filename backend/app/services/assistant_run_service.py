@@ -364,6 +364,9 @@ class AssistantRunService:
             or not response.answer.strip()
         ):
             return
+        conversation = self.db.get(Conversation, run.conversation_id)
+        if conversation is None or conversation.deleted_at is not None:
+            return
         existing = self.db.query(Message.id).filter(
             Message.assistant_run_id == run.id,
             Message.role == "assistant",
@@ -377,9 +380,7 @@ class AssistantRunService:
                     content=response.answer.strip(),
                 )
             )
-        conversation = self.db.get(Conversation, run.conversation_id)
-        if conversation is not None and conversation.deleted_at is None:
-            conversation.last_activity_at = run.finished_at or datetime.now(UTC)
+        conversation.last_activity_at = run.finished_at or datetime.now(UTC)
 
     @staticmethod
     def _threaded_request_matches(

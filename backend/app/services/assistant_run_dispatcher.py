@@ -50,7 +50,7 @@ from app.services.local_model_time_policy import (
     utc_iso,
 )
 from app.services.unified_assistant_service import UnifiedAssistantService
-from app.services.visual_v2_service import VisualV2Service
+from app.services.visual_v2_service import VisualV2ContractError, VisualV2Service
 
 
 logger = logging.getLogger("ai_lab.assistant_pipeline_v2")
@@ -455,7 +455,8 @@ async def _execute_visual_stages(
     if run.status == "cancelled" or run.cancel_requested_at is not None:
         return collected, False
     stage_service.start(run, "waiting_for_vision")
-    visual = VisualV2Service(db).ensure(
+    visual_service = VisualV2Service(db)
+    visual = visual_service.ensure(
         document=document,
         question=request.question,
         created_by_user_id=run.created_by_user_id,
@@ -483,7 +484,40 @@ async def _execute_visual_stages(
             pass
         return collected, False
     if visual.state == "accepted":
-        visual_sources, visual_tools = VisualV2Service(db).assistant_evidence(
+        try:
+            coverage = visual_service.validated_coverage(visual)
+        except VisualV2ContractError as error:
+            error_code = str(error) or "VISUAL_V2_COVERAGE_INVALID"
+        else:
+            required_page = coverage["required_page"]
+            if required_page is not None and not coverage["required_page_covered"]:
+                error_code = "VISUAL_V2_REQUIRED_PAGE_NOT_COVERED"
+            elif required_page is None and not coverage["complete"]:
+                _finish_visual_review(
+                    db=db,
+                    run=run,
+                    stage_service=stage_service,
+                    failed_stage="waiting_for_vision",
+                    error_code="VISION_REQUIRED_COVERAGE_INCOMPLETE",
+                    message=(
+                        "Analiza wizualna objęła tylko część materiału. "
+                        "Wskaż konkretną stronę lub węższy zakres."
+                    ),
+                )
+                return collected, False
+            else:
+                error_code = None
+        if error_code is not None:
+            _finish_visual_review(
+                db=db,
+                run=run,
+                stage_service=stage_service,
+                failed_stage="waiting_for_vision",
+                error_code=error_code,
+                message="Analiza wizualna nie pokryła wymaganego zakresu.",
+            )
+            return collected, False
+        visual_sources, visual_tools = visual_service.assistant_evidence(
             visual, document_id=document.id
         )
         service.supplemental_sources = visual_sources

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import uuid
@@ -28,6 +29,7 @@ from app.services.visual_v2_service import (
     VISUAL_V2_RESULT_SCHEMA,
     VISUAL_V2_SOURCE_DOMAIN,
     VisualV2ContractError,
+    VisualV2Resolution,
     VisualV2Service,
 )
 from app.services import visual_v2_service as visual_v2_module
@@ -198,10 +200,15 @@ def _write_output(
     service: VisualV2Service,
     job: AnalysisJob,
     raw: dict,
-    source_sha: str,
+    source_sha: str | dict[str, str],
     *,
     output_sha256: str | None = None,
 ) -> None:
+    source_hashes = (
+        source_sha
+        if isinstance(source_sha, dict)
+        else {"S1": source_sha}
+    )
     job_dir = service.spool_root / "jobs" / job.external_job_id
     (job_dir / "output").mkdir(parents=True, exist_ok=True)
     canonical = json.dumps(raw, ensure_ascii=False, separators=(",", ":")) + "\n"
@@ -209,10 +216,13 @@ def _write_output(
         json.dumps(raw, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
     (job_dir / "manifest.json").write_text(json.dumps({
-        "sources": [{"source_ref": "S1", "sha256": source_sha}],
+        "sources": [
+            {"source_ref": ref, "sha256": checksum}
+            for ref, checksum in source_hashes.items()
+        ],
     }), encoding="utf-8")
     (job_dir / "output" / "result_manifest.json").write_text(json.dumps({
-        "source_sha256": {"S1": source_sha},
+        "source_sha256": source_hashes,
         "output_sha256": (
             output_sha256
             or hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -570,3 +580,154 @@ def test_visual_dispatcher_rotates_active_jobs_by_last_progress(
 
     assert visual_v2_module._next_visual_job_id() == first.analysis_job_id
     assert visual_v2_module._next_visual_job_id() == second.analysis_job_id
+
+
+def _complete_multisource(
+    service: VisualV2Service,
+    supervisor: _Supervisor,
+    db,
+    document: Document,
+    *,
+    question: str | None = None,
+    observation_refs: tuple[str, ...] = ("S1", "S2", "S3", "S4"),
+):
+    resolution = service.ensure(document=document, question=question)
+    service.advance(resolution.analysis_job_id)
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    source_hashes = {
+        item["source_ref"]: item["sha256"]
+        for item in supervisor.created[0]["sources"]
+    }
+    raw = {
+        "schema_version": VISION_RESULT_SCHEMA,
+        "job_id": job.external_job_id,
+        "observations": [
+            {"source_ref": ref, "text": f"Widoczny materiał {ref}."}
+            for ref in observation_refs
+        ],
+        "possible_interpretations": [],
+        "uncertainties": [],
+        "visible_text": [],
+        "measurements": [],
+        "image_quality": [
+            {"source_ref": ref, "quality": "good"}
+            for ref in source_hashes
+        ],
+    }
+    _write_output(service, job, raw, source_hashes)
+    supervisor.jobs[job.external_job_id] = {
+        "job_id": job.external_job_id,
+        "state": "COMPLETE",
+    }
+    return service.advance(job.id)
+
+
+def test_v21_multisource_omission_is_partial(visual_db):
+    db, root = visual_db
+    document = _pdf_pages(db, root, count=6)
+    supervisor = _Supervisor()
+    result = _complete_multisource(
+        VisualV2Service(db, supervisor=supervisor), supervisor, db, document
+    )
+
+    assert result.state == "accepted"
+    assert result.result_payload["coverage"] == {
+        "selected_source_count": 4,
+        "covered_source_count": 4,
+        "omitted_source_count": 2,
+        "required_page": None,
+        "required_page_covered": False,
+        "complete": False,
+        "limitation_code": "VISUAL_V2_SOURCE_LIMIT_PARTIAL",
+    }
+
+
+def test_v23_explicit_page_covered_may_continue_with_partial_scope(visual_db):
+    db, root = visual_db
+    document = _pdf_pages(db, root, count=6)
+    supervisor = _Supervisor()
+    result = _complete_multisource(
+        VisualV2Service(db, supervisor=supervisor),
+        supervisor,
+        db,
+        document,
+        question="Co widać na stronie 5?",
+        observation_refs=("S1",),
+    )
+
+    assert result.state == "accepted"
+    coverage = result.result_payload["coverage"]
+    assert coverage["required_page"] == 5
+    assert coverage["required_page_covered"] is True
+    assert coverage["complete"] is False
+    assert coverage["limitation_code"] == "VISUAL_V2_SOURCE_LIMIT_PARTIAL"
+
+
+def test_v24_explicit_page_not_covered_fails_closed(visual_db):
+    db, root = visual_db
+    document = _pdf_pages(db, root, count=6)
+    supervisor = _Supervisor()
+    result = _complete_multisource(
+        VisualV2Service(db, supervisor=supervisor),
+        supervisor,
+        db,
+        document,
+        question="Co widać na stronie 5?",
+        observation_refs=("S2",),
+    )
+
+    assert result.state == "review_required"
+    assert result.reason == "VISUAL_V2_REQUIRED_PAGE_NOT_COVERED"
+
+
+def test_v25_single_image_remains_complete(visual_db):
+    db, root = visual_db
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    result = _complete_multisource(
+        VisualV2Service(db, supervisor=supervisor),
+        supervisor,
+        db,
+        document,
+        observation_refs=("S1",),
+    )
+
+    assert result.state == "accepted"
+    assert result.result_payload["coverage"] == {
+        "selected_source_count": 1,
+        "covered_source_count": 1,
+        "omitted_source_count": 0,
+        "required_page": None,
+        "required_page_covered": False,
+        "complete": True,
+        "limitation_code": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"covered_source_count": -1},
+        {"selected_source_count": 1, "covered_source_count": 2},
+        {"omitted_source_count": 1, "complete": True},
+    ],
+)
+def test_v26_malformed_coverage_is_rejected(visual_db, changes):
+    db, root = visual_db
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    accepted = _complete_multisource(
+        service, supervisor, db, document, observation_refs=("S1",)
+    )
+    payload = copy.deepcopy(accepted.result_payload)
+    payload["coverage"].update(changes)
+    malformed = VisualV2Resolution(
+        "accepted",
+        "VISUAL_V2_ACCEPTED",
+        accepted.analysis_job_id,
+        payload,
+    )
+
+    with pytest.raises(VisualV2ContractError, match="VISUAL_V2_COVERAGE_INVALID"):
+        service.assistant_evidence(malformed, document_id=document.id)

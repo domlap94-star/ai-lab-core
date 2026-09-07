@@ -239,7 +239,7 @@ class VisualV2Service:
                     sensitivity="customer_sanitizable",
                 ))
             self.db.flush()
-            legacy = self._legacy_payload(document, planned)
+            legacy = self._legacy_payload(document, planned, job=job)
             if legacy is not None:
                 self._accept(job, legacy, raw_sha256=self._hash_json(legacy), mode="legacy_v1_reuse")
             savepoint.commit()
@@ -355,6 +355,7 @@ class VisualV2Service:
         payload = resolution.result_payload
         if resolution.state != "accepted" or not isinstance(payload, dict):
             return [], []
+        coverage = self.validated_coverage(resolution)
         atoms = payload.get("evidence")
         if not isinstance(atoms, list):
             return [], []
@@ -387,7 +388,7 @@ class VisualV2Service:
                 "schema_version": VISUAL_V2_RESULT_SCHEMA,
                 "analysis_job_id": resolution.analysis_job_id,
                 "evidence": atoms[:MAX_VISUAL_ATOMS],
-                "coverage": payload.get("coverage") or {},
+                "coverage": coverage,
             },
             "source_keys": source_keys,
         }
@@ -553,11 +554,18 @@ class VisualV2Service:
             raise VisualV2ContractError("VISUAL_V2_SUBSTANTIVE_EVIDENCE_MISSING")
         atoms = atoms[:MAX_VISUAL_ATOMS]
         payload = self._result_payload(job, atoms, len(local_rows))
+        coverage = self._validated_coverage_payload(payload)
+        if coverage["required_page"] is not None and not coverage["required_page_covered"]:
+            raise VisualV2ContractError("VISUAL_V2_REQUIRED_PAGE_NOT_COVERED")
         self._validate_payload_size(payload)
         return payload, raw_sha256
 
     def _legacy_payload(
-        self, document: Document, planned: list[_PlannedSource]
+        self,
+        document: Document,
+        planned: list[_PlannedSource],
+        *,
+        job: AnalysisJob,
     ) -> dict[str, Any] | None:
         if document.vision_status != "complete" or document.vision_schema_version != VISION_RESULT_SCHEMA:
             return None
@@ -580,25 +588,132 @@ class VisualV2Service:
                         atoms.append(self._atom(kind, text, self._source_row(source)))
         if not atoms:
             return None
-        payload = self._result_payload(None, atoms[:MAX_VISUAL_ATOMS], len(planned))
+        payload = self._result_payload(job, atoms[:MAX_VISUAL_ATOMS], len(planned))
+        coverage = self._validated_coverage_payload(payload)
+        if coverage["required_page"] is not None and not coverage["required_page_covered"]:
+            return None
         self._validate_payload_size(payload)
         return payload
 
-    @staticmethod
+    @classmethod
     def _result_payload(
-        job: AnalysisJob | None, atoms: list[dict[str, Any]], selected_count: int
+        cls,
+        job: AnalysisJob,
+        atoms: list[dict[str, Any]],
+        selected_count: int,
     ) -> dict[str, Any]:
-        return {
+        request = job.request_payload if isinstance(job.request_payload, dict) else {}
+        persisted_selected = request.get("selected_count")
+        omitted_count = request.get("omitted_count")
+        required_page = request.get("required_page")
+        if persisted_selected != selected_count:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        direct_atoms = [
+            item
+            for item in atoms
+            if item.get("kind") in {"observation", "visible_text"}
+            and isinstance(item.get("text"), str)
+            and item["text"].strip()
+        ]
+        covered_source_count = len({item.get("source_ref") for item in direct_atoms})
+        required_page_covered = bool(
+            required_page is not None
+            and any(item.get("page_number") == required_page for item in direct_atoms)
+        )
+        complete = (
+            covered_source_count == selected_count
+            and omitted_count == 0
+        )
+        payload = {
             "schema_version": VISUAL_V2_RESULT_SCHEMA,
-            "analysis_job_id": job.id if job is not None else None,
-            "input_fingerprint": job.input_fingerprint if job is not None else None,
+            "analysis_job_id": job.id,
+            "input_fingerprint": job.input_fingerprint,
             "evidence": atoms,
             "coverage": {
                 "selected_source_count": selected_count,
-                "covered_source_count": len({item["source_ref"] for item in atoms}),
-                "complete": len({item["source_ref"] for item in atoms}) == selected_count,
+                "covered_source_count": covered_source_count,
+                "omitted_source_count": omitted_count,
+                "required_page": required_page,
+                "required_page_covered": required_page_covered,
+                "complete": complete,
+                "limitation_code": (
+                    "VISUAL_V2_SOURCE_LIMIT_PARTIAL"
+                    if isinstance(omitted_count, int)
+                    and not isinstance(omitted_count, bool)
+                    and omitted_count > 0
+                    else None
+                ),
             },
         }
+        cls._validated_coverage_payload(payload)
+        return payload
+
+    def validated_coverage(self, resolution: VisualV2Resolution) -> dict[str, Any]:
+        payload = resolution.result_payload
+        if resolution.state != "accepted" or not isinstance(payload, dict):
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        return self._validated_coverage_payload(payload)
+
+    @staticmethod
+    def _validated_coverage_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        coverage = payload.get("coverage")
+        evidence = payload.get("evidence")
+        if not isinstance(coverage, dict) or not isinstance(evidence, list):
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        selected = coverage.get("selected_source_count")
+        covered = coverage.get("covered_source_count")
+        omitted = coverage.get("omitted_source_count")
+        required_page = coverage.get("required_page")
+        required_covered = coverage.get("required_page_covered")
+        complete = coverage.get("complete")
+        limitation = coverage.get("limitation_code")
+        integers = (selected, covered, omitted)
+        if any(not isinstance(value, int) or isinstance(value, bool) for value in integers):
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        if selected < 1 or selected > MAX_VISUAL_SOURCES or covered < 0 or omitted < 0:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        if covered > selected:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        if required_page is not None and (
+            not isinstance(required_page, int)
+            or isinstance(required_page, bool)
+            or required_page < 1
+        ):
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        if not isinstance(required_covered, bool) or not isinstance(complete, bool):
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        if required_page is None and required_covered:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        direct_atoms = [
+            item
+            for item in evidence
+            if isinstance(item, dict)
+            and item.get("kind") in {"observation", "visible_text"}
+            and isinstance(item.get("text"), str)
+            and item["text"].strip()
+        ]
+        direct_refs = {
+            item.get("source_ref")
+            for item in direct_atoms
+            if isinstance(item.get("source_ref"), str)
+        }
+        if covered != len(direct_refs):
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        page_is_covered = bool(
+            required_page is not None
+            and any(item.get("page_number") == required_page for item in direct_atoms)
+        )
+        if required_covered != page_is_covered:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        expected_complete = covered == selected and omitted == 0
+        if complete != expected_complete:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        expected_limitation = (
+            "VISUAL_V2_SOURCE_LIMIT_PARTIAL" if omitted > 0 else None
+        )
+        if limitation != expected_limitation:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
+        return coverage
 
     @staticmethod
     def _atom(kind: str, text: str, source: Any) -> dict[str, Any]:
@@ -620,6 +735,7 @@ class VisualV2Service:
         payload = dict(payload)
         payload["analysis_job_id"] = job.id
         payload["input_fingerprint"] = job.input_fingerprint
+        self._validated_coverage_payload(payload)
         self._validate_payload_size(payload)
         validated_sha256 = self._hash_json(payload)
         job.result_payload = payload

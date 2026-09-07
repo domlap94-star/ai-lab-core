@@ -6,6 +6,7 @@ import statistics
 import time
 import unittest
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -116,6 +117,25 @@ class AssistantChatHistorySourceContractTests(unittest.TestCase):
         source = inspect.getsource(inspect.getmodule(AssistantConversationService))
         for forbidden in ("Ollama", "Qwen", "Supervisor", "httpx", "requests"):
             self.assertNotIn(forbidden, source)
+
+    def test_app_background_and_page_dispose_do_not_cancel_durable_run(self) -> None:
+        page = (
+            Path(__file__).resolve().parents[2]
+            / "frontend"
+            / "lib"
+            / "features"
+            / "ai"
+            / "presentation"
+            / "unified_assistant_page.dart"
+        ).read_text(encoding="utf-8")
+        dispose = page.split("void dispose()", 1)[1].split("Widget build", 1)[0]
+        lifecycle = page.split("void didChangeAppLifecycleState", 1)[1].split(
+            "Widget _conversationView", 1
+        )[0]
+        for source in (dispose, lifecycle):
+            self.assertNotIn("cancelRun(", source)
+            self.assertNotIn("_cancelDurable(", source)
+            self.assertNotIn("/cancel", source)
 
 
 def _answer(run_id: str, text: str = "Bezpieczna odpowiedź.") -> UnifiedAssistantResponse:
@@ -406,6 +426,12 @@ def integration_main() -> None:
             .count()
             == 1
         )
+        reopened = AssistantConversationService(db).get_owned_detail(
+            conversation_id=chat_a.id,
+            user_id=user_a_id,
+        )
+        assert [item.role for item in reopened.messages] == ["user", "assistant"]
+        assert reopened.messages[-1].run_status == "completed"
 
         second_request = AssistantRunCreateRequest(
             question="Kontynuuj bez obcego kontekstu.",
@@ -421,7 +447,9 @@ def integration_main() -> None:
         assert all(item["content"] != second_request.question for item in history)
 
         deleted = service.soft_delete(conversation_id=chat_a.id, user_id=user_a_id)
-        deleted_at = db.get(Conversation, chat_a.id).deleted_at
+        deleted_conversation = db.get(Conversation, chat_a.id)
+        deleted_at = deleted_conversation.deleted_at
+        deleted_last_activity_at = deleted_conversation.last_activity_at
         assert deleted.active_run_id == second.run_id
         assert second_row.status == "queued" and second_row.cancel_requested_at is None
         AssistantRunService(db).finish(run=second_row, response=_answer(second.run_id))
@@ -429,7 +457,14 @@ def integration_main() -> None:
         db.refresh(second_row)
         hidden = db.get(Conversation, chat_a.id)
         assert hidden.deleted_at == deleted_at
+        assert hidden.last_activity_at == deleted_last_activity_at
         assert second_row.status == "completed" and second_row.result_payload is not None
+        assert (
+            db.query(Message)
+            .filter_by(assistant_run_id=second.run_id, role="assistant")
+            .count()
+            == 0
+        )
         assert all(item.id != chat_a.id for item in service.list_owned(user_id=user_a_id).items)
         try:
             service.get_owned_detail(conversation_id=chat_a.id, user_id=user_a_id)
