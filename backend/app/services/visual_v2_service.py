@@ -350,12 +350,16 @@ class VisualV2Service:
         return True
 
     def assistant_evidence(
-        self, resolution: VisualV2Resolution, *, document_id: int
+        self,
+        resolution: VisualV2Resolution,
+        *,
+        document_id: int,
+        question: str | None = None,
     ) -> tuple[list[AgentSource], list[dict[str, Any]]]:
         payload = resolution.result_payload
         if resolution.state != "accepted" or not isinstance(payload, dict):
             return [], []
-        coverage = self.validated_coverage(resolution)
+        coverage = self.validated_coverage(resolution, question=question)
         atoms = payload.get("evidence")
         if not isinstance(atoms, list):
             return [], []
@@ -648,11 +652,35 @@ class VisualV2Service:
         cls._validated_coverage_payload(payload)
         return payload
 
-    def validated_coverage(self, resolution: VisualV2Resolution) -> dict[str, Any]:
+    def validated_coverage(
+        self,
+        resolution: VisualV2Resolution,
+        *,
+        question: str | None = None,
+    ) -> dict[str, Any]:
         payload = resolution.result_payload
         if resolution.state != "accepted" or not isinstance(payload, dict):
             raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
-        return self._validated_coverage_payload(payload)
+        stored = self._validated_coverage_payload(payload)
+        required_page = self._requested_page(question)
+        evidence = payload.get("evidence")
+        direct_atoms = [
+            item
+            for item in evidence
+            if isinstance(item, dict)
+            and item.get("kind") in {"observation", "visible_text"}
+            and isinstance(item.get("text"), str)
+            and item["text"].strip()
+        ]
+        scoped = dict(stored)
+        scoped["required_page"] = required_page
+        scoped["required_page_covered"] = bool(
+            required_page is not None
+            and any(item.get("page_number") == required_page for item in direct_atoms)
+        )
+        scoped_payload = dict(payload)
+        scoped_payload["coverage"] = scoped
+        return dict(self._validated_coverage_payload(scoped_payload))
 
     @staticmethod
     def _validated_coverage_payload(payload: dict[str, Any]) -> dict[str, Any]:

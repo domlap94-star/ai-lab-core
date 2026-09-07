@@ -364,7 +364,13 @@ class AssistantRunService:
             or not response.answer.strip()
         ):
             return
-        conversation = self.db.get(Conversation, run.conversation_id)
+        conversation = (
+            self.db.query(Conversation)
+            .populate_existing()
+            .filter(Conversation.id == run.conversation_id)
+            .with_for_update()
+            .one_or_none()
+        )
         if conversation is None or conversation.deleted_at is not None:
             return
         existing = self.db.query(Message.id).filter(

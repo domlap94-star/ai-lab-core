@@ -485,7 +485,10 @@ async def _execute_visual_stages(
         return collected, False
     if visual.state == "accepted":
         try:
-            coverage = visual_service.validated_coverage(visual)
+            coverage = visual_service.validated_coverage(
+                visual,
+                question=request.question,
+            )
         except VisualV2ContractError as error:
             error_code = str(error) or "VISUAL_V2_COVERAGE_INVALID"
         else:
@@ -518,7 +521,9 @@ async def _execute_visual_stages(
             )
             return collected, False
         visual_sources, visual_tools = visual_service.assistant_evidence(
-            visual, document_id=document.id
+            visual,
+            document_id=document.id,
+            question=request.question,
         )
         service.supplemental_sources = visual_sources
         service.supplemental_tool_payloads = visual_tools

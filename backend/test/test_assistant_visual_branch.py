@@ -222,10 +222,12 @@ class _FakeVisualService:
             },
         )
 
-    def validated_coverage(self, resolution):
+    def validated_coverage(self, resolution, **_kwargs):
+        self.harness.coverage_questions.append(_kwargs.get("question"))
         return resolution.result_payload["coverage"]
 
     def assistant_evidence(self, _resolution, **_kwargs):
+        self.harness.evidence_questions.append(_kwargs.get("question"))
         evidence = []
         for result in self.harness.visual_results:
             for key, kind in (("observations", "observation"), ("visible_text", "visible_text")):
@@ -316,6 +318,8 @@ class _DispatcherHarness:
         visual_coverage: dict | None = None,
     ) -> None:
         self.events: list[str] = []
+        self.coverage_questions: list[str | None] = []
+        self.evidence_questions: list[str | None] = []
         self.service_configurations: list[dict] = []
         self.response_statuses = list(response_statuses or [response_status])
         self.response_index = 0
@@ -730,6 +734,8 @@ class AssistantVisualBranchTests(unittest.TestCase):
         )
         self.assertFalse(any(item.startswith("reasoner:ask:") for item in harness.events))
         self.assertNotIn("stage:wait:waiting_for_advanced", harness.events)
+        self.assertEqual(harness.coverage_questions, ["Co widać na obrazie?"])
+        self.assertEqual(harness.evidence_questions, [])
 
     def test_v23_explicit_page_covered_may_continue(self):
         harness = _DispatcherHarness(
@@ -752,6 +758,8 @@ class AssistantVisualBranchTests(unittest.TestCase):
             "stage:fail:waiting_for_vision:VISION_REQUIRED_COVERAGE_INCOMPLETE",
             harness.events,
         )
+        self.assertEqual(harness.coverage_questions, ["Co widać na stronie 5?"])
+        self.assertEqual(harness.evidence_questions, ["Co widać na stronie 5?"])
 
     def test_v24_explicit_page_not_covered_fails_closed(self):
         harness = _DispatcherHarness(

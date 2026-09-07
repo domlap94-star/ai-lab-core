@@ -731,3 +731,82 @@ def test_v26_malformed_coverage_is_rejected(visual_db, changes):
 
     with pytest.raises(VisualV2ContractError, match="VISUAL_V2_COVERAGE_INVALID"):
         service.assistant_evidence(malformed, document_id=document.id)
+
+
+def test_v27_explicit_then_broad_reuse_uses_broad_current_scope(visual_db):
+    db, root = visual_db
+    document = _pdf_pages(db, root, count=6)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    explicit = _complete_multisource(
+        service,
+        supervisor,
+        db,
+        document,
+        question="Co widać na stronie 1?",
+    )
+    stored_payload = copy.deepcopy(explicit.result_payload)
+
+    broad = service.ensure(document=document)
+
+    assert broad.analysis_job_id == explicit.analysis_job_id
+    assert len(supervisor.created) == 1
+    assert service.validated_coverage(broad) == {
+        "selected_source_count": 4,
+        "covered_source_count": 4,
+        "omitted_source_count": 2,
+        "required_page": None,
+        "required_page_covered": False,
+        "complete": False,
+        "limitation_code": "VISUAL_V2_SOURCE_LIMIT_PARTIAL",
+    }
+    assert broad.result_payload == stored_payload
+    assert broad.result_payload["coverage"]["required_page"] == 1
+
+
+def test_v28_broad_then_explicit_covered_reuse_uses_explicit_scope(visual_db):
+    db, root = visual_db
+    document = _pdf_pages(db, root, count=6)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    broad = _complete_multisource(service, supervisor, db, document)
+    stored_payload = copy.deepcopy(broad.result_payload)
+
+    explicit = service.ensure(document=document, question="Co widać na stronie 1?")
+    coverage = service.validated_coverage(
+        explicit,
+        question="Co widać na stronie 1?",
+    )
+
+    assert explicit.analysis_job_id == broad.analysis_job_id
+    assert len(supervisor.created) == 1
+    assert coverage["required_page"] == 1
+    assert coverage["required_page_covered"] is True
+    assert coverage["complete"] is False
+    assert explicit.result_payload == stored_payload
+    assert explicit.result_payload["coverage"]["required_page"] is None
+
+
+def test_v29_broad_then_explicit_uncovered_reuse_fails_scope_check(visual_db):
+    db, root = visual_db
+    document = _pdf_pages(db, root, count=6)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    broad = _complete_multisource(
+        service,
+        supervisor,
+        db,
+        document,
+        observation_refs=("S2",),
+    )
+
+    explicit = service.ensure(document=document, question="Co widać na stronie 1?")
+    coverage = service.validated_coverage(
+        explicit,
+        question="Co widać na stronie 1?",
+    )
+
+    assert explicit.analysis_job_id == broad.analysis_job_id
+    assert len(supervisor.created) == 1
+    assert coverage["required_page"] == 1
+    assert coverage["required_page_covered"] is False
