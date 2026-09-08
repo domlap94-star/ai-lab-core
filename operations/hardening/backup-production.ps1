@@ -49,6 +49,140 @@ function Get-ArtifactRecord {
     }
 }
 
+function Get-TextSha256 {
+    param([string]$Value)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Value)
+        return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+    } finally { $sha.Dispose() }
+}
+
+function Get-StorageDomainRecord {
+    param([string]$DataRoot, [string]$Name)
+    if ($Name -notmatch '^[a-z][a-z0-9-]{0,63}$') { throw "storage_domain_name_invalid" }
+    $path = Join-Path $DataRoot $Name
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) { throw "storage_domain_missing:$Name" }
+    $rootItem = Get-Item -LiteralPath $path
+    if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "storage_domain_reparse_point_rejected:$Name"
+    }
+    $root = [IO.Path]::GetFullPath($path).TrimEnd('\')
+    $prefix = $root + '\'
+    [int64]$bytes = 0
+    [int64]$files = 0
+    foreach ($item in @(Get-ChildItem -LiteralPath $root -Recurse -Force)) {
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "storage_domain_reparse_point_rejected:$Name"
+        }
+        $full = [IO.Path]::GetFullPath($item.FullName)
+        if (-not $full.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "storage_domain_path_escape:$Name"
+        }
+        if (-not $item.PSIsContainer) { $files++; $bytes += [int64]$item.Length }
+    }
+    return [ordered]@{ directory = $Name; file_count = $files; bytes = $bytes }
+}
+
+function Get-KnowledgeBaseSourceInventory {
+    param([string]$DataRoot)
+    $kbRoot = [IO.Path]::GetFullPath((Join-Path $DataRoot "knowledge-base")).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath $kbRoot -PathType Container)) { throw "knowledge_base_storage_missing" }
+    $kbPrefix = $kbRoot + '\'
+    $sql = "BEGIN TRANSACTION READ ONLY; SET LOCAL statement_timeout='5000ms'; SELECT COALESCE(json_agg(json_build_object('storage_path',storage_path,'file_size',file_size,'checksum_sha256',checksum_sha256) ORDER BY id),'[]'::json)::text FROM knowledge_base_items; COMMIT;"
+    $lines = @(& docker.exe exec postgres psql -U ai_lab -d ai_lab -X -qAt -v ON_ERROR_STOP=1 -c $sql)
+    if ($LASTEXITCODE -ne 0) { throw "knowledge_base_inventory_query_failed" }
+    $jsonLines = @($lines | Where-Object { ([string]$_).TrimStart().StartsWith('[') })
+    if ($jsonLines.Count -ne 1 -or ([string]$jsonLines[0]).Length -gt 4194304) {
+        throw "knowledge_base_inventory_response_invalid"
+    }
+    try { $parsed = ([string]$jsonLines[0] | ConvertFrom-Json) }
+    catch { throw "knowledge_base_inventory_response_invalid" }
+    $rows = @()
+    if ($null -ne $parsed) { $rows = @($parsed) }
+    $referenced = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    $referenceLines = New-Object Collections.Generic.List[string]
+    [int64]$matched = 0
+    foreach ($row in $rows) {
+        $rawPath = [string]$row.storage_path
+        if ([string]::IsNullOrWhiteSpace($rawPath)) { throw "knowledge_base_reference_path_invalid" }
+        if ($rawPath -match '^/data(?:/|$)') {
+            $relativeFromData = $rawPath.Substring(5).TrimStart('/').Replace('/', '\')
+            $candidate = Join-Path $DataRoot $relativeFromData
+        } elseif ([IO.Path]::IsPathRooted($rawPath)) {
+            $candidate = $rawPath
+        } else {
+            $candidate = Join-Path $DataRoot $rawPath.Replace('/', '\')
+        }
+        try { $full = [IO.Path]::GetFullPath($candidate) }
+        catch { throw "knowledge_base_reference_path_invalid" }
+        if (-not $full.StartsWith($kbPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "knowledge_base_reference_outside_root"
+        }
+        if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { throw "knowledge_base_reference_missing" }
+        $item = Get-Item -LiteralPath $full
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "knowledge_base_reference_reparse_point_rejected"
+        }
+        [int64]$expectedBytes = 0
+        if (-not [int64]::TryParse([string]$row.file_size, [ref]$expectedBytes) -or $expectedBytes -lt 0) {
+            throw "knowledge_base_reference_size_invalid"
+        }
+        if ([int64]$item.Length -ne $expectedBytes) { throw "knowledge_base_reference_size_mismatch" }
+        $expectedHash = ([string]$row.checksum_sha256).Trim().ToLowerInvariant()
+        if ($expectedHash -notmatch '^[a-f0-9]{64}$') { throw "knowledge_base_reference_checksum_invalid" }
+        $actualHash = (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualHash -ne $expectedHash) { throw "knowledge_base_reference_hash_mismatch" }
+        $relative = $full.Substring($kbPrefix.Length).Replace('\', '/')
+        if ([string]::IsNullOrWhiteSpace($relative) -or $relative.Split('/') -contains '..') {
+            throw "knowledge_base_reference_path_invalid"
+        }
+        [void]$referenced.Add($full)
+        $referenceLines.Add("$relative|$expectedBytes|$expectedHash")
+        $matched++
+    }
+    $storageLines = New-Object Collections.Generic.List[string]
+    $storageFiles = @(Get-ChildItem -LiteralPath $kbRoot -File -Recurse -Force | Sort-Object FullName)
+    [int64]$storageBytes = 0
+    foreach ($item in $storageFiles) {
+        $full = [IO.Path]::GetFullPath($item.FullName)
+        if (-not $full.StartsWith($kbPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+            ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "knowledge_base_storage_path_invalid"
+        }
+        $relative = $full.Substring($kbPrefix.Length).Replace('\', '/')
+        $hash = (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant()
+        $storageLines.Add("$relative|$([int64]$item.Length)|$hash")
+        $storageBytes += [int64]$item.Length
+    }
+    $referenceText = (@($referenceLines | Sort-Object) -join "`n")
+    $storageText = (@($storageLines | Sort-Object) -join "`n")
+    return [ordered]@{
+        status = "COMPLETE"
+        reference_state = if ($rows.Count -eq 0) { "EMPTY_CONFIRMED" } else { "COMPLETE" }
+        reference_count = [int64]$rows.Count
+        matched_reference_count = $matched
+        unique_referenced_file_count = [int64]$referenced.Count
+        storage_file_count = [int64]$storageFiles.Count
+        storage_bytes = $storageBytes
+        unreferenced_file_count = [int64]($storageFiles.Count - $referenced.Count)
+        missing_count = [int64]0
+        unreadable_count = [int64]0
+        outside_root_count = [int64]0
+        size_mismatch_count = [int64]0
+        hash_mismatch_count = [int64]0
+        reference_inventory_sha256 = Get-TextSha256 $referenceText
+        storage_inventory_sha256 = Get-TextSha256 $storageText
+    }
+}
+
+function Assert-KnowledgeBaseInventoryUnchanged {
+    param([object]$Expected, [object]$Actual)
+    foreach ($name in @("reference_count", "matched_reference_count", "unique_referenced_file_count", "storage_file_count", "storage_bytes", "unreferenced_file_count", "reference_inventory_sha256", "storage_inventory_sha256")) {
+        if ([string]$Expected[$name] -ne [string]$Actual[$name]) { throw "knowledge_base_inventory_changed_during_capture" }
+    }
+}
+
 function Get-BoundedJsonObject {
     param([string]$Path, [int64]$MaximumBytes = 1048576)
     $item = Get-Item -LiteralPath $Path
@@ -79,6 +213,16 @@ if ($backupBase.StartsWith($dataRoot + '\', [System.StringComparison]::OrdinalIg
 if (-not (Test-Path -LiteralPath $backupBase -PathType Container)) {
     throw "backup_root_missing"
 }
+$stamp = if ([string]::IsNullOrWhiteSpace($CheckpointId)) {
+    (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+} else {
+    if ($CheckpointId -notmatch '^\d{8}T\d{6}Z$') { throw "checkpoint_id_invalid" }
+    $CheckpointId
+}
+$checkpoint = Join-Path $backupBase $stamp
+$artifacts = Join-Path $checkpoint "artifacts"
+$configDir = Join-Path $checkpoint "configuration"
+if (Test-Path -LiteralPath $checkpoint) { throw "backup_checkpoint_collision" }
 
 $selectedCollections = if ($QdrantCollections.Count -gt 0) {
     @($QdrantCollections | ForEach-Object { Get-SafeQdrantCollectionName ([string]$_) })
@@ -110,12 +254,20 @@ if ($ManifestFormat -eq "RecoveryPointV2") {
     $runtimeInventory = $null
 }
 
-$documentSources = @("documents", "document-pages", "document-assets", "archive-extracted")
+$legacyDocumentSources = @("documents", "document-pages", "document-assets", "archive-extracted")
+$documentSources = if ($ManifestFormat -eq "RecoveryPointV2") {
+    @($legacyDocumentSources + "knowledge-base")
+} else { @($legacyDocumentSources) }
+$storageDomainRecords = @()
+$knowledgeBaseInventory = $null
 $estimatedBytes = [int64]0
 if ($Scope -in @("full", "documents")) {
     foreach ($name in $documentSources) {
-        $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $dataRoot $name)
+        $domain = Get-StorageDomainRecord -DataRoot $dataRoot -Name $name
+        $storageDomainRecords += $domain
+        $estimatedBytes += [int64]$domain.bytes
     }
+    if ($ManifestFormat -eq "RecoveryPointV2") { $knowledgeBaseInventory = Get-KnowledgeBaseSourceInventory -DataRoot $dataRoot }
 }
 if ($Scope -eq "full") {
     $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $repo "release-channel\stable")
@@ -130,16 +282,6 @@ if ([int64]$drive.Free -lt $requiredFreeBytes) {
     throw "Insufficient backup space. Required at least $requiredFreeBytes bytes; available $($drive.Free)."
 }
 
-$stamp = if ([string]::IsNullOrWhiteSpace($CheckpointId)) {
-    (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
-} else {
-    if ($CheckpointId -notmatch '^\d{8}T\d{6}Z$') { throw "checkpoint_id_invalid" }
-    $CheckpointId
-}
-$checkpoint = Join-Path $backupBase $stamp
-$artifacts = Join-Path $checkpoint "artifacts"
-$configDir = Join-Path $checkpoint "configuration"
-if (Test-Path -LiteralPath $checkpoint) { throw "backup_checkpoint_collision" }
 New-Item -ItemType Directory -Path $checkpoint | Out-Null
 
 $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -175,7 +317,7 @@ if ($Scope -in @("full", "database")) {
             "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
             "--format=custom", "--compress=6", "--no-owner", "--file=$containerDump"
         )
-        Invoke-CheckedCommand "docker.exe" @("exec", "postgres", "pg_restore", "--list", $containerDump)
+        Invoke-CheckedCommand "docker.exe" @("exec", "postgres", "pg_restore", "--list", $containerDump) | Out-Null
         Invoke-CheckedCommand "docker.exe" @("cp", "postgres`:$containerDump", $dbDump)
     }
     finally { & docker exec postgres rm -f $containerDump 2>$null }
@@ -186,9 +328,17 @@ if ($Scope -in @("full", "database")) {
 if ($Scope -in @("full", "documents")) {
     $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=documents"
+    if ($ManifestFormat -eq "RecoveryPointV2") {
+        $beforeArchiveInventory = Get-KnowledgeBaseSourceInventory -DataRoot $dataRoot
+        Assert-KnowledgeBaseInventoryUnchanged -Expected $knowledgeBaseInventory -Actual $beforeArchiveInventory
+    }
     $documentsArchive = Join-Path $artifacts "document-storage.tar.gz"
     Invoke-CheckedCommand "tar.exe" (@("-czf", $documentsArchive, "-C", $dataRoot) + $documentSources)
-    Invoke-CheckedCommand "tar.exe" @("-tzf", $documentsArchive)
+    Invoke-CheckedCommand "tar.exe" @("-tzf", $documentsArchive) | Out-Null
+    if ($ManifestFormat -eq "RecoveryPointV2") {
+        $afterArchiveInventory = Get-KnowledgeBaseSourceInventory -DataRoot $dataRoot
+        Assert-KnowledgeBaseInventoryUnchanged -Expected $knowledgeBaseInventory -Actual $afterArchiveInventory
+    }
     $artifactRecords += Get-ArtifactRecord $checkpoint $documentsArchive
     $componentWindows += [ordered]@{ component = "document_storage"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
@@ -198,7 +348,7 @@ if ($Scope -eq "full") {
     Write-Output "BACKUP_STAGE=release"
     $releaseArchive = Join-Path $artifacts "release-stable.tar.gz"
     Invoke-CheckedCommand "tar.exe" @("-czf", $releaseArchive, "-C", $repo, "release-channel/stable")
-    Invoke-CheckedCommand "tar.exe" @("-tzf", $releaseArchive)
+    Invoke-CheckedCommand "tar.exe" @("-tzf", $releaseArchive) | Out-Null
     $artifactRecords += Get-ArtifactRecord $checkpoint $releaseArchive
     $componentWindows += [ordered]@{ component = "release"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
@@ -376,7 +526,7 @@ if ($Scope -in @("full", "n8n_config")) {
 
     $configArchive = Join-Path $artifacts "configuration.tar.gz"
     Invoke-CheckedCommand "tar.exe" @("-czf", $configArchive, "-C", $checkpoint, "configuration")
-    Invoke-CheckedCommand "tar.exe" @("-tzf", $configArchive)
+    Invoke-CheckedCommand "tar.exe" @("-tzf", $configArchive) | Out-Null
     $artifactRecords += Get-ArtifactRecord $checkpoint $configArchive
     $componentWindows += [ordered]@{ component = "configuration"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
@@ -414,6 +564,15 @@ $manifest = [ordered]@{
         else { "qdrant_restore_drill_failed" }
     } else { $null }
     document_directories = if ($Scope -in @("full", "documents")) { $documentSources } else { @() }
+    storage_contract_version = if ($ManifestFormat -eq "RecoveryPointV2") { "NEXT_STABIL_STORAGE_COVERAGE_V1" } else { $null }
+    storage_coverage = if ($ManifestFormat -eq "RecoveryPointV2") {
+        [ordered]@{
+            status = "COMPLETE"
+            required_domains = $documentSources
+            domains = $storageDomainRecords
+            knowledge_base = $knowledgeBaseInventory
+        }
+    } else { $null }
     estimated_source_bytes = $estimatedBytes
     capture_status = if ($ManifestFormat -eq "RecoveryPointV2") { "COMPLETE" } else { $null }
     scope_status = if ($ManifestFormat -eq "RecoveryPointV2") { "COMPLETE" } else { $null }

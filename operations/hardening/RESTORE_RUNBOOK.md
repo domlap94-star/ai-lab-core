@@ -16,6 +16,17 @@ and requires a bounded `NEXT_STABIL_RUNTIME_INVENTORY_V1` JSON whose
 containing the invoked script. `RepositoryRoot` identifies data/config source;
 it never changes which helper files execute.
 
+Current V2 captures additionally carry
+`storage_contract_version = NEXT_STABIL_STORAGE_COVERAGE_V1`. The writer
+archives exactly `documents`, `document-pages`, `document-assets`,
+`archive-extracted` and `knowledge-base`. Before any checkpoint write it reads
+all persistent `knowledge_base_items` references in a bounded read-only
+transaction and verifies that every source stays under the KB root and matches
+its recorded size and SHA-256. It repeats the inventory around the storage
+archive and refuses to finalize a manifest if the reference or file set moves.
+An empty KB corpus is accepted only after a successful zero-row inventory and
+is recorded as `EMPTY_CONFIRMED`.
+
 Before capture, choose a new UTC checkpoint ID, verify the directory does not
 exist, check the applicable free-space and operational gates, and independently
 review the runtime inventory for secret values. A representative command is:
@@ -46,6 +57,10 @@ duplicate mapping, invalid structure/hash, interrupted capture or an existing
 target prevents the final manifest. Older V1-only readers refuse V2 as an
 unsupported format; they do not reinterpret it as a single-collection backup.
 Use the shared `restore-checkpoint.ps1 -ValidateOnly` reader for V2 integrity.
+Historical V2 manifests created before the storage coverage contract remain
+readable in their recorded four-directory scope, but the reader reports
+`storage_coverage_status=NOT_RECORDED`, keeps `capture_complete=false` for the
+current full contract and will not run a Full proof from that narrower capture.
 
 An isolated V2 proof remains a separate owner-approved operation. It requires
 an explicit PostgreSQL container, owner label, pinned client image and test
@@ -88,8 +103,11 @@ Required V1 artifacts:
 - `n8n-workflows.json` and `n8n-credentials.encrypted.json`;
 - `release-stable.tar.gz` and `configuration.tar.gz`.
 
-V2 additionally requires `runtime-inventory.json` and two separately named
-Qdrant snapshot artifacts bound by `qdrant_collections` in the manifest.
+Current V2 additionally requires `knowledge-base` in the storage archive,
+`runtime-inventory.json`, an explicit storage coverage record and two
+separately named Qdrant snapshot artifacts bound by `qdrant_collections` in the
+manifest. Historical V1 and pre-A3 V2 checkpoints retain their narrower scope;
+validation success for those bytes does not prove current KB-source coverage.
 
 The checkpoint does not copy `.env`. Credential recovery therefore also
 requires the separately protected environment-secret escrow. Never commit or
@@ -102,9 +120,11 @@ print it. Verify every artifact against the manifest before restore.
 3. Restore the protected environment-secret escrow outside Git.
 4. Start an empty pinned PostgreSQL and restore `postgres.dump` with
    `pg_restore --no-owner --exit-on-error`.
-5. Restore the document archive to a new empty data root; do not overlay a
-   partially running tree.
-6. Verify Alembic head, counts, PK/FK integrity, storage paths and checksums.
+5. Restore the storage archive, including KB source files when declared by its
+   coverage contract, to a new empty data root; do not overlay a partially
+   running tree.
+6. Verify Alembic head, counts, PK/FK integrity, storage paths and checksums,
+   including every restored `knowledge_base_items.storage_path` source.
 7. Start the backend and verify `/health` before enabling ingestion.
 8. Restore Qdrant only through a manifest-verified official snapshot whose
    structural check and isolated exact-version restore drill have passed. Do

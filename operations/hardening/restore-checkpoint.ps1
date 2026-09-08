@@ -23,6 +23,7 @@ Set-StrictMode -Version 2.0
 
 $legacySchema = "NEXT_STABIL_BACKUP_V1"
 $recoveryPointSchema = "NEXT_STABIL_BACKUP_V2"
+$storageCoverageSchema = "NEXT_STABIL_STORAGE_COVERAGE_V1"
 $productionApproval = "FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED"
 $legacyFullRequired = @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "qdrant.snapshot", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz")
 $v2BaseRequired = @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz", "runtime-inventory.json")
@@ -97,6 +98,12 @@ function Assert-Archive {
         $unsafeSegment = @($normalized.Split('/') | Where-Object { $_ -eq '..' } | Select-Object -First 1)
         if ($normalized.StartsWith('/') -or $normalized -match '^[A-Za-z]:' -or $unsafeSegment.Count -ne 0 -or $normalized.Contains([char]34)) { throw "archive_path_traversal" }
     }
+    $verboseEntries = @(& tar.exe -tvzf $Path)
+    if ($LASTEXITCODE -ne 0 -or $verboseEntries.Count -eq 0) { throw "archive_integrity_failed" }
+    foreach ($entry in $verboseEntries) {
+        $line = ([string]$entry).TrimStart()
+        if ($line.Length -gt 0 -and ($line[0] -eq 'l' -or $line[0] -eq 'h')) { throw "archive_link_rejected" }
+    }
     return $entries
 }
 
@@ -170,6 +177,110 @@ function Get-ManifestStatus {
         return $null
     }
     return [string]$property.Value
+}
+
+function Get-ObjectPropertyValue {
+    param([object]$Object, [string]$Name, [bool]$Required)
+    if ($null -eq $Object) {
+        if ($Required) { throw "backup_storage_coverage_invalid:$Name" }
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        if ($Required) { throw "backup_storage_coverage_invalid:$Name" }
+        return $null
+    }
+    return $property.Value
+}
+
+function Get-V2StorageCoverage {
+    param([object]$Manifest)
+    $contract = Get-ObjectPropertyValue $Manifest "storage_contract_version" $false
+    $coverage = Get-ObjectPropertyValue $Manifest "storage_coverage" $false
+    if ($null -eq $contract) {
+        if ($null -ne $coverage) { throw "backup_storage_contract_version_missing" }
+        return [ordered]@{
+            recorded = $false; verified = $false; status = "NOT_RECORDED"
+            reference_state = "NOT_RECORDED"; required_domains = @()
+            reference_count = $null; matched_reference_count = $null
+        }
+    }
+    if ([string]$contract -ne $storageCoverageSchema) { throw "backup_storage_contract_unsupported" }
+    if ($null -eq $coverage) { throw "backup_storage_coverage_missing" }
+    if ([string](Get-ObjectPropertyValue $coverage "status" $true) -ne "COMPLETE") {
+        throw "backup_storage_coverage_incomplete"
+    }
+    $requiredDomains = @((Get-ObjectPropertyValue $coverage "required_domains" $true) | ForEach-Object { [string]$_ })
+    $expectedDomains = @("documents", "document-pages", "document-assets", "archive-extracted", "knowledge-base")
+    if ($requiredDomains.Count -ne $expectedDomains.Count -or
+        @($requiredDomains | Select-Object -Unique).Count -ne $requiredDomains.Count -or
+        @($expectedDomains | Where-Object { $_ -notin $requiredDomains }).Count -ne 0) {
+        throw "backup_storage_domain_coverage_invalid"
+    }
+    $declaredDirectories = @((Get-ObjectPropertyValue $Manifest "document_directories" $true) | ForEach-Object { [string]$_ })
+    if ($declaredDirectories.Count -ne $expectedDomains.Count -or
+        @($expectedDomains | Where-Object { $_ -notin $declaredDirectories }).Count -ne 0) {
+        throw "backup_storage_directory_declaration_invalid"
+    }
+    $domains = @(Get-ObjectPropertyValue $coverage "domains" $true)
+    if ($domains.Count -ne $expectedDomains.Count) { throw "backup_storage_domain_inventory_invalid" }
+    $domainNames = @($domains | ForEach-Object { [string](Get-ObjectPropertyValue $_ "directory" $true) })
+    if (@($domainNames | Select-Object -Unique).Count -ne $domainNames.Count -or
+        @($expectedDomains | Where-Object { $_ -notin $domainNames }).Count -ne 0) {
+        throw "backup_storage_domain_inventory_invalid"
+    }
+    foreach ($domain in $domains) {
+        [int64]$fileCount = -1; [int64]$bytes = -1
+        if (-not [int64]::TryParse([string](Get-ObjectPropertyValue $domain "file_count" $true), [ref]$fileCount) -or $fileCount -lt 0 -or
+            -not [int64]::TryParse([string](Get-ObjectPropertyValue $domain "bytes" $true), [ref]$bytes) -or $bytes -lt 0) {
+            throw "backup_storage_domain_inventory_invalid"
+        }
+    }
+    $kb = Get-ObjectPropertyValue $coverage "knowledge_base" $true
+    if ([string](Get-ObjectPropertyValue $kb "status" $true) -ne "COMPLETE") { throw "backup_kb_source_coverage_incomplete" }
+    $referenceState = [string](Get-ObjectPropertyValue $kb "reference_state" $true)
+    [int64]$references = -1; [int64]$matched = -1; [int64]$uniqueFiles = -1
+    [int64]$storageFiles = -1; [int64]$storageBytes = -1; [int64]$unreferenced = -1
+    if (-not [int64]::TryParse([string](Get-ObjectPropertyValue $kb "reference_count" $true), [ref]$references) -or $references -lt 0 -or
+        -not [int64]::TryParse([string](Get-ObjectPropertyValue $kb "matched_reference_count" $true), [ref]$matched) -or $matched -lt 0 -or
+        -not [int64]::TryParse([string](Get-ObjectPropertyValue $kb "unique_referenced_file_count" $true), [ref]$uniqueFiles) -or $uniqueFiles -lt 0 -or
+        -not [int64]::TryParse([string](Get-ObjectPropertyValue $kb "storage_file_count" $true), [ref]$storageFiles) -or $storageFiles -lt 0 -or
+        -not [int64]::TryParse([string](Get-ObjectPropertyValue $kb "storage_bytes" $true), [ref]$storageBytes) -or $storageBytes -lt 0 -or
+        -not [int64]::TryParse([string](Get-ObjectPropertyValue $kb "unreferenced_file_count" $true), [ref]$unreferenced) -or $unreferenced -lt 0) {
+        throw "backup_kb_source_coverage_invalid"
+    }
+    foreach ($name in @("missing_count", "unreadable_count", "outside_root_count", "size_mismatch_count", "hash_mismatch_count")) {
+        [int64]$value = -1
+        if (-not [int64]::TryParse([string](Get-ObjectPropertyValue $kb $name $true), [ref]$value) -or $value -ne 0) {
+            throw "backup_kb_source_coverage_invalid"
+        }
+    }
+    if ($matched -ne $references -or $uniqueFiles -gt $references -or $storageFiles -lt $uniqueFiles -or
+        $unreferenced -ne ($storageFiles - $uniqueFiles)) { throw "backup_kb_source_coverage_invalid" }
+    if (($references -eq 0 -and $referenceState -ne "EMPTY_CONFIRMED") -or
+        ($references -gt 0 -and $referenceState -ne "COMPLETE")) { throw "backup_kb_reference_state_invalid" }
+    foreach ($name in @("reference_inventory_sha256", "storage_inventory_sha256")) {
+        if ([string](Get-ObjectPropertyValue $kb $name $true) -notmatch '^[a-f0-9]{64}$') { throw "backup_kb_inventory_hash_invalid" }
+    }
+    $kbDomain = @($domains | Where-Object { [string]$_.directory -eq "knowledge-base" })[0]
+    if ([int64]$kbDomain.file_count -ne $storageFiles -or [int64]$kbDomain.bytes -ne $storageBytes) {
+        throw "backup_kb_domain_inventory_mismatch"
+    }
+    return [ordered]@{
+        recorded = $true; verified = $true; status = "COMPLETE"
+        reference_state = $referenceState; required_domains = $requiredDomains
+        reference_count = $references; matched_reference_count = $matched
+    }
+}
+
+function Assert-ArchiveContainsDomains {
+    param([object[]]$Entries, [string[]]$Domains)
+    $normalizedEntries = @($Entries | ForEach-Object { ([string]$_).Replace('\', '/').TrimStart('./') })
+    foreach ($domain in $Domains) {
+        if (@($normalizedEntries | Where-Object { $_ -eq $domain -or $_ -eq "$domain/" -or $_.StartsWith("$domain/") }).Count -eq 0) {
+            throw "backup_storage_archive_domain_missing:$domain"
+        }
+    }
 }
 
 function Assert-IsolatedPostgresTarget {
@@ -291,7 +402,12 @@ function Stage-Full {
     Invoke-Checked "tar.exe" @("-xzf", $Artifacts["document-storage.tar.gz"], "-C", $documents)
     Invoke-Checked "tar.exe" @("-xzf", $Artifacts["configuration.tar.gz"], "-C", $configuration)
     Invoke-Checked "tar.exe" @("-xzf", $Artifacts["release-stable.tar.gz"], "-C", $release)
-    foreach ($name in @("documents", "document-pages", "document-assets", "archive-extracted")) {
+    $requiredStorageDirectories = @("documents", "document-pages", "document-assets", "archive-extracted")
+    if ($Manifest.schema_version -eq $recoveryPointSchema) {
+        $coverage = Get-V2StorageCoverage $Manifest
+        if ($coverage.verified -eq $true) { $requiredStorageDirectories += "knowledge-base" }
+    }
+    foreach ($name in $requiredStorageDirectories) {
         if (-not (Test-Path -LiteralPath (Join-Path $documents $name) -PathType Container)) { throw "document_stage_component_missing" }
     }
     [void](Get-Content -LiteralPath $Artifacts["n8n-workflows.json"] -Raw | ConvertFrom-Json)
@@ -369,6 +485,11 @@ try {
     foreach ($name in @("capture_status", "scope_status", "provenance_status", "consistency_status", "restore_status")) {
         $manifestStatuses[$name] = Get-ManifestStatus $manifest $name $requireManifestStatuses
     }
+    $storageCoverage = if ($manifest.schema_version -eq $recoveryPointSchema) {
+        Get-V2StorageCoverage $manifest
+    } else {
+        [ordered]@{ recorded = $false; verified = $false; status = "NOT_APPLICABLE"; reference_state = "NOT_APPLICABLE"; required_domains = @(); reference_count = $null; matched_reference_count = $null }
+    }
     Add-Stage "preflight" "started"
     $artifacts = Get-ArtifactMap $manifest
     if (-not $artifacts.ContainsKey("postgres.dump")) { throw "backup_database_missing" }
@@ -381,6 +502,10 @@ try {
     }
     $fullComponentsPresent = $true
     foreach ($name in $fullRequired) { if (-not $artifacts.ContainsKey($name)) { $fullComponentsPresent = $false } }
+    if ($Mode -eq "Full" -and $fullComponentsPresent -and $manifest.schema_version -eq $recoveryPointSchema -and $storageCoverage.recorded -eq $true) {
+        $documentEntries = @(Assert-Archive $artifacts["document-storage.tar.gz"])
+        Assert-ArchiveContainsDomains -Entries $documentEntries -Domains @($storageCoverage.required_domains)
+    }
     $qdrantStructural = $false
     $qdrantReason = "snapshot_missing"
     $qdrantRecords = @()
@@ -403,12 +528,13 @@ try {
     if ($manifest.schema_version -eq $recoveryPointSchema) {
         $captureComplete = $captureComplete -and [string]$manifestStatuses["capture_status"] -eq "COMPLETE" -and
             [string]$manifestStatuses["scope_status"] -eq "COMPLETE" -and
-            [string]$manifestStatuses["provenance_status"] -eq "RECORDED"
+            [string]$manifestStatuses["provenance_status"] -eq "RECORDED" -and $storageCoverage.verified -eq $true
     }
     $fullEligible = $captureComplete -and ($manifest.qdrant_restore_verified -eq $true)
     if ($Mode -eq "Full" -and -not $fullComponentsPresent) { throw "backup_full_component_missing" }
     if ($Mode -eq "Full" -and $manifest.schema_version -eq $legacySchema -and $manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" }
     if ($Mode -eq "Full" -and -not $ValidateOnly -and -not $ProofOnly -and $manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" }
+    if ($Mode -eq "Full" -and -not $ValidateOnly -and $manifest.schema_version -eq $recoveryPointSchema -and $storageCoverage.verified -ne $true) { throw "backup_storage_coverage_not_verified" }
     if ($Mode -eq "Full" -and -not $qdrantStructural) { throw "qdrant_snapshot_invalid" }
     Add-Stage "preflight" "completed"
 
@@ -428,6 +554,11 @@ try {
             scope_status = $manifestStatuses["scope_status"]; provenance_status = $manifestStatuses["provenance_status"]
             consistency_status = $manifestStatuses["consistency_status"]; restore_status = $manifestStatuses["restore_status"]
             qdrant_collections = @($qdrantRecords | ForEach-Object { [string]$_.collection })
+            storage_coverage_status = [string]$storageCoverage.status
+            storage_coverage_verified = ($storageCoverage.verified -eq $true)
+            kb_reference_state = [string]$storageCoverage.reference_state
+            kb_reference_count = $storageCoverage.reference_count
+            kb_matched_reference_count = $storageCoverage.matched_reference_count
         }
         Write-Output ("RECOVERY_VALIDATION_JSON=" + ($summary | ConvertTo-Json -Compress -Depth 5))
         return

@@ -65,14 +65,28 @@ function New-Archive {
     if ($LASTEXITCODE -ne 0) { throw "fixture_archive_failed" }
 }
 
+function New-StorageArchive {
+    param([string]$Destination, [switch]$HistoricalFourDomains)
+    $source = Join-Path $root ("storage-fixture-" + [Guid]::NewGuid().ToString("N"))
+    $domains = @("documents", "document-pages", "document-assets", "archive-extracted")
+    if (-not $HistoricalFourDomains) { $domains += "knowledge-base" }
+    foreach ($domain in $domains) {
+        $directory = Join-Path $source $domain
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        'synthetic' | Set-Content -LiteralPath (Join-Path $directory "fixture.txt") -Encoding UTF8
+    }
+    & tar.exe -czf $Destination -C $source @($domains)
+    if ($LASTEXITCODE -ne 0) { throw "fixture_storage_archive_failed" }
+}
+
 function New-V2Checkpoint {
-    param([string]$Name)
+    param([string]$Name, [switch]$HistoricalWithoutStorageCoverage)
     $checkpoint = Join-Path $root $Name
     $artifactRoot = Join-Path $checkpoint "artifacts"
     $qdrantRoot = Join-Path $artifactRoot "qdrant"
     New-Item -ItemType Directory -Path $qdrantRoot -Force | Out-Null
     [IO.File]::WriteAllBytes((Join-Path $artifactRoot "postgres.dump"), [Text.Encoding]::ASCII.GetBytes("PGDMPsynthetic"))
-    New-Archive (Join-Path $artifactRoot "document-storage.tar.gz") "documents\fixture.txt"
+    New-StorageArchive (Join-Path $artifactRoot "document-storage.tar.gz") -HistoricalFourDomains:$HistoricalWithoutStorageCoverage
     New-Archive (Join-Path $artifactRoot "release-stable.tar.gz") "release-channel\stable\manifest.json"
     New-Archive (Join-Path $artifactRoot "configuration.tar.gz") "configuration\runtime-images.json"
     '[]' | Set-Content -LiteralPath (Join-Path $artifactRoot "n8n-workflows.json") -Encoding UTF8
@@ -108,10 +122,35 @@ function New-V2Checkpoint {
         qdrant_collections = $records; required_qdrant_collections = @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks")
         artifact_hash_verified = $true; qdrant_snapshot_structurally_valid = $true
         qdrant_restore_verified = $false; qdrant_restore_error_code = "qdrant_restore_not_run_waiting_approval"
+        document_directories = if ($HistoricalWithoutStorageCoverage) {
+            @("documents", "document-pages", "document-assets", "archive-extracted")
+        } else {
+            @("documents", "document-pages", "document-assets", "archive-extracted", "knowledge-base")
+        }
         capture_status = "COMPLETE"; scope_status = "COMPLETE"; provenance_status = "RECORDED"
         consistency_status = "COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL"
         restore_status = "NOT_RUN_WAITING_APPROVAL"; escrow_status = "NOT_RUN_WAITING_OWNER_DECISION"
         rto_status = "NOT_MEASURED"; secrets_in_protected_backup = $false; artifacts = $artifacts
+    }
+    if (-not $HistoricalWithoutStorageCoverage) {
+        $manifest.storage_contract_version = "NEXT_STABIL_STORAGE_COVERAGE_V1"
+        $manifest.storage_coverage = [ordered]@{
+            status = "COMPLETE"
+            required_domains = @("documents", "document-pages", "document-assets", "archive-extracted", "knowledge-base")
+            domains = @(
+                @("documents", "document-pages", "document-assets", "archive-extracted", "knowledge-base") |
+                    ForEach-Object { [ordered]@{ directory = $_; file_count = [int64]1; bytes = [int64]12 } }
+            )
+            knowledge_base = [ordered]@{
+                status = "COMPLETE"; reference_state = "COMPLETE"
+                reference_count = [int64]1; matched_reference_count = [int64]1
+                unique_referenced_file_count = [int64]1; storage_file_count = [int64]1
+                storage_bytes = [int64]12; unreferenced_file_count = [int64]0
+                missing_count = [int64]0; unreadable_count = [int64]0; outside_root_count = [int64]0
+                size_mismatch_count = [int64]0; hash_mismatch_count = [int64]0
+                reference_inventory_sha256 = ("e" * 64); storage_inventory_sha256 = ("f" * 64)
+            }
+        }
     }
     $manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $checkpoint "backup-manifest.json") -Encoding UTF8
     return $checkpoint
@@ -186,6 +225,7 @@ function Test-RealWriterWithSyntheticBoundaries {
     foreach ($relative in @(
         "data\documents\fixture.bin", "data\document-pages\fixture.bin",
         "data\document-assets\fixture.bin", "data\archive-extracted\fixture.bin",
+        "data\knowledge-base\fixture-kb.bin",
         "release-channel\stable\manifest.json", "compose.yaml",
         "compose\backend\docker-compose.yml", "compose\postgres\docker-compose.yml",
         "compose\qdrant\docker-compose.yml", "compose\ollama\docker-compose.yml",
@@ -206,6 +246,16 @@ function Test-RealWriterWithSyntheticBoundaries {
     $global:R03A1MockSnapshotCounter = 0
     $global:R03A1RecoveryRoot = $repo
     $global:R03A1FailKnowledgeSnapshot = $false
+    $kbFixture = Join-Path $source "data\knowledge-base\fixture-kb.bin"
+    [IO.File]::WriteAllBytes($kbFixture, [Text.Encoding]::ASCII.GetBytes("AAAA"))
+    $kbRecord = [ordered]@{
+        storage_path = $kbFixture
+        file_size = [int64](Get-Item -LiteralPath $kbFixture).Length
+        checksum_sha256 = (Get-FileHash -LiteralPath $kbFixture -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    $global:R03A1KnowledgeBaseInventory = '[' + ($kbRecord | ConvertTo-Json -Compress) + ']'
+    $global:R03A1KnowledgeBaseInventoryOverrideAfterFirst = $null
+    $global:R03A1KnowledgeBaseInventoryQueryCount = 0
     try {
         function global:Get-PSDrive {
             param([string]$Name, [string]$PSProvider)
@@ -255,6 +305,12 @@ function Test-RealWriterWithSyntheticBoundaries {
                 else { throw "mock_docker_inspect_format_unexpected" }
             } elseif ($Arguments[0] -eq "image" -and $Arguments[1] -eq "inspect") {
                 '["synthetic/image@sha256:' + ("2" * 64) + '"]'
+            } elseif ($joined -match 'knowledge_base_items') {
+                $global:R03A1KnowledgeBaseInventoryQueryCount++
+                if ($global:R03A1KnowledgeBaseInventoryQueryCount -gt 1 -and
+                    $null -ne $global:R03A1KnowledgeBaseInventoryOverrideAfterFirst) {
+                    $global:R03A1KnowledgeBaseInventoryOverrideAfterFirst
+                } else { $global:R03A1KnowledgeBaseInventory }
             } elseif ($joined -match 'SELECT version_num FROM alembic_version') {
                 "followup_assistant_chat_history_20260829"
             }
@@ -295,6 +351,13 @@ function Test-RealWriterWithSyntheticBoundaries {
         Assert-True ($manifest.tool_source_head -eq ("b" * 40) -and $manifest.source_head -eq ("a" * 40)) "real_writer_records_tool_and_data_source_separately"
         Assert-True ($manifest.restore_status -eq "NOT_RUN_WAITING_APPROVAL" -and $manifest.qdrant_restore_verified -eq $false) "real_writer_does_not_claim_restore"
         Assert-True (-not (($global:R03A1MockCommands -join "`n") -match 'verify-qdrant-snapshot-restore')) "real_writer_capture_never_calls_restore_helper"
+        Assert-True (@($manifest.document_directories) -contains "knowledge-base") "real_writer_declares_kb_source_domain"
+        Assert-True ($manifest.storage_contract_version -eq "NEXT_STABIL_STORAGE_COVERAGE_V1" -and
+            $manifest.storage_coverage.status -eq "COMPLETE" -and
+            $manifest.storage_coverage.knowledge_base.reference_count -eq 1 -and
+            $manifest.storage_coverage.knowledge_base.matched_reference_count -eq 1) "real_writer_records_verified_kb_source_coverage"
+        $storageEntries = @(& "$env:SystemRoot\System32\tar.exe" -tzf (Join-Path $checkpoint "artifacts\document-storage.tar.gz"))
+        Assert-True ($LASTEXITCODE -eq 0 -and @($storageEntries | Where-Object { ([string]$_).Replace('\','/') -eq 'knowledge-base/fixture-kb.bin' }).Count -eq 1) "real_writer_archives_kb_source_file"
 
         $commandsBeforeCollision = $global:R03A1MockCommands.Count
         $collision = $null
@@ -306,6 +369,96 @@ function Test-RealWriterWithSyntheticBoundaries {
         } catch { $collision = $_.Exception.Message }
         Assert-True ($collision -eq "backup_checkpoint_collision") "writer_checkpoint_collision_rejected"
         Assert-True ($global:R03A1MockCommands.Count -eq $commandsBeforeCollision) "collision_rejected_before_external_capture_commands"
+
+        $global:R03A1KnowledgeBaseInventory = '[{"storage_path":"Z:\\missing-kb-source.bin","file_size":4,"checksum_sha256":"' + ("a" * 64) + '"}]'
+        $missingReferenceError = $null
+        try {
+            & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+                -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+                -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+                -CheckpointId "20990101T000002Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        } catch { $missingReferenceError = $_.Exception.Message }
+        Assert-True ($missingReferenceError -eq "knowledge_base_reference_outside_root" -and
+            -not (Test-Path -LiteralPath (Join-Path $backupRoot "20990101T000002Z"))) "kb_reference_outside_root_rejected_before_capture"
+
+        $global:R03A1KnowledgeBaseInventory = '[{"storage_path":"' + ($kbFixture.Replace('\','\\')) + '-missing","file_size":4,"checksum_sha256":"' + ("a" * 64) + '"}]'
+        $missingFileError = $null
+        try {
+            & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+                -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+                -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+                -CheckpointId "20990101T000003Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        } catch { $missingFileError = $_.Exception.Message }
+        Assert-True ($missingFileError -eq "knowledge_base_reference_missing" -and
+            -not (Test-Path -LiteralPath (Join-Path $backupRoot "20990101T000003Z"))) "missing_kb_source_rejected_before_capture"
+
+        $sizeMismatchRecord = [ordered]@{
+            storage_path = $kbFixture; file_size = [int64]5
+            checksum_sha256 = [string]$kbRecord.checksum_sha256
+        }
+        $global:R03A1KnowledgeBaseInventory = '[' + ($sizeMismatchRecord | ConvertTo-Json -Compress) + ']'
+        $sizeMismatchError = $null
+        try {
+            & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+                -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+                -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+                -CheckpointId "20990101T000008Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        } catch { $sizeMismatchError = $_.Exception.Message }
+        Assert-True ($sizeMismatchError -eq "knowledge_base_reference_size_mismatch" -and
+            -not (Test-Path -LiteralPath (Join-Path $backupRoot "20990101T000008Z"))) "kb_source_size_mismatch_rejected"
+
+        $global:R03A1KnowledgeBaseInventory = '[' + ($kbRecord | ConvertTo-Json -Compress) + ']'
+        [IO.File]::WriteAllBytes($kbFixture, [Text.Encoding]::ASCII.GetBytes("BBBB"))
+        $hashError = $null
+        try {
+            & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+                -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+                -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+                -CheckpointId "20990101T000004Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        } catch { $hashError = $_.Exception.Message }
+        Assert-True ($hashError -eq "knowledge_base_reference_hash_mismatch" -and
+            -not (Test-Path -LiteralPath (Join-Path $backupRoot "20990101T000004Z"))) "same_size_kb_content_tamper_rejected"
+        [IO.File]::WriteAllBytes($kbFixture, [Text.Encoding]::ASCII.GetBytes("AAAA"))
+
+        Remove-Item -LiteralPath $kbFixture
+        $global:R03A1KnowledgeBaseInventory = '[]'
+        & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+            -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+            -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+            -CheckpointId "20990101T000005Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        $emptyManifest = Get-Content -LiteralPath (Join-Path $backupRoot "20990101T000005Z\backup-manifest.json") -Raw | ConvertFrom-Json
+        Assert-True ($emptyManifest.storage_coverage.knowledge_base.reference_count -eq 0 -and
+            $emptyManifest.storage_coverage.knowledge_base.reference_state -eq "EMPTY_CONFIRMED") "empty_kb_corpus_is_explicitly_confirmed"
+        [IO.File]::WriteAllBytes($kbFixture, [Text.Encoding]::ASCII.GetBytes("AAAA"))
+        $global:R03A1KnowledgeBaseInventory = '[' + ($kbRecord | ConvertTo-Json -Compress) + ']'
+
+        $junctionTarget = Join-Path $root "junction-target"
+        $junctionPath = Join-Path $source "data\knowledge-base\unsafe-link"
+        New-Item -ItemType Directory -Path $junctionTarget | Out-Null
+        New-Item -ItemType Junction -Path $junctionPath -Target $junctionTarget | Out-Null
+        $linkError = $null
+        try {
+            & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+                -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+                -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+                -CheckpointId "20990101T000006Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        } catch { $linkError = $_.Exception.Message }
+        Remove-Item -LiteralPath $junctionPath -Force
+        Assert-True ($linkError -eq "storage_domain_reparse_point_rejected:knowledge-base" -and
+            -not (Test-Path -LiteralPath (Join-Path $backupRoot "20990101T000006Z"))) "kb_reparse_point_rejected_before_capture"
+
+        $global:R03A1KnowledgeBaseInventoryQueryCount = 0
+        $global:R03A1KnowledgeBaseInventoryOverrideAfterFirst = '[]'
+        $changedInventoryError = $null
+        try {
+            & $backup -RepositoryRoot $source -BackupRoot $backupRoot -Release "1.0.2+29" `
+                -ManifestFormat RecoveryPointV2 -QdrantProofMode CaptureOnly `
+                -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+                -CheckpointId "20990101T000007Z" -RuntimeInventoryPath $runtimeInventory | Out-Null
+        } catch { $changedInventoryError = $_.Exception.Message }
+        $global:R03A1KnowledgeBaseInventoryOverrideAfterFirst = $null
+        Assert-True ($changedInventoryError -eq "knowledge_base_inventory_changed_during_capture" -and
+            -not (Test-Path -LiteralPath (Join-Path $backupRoot "20990101T000007Z\backup-manifest.json"))) "kb_inventory_change_during_capture_prevents_complete_manifest"
 
         $global:R03A1FailKnowledgeSnapshot = $true
         $interruptedError = $null
@@ -325,7 +478,7 @@ function Test-RealWriterWithSyntheticBoundaries {
         foreach ($name in @("Get-PSDrive", "git", "icacls.exe", "tar.exe", "node.exe", "curl.exe", "docker", "docker.exe", "Invoke-RestMethod")) {
             Remove-Item -LiteralPath ("function:" + $name) -Force -ErrorAction SilentlyContinue
         }
-        Remove-Variable -Name R03A1MockCommands,R03A1MockSnapshotCounter,R03A1RecoveryRoot,R03A1FailKnowledgeSnapshot -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name R03A1MockCommands,R03A1MockSnapshotCounter,R03A1RecoveryRoot,R03A1FailKnowledgeSnapshot,R03A1KnowledgeBaseInventory,R03A1KnowledgeBaseInventoryOverrideAfterFirst,R03A1KnowledgeBaseInventoryQueryCount -Scope Global -ErrorAction SilentlyContinue
     }
 }
 
@@ -399,6 +552,8 @@ try {
     Assert-True ($backupText -match 'Never open the' -and $backupText -notmatch 'Join-Path \$repo "\.env"') "capture_does_not_open_runtime_env"
     Assert-True ($backupText -match 'docker\.exe inspect \$containerName --format ''\{\{\.Config\.Image\}\}''') "image_inventory_uses_bounded_docker_fields"
     Assert-True ($backupText -notmatch '& docker inspect \$containerName \| ConvertFrom-Json') "image_inventory_does_not_materialize_container_environment"
+    Assert-True ($backupText -match 'docker\.exe exec postgres psql' -and
+        $backupText -match 'BEGIN TRANSACTION READ ONLY' -and $backupText -match 'knowledge_base_items') "kb_inventory_uses_bounded_read_only_database_query"
     Assert-True ($restoreText -match 'Assert-IsolatedPostgresTarget' -and $restoreText -notmatch 'docker\.exe exec postgres') "proof_has_explicit_postgres_target"
     Assert-True ($offlineText -match 'network.+create.+--internal' -and $offlineText -notmatch '127\.0\.0\.1:\$port' -and $offlineText -notmatch '"-p"') "qdrant_proof_has_no_host_port"
     Assert-True ($offlineText -match 'qdrant_restore_target_collision' -and $offlineText -match 'next\.stabil\.owner') "qdrant_proof_has_owned_collision_guard"
@@ -445,7 +600,43 @@ try {
     Assert-True ($v2Result.exit_code -eq 0 -and $v2Result.text -match '"capture_complete":true') "v2_reader_accepts_complete_two_collection_capture"
     Assert-True ($v2Result.text -match 'ai_lab_document_chunks' -and $v2Result.text -match 'ai_lab_knowledge_base_chunks') "v2_reader_reports_both_collections"
     Assert-True ($v2Result.text -match '"full_eligible":false' -and $v2Result.text -match 'NOT_RUN_WAITING_APPROVAL') "capture_does_not_fabricate_restore_evidence"
+    Assert-True ($v2Result.text -match '"storage_coverage_status":"COMPLETE"' -and
+        $v2Result.text -match '"storage_coverage_verified":true' -and $v2Result.text -match '"kb_reference_count":1') "v2_reader_verifies_current_kb_source_contract"
     Test-ProofTargetGuardsWithMocks $v2
+
+    $historicalV2 = New-V2Checkpoint "v2-historical-four-domains" -HistoricalWithoutStorageCoverage
+    $historicalV2Result = Invoke-Recovery @("-CheckpointPath", $historicalV2, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($historicalV2Result.exit_code -eq 0 -and
+        $historicalV2Result.text -match '"storage_coverage_status":"NOT_RECORDED"' -and
+        $historicalV2Result.text -match '"storage_coverage_verified":false' -and
+        $historicalV2Result.text -match '"capture_complete":false') "historical_v2_remains_readable_without_claiming_current_storage_coverage"
+
+    $missingCoverage = New-V2Checkpoint "v2-current-missing-storage-coverage"
+    $missingCoveragePath = Join-Path $missingCoverage "backup-manifest.json"
+    $missingCoverageManifest = Get-Content -LiteralPath $missingCoveragePath -Raw | ConvertFrom-Json
+    $missingCoverageManifest.PSObject.Properties.Remove("storage_coverage")
+    $missingCoverageManifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $missingCoveragePath -Encoding UTF8
+    $missingCoverageResult = Invoke-Recovery @("-CheckpointPath", $missingCoverage, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($missingCoverageResult.exit_code -ne 0 -and
+        $missingCoverageResult.text -match 'backup_storage_coverage_missing') "current_v2_missing_storage_coverage_rejected"
+
+    $missingKbDomain = New-V2Checkpoint "v2-current-missing-kb-archive-domain"
+    $missingKbDomainArchive = Join-Path $missingKbDomain "artifacts\document-storage.tar.gz"
+    Remove-Item -LiteralPath $missingKbDomainArchive
+    New-StorageArchive $missingKbDomainArchive -HistoricalFourDomains
+    $missingKbDomainPath = Join-Path $missingKbDomain "backup-manifest.json"
+    $missingKbDomainManifest = Get-Content -LiteralPath $missingKbDomainPath -Raw | ConvertFrom-Json
+    foreach ($artifact in @($missingKbDomainManifest.artifacts)) {
+        if ([string]$artifact.file -eq "artifacts/document-storage.tar.gz") {
+            $item = Get-Item -LiteralPath $missingKbDomainArchive
+            $artifact.bytes = [int64]$item.Length
+            $artifact.sha256 = (Get-FileHash -LiteralPath $missingKbDomainArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
+    $missingKbDomainManifest | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $missingKbDomainPath -Encoding UTF8
+    $missingKbDomainResult = Invoke-Recovery @("-CheckpointPath", $missingKbDomain, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($missingKbDomainResult.exit_code -ne 0 -and
+        $missingKbDomainResult.text -match 'backup_storage_archive_domain_missing') "current_v2_missing_kb_archive_domain_rejected"
 
     $missingStatus = New-V2Checkpoint "v2-missing-required-status"
     $missingStatusPath = Join-Path $missingStatus "backup-manifest.json"

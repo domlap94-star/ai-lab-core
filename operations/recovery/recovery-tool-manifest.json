@@ -1,16 +1,16 @@
 {
   "schema": "NEXT_STABIL_RECOVERY_TOOL_V1",
-  "tool_version": "1.1.1",
+  "tool_version": "1.2.0",
   "helpers": [
     {
       "file": "operations/hardening/restore-checkpoint.ps1",
-      "bytes": 28148,
-      "sha256": "49e7f690ce8d23760b55e5eade02a07f23727a38947dfd3a9087603d0a7a36a0"
+      "bytes": 36737,
+      "sha256": "ad7c665c22e0c8805b51bf6e25633c7df945f9f52c9235292628bf2e28b519c4"
     },
     {
       "file": "operations/hardening/backup-production.ps1",
-      "bytes": 24865,
-      "sha256": "16d15a770b1476ed5aaede1833ef3b2d2f908f3d774791b521450956fc5250a8"
+      "bytes": 34059,
+      "sha256": "f895e4874a10e4ce964b8e9edac37a2a58db734a0c8e2d5e33241591dbd6b28f"
     },
     {
       "file": "operations/hardening/verify-qdrant-snapshot-offline.ps1",

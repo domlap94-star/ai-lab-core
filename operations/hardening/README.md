@@ -10,8 +10,11 @@ credentials or change the release minimum version.
   the repository. It never overwrites an older checkpoint and writes the
   manifest only after every artifact and SHA-256 succeeds. Its explicit
   `RecoveryPointV2` / `CaptureOnly` mode binds both document and knowledge-base
-  Qdrant collections plus a bounded, non-secret runtime inventory without
-  starting a restore proof. The default scheduled `LegacyV1` mode is unchanged.
+  Qdrant collections, all five storage domains including source files under
+  `knowledge-base`, and a bounded, non-secret runtime inventory without
+  starting a restore proof. It verifies every persisted KB source reference
+  against size and SHA-256 before and after archiving. The default scheduled
+  `LegacyV1` mode is unchanged and has not received this A3 rollout.
 - `check-production-health.ps1`: aggregates local/private service health,
   migration revision, DB locks, stale Agent/Vision state, disk capacity and
   backup freshness without exposing secrets or internal content.
