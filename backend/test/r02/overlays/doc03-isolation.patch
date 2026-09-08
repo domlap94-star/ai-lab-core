@@ -1,0 +1,85 @@
+diff --git a/backend/test/test_document_preparation_recovery_fencing.py b/backend/test/test_document_preparation_recovery_fencing.py
+index 3d0091e..63d25d6 100644
+--- a/backend/test/test_document_preparation_recovery_fencing.py
++++ b/backend/test/test_document_preparation_recovery_fencing.py
+@@ -64,0 +65,3 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++        cls.foreign_storage = tempfile.TemporaryDirectory()
++        previous_data_dir = settings.data_dir
++        settings.data_dir = cls.foreign_storage.name
+@@ -69,0 +73,15 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++            marker = uuid.uuid4().hex
++            stored = DocumentService(db).store_document(
++                content=f"synthetic foreign DOC-03 queue {marker}\n".encode("utf-8"),
++                original_filename=f"doc03-foreign-{marker}.txt",
++                content_type="text/plain",
++                source_type="manual_upload",
++            )
++            sentinel = db.query(DocumentPreparationJob).filter_by(
++                document_id=stored.document.id
++            ).one()
++            sentinel.priority = 0
++            sentinel.queued_at = datetime(2000, 1, 1, tzinfo=UTC)
++            db.commit()
++            cls.foreign_sentinel_job_id = sentinel.id
++            cls.foreign_sentinel_document_id = stored.document.id
+@@ -71,0 +90 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++            settings.data_dir = previous_data_dir
+@@ -77,0 +97,18 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++            sentinel = db.get(DocumentPreparationJob, cls.foreign_sentinel_job_id)
++            if sentinel is None:
++                raise AssertionError("DOC-03 foreign queue sentinel disappeared")
++            if (
++                sentinel.status != "queued"
++                or sentinel.stage != "queued"
++                or sentinel.attempt_count != 0
++                or sentinel.lease_owner is not None
++                or sentinel.lease_expires_at is not None
++            ):
++                raise AssertionError("DOC-03 touched a foreign queued job")
++            db.delete(sentinel)
++            db.flush()
++            document = db.get(Document, cls.foreign_sentinel_document_id)
++            if document is None:
++                raise AssertionError("DOC-03 foreign queue document disappeared")
++            db.delete(document)
++            db.commit()
+@@ -83,0 +121 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++            cls.foreign_storage.cleanup()
+@@ -88,0 +127,15 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++        self.foreign_queue_lock = SessionLocal()
++        self.addCleanup(self._release_foreign_queue_lock)
++        assert_isolated_database(self.foreign_queue_lock, TEST_DATABASE_NAME)
++        self.locked_foreign_job_ids = {
++            row.id
++            for row in self.foreign_queue_lock.query(DocumentPreparationJob)
++            .filter(DocumentPreparationJob.status.in_(["queued", "running"]))
++            .with_for_update()
++            .all()
++        }
++        self.assertIn(
++            self.foreign_sentinel_job_id,
++            self.locked_foreign_job_ids,
++            "DOC-03 test namespace did not fence its foreign queue sentinel",
++        )
+@@ -92,0 +146,4 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++    def _release_foreign_queue_lock(self) -> None:
++        self.foreign_queue_lock.rollback()
++        self.foreign_queue_lock.close()
++
+@@ -194,0 +252,16 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
++    def test_t00_foreign_queued_job_does_not_capture_claim(self) -> None:
++        job = self._store_job()
++        claim = self._claim(job)
++        self.assertEqual(claim.job_id, job.id)
++        probe = SessionLocal()
++        try:
++            sentinel = probe.get(
++                DocumentPreparationJob, self.foreign_sentinel_job_id
++            )
++            assert sentinel is not None
++            self.assertEqual((sentinel.status, sentinel.stage), ("queued", "queued"))
++            self.assertEqual(sentinel.attempt_count, 0)
++            self.assertIsNone(sentinel.lease_owner)
++        finally:
++            probe.close()
++

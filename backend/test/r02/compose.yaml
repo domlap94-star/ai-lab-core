@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres@sha256:cf78e76683e8344a243d883bab7ef2196c729336a437517c53b2478f7f0f77a1
+    image: ${R02_POSTGRES_IMAGE:?set R02_POSTGRES_IMAGE}
     environment:
       POSTGRES_DB: ${R02_DATABASE_NAME:?set R02_DATABASE_NAME}
       POSTGRES_USER: ${R02_DATABASE_USER:?set R02_DATABASE_USER}
@@ -38,6 +38,7 @@ services:
       ADMIN_EMAIL: r02-admin@example.invalid
       ADMIN_PASSWORD: ${R02_ADMIN_PASSWORD:?set R02_ADMIN_PASSWORD}
       N8N_INGEST_API_KEY: ${R02_N8N_INGEST_API_KEY:?set R02_N8N_INGEST_API_KEY}
+      R02_SNAPSHOT: ${R02_SNAPSHOT:?set R02_SNAPSHOT to main or rescue}
       DATA_DIR: /r02-data
       DOCUMENT_PREPARATION_ENABLED: "false"
       ASSISTANT_PIPELINE_V2_ENABLED: "false"

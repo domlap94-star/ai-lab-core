@@ -27,7 +27,8 @@
   (`sha256:1c9974537fe4ef09c5f8f24692efc1ce4270404a341c88bc305438b8f5ae09d5`).
   Finalny obraz różni się wyłącznie metadanym `WORKDIR=/workspace/backend`;
   DOC-03 `19/19` oraz reprodukcje rescue `6/6` powtórzono na nim.
-- PostgreSQL: `postgres@sha256:cf78e76683e8344a243d883bab7ef2196c729336a437517c53b2478f7f0f77a1`;
+- PostgreSQL: lokalny image ID
+  `sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685`;
   własny kontener `next-stabil-r02-pg-20260907t232229z`, bez publikowanego
   portu, w wewnętrznej sieci `next-stabil-r02-20260907t232229z-net`.
 - Dwie oddzielne syntetyczne bazy: `ai_lab_isolated_r02` i
@@ -153,3 +154,67 @@ produkcji (`NOT_RUN`, poza R02). Nie było dostępu ani zapisów do produkcyjnej
 DB/storage, restartów, migracji produkcyjnych, kolejki produkcyjnej, Qdrant,
 Gmail, Calendar, Supervisorów ani modeli. R02 poprawia wiarygodność harnessu;
 jawne REP source failures pozostają otwarte dla R07/R08 i nie są maskowane.
+
+## Domknięcie procedury przekazania — 2026-09-08
+
+Review potwierdzono w opublikowanym drzewie `5ae1f62aa4da74895e11710849866ba46fd939a2`:
+
+1. `test_audit_reproductions.py` wymagał `R02_SNAPSHOT`, ale README go nie
+   wymieniało, a Compose nie przekazywał go do kontenera. `--env-file` Compose
+   sam nie eksportuje wszystkich wpisów do usługi.
+2. Czyste snapshoty main/rescue nie zawierały testowej izolacji DOC-03, a
+   wcześniejsza nakładka rescue była tylko `LOCAL_ONLY`, bez kompletnej recepty.
+3. Dodatkowo literalny digest PostgreSQL w Compose nie był rozwiązywalny;
+   istniejący lokalny `postgres:16-alpine` miał inny, zweryfikowany image ID.
+
+Przed korektą dokładna opublikowana komenda Compose zakończyła się `exit 1`
+przy próbie rozwiązania błędnego obrazu PostgreSQL (`R02-L043`). Ten sam test
+uruchomiony diagnostycznie z `--no-deps`, bez ręcznego przekazania brakującej
+zmiennej, zakończył collection `exit 2` z guardem
+`R02_SNAPSHOT must be exactly 'main' or 'rescue'` (`R02-L044`). Oba wyniki są
+błędem procedury, nie produktu.
+
+Minimalna korekta:
+
+- Compose przekazuje wymagane `R02_SNAPSHOT` i wymaga jawnego pełnego
+  `R02_POSTGRES_IMAGE`;
+- README rozróżnia interpolację `docker compose --env-file` od przekazywania
+  `docker run --env-file`, zawiera komendy main/rescue oraz kontrolę kodu
+  wewnątrz kontenera;
+- `backend/test/r02/overlays/doc03-isolation.patch` jest jedną małą nakładką
+  test-only. Powstała jako diff main `3d0091e...` → harness R02 `63d25d6...`;
+  stosuje się kontekstowo także do rescue i zachowuje jego
+  `complete_visual_handoff`.
+
+Świeży replay nie używał poprzedniego stagingowego env ani nakładki. Snapshoty
+utworzono ponownie przez `git archive`; archiwa zachowały hashe
+`6059D07F...` (main) i `3A4D55B0...` (rescue). Replay testów użył równoważnego
+pełnokontekstowego zapisu patcha `63E07EFF...`. Przed publikacją ten sam diff
+znormalizowano do formatu `-U0`, aby sam artefakt przechodził
+`git diff --check`; finalny patch SHA-256 to
+`AE68005DF750D139C6B9CC9D491458450C16EC2E2F6C6CE731AC1E1E48BCE018`.
+Finalny patch ponownie zastosowano z `--unidiff-zero` osobno do czystego main i
+rescue, uzyskując te same bloby wynikowe; testów nie powtarzano, bo treść
+wynikowych drzew nie zmieniła się.
+Po zastosowaniu Git clean blob testu to `63d25d6f05d2410391ffc8c84c9b035e0bf5d8ba`
+dla main i `15df78f2c719e58a881af839fd0059ec87e9f302` dla rescue. Surowe Windows
+SHA-256 to odpowiednio `3813BE9F...` i `0B96DCF5...`; różnica względem starych
+hashy wynika wyłącznie z CRLF/LF, przy identycznej znormalizowanej treści.
+
+| Powtórzony test | Wynik bieżącego replayu |
+|---|---|
+| main: env + hash zamontowanego `UnifiedAssistantService` | PASS |
+| rescue: env + hash zamontowanego `UnifiedAssistantService` | PASS |
+| REP-001–004 + main brak supplemental Visual | `6/6 PASS` |
+| REP-001–004 + rescue KB/supplemental Visual | `6/6 PASS`; `4 case / 0 KB / 4 visual` |
+| main: `current_database()` + istniejąca migracja | PASS |
+| rescue: `current_database()` + istniejąca migracja | PASS |
+| DOC-03 main z nakładką | `19/19 PASS` |
+| DOC-03 rescue z nakładką | `19/19 PASS`; T08 `complete_visual_handoff` PASS |
+
+Nowe surowe logi `R02-L043`–`R02-L058` są `LOCAL_ONLY` pod
+`C:\ai-lab-core-staging\recovery\R02_HANDOFF_20260908T063527Z\raw` i mają
+hashe w rozszerzonym `R02_LOG_MANIFEST.csv`. Po replayu usunięto wyłącznie dwa
+własne kontenery PostgreSQL, dwie sieci internal i dwa pliki env z syntetycznymi
+sekretami. Pozostały snapshoty, logi i przypięty obraz testowy. Historycznych
+199/201 ani 92/92 nie powtarzano i nie datowano ponownie.
