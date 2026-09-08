@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet, a wyłącznie podetap A1 (korekta narzędzi i nowy punkt odtworzenia bez restore) jest AUTHORIZED / IN_PROGRESS. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet. Podetap A1 osiągnął CHECKPOINT_READY_FOR_REVIEW / WAITING_ISOLATED_DRILL_APPROVAL: nowy punkt został uchwycony i zweryfikowany bez restore. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -21,22 +21,22 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
 | Stan rejestracji | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; przyjął preflight R03 na `75e19ff8ebf96951e0a0335bf3ad7c9b5dfd792b` i zatwierdził wyłącznie A1: minimalną korektę istniejących narzędzi/proof oraz jeden nowy punkt obejmujący DB, document storage, dwie kolekcje Qdrant, niesekretną konfigurację, szyfrowany export credentials n8n i identyfikację runtime — bez firmowego restore/drill i bez escrow |
-| Checkpoint ID | `R03-20260908T135315Z-A1-CAPTURE-GATE` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T13:53:15Z` |
+| Checkpoint ID | `R03-20260908T142243Z-A1-HANDOFF` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T14:22:43Z` |
 | Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 A1 |
-| Aktywny pakiet / podetap | `R03 / A1 CAPTURE GATE` — narzędzia i izolacja syntetyczna `PASS`; dokładny capture `AUTHORIZED / NOT_STARTED` |
+| Aktywny pakiet / podetap | `R03 / A1` — `CHECKPOINT_READY_FOR_REVIEW / WAITING_ISOLATED_DRILL_APPROVAL`; cały R03 nadal `WAITING_APPROVAL` |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start A1 oparty na local/remote `75e19ff8ebf96951e0a0335bf3ad7c9b5dfd792b` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: DB head `followup_assistant_chat_history_20260829`; aktywne Assistant/Preparation/Analysis/Backup/Restore `0/0/0/0/0`, Preparation queued `15`; trzy harmonogramy backupu `Ready/synced`, najbliższy `2026-09-08T23:00:00Z`; Qdrant live: document `57`, KB `157`, oba `1024/Cosine`, aliasy `0`; runtime nadal mixed i jawnie zinwentaryzowany |
-| Ostatnia faktycznie zakończona czynność | Opublikowano narzędzie A1 `c6faca0dba5944a9900cef3cd20f24d35c3060f7`; testy writer/reader, legacy i izolowany proof przeszły. Wybrano nieistniejący cel `E:\ai-lab-backup\20260908T135012Z`, potwierdzono gate przestrzeni i zapisano niesekretny runtime inventory przed capture |
-| Potwierdzone testy bieżącego wykonania | R03 tool contract `38/38 PASS`; recovery PowerShell `15/15 PASS`; Qdrant validator, backup storage i scheduler `PASS`; pełny syntetyczny proof `PASS`, internal network/no host ports, własne zasoby po cleanup `0/0/0`. Firmowy restore/drill nadal `NOT_RUN` |
+| Ostatnia faktycznie zakończona czynność | Utworzono `E:\ai-lab-backup\20260908T135012Z` narzędziem z funkcjonalnego commita `c6faca0dba5944a9900cef3cd20f24d35c3060f7` (uruchomiony docs-only descendant `1050e9e...`, tool diff `0`). Manifest `NEXT_STABIL_BACKUP_V2` SHA-256 `1195AE5BE68CF589D9B9231C85B0BE678C87117FD471034417B9DC8C5620FD57`; 9/9 artefaktów i obie kolekcje przeszły writer + niezależny `ValidateOnly` |
+| Potwierdzone testy bieżącego wykonania | R03 tool contract `38/38 PASS`; recovery PowerShell `15/15 PASS`; Qdrant validator, backup storage i scheduler `PASS`; pełny syntetyczny proof `PASS`, internal network/no host ports, cleanup `0/0/0`; firmowy capture `capture_complete=true`, `qdrant_structurally_valid=true`; firmowy restore/drill nadal `NOT_RUN` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | Capture jeszcze nieuruchomiony; cel `E:\ai-lab-backup\20260908T135012Z` nadal nie istnieje. Brak zasobów syntetycznych A1 po cleanup; nie uruchomiono restore, escrow, modeli ani kolejek. Runtime inventory jest `LOCAL_ONLY`, SHA-256 `B8A79CCD47858AAB35BA4F7F09A36F9B317E453507E3A4984DC88F11FF8F0817` |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T135315Z-R03-A1-CAPTURE-GATE.md` |
+| Niezakończone procesy i skutki operacyjne | Zachowano nowy punkt (8,181,448,907 B) i po jednym nowym snapshotcie obu kolekcji. Aktywne operacje po capture `0`; Preparation queued `15` bez zmiany; modele `0`. Restore/drill, escrow i RTO: `NOT_RUN / WAITING_APPROVAL`, `NOT_RUN / WAITING_OWNER_DECISION`, `NOT_MEASURED`. Surowy log z nazwami plików jest chroniony `LOCAL_ONLY` i nie trafia do Git |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T142243Z-R03-A1-HANDOFF.md`; raport `docs/recovery/R03_A1_RECOVERY_POINT_EVIDENCE.md` |
 | Zakres aktualnej zgody | Tylko R03 A1: poprawa wskazanych istniejących narzędzi i testów, syntetyczna izolacja, potem jeden kontrolowany capture nowego punktu oraz zanonimizowane dowody/commity na recovery. Bez firmowego restore/drill, escrow, odczytu sekretów, zmian danych biznesowych, R04–R24 i wdrożenia rescue |
-| Blokada / wymagana decyzja | Bramki przed capture przeszły. Po A1 nadal osobno wymagane są: zatwierdzenie izolowanego drill konkretnego manifestu oraz decyzja o celu/ACL/opiekunie escrow i recovery key |
-| Jeden następny bezpieczny krok | Z przypiętego `c6faca0dba5944a9900cef3cd20f24d35c3060f7` wykonać dokładnie jeden capture do `E:\ai-lab-backup\20260908T135012Z`, bez restore; przy kolizji, drift lub niespełnionej bramce zatrzymać operację |
+| Blokada / wymagana decyzja | Właściciel osobno zatwierdza izolowany drill dokładnie manifestu `1195AE5B...` do nieutworzonego celu `R03_DRILL_20260908_A1`; escrow/vault/recovery key pozostają odrębną decyzją. Brak `embedding_version` w 57 historycznych payloadach dokumentowych jest jawnym ograniczeniem generacji do sprawdzenia w drill, nie uzupełniono go |
+| Jeden następny bezpieczny krok | Odbiór A1 przez właściciela i osobna decyzja o izolowanym drill tego konkretnego punktu; nie wykonywać drill, escrow ani R04 bez nowej zgody |
 | Warunek STOP | Po A1 zatrzymać się przed firmowym restore/drill, escrow, cleanupem starych kopii i R04–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -63,7 +63,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
-| R03 | WAITING_APPROVAL | `R03-20260908T135315Z-A1-CAPTURE-GATE` / CAPTURE AUTHORIZED, NOT_STARTED | Właściciel zatwierdził tylko korektę narzędzi, syntetyczne testy i jeden nowy capture bez restore; cały R03, izolowany drill oraz escrow nie są zaakceptowane |
+| R03 | WAITING_APPROVAL | `R03-20260908T142243Z-A1-HANDOFF` / A1 CHECKPOINT_READY_FOR_REVIEW | Capture/integrity A1 wykonane; izolowany drill konkretnego manifestu i escrow wymagają osobnych decyzji; cały R03 nie jest READY ani ACCEPTED |
 | R04 | PLANNED | — | — |
 | R05 | PLANNED | — | — |
 | R06 | PLANNED | — | — |
