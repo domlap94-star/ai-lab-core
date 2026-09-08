@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 PREFLIGHT_COMPLETE / WAITING_APPROVAL. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet, a wyłącznie podetap A1 (korekta narzędzi i nowy punkt odtworzenia bez restore) jest AUTHORIZED / IN_PROGRESS. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,24 +20,24 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; R03 zakończył wyłącznie niemutujący preflight i czeka na osobne decyzje operacyjne dotyczące nowego spójnego punktu, izolowanego restore oraz escrow |
-| Checkpoint ID | `R03-20260908T093202Z-PREFLIGHT-APPROVAL` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T09:32:02Z` |
-| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 preflight |
-| Aktywny pakiet / podetap | `R03 / PREFLIGHT FOR OPERATIONAL APPROVAL` — `PREFLIGHT_COMPLETE / WAITING_APPROVAL`; nie wykonano backupu, restore ani escrow |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; checkpoint startowy opublikowany na `c4bcfc67df6724e367f79a6a5a5e23d20988cd72` |
+| Stan rejestracji | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; przyjął preflight R03 na `75e19ff8ebf96951e0a0335bf3ad7c9b5dfd792b` i zatwierdził wyłącznie A1: minimalną korektę istniejących narzędzi/proof oraz jeden nowy punkt obejmujący DB, document storage, dwie kolekcje Qdrant, niesekretną konfigurację, szyfrowany export credentials n8n i identyfikację runtime — bez firmowego restore/drill i bez escrow |
+| Checkpoint ID | `R03-20260908T115703Z-A1-START` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T11:57:03Z` |
+| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 A1 |
+| Aktywny pakiet / podetap | `R03 / A1 CHECKPOINT PREPARATION` — `AUTHORIZED / IN_PROGRESS`; testy narzędzi i realny capture jeszcze `NOT_RUN` |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start A1 oparty na local/remote `75e19ff8ebf96951e0a0335bf3ad7c9b5dfd792b` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: DB head `followup_assistant_chat_history_20260829`; trzy harmonogramy backupu zsynchronizowane i dostępne; 39/39 BackupRuns completed+verified; RestoreRuns 0; Qdrant live: document 57 i KB 157 punktów; runtime nadal mixed według R00, nieprzejęty |
-| Ostatnia faktycznie zakończona czynność | Zweryfikowano metadane i 7/7 hashy istniejącego Full checkpointu `E:\ai-lab-backup\20260906T010005Z`, aktualne narzędzia i ich ograniczenia izolacji oraz zdefiniowano dokładny przyszły cel bez tworzenia zasobów |
-| Potwierdzone testy bieżącego wykonania | Testy aplikacyjne i restore `NOT_RUN`; wykonano tylko bounded read-only kontrole Git, DB, backup/hash, Qdrant, obrazów i dostępności przestrzeni; historyczny restore proof pozostaje dowodem historycznym |
+| Ostatnia faktycznie zakończona czynność | Zweryfikowano start R03 A1: local/remote recovery `75e19ff8ebf96951e0a0335bf3ad7c9b5dfd792b`, main i rescue bez driftu, recovery clean, zachowanie 203/203 wpisów oryginalnego manifestu; rozpoczęto inspekcję zależności istniejących narzędzi bez ich zmiany |
+| Potwierdzone testy bieżącego wykonania | Testy narzędzi, syntetyczny proof i capture `NOT_RUN`; wykonano wyłącznie bounded read-only Git/process/source preflight. Historyczne wyniki restore nie są wynikiem A1 |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | Brak własnego kontenera/DB/sieci/env R03; istniejący obraz i logi R02 pozostają `LOCAL_ONLY`; nie uruchomiono backupu, restore, escrow, schedulerów, modeli ani produkcyjnych kolejek |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T093202Z-R03-PREFLIGHT-APPROVAL.md` |
-| Zakres aktualnej zgody | Tylko bounded read-only R03 preflight i mała dokumentacja/checkpoint na recovery; bez backupu, restore, escrow, odczytu sekretów, produkcyjnych zapisów i R04–R24 |
-| Blokada / wymagana decyzja | Osobne zgody właściciela są wymagane na: (1) przygotowanie spójnego punktu obejmującego obie kolekcje Qdrant i efektywny runtime, (2) minimalne odizolowanie istniejącego proof tool i wykonanie drill, (3) wybór celu/ACL/opiekuna escrow i odrębnego recovery key; istniejący Full checkpoint sam nie zamyka tych braków |
-| Jeden następny bezpieczny krok | Właściciel wybiera i osobno zatwierdza dokładne wiersze operacyjne z checkpointu R03; do tego czasu niczego nie uruchamiać |
-| Warunek STOP | Zakończyć po publikacji preflightu; nie wykonywać backupu, restore, escrow ani R04–R24 bez osobnej decyzji właściciela |
+| Niezakończone procesy i skutki operacyjne | Brak własnego kontenera/DB/sieci/env A1 i brak rozpoczętego capture; istniejący obraz i logi R02 pozostają `LOCAL_ONLY`; nie uruchomiono backupu, restore, escrow, schedulerów, modeli ani produkcyjnych kolejek |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T115703Z-R03-A1-START.md` |
+| Zakres aktualnej zgody | Tylko R03 A1: poprawa wskazanych istniejących narzędzi i testów, syntetyczna izolacja, potem jeden kontrolowany capture nowego punktu oraz zanonimizowane dowody/commity na recovery. Bez firmowego restore/drill, escrow, odczytu sekretów, zmian danych biznesowych, R04–R24 i wdrożenia rescue |
+| Blokada / wymagana decyzja | A1 wymaga PASS testów i bramek przestrzeni/ACL/zakresu przed capture. Po A1 nadal osobno wymagane są: zatwierdzenie izolowanego drill konkretnego manifestu oraz decyzja o celu/ACL/opiekunie escrow i recovery key |
+| Jeden następny bezpieczny krok | Dokończyć inspekcję bezpośrednich czytników/testów, ustalić minimalną allowlistę i przygotować reprodukcje fail-before; nie uruchamiać capture przed PASS syntetycznych bramek |
+| Warunek STOP | Po A1 zatrzymać się przed firmowym restore/drill, escrow, cleanupem starych kopii i R04–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
 odczytuje się z Git (`git log -1 --format=%H -- NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`).
@@ -63,7 +63,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
-| R03 | WAITING_APPROVAL | `R03-20260908T093202Z-PREFLIGHT-APPROVAL` / PREFLIGHT | Preflight zakończony bez operacji; osobne decyzje wymagane dla nowego spójnego punktu, izolowanego drill i escrow |
+| R03 | WAITING_APPROVAL | `R03-20260908T115703Z-A1-START` / A1 CHECKPOINT PREPARATION | Właściciel zatwierdził tylko korektę narzędzi, syntetyczne testy i jeden nowy capture bez restore; cały R03, izolowany drill oraz escrow nie są zaakceptowane |
 | R04 | PLANNED | — | — |
 | R05 | PLANNED | — | — |
 | R06 | PLANNED | — | — |
