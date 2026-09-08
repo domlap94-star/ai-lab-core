@@ -1,26 +1,26 @@
 {
   "schema": "NEXT_STABIL_RECOVERY_TOOL_V1",
-  "tool_version": "1.0.0",
+  "tool_version": "1.1.0",
   "helpers": [
     {
       "file": "operations/hardening/restore-checkpoint.ps1",
-      "bytes": 17860,
-      "sha256": "78d8b8b06e894400b8fdbeee530bc6debead930281a7c46ad117d6fee453d078"
+      "bytes": 27139,
+      "sha256": "9e5850470b4c52af68dfb3159fb1daa54bdd90658f219fe7a1254139505eb26b"
     },
     {
       "file": "operations/hardening/backup-production.ps1",
-      "bytes": 13263,
-      "sha256": "85dbed7fbb4a31d73f9ed8408575e229342c87e9a8c0bc634061eaa28faa72a1"
+      "bytes": 23432,
+      "sha256": "4c8261d48e2b16693034f670542799cb8e41fbb784da953725cb669d07db5e0a"
     },
     {
       "file": "operations/hardening/verify-qdrant-snapshot-offline.ps1",
-      "bytes": 5671,
-      "sha256": "4a88f8c1777fd72a502cfeecd408d58f26b86141dd5ffb9a0ac8536f479b8c42"
+      "bytes": 12356,
+      "sha256": "5876a111bf6cf9c7edb937473fd20c2bf6b8b088cd168c627fb42149a7e0ef41"
     },
     {
       "file": "operations/supervisor/qdrant_snapshot_validator.js",
-      "bytes": 4036,
-      "sha256": "4cdc0d2043aeda6b3722834878be2fa27ba8baba92d686c35fbf5d5392ba495d"
+      "bytes": 4141,
+      "sha256": "de0f2fcd12e9b5883bb856afe861f0c6eae7b1fcd72b39db7e3f8b27d401e4fb"
     }
   ]
 }

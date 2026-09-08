@@ -1,8 +1,61 @@
 # NEXT Stabil restore runbook
 
-This runbook covers the verified `NEXT_STABIL_BACKUP_V1` checkpoint for
-NEXT Stabil 1.0.2+21. A production restore is destructive and requires an
-explicit human gate. Always restore to an isolated target first.
+This runbook covers legacy `NEXT_STABIL_BACKUP_V1` checkpoints and the additive
+`NEXT_STABIL_BACKUP_V2` recovery-point capture contract. A production restore
+is destructive and requires an explicit human gate. Always restore to an
+isolated target first.
+
+## Recovery-point V2 capture (no restore)
+
+`RecoveryPointV2` is an explicitly selected mode; existing schedules continue
+to use `LegacyV1`. The V2 writer requires exactly both
+`ai_lab_document_chunks` and `ai_lab_knowledge_base_chunks`, records each
+snapshot as a separate artifact, aliases and observed vector configuration,
+and requires a bounded `NEXT_STABIL_RUNTIME_INVENTORY_V1` JSON whose
+`contains_secret_values` is `false`. Tool identity is read from the Git root
+containing the invoked script. `RepositoryRoot` identifies data/config source;
+it never changes which helper files execute.
+
+Before capture, choose a new UTC checkpoint ID, verify the directory does not
+exist, check the applicable free-space and operational gates, and independently
+review the runtime inventory for secret values. A representative command is:
+
+```powershell
+& "C:\ai-lab-core-recovery\operations\hardening\backup-production.ps1" `
+  -RepositoryRoot "C:\ai-lab-core" `
+  -BackupRoot "E:\ai-lab-backup" `
+  -Release "<version from the active stable manifest>" `
+  -ManifestFormat RecoveryPointV2 `
+  -QdrantProofMode CaptureOnly `
+  -QdrantCollections @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks") `
+  -CheckpointId "<YYYYMMDDTHHMMSSZ>" `
+  -RuntimeInventoryPath "<reviewed non-secret runtime inventory JSON>"
+```
+
+This mode performs structural validation and writes hashes, collection/source
+mapping and component capture windows. It deliberately records:
+
+- `restore_status = NOT_RUN_WAITING_APPROVAL`;
+- `escrow_status = NOT_RUN_WAITING_OWNER_DECISION`;
+- `rto_status = NOT_MEASURED`;
+- a non-transactional cross-component consistency limitation.
+
+It does not invoke `verify-qdrant-snapshot-restore.ps1` and does not set
+`qdrant_restore_verified=true`. Absence of either required collection,
+duplicate mapping, invalid structure/hash, interrupted capture or an existing
+target prevents the final manifest. Older V1-only readers refuse V2 as an
+unsupported format; they do not reinterpret it as a single-collection backup.
+Use the shared `restore-checkpoint.ps1 -ValidateOnly` reader for V2 integrity.
+
+An isolated V2 proof remains a separate owner-approved operation. It requires
+an explicit PostgreSQL container, owner label, pinned client image and test
+state directory. The target must be on one owned internal network, have no host
+ports, bind mounts, Docker socket or privileged mode, and use an owned named
+volume. Qdrant proof creates collision-checked resources derived from the
+approved operation ID and likewise exposes no host port. Never point proof at
+the production `postgres` container. The R03 A1 synthetic invocation is
+captured by `operations/recovery/test-r03-a1-recovery-tools.ps1`; company data
+must not be supplied without the separate drill approval.
 
 ## Pinned checkpoint
 
@@ -26,7 +79,7 @@ non-overwriting directory outside the repository and active data tree. It
 first checks free space, applies a restricted ACL, creates hashes, and writes
 `backup-manifest.json` last.
 
-Required artifacts:
+Required V1 artifacts:
 
 - `postgres.dump`: PostgreSQL custom-format logical dump;
 - `document-storage.tar.gz`: `documents`, `document-pages`,
@@ -34,6 +87,9 @@ Required artifacts:
 - `qdrant.snapshot`: official collection snapshot;
 - `n8n-workflows.json` and `n8n-credentials.encrypted.json`;
 - `release-stable.tar.gz` and `configuration.tar.gz`.
+
+V2 additionally requires `runtime-inventory.json` and two separately named
+Qdrant snapshot artifacts bound by `qdrant_collections` in the manifest.
 
 The checkpoint does not copy `.env`. Credential recovery therefore also
 requires the separately protected environment-secret escrow. Never commit or

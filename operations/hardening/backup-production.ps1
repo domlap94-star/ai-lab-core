@@ -4,6 +4,13 @@ param(
     [string]$BackupRoot = "C:\ai-lab-core-backups",
     [string]$Release = "1.0.2+21",
     [string]$QdrantCollection = "ai_lab_document_chunks",
+    [string[]]$QdrantCollections = @(),
+    [ValidateSet("LegacyV1", "RecoveryPointV2")]
+    [string]$ManifestFormat = "LegacyV1",
+    [ValidateSet("LegacyRestoreProof", "CaptureOnly")]
+    [string]$QdrantProofMode = "LegacyRestoreProof",
+    [string]$CheckpointId = "",
+    [string]$RuntimeInventoryPath = "",
     [ValidateSet("full", "database", "documents", "qdrant", "n8n_config")]
     [string]$Scope = "full",
     [Nullable[long]]$RunId = $null,
@@ -42,7 +49,25 @@ function Get-ArtifactRecord {
     }
 }
 
+function Get-BoundedJsonObject {
+    param([string]$Path, [int64]$MaximumBytes = 1048576)
+    $item = Get-Item -LiteralPath $Path
+    if (-not $item.PSIsContainer -and [int64]$item.Length -gt 0 -and [int64]$item.Length -le $MaximumBytes) {
+        return (Get-Content -LiteralPath $item.FullName -Raw | ConvertFrom-Json)
+    }
+    throw "runtime_inventory_invalid"
+}
+
+function Get-SafeQdrantCollectionName {
+    param([string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Name) -or $Name -notmatch '^[A-Za-z0-9_-]{1,128}$') {
+        throw "qdrant_collection_name_invalid"
+    }
+    return $Name
+}
+
 $repo = (Resolve-Path -LiteralPath $RepositoryRoot).Path.TrimEnd('\')
+$toolRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..")).TrimEnd('\')
 $dataRoot = (Resolve-Path -LiteralPath (Join-Path $repo "data")).Path.TrimEnd('\')
 $backupBase = [System.IO.Path]::GetFullPath($BackupRoot).TrimEnd('\')
 if ($backupBase.StartsWith($repo + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -50,6 +75,39 @@ if ($backupBase.StartsWith($repo + '\', [System.StringComparison]::OrdinalIgnore
 }
 if ($backupBase.StartsWith($dataRoot + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "BackupRoot must be outside the active data tree."
+}
+if (-not (Test-Path -LiteralPath $backupBase -PathType Container)) {
+    throw "backup_root_missing"
+}
+
+$selectedCollections = if ($QdrantCollections.Count -gt 0) {
+    @($QdrantCollections | ForEach-Object { Get-SafeQdrantCollectionName ([string]$_) })
+} else {
+    @(Get-SafeQdrantCollectionName $QdrantCollection)
+}
+if (@($selectedCollections | Select-Object -Unique).Count -ne $selectedCollections.Count) {
+    throw "qdrant_collection_duplicate"
+}
+$requiredRecoveryCollections = @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks")
+if ($ManifestFormat -eq "RecoveryPointV2") {
+    if ($Scope -ne "full") { throw "recovery_point_v2_requires_full_scope" }
+    if ($QdrantProofMode -ne "CaptureOnly") { throw "recovery_point_v2_capture_must_not_restore" }
+    if ($selectedCollections.Count -ne $requiredRecoveryCollections.Count -or
+        @($requiredRecoveryCollections | Where-Object { $_ -notin $selectedCollections }).Count -ne 0) {
+        throw "recovery_point_v2_required_collections_missing"
+    }
+    if ([string]::IsNullOrWhiteSpace($RuntimeInventoryPath) -or
+        -not (Test-Path -LiteralPath $RuntimeInventoryPath -PathType Leaf)) {
+        throw "runtime_inventory_required"
+    }
+    $runtimeInventory = Get-BoundedJsonObject $RuntimeInventoryPath
+    if ([string]$runtimeInventory.schema -ne "NEXT_STABIL_RUNTIME_INVENTORY_V1" -or
+        $runtimeInventory.contains_secret_values -ne $false) {
+        throw "runtime_inventory_contract_invalid"
+    }
+} else {
+    if ($selectedCollections.Count -ne 1) { throw "legacy_manifest_requires_one_qdrant_collection" }
+    $runtimeInventory = $null
 }
 
 $documentSources = @("documents", "document-pages", "document-assets", "archive-extracted")
@@ -63,27 +121,39 @@ if ($Scope -eq "full") {
     $estimatedBytes += Get-DirectoryBytes -Path (Join-Path $repo "release-channel\stable")
 }
 $requiredFreeBytes = [int64]([math]::Ceiling($estimatedBytes * 1.35) + 2GB)
+if ($ManifestFormat -eq "RecoveryPointV2") {
+    $requiredFreeBytes = [math]::Max($requiredFreeBytes, [int64]40GB)
+}
 $driveName = [System.IO.Path]::GetPathRoot($backupBase).TrimEnd('\').TrimEnd(':')
 $drive = Get-PSDrive -Name $driveName -PSProvider FileSystem
 if ([int64]$drive.Free -lt $requiredFreeBytes) {
     throw "Insufficient backup space. Required at least $requiredFreeBytes bytes; available $($drive.Free)."
 }
 
-$stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+$stamp = if ([string]::IsNullOrWhiteSpace($CheckpointId)) {
+    (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+} else {
+    if ($CheckpointId -notmatch '^\d{8}T\d{6}Z$') { throw "checkpoint_id_invalid" }
+    $CheckpointId
+}
 $checkpoint = Join-Path $backupBase $stamp
 $artifacts = Join-Path $checkpoint "artifacts"
 $configDir = Join-Path $checkpoint "configuration"
-New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
-New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+if (Test-Path -LiteralPath $checkpoint) { throw "backup_checkpoint_collision" }
+New-Item -ItemType Directory -Path $checkpoint | Out-Null
 
 $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 Invoke-CheckedCommand "icacls.exe" @(
     $checkpoint, "/inheritance:r", "/grant:r", "*$currentSid`:(OI)(CI)F",
-    "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "/T", "/C"
+    "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "/C"
 )
+New-Item -ItemType Directory -Path $artifacts | Out-Null
+New-Item -ItemType Directory -Path $configDir | Out-Null
 
 $head = (& git -C $repo rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw "Unable to read source HEAD." }
+$toolHead = (& git -C $toolRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw "Unable to read tool source HEAD." }
 $dbRevision = (& docker exec postgres psql -U ai_lab -d ai_lab -At -c "SELECT version_num FROM alembic_version;").Trim()
 if ($LASTEXITCODE -ne 0) { throw "Unable to read Alembic revision." }
 
@@ -93,7 +163,10 @@ $qdrantSnapshotStructurallyValid = $null
 $qdrantSnapshotValidationReason = $null
 $qdrantRestoreVerified = $null
 $qdrantRestoreResult = $null
+$qdrantCollectionRecords = @()
+$componentWindows = @()
 if ($Scope -in @("full", "database")) {
+    $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=database"
     $dbDump = Join-Path $artifacts "postgres.dump"
     $containerDump = "/tmp/next-stabil-$stamp.dump"
@@ -107,66 +180,113 @@ if ($Scope -in @("full", "database")) {
     }
     finally { & docker exec postgres rm -f $containerDump 2>$null }
     $artifactRecords += Get-ArtifactRecord $checkpoint $dbDump
+    $componentWindows += [ordered]@{ component = "postgres"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
 
 if ($Scope -in @("full", "documents")) {
+    $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=documents"
     $documentsArchive = Join-Path $artifacts "document-storage.tar.gz"
     Invoke-CheckedCommand "tar.exe" (@("-czf", $documentsArchive, "-C", $dataRoot) + $documentSources)
     Invoke-CheckedCommand "tar.exe" @("-tzf", $documentsArchive)
     $artifactRecords += Get-ArtifactRecord $checkpoint $documentsArchive
+    $componentWindows += [ordered]@{ component = "document_storage"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
 
 if ($Scope -eq "full") {
+    $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=release"
     $releaseArchive = Join-Path $artifacts "release-stable.tar.gz"
     Invoke-CheckedCommand "tar.exe" @("-czf", $releaseArchive, "-C", $repo, "release-channel/stable")
     Invoke-CheckedCommand "tar.exe" @("-tzf", $releaseArchive)
     $artifactRecords += Get-ArtifactRecord $checkpoint $releaseArchive
+    $componentWindows += [ordered]@{ component = "release"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
 
 if ($Scope -in @("full", "qdrant")) {
     Write-Output "BACKUP_STAGE=qdrant"
-    $qdrantResponse = Invoke-RestMethod -Method Post `
-        -Uri "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots" -TimeoutSec 900
-    if ($qdrantResponse.status -ne "ok" -or [string]::IsNullOrWhiteSpace($qdrantResponse.result.name)) {
-        throw "Qdrant did not return a valid snapshot name."
+    $validator = Join-Path $toolRoot "operations\supervisor\qdrant_snapshot_validator.js"
+    if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw "qdrant_validator_missing" }
+    if ($ManifestFormat -eq "RecoveryPointV2") {
+        $qdrantArtifactRoot = Join-Path $artifacts "qdrant"
+        New-Item -ItemType Directory -Path $qdrantArtifactRoot | Out-Null
     }
-    $qdrantSnapshotName = $qdrantResponse.result.name
-    $qdrantSnapshot = Join-Path $artifacts "qdrant.snapshot"
-    Invoke-CheckedCommand "curl.exe" @(
-        "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
-        "--output", $qdrantSnapshot,
-        "http://127.0.0.1:6333/collections/$QdrantCollection/snapshots/$qdrantSnapshotName"
-    )
-    $validator = Join-Path $repo "operations\supervisor\qdrant_snapshot_validator.js"
-    $validationJson = (& node.exe $validator $qdrantSnapshot 2>$null)
-    $validatorExit = $LASTEXITCODE
-    if ([string]::IsNullOrWhiteSpace(($validationJson -join ""))) {
-        throw "qdrant_snapshot_validation_failed"
+    foreach ($collection in $selectedCollections) {
+        $componentStarted = (Get-Date).ToUniversalTime()
+        $collectionInfo = Invoke-RestMethod -Uri "http://127.0.0.1:6333/collections/$collection" -TimeoutSec 30
+        if ($collectionInfo.status -ne "ok" -or $null -eq $collectionInfo.result) { throw "qdrant_collection_unavailable" }
+        $aliasesResponse = Invoke-RestMethod -Uri "http://127.0.0.1:6333/collections/$collection/aliases" -TimeoutSec 30
+        if ($aliasesResponse.status -ne "ok") { throw "qdrant_alias_inventory_failed" }
+        $qdrantResponse = Invoke-RestMethod -Method Post `
+            -Uri "http://127.0.0.1:6333/collections/$collection/snapshots" -TimeoutSec 900
+        if ($qdrantResponse.status -ne "ok" -or [string]::IsNullOrWhiteSpace($qdrantResponse.result.name)) {
+            throw "qdrant_snapshot_create_failed"
+        }
+        $snapshotName = [string]$qdrantResponse.result.name
+        $qdrantSnapshotName = $snapshotName
+        $artifactLeaf = if ($ManifestFormat -eq "RecoveryPointV2") { "$collection.snapshot" } else { "qdrant.snapshot" }
+        $qdrantSnapshot = if ($ManifestFormat -eq "RecoveryPointV2") {
+            Join-Path $qdrantArtifactRoot $artifactLeaf
+        } else { Join-Path $artifacts $artifactLeaf }
+        Invoke-CheckedCommand "curl.exe" @(
+            "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
+            "--output", $qdrantSnapshot,
+            "http://127.0.0.1:6333/collections/$collection/snapshots/$snapshotName"
+        )
+        $validationJson = (& node.exe $validator $qdrantSnapshot 2>$null)
+        $validatorExit = $LASTEXITCODE
+        if ([string]::IsNullOrWhiteSpace(($validationJson -join ""))) { throw "qdrant_snapshot_validation_failed" }
+        $validation = ($validationJson -join "") | ConvertFrom-Json
+        $structurallyValid = $validatorExit -eq 0 -and $validation.valid -eq $true
+        if (-not $structurallyValid) { throw "qdrant_snapshot_invalid" }
+        $artifactRecord = Get-ArtifactRecord $checkpoint $qdrantSnapshot
+        $artifactRecords += $artifactRecord
+        $vectors = $collectionInfo.result.config.params.vectors
+        $qdrantCollectionRecords += [ordered]@{
+            collection = $collection
+            artifact_file = [string]$artifactRecord.file
+            snapshot_name = $snapshotName
+            snapshot_created_at = [string]$qdrantResponse.result.creation_time
+            points_count = [int64]$collectionInfo.result.points_count
+            indexed_vectors_count = [int64]$collectionInfo.result.indexed_vectors_count
+            segments_count = [int]$collectionInfo.result.segments_count
+            vectors = $vectors
+            shard_number = $collectionInfo.result.config.params.shard_number
+            replication_factor = $collectionInfo.result.config.params.replication_factor
+            write_consistency_factor = $collectionInfo.result.config.params.write_consistency_factor
+            on_disk_payload = $collectionInfo.result.config.params.on_disk_payload
+            aliases = @($aliasesResponse.result.aliases | ForEach-Object { [string]$_.alias_name })
+            structurally_valid = $true
+            structural_validation_reason = [string]$validation.reason
+            restore_status = if ($QdrantProofMode -eq "CaptureOnly") { "NOT_RUN_WAITING_APPROVAL" } else { "PENDING_LEGACY_PROOF" }
+            restore_verified = $false
+        }
+        $componentWindows += [ordered]@{ component = "qdrant:$collection"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
     }
-    $validation = ($validationJson -join "") | ConvertFrom-Json
-    $qdrantSnapshotStructurallyValid = $validatorExit -eq 0 -and $validation.valid -eq $true
-    $qdrantSnapshotValidationReason = [string]$validation.reason
-    if ($qdrantSnapshotStructurallyValid) {
+    $qdrantSnapshotStructurallyValid = @($qdrantCollectionRecords | Where-Object { $_.structurally_valid -ne $true }).Count -eq 0
+    $qdrantSnapshotValidationReason = if ($qdrantSnapshotStructurallyValid) { "valid" } else { "qdrant_snapshot_invalid" }
+    if ($QdrantProofMode -eq "LegacyRestoreProof") {
         Write-Output "BACKUP_STAGE=qdrant_restore_drill"
         $qdrantImage = (& docker.exe inspect qdrant --format '{{.Config.Image}}').Trim()
         if ($LASTEXITCODE -ne 0) { throw "qdrant_image_inspection_failed" }
-        $restoreVerifier = Join-Path $repo "operations\hardening\verify-qdrant-snapshot-restore.ps1"
+        $restoreVerifier = Join-Path $toolRoot "operations\hardening\verify-qdrant-snapshot-restore.ps1"
         try {
             $restoreJson = (& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
                 -File $restoreVerifier -SnapshotPath $qdrantSnapshot `
-                -SourceCollection $QdrantCollection -QdrantImage $qdrantImage 2>$null)
+                -SourceCollection $selectedCollections[0] -QdrantImage $qdrantImage 2>$null)
             if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(($restoreJson -join ""))) {
                 $qdrantRestoreResult = ($restoreJson -join "") | ConvertFrom-Json
                 $qdrantRestoreVerified = $qdrantRestoreResult.verified -eq $true
             } else { $qdrantRestoreVerified = $false }
         } catch { $qdrantRestoreVerified = $false }
-    } else { $qdrantRestoreVerified = $false }
-    $artifactRecords += Get-ArtifactRecord $checkpoint $qdrantSnapshot
+    } else {
+        $qdrantRestoreVerified = $false
+        $qdrantRestoreResult = $null
+    }
 }
 
 if ($Scope -in @("full", "n8n_config")) {
+    $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=n8n"
     $n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
     $n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
@@ -181,9 +301,11 @@ if ($Scope -in @("full", "n8n_config")) {
     finally { & docker exec n8n rm -f $n8nWorkflowTemp $n8nCredentialsTemp 2>$null }
     $artifactRecords += Get-ArtifactRecord $checkpoint $n8nWorkflows
     $artifactRecords += Get-ArtifactRecord $checkpoint $n8nCredentials
+    $componentWindows += [ordered]@{ component = "n8n_exports"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
 
 if ($Scope -in @("full", "n8n_config")) {
+    $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=configuration"
     $configFiles = @(
         "compose.yaml", "compose/backend/docker-compose.yml", "compose/postgres/docker-compose.yml",
@@ -224,18 +346,28 @@ if ($Scope -in @("full", "n8n_config")) {
     Invoke-CheckedCommand "tar.exe" @("-czf", $configArchive, "-C", $checkpoint, "configuration")
     Invoke-CheckedCommand "tar.exe" @("-tzf", $configArchive)
     $artifactRecords += Get-ArtifactRecord $checkpoint $configArchive
+    $componentWindows += [ordered]@{ component = "configuration"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
+}
+
+if ($ManifestFormat -eq "RecoveryPointV2") {
+    $runtimeArtifact = Join-Path $artifacts "runtime-inventory.json"
+    Copy-Item -LiteralPath (Resolve-Path -LiteralPath $RuntimeInventoryPath).Path -Destination $runtimeArtifact
+    [void](Get-BoundedJsonObject $runtimeArtifact)
+    $artifactRecords += Get-ArtifactRecord $checkpoint $runtimeArtifact
 }
 
 $manifest = [ordered]@{
-    schema_version = "NEXT_STABIL_BACKUP_V1"
+    schema_version = if ($ManifestFormat -eq "RecoveryPointV2") { "NEXT_STABIL_BACKUP_V2" } else { "NEXT_STABIL_BACKUP_V1" }
     scope = $Scope
     run_id = $RunId
     schedule_id = $ScheduleId
     trigger = $Trigger
     app_version = $Release
     created_at = (Get-Date).ToUniversalTime().ToString("o")
-    source_head = $head; release = $Release; db_revision = $dbRevision
+    source_head = $head; tool_source_head = $toolHead; release = $Release; db_revision = $dbRevision
     qdrant_collection = $QdrantCollection; qdrant_snapshot_name = $qdrantSnapshotName
+    qdrant_collections = if ($ManifestFormat -eq "RecoveryPointV2") { $qdrantCollectionRecords } else { @() }
+    required_qdrant_collections = if ($ManifestFormat -eq "RecoveryPointV2") { $requiredRecoveryCollections } else { @() }
     artifact_hash_verified = $true
     qdrant_snapshot_structurally_valid = $qdrantSnapshotStructurallyValid
     qdrant_snapshot_validation_reason = $qdrantSnapshotValidationReason
@@ -246,10 +378,19 @@ $manifest = [ordered]@{
     qdrant_restore_error_code = if ($Scope -in @("full", "qdrant")) {
         if ($qdrantSnapshotStructurallyValid -eq $false) { "qdrant_snapshot_invalid" }
         elseif ($qdrantRestoreVerified -eq $true) { $null }
+        elseif ($QdrantProofMode -eq "CaptureOnly") { "qdrant_restore_not_run_waiting_approval" }
         else { "qdrant_restore_drill_failed" }
     } else { $null }
     document_directories = if ($Scope -in @("full", "documents")) { $documentSources } else { @() }
     estimated_source_bytes = $estimatedBytes
+    capture_status = if ($ManifestFormat -eq "RecoveryPointV2") { "COMPLETE" } else { $null }
+    scope_status = if ($ManifestFormat -eq "RecoveryPointV2") { "COMPLETE" } else { $null }
+    provenance_status = if ($ManifestFormat -eq "RecoveryPointV2") { "RECORDED" } else { $null }
+    consistency_status = if ($ManifestFormat -eq "RecoveryPointV2") { "COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL" } else { $null }
+    component_windows = $componentWindows
+    restore_status = if ($ManifestFormat -eq "RecoveryPointV2") { "NOT_RUN_WAITING_APPROVAL" } else { $null }
+    escrow_status = if ($ManifestFormat -eq "RecoveryPointV2") { "NOT_RUN_WAITING_OWNER_DECISION" } else { $null }
+    rto_status = if ($ManifestFormat -eq "RecoveryPointV2") { "NOT_MEASURED" } else { $null }
     secrets_in_protected_backup = $false
     secrets_note = "Encrypted n8n credential export is included; the separately protected environment secret escrow is required for credential recovery."
     artifacts = $artifactRecords
@@ -257,6 +398,23 @@ $manifest = [ordered]@{
 $manifestPartial = Join-Path $checkpoint "backup-manifest.json.partial"
 $manifestPath = Join-Path $checkpoint "backup-manifest.json"
 Write-Output "BACKUP_STAGE=verifying"
+$requiredArtifacts = if ($ManifestFormat -eq "RecoveryPointV2") {
+    @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz", "runtime-inventory.json") +
+        @($requiredRecoveryCollections | ForEach-Object { "$_.snapshot" })
+} else { @() }
+if ($ManifestFormat -eq "RecoveryPointV2") {
+    $artifactNames = @($artifactRecords | ForEach-Object { Split-Path -Leaf ([string]$_.file) })
+    foreach ($requiredArtifact in $requiredArtifacts) {
+        if ($requiredArtifact -notin $artifactNames) { throw "recovery_point_v2_artifact_missing" }
+    }
+    foreach ($record in $artifactRecords) {
+        $absolute = [IO.Path]::GetFullPath((Join-Path $checkpoint ([string]$record.file).Replace('/', '\')))
+        if (-not $absolute.StartsWith($checkpoint + '\', [StringComparison]::OrdinalIgnoreCase) -or
+            (Get-FileHash -LiteralPath $absolute -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$record.sha256) {
+            throw "backup_final_hash_verification_failed"
+        }
+    }
+}
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPartial -Encoding UTF8
 Move-Item -LiteralPath $manifestPartial -Destination $manifestPath
 

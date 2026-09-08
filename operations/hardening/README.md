@@ -8,7 +8,10 @@ credentials or change the release minimum version.
 
 - `backup-production.ps1`: creates a protected, versioned checkpoint outside
   the repository. It never overwrites an older checkpoint and writes the
-  manifest only after every artifact and SHA-256 succeeds.
+  manifest only after every artifact and SHA-256 succeeds. Its explicit
+  `RecoveryPointV2` / `CaptureOnly` mode binds both document and knowledge-base
+  Qdrant collections plus a bounded, non-secret runtime inventory without
+  starting a restore proof. The default scheduled `LegacyV1` mode is unchanged.
 - `check-production-health.ps1`: aggregates local/private service health,
   migration revision, DB locks, stale Agent/Vision state, disk capacity and
   backup freshness without exposing secrets or internal content.
@@ -23,8 +26,13 @@ credentials or change the release minimum version.
   Production cutover is physically fail-closed pending the permanent
   `FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED` operational gate.
 - `verify-qdrant-snapshot-offline.ps1`: restores a manifest-verified snapshot
-  only into a temporary same-version container and named volume, validates
-  point count/configuration, then removes the temporary assets.
+  only into explicitly named, owned temporary resources on an internal Docker
+  network with no host ports, bind mounts, Docker socket or production network.
+  It validates point count/configuration, then removes only those exact assets.
+- `operations/recovery/test-r03-a1-recovery-tools.ps1`: synthetic contract and
+  writer/reader tests. With `-RunDockerProof` it uses separate pinned PostgreSQL
+  source/target containers and isolated Qdrant resources; it never accepts a
+  production container as a proof target.
 - `VISION_WORKER_RUNBOOK.md` and `AGENT_OPERATOR_RUNBOOK.md`: bounded operator
   response procedures.
 

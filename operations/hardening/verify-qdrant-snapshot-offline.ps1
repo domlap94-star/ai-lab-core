@@ -3,11 +3,16 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SnapshotPath,
     [string]$QdrantImage = "qdrant/qdrant@sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286",
-    [string]$TargetCollection = "ai_lab_document_chunks",
+    [Parameter(Mandatory = $true)]
+    [string]$TargetCollection,
     [Nullable[long]]$ExpectedPoints = $null,
     [Nullable[int]]$ExpectedDimensions = $null,
     [string]$ExpectedDistance = "",
-    [switch]$KeepVolume
+    [Parameter(Mandatory = $true)]
+    [string]$OperationId,
+    [Parameter(Mandatory = $true)]
+    [string]$ClientImage,
+    [switch]$KeepResources
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,8 +20,47 @@ Set-StrictMode -Version 2.0
 
 function Invoke-Docker {
     param([string[]]$Arguments)
-    & docker.exe @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "docker_command_failed:$($Arguments[0])" }
+    $prior = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $lines = @(& docker.exe @Arguments 2>&1)
+        $code = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $prior }
+    if ($code -ne 0) { throw "docker_command_failed:$($Arguments[0])" }
+    $lines | Write-Output
+}
+
+function Invoke-DockerCapture {
+    param([string[]]$Arguments)
+    $prior = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $lines = @(& docker.exe @Arguments 2>&1)
+        $code = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $prior }
+    if ($code -ne 0) {
+        $safe = (([string]($lines | Select-Object -Last 1)) -replace '[^A-Za-z0-9_.: -]', '_')
+        if ($safe.Length -gt 160) { $safe = $safe.Substring(0, 160) }
+        throw "docker_command_failed:$($Arguments[0]):$safe"
+    }
+    return ($lines -join "")
+}
+
+function Test-DockerObjectExists {
+    param([string[]]$Arguments)
+    $prior = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & docker.exe @Arguments 1>$null 2>$null
+        $code = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $prior }
+    return $code -eq 0
+}
+
+function Convert-ToPythonCommand {
+    param([string]$Code)
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Code))
+    return "import base64;exec(base64.b64decode('$encoded'))"
 }
 
 function Assert-SnapshotStructure {
@@ -33,15 +77,35 @@ function Assert-SnapshotStructure {
         -not ($normalized | Where-Object { $_ -match '^[0-9]+/shard_config[.]json$' } | Select-Object -First 1)) {
         throw "qdrant_snapshot_metadata_missing"
     }
-    foreach ($entry in @($normalized | Where-Object { $_ -match '^[0-9]+/wal/first-index$' })) {
-        $text = ((& tar.exe -xOf $Path $entry 2>$null) -join "`n")
-        if ($LASTEXITCODE -ne 0) { throw "qdrant_snapshot_first_index_read_failed" }
-        if ([string]::IsNullOrEmpty($text) -or $text.Trim([char]0, [char]9, [char]10, [char]13, [char]32).Length -eq 0) {
-            throw "qdrant_snapshot_first_index_empty_or_nul"
-        }
-        $metadata = $text | ConvertFrom-Json
-        if ($null -eq $metadata.ack_index -or [int64]$metadata.ack_index -lt 0) {
-            throw "qdrant_snapshot_first_index_invalid"
+}
+
+function Assert-IsolatedContainer {
+    param([string]$Container, [string]$ExpectedNetwork, [string]$ExpectedOwner, [string]$ExpectedVolume = "")
+    $privileged = (& docker.exe inspect $Container --format '{{.HostConfig.Privileged}}').Trim()
+    $ports = ((& docker.exe inspect $Container --format '{{json .HostConfig.PortBindings}}') -join "").Trim()
+    $networkMode = (& docker.exe inspect $Container --format '{{.HostConfig.NetworkMode}}').Trim()
+    $labels = ((& docker.exe inspect $Container --format '{{json .Config.Labels}}') -join "") | ConvertFrom-Json
+    $mountJson = ((& docker.exe inspect $Container --format '{{json .Mounts}}') -join "")
+    $mountValue = $mountJson | ConvertFrom-Json
+    $mounts = @()
+    if ($null -ne $mountValue) { $mounts = @($mountValue) }
+    if ($LASTEXITCODE -ne 0 -or $privileged -ne "false" -or $ports -notin @("null", "{}") -or
+        $networkMode -ne $ExpectedNetwork -or [string]$labels.'next.stabil.owner' -ne $ExpectedOwner -or
+        [string]$labels.'next.stabil.purpose' -ne "r03-isolated-proof") {
+        throw "qdrant_restore_isolation_failed"
+    }
+    if ([string]::IsNullOrWhiteSpace($ExpectedVolume)) {
+        $unsafeClientMounts = @($mounts | Where-Object {
+            $_.PSObject.Properties.Name -notcontains "Type" -or
+            $_.PSObject.Properties.Name -notcontains "Destination" -or
+            [string]$_.Type -ne "tmpfs" -or [string]$_.Destination -ne "/tmp"
+        })
+        if ($unsafeClientMounts.Count -ne 0) { throw "qdrant_restore_client_mount_rejected" }
+    } else {
+        if ($mounts.Count -ne 1 -or [string]$mounts[0].Type -ne "volume" -or
+            [string]$mounts[0].Name -ne $ExpectedVolume -or
+            [string]$mounts[0].Destination -ne "/qdrant/storage") {
+            throw "qdrant_restore_volume_mount_invalid"
         }
     }
 }
@@ -49,34 +113,119 @@ function Assert-SnapshotStructure {
 $snapshot = (Resolve-Path -LiteralPath $SnapshotPath).Path
 if ((Get-Item -LiteralPath $snapshot).Length -le 0) { throw "qdrant_snapshot_empty" }
 if ($QdrantImage -notmatch '@sha256:[a-f0-9]{64}$') { throw "qdrant_restore_image_not_pinned" }
-if ($TargetCollection -ne "ai_lab_document_chunks") { throw "qdrant_restore_collection_rejected" }
+if ($ClientImage -notmatch '^sha256:[a-f0-9]{64}$') { throw "qdrant_restore_client_image_not_pinned" }
+if ($TargetCollection -notin @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks")) {
+    throw "qdrant_restore_collection_rejected"
+}
+if ($OperationId -notmatch '^next-stabil-r03-a1-(test|drill)-[a-z0-9-]{8,80}-qdrant-[1-9][0-9]*$') {
+    throw "qdrant_restore_operation_id_invalid"
+}
 Assert-SnapshotStructure $snapshot
 
-$token = [Guid]::NewGuid().ToString("N").Substring(0, 10)
-$container = "next-recovery-qdrant-$token"
-$volume = "next_recovery_qdrant_$token"
-$listener = New-Object Net.Sockets.TcpListener([Net.IPAddress]::Loopback, 0)
-$listener.Start(); $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port; $listener.Stop()
-if ($port -eq 6333) { throw "qdrant_restore_production_port_refused" }
-$containerCreated = $false; $volumeCreated = $false; $success = $false
-try {
-    Invoke-Docker @("volume", "create", $volume) | Out-Null; $volumeCreated = $true
-    Invoke-Docker @("run", "-d", "--name", $container, "-p", "127.0.0.1:${port}:6333", "-v", "${volume}:/qdrant/storage", $QdrantImage) | Out-Null
-    $containerCreated = $true
-    $health = $null
-    for ($attempt = 0; $attempt -lt 90; $attempt++) {
-        try { $health = Invoke-RestMethod -Uri "http://127.0.0.1:$port/" -TimeoutSec 2; if ($health.version) { break } } catch { Start-Sleep -Milliseconds 500 }
-    }
-    if (-not $health) { throw "qdrant_restore_container_health_timeout" }
-    $mount = (& docker.exe inspect $container --format '{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Destination}}{{end}}').Trim()
-    if ($LASTEXITCODE -ne 0 -or $mount -ne "volume|$volume|/qdrant/storage") { throw "qdrant_restore_isolation_failed" }
+$network = "$OperationId-network"
+$container = "$OperationId-server"
+$client = "$OperationId-client"
+$volume = "$OperationId-data"
+foreach ($check in @(
+    @("network", "inspect", $network),
+    @("container", "inspect", $container),
+    @("container", "inspect", $client),
+    @("volume", "inspect", $volume)
+)) {
+    if (Test-DockerObjectExists $check) { throw "qdrant_restore_target_collision" }
+}
 
-    $upload = & curl.exe --silent --show-error --write-out "`nHTTP_STATUS=%{http_code}" -X POST -F "snapshot=@$snapshot" `
-        "http://127.0.0.1:$port/collections/$TargetCollection/snapshots/upload?priority=snapshot"
-    if ($LASTEXITCODE -ne 0) { throw "qdrant_restore_upload_failed" }
-    $statusLine = $upload | Where-Object { $_ -like "HTTP_STATUS=*" } | Select-Object -Last 1
-    if (-not $statusLine -or [int](($statusLine -split '=', 2)[1]) -ne 200) { throw "qdrant_restore_http_failure" }
-    $info = Invoke-RestMethod -Uri "http://127.0.0.1:$port/collections/$TargetCollection" -TimeoutSec 20
+$networkCreated = $false
+$volumeCreated = $false
+$containerCreated = $false
+$clientCreated = $false
+$success = $false
+try {
+    Invoke-Docker @("network", "create", "--internal", "--label", "next.stabil.owner=$OperationId", "--label", "next.stabil.purpose=r03-isolated-proof", $network) | Out-Null
+    $networkCreated = $true
+    Invoke-Docker @("volume", "create", "--label", "next.stabil.owner=$OperationId", "--label", "next.stabil.purpose=r03-isolated-proof", $volume) | Out-Null
+    $volumeCreated = $true
+    Invoke-Docker @("run", "-d", "--name", $container, "--network", $network,
+        "--label", "next.stabil.owner=$OperationId", "--label", "next.stabil.purpose=r03-isolated-proof",
+        "--mount", "type=volume,src=$volume,dst=/qdrant/storage", $QdrantImage) | Out-Null
+    $containerCreated = $true
+    Invoke-Docker @("run", "-d", "--name", $client, "--network", $network,
+        "--label", "next.stabil.owner=$OperationId", "--label", "next.stabil.purpose=r03-isolated-proof",
+        "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m", "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges", "--entrypoint", "sleep", $ClientImage, "1800") | Out-Null
+    $clientCreated = $true
+
+    $networkInternal = (& docker.exe network inspect $network --format '{{.Internal}}').Trim()
+    $networkLabels = ((& docker.exe network inspect $network --format '{{json .Labels}}') -join "") | ConvertFrom-Json
+    $volumeLabels = ((& docker.exe volume inspect $volume --format '{{json .Labels}}') -join "") | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $networkInternal -ne "true" -or
+        [string]$networkLabels.'next.stabil.owner' -ne $OperationId -or
+        [string]$volumeLabels.'next.stabil.owner' -ne $OperationId) {
+        throw "qdrant_restore_resource_ownership_invalid"
+    }
+    Assert-IsolatedContainer $container $network $OperationId $volume
+    Assert-IsolatedContainer $client $network $OperationId
+
+    $healthCode = @'
+import json, time, urllib.request
+url = "http://REPLACE_CONTAINER:6333/"
+last = None
+for _ in range(90):
+    try:
+        with urllib.request.urlopen(url, timeout=2) as response:
+            last = json.loads(response.read().decode("utf-8"))
+        if last.get("version"):
+            print(json.dumps(last, separators=(",", ":")))
+            break
+    except Exception:
+        time.sleep(0.5)
+else:
+    raise SystemExit("qdrant_restore_container_health_timeout")
+'@.Replace('REPLACE_CONTAINER', $container)
+    $healthJson = Invoke-DockerCapture @("exec", $client, "python", "-c", (Convert-ToPythonCommand $healthCode))
+    $health = $healthJson | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace([string]$health.version)) { throw "qdrant_restore_container_health_timeout" }
+
+    Invoke-Docker @("cp", $snapshot, "${client}:/qdrant.snapshot") | Out-Null
+    $uploadCode = @'
+import http.client, json, os
+host = "REPLACE_CONTAINER"
+path = "/collections/REPLACE_COLLECTION/snapshots/upload?priority=snapshot"
+snapshot = "/qdrant.snapshot"
+boundary = "next-stabil-r03-a1-boundary"
+prefix = ("--" + boundary + "\r\nContent-Disposition: form-data; name=\"snapshot\"; filename=\"qdrant.snapshot\"\r\nContent-Type: application/octet-stream\r\n\r\n").encode("ascii")
+suffix = ("\r\n--" + boundary + "--\r\n").encode("ascii")
+connection = http.client.HTTPConnection(host, 6333, timeout=900)
+connection.putrequest("POST", path)
+connection.putheader("Content-Type", "multipart/form-data; boundary=" + boundary)
+connection.putheader("Content-Length", str(len(prefix) + os.path.getsize(snapshot) + len(suffix)))
+connection.endheaders()
+connection.send(prefix)
+with open(snapshot, "rb") as stream:
+    while True:
+        chunk = stream.read(1024 * 1024)
+        if not chunk:
+            break
+        connection.send(chunk)
+connection.send(suffix)
+response = connection.getresponse()
+payload = response.read()
+if response.status < 200 or response.status >= 300:
+    raise SystemExit("qdrant_restore_http_" + str(response.status))
+print(json.dumps(json.loads(payload.decode("utf-8")), separators=(",", ":")))
+'@.Replace('REPLACE_CONTAINER', $container).Replace('REPLACE_COLLECTION', $TargetCollection)
+    $uploadJson = Invoke-DockerCapture @("exec", $client, "python", "-c", (Convert-ToPythonCommand $uploadCode))
+    $upload = $uploadJson | ConvertFrom-Json
+    if ($upload.status -ne "ok") { throw "qdrant_restore_upload_failed" }
+
+    $infoCode = @'
+import json, urllib.request
+with urllib.request.urlopen("http://REPLACE_CONTAINER:6333/collections/REPLACE_COLLECTION", timeout=30) as response:
+    print(json.dumps(json.loads(response.read().decode("utf-8")), separators=(",", ":")))
+'@.Replace('REPLACE_CONTAINER', $container).Replace('REPLACE_COLLECTION', $TargetCollection)
+    $infoJson = Invoke-DockerCapture @("exec", $client, "python", "-c", (Convert-ToPythonCommand $infoCode))
+    $info = $infoJson | ConvertFrom-Json
+    if ($info.status -ne "ok") { throw "qdrant_restore_collection_info_failed" }
     $points = [int64]$info.result.points_count
     $dimensions = [int]$info.result.config.params.vectors.size
     $distance = [string]$info.result.config.params.vectors.distance
@@ -85,16 +234,24 @@ try {
     if ($ExpectedDistance -and $distance -ne $ExpectedDistance) { throw "qdrant_restore_distance_mismatch" }
     $success = $true
     [ordered]@{
-        verified = $true; qdrant_version = [string]$health.version; points = $points
-        dimensions = $dimensions; distance = $distance; production_volume_mounted = $false
-        temporary_volume = if ($KeepVolume) { $volume } else { $null }
-        temporary_container = if ($KeepVolume) { $container } else { $null }
-        port = if ($KeepVolume) { $port } else { $null }
+        verified = $true
+        collection = $TargetCollection
+        qdrant_version = [string]$health.version
+        points = $points
+        dimensions = $dimensions
+        distance = $distance
+        production_volume_mounted = $false
+        host_ports = 0
+        internal_network = $true
+        owner = $OperationId
+        retained_resources = if ($KeepResources) { @($network, $volume, $container, $client) } else { @() }
     } | ConvertTo-Json -Compress
 }
 finally {
-    if (-not ($KeepVolume -and $success)) {
-        if ($containerCreated -and $container -like "next-recovery-qdrant-*") { & docker.exe rm -f $container 2>$null | Out-Null }
-        if ($volumeCreated -and $volume -like "next_recovery_qdrant_*") { & docker.exe volume rm $volume 2>$null | Out-Null }
+    if (-not ($KeepResources -and $success)) {
+        if ($clientCreated -and $client -eq "$OperationId-client") { & docker.exe rm -f $client 2>$null | Out-Null }
+        if ($containerCreated -and $container -eq "$OperationId-server") { & docker.exe rm -f $container 2>$null | Out-Null }
+        if ($volumeCreated -and $volume -eq "$OperationId-data") { & docker.exe volume rm $volume 2>$null | Out-Null }
+        if ($networkCreated -and $network -eq "$OperationId-network") { & docker.exe network rm $network 2>$null | Out-Null }
     }
 }

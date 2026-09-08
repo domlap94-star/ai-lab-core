@@ -7,6 +7,11 @@ param(
     [string]$Mode,
     [string]$DeploymentRoot = "C:\ai-lab-core",
     [string]$OperationId = ([Guid]::NewGuid().ToString("N")),
+    [string]$ProofPostgresContainer = "",
+    [string]$ProofPostgresUser = "postgres",
+    [string]$ProofTargetOwner = "",
+    [string]$ProofQdrantClientImage = "",
+    [string]$ProofStateRoot = "",
     [switch]$ValidateOnly,
     [switch]$ProofOnly,
     [switch]$ContinueWithoutSafetyBackup,
@@ -16,11 +21,21 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
 
-$schema = "NEXT_STABIL_BACKUP_V1"
+$legacySchema = "NEXT_STABIL_BACKUP_V1"
+$recoveryPointSchema = "NEXT_STABIL_BACKUP_V2"
 $productionApproval = "FOLLOWUP_PRODUCTION_RESTORE_APPROVAL_REQUIRED"
-$fullRequired = @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "qdrant.snapshot", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz")
+$legacyFullRequired = @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "qdrant.snapshot", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz")
+$v2BaseRequired = @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz", "runtime-inventory.json")
+$v2RequiredCollections = @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks")
 $qdrantImage = "qdrant/qdrant@sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286"
-$stateRoot = Join-Path $env:ProgramData "NEXT Stabil Recovery"
+$stateRoot = if ($ProofOnly) {
+    if ([string]::IsNullOrWhiteSpace($ProofStateRoot)) { throw "proof_state_root_required" }
+    $candidate = [IO.Path]::GetFullPath($ProofStateRoot).TrimEnd('\')
+    if ((Split-Path -Leaf $candidate) -notmatch '^next-stabil-r03-a1-(test|drill)-[a-z0-9-]{8,96}-state$') {
+        throw "proof_state_root_rejected"
+    }
+    $candidate
+} else { Join-Path $env:ProgramData "NEXT Stabil Recovery" }
 $statePath = Join-Path $stateRoot "recovery-state.json"
 $reportPath = Join-Path $stateRoot ("NEXT-STABIL-RECOVERY-{0}.json" -f $OperationId)
 $stageRoot = Join-Path $stateRoot ("staging-{0}" -f $OperationId)
@@ -146,36 +161,114 @@ function Test-DeploymentRoot {
     return $root
 }
 
+function Assert-IsolatedPostgresTarget {
+    param([string]$Container, [string]$Owner)
+    if ([string]::IsNullOrWhiteSpace($Container) -or [string]::IsNullOrWhiteSpace($Owner)) {
+        throw "proof_target_required"
+    }
+    if ($Container -in @("postgres", "ai-lab-backend", "qdrant", "n8n") -or
+        $Container -notmatch '^next-stabil-r03-a1-(test|drill)-[a-z0-9-]{8,80}-postgres$') {
+        throw "proof_target_name_rejected"
+    }
+    if ($Owner -notmatch '^next-stabil-r03-a1-(test|drill)-[a-z0-9-]{8,80}$') {
+        throw "proof_target_owner_invalid"
+    }
+    $name = (& docker.exe inspect $Container --format '{{.Name}}').Trim().TrimStart('/')
+    if ($LASTEXITCODE -ne 0 -or $name -ne $Container) { throw "proof_postgres_target_missing" }
+    $labels = ((& docker.exe inspect $Container --format '{{json .Config.Labels}}') -join "") | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or [string]$labels.'next.stabil.owner' -ne $Owner -or
+        [string]$labels.'next.stabil.purpose' -ne "r03-isolated-proof") {
+        throw "proof_target_ownership_invalid"
+    }
+    $privileged = (& docker.exe inspect $Container --format '{{.HostConfig.Privileged}}').Trim()
+    if ($LASTEXITCODE -ne 0 -or $privileged -ne "false") { throw "proof_target_privileged_rejected" }
+    $portsText = ((& docker.exe inspect $Container --format '{{json .HostConfig.PortBindings}}') -join "").Trim()
+    if ($LASTEXITCODE -ne 0 -or $portsText -notin @("null", "{}")) { throw "proof_target_host_ports_rejected" }
+    $networkMode = (& docker.exe inspect $Container --format '{{.HostConfig.NetworkMode}}').Trim()
+    if ($LASTEXITCODE -ne 0 -or $networkMode -in @("", "default", "bridge", "host", "none") -or
+        $networkMode -notmatch '^next-stabil-r03-a1-(test|drill)-[a-z0-9-]{8,80}-network$') {
+        throw "proof_target_network_rejected"
+    }
+    $networkInternal = (& docker.exe network inspect $networkMode --format '{{.Internal}}').Trim()
+    $networkLabels = ((& docker.exe network inspect $networkMode --format '{{json .Labels}}') -join "") | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or $networkInternal -ne "true" -or
+        [string]$networkLabels.'next.stabil.owner' -ne $Owner) {
+        throw "proof_target_network_not_isolated"
+    }
+    $networks = ((& docker.exe inspect $Container --format '{{json .NetworkSettings.Networks}}') -join "") | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or @($networks.PSObject.Properties).Count -ne 1 -or
+        @($networks.PSObject.Properties)[0].Name -ne $networkMode) {
+        throw "proof_target_network_membership_invalid"
+    }
+    $mountJson = ((& docker.exe inspect $Container --format '{{json .Mounts}}') -join "")
+    $mountValue = $mountJson | ConvertFrom-Json
+    $mounts = @()
+    if ($null -ne $mountValue) { $mounts = @($mountValue) }
+    if ($LASTEXITCODE -ne 0 -or $mounts.Count -ne 1) { throw "proof_target_mount_invalid" }
+    $mount = $mounts[0]
+    if ([string]$mount.Type -ne "volume" -or [string]$mount.Destination -ne "/var/lib/postgresql/data" -or
+        [string]$mount.Name -notmatch '^next-stabil-r03-a1-(test|drill)-[a-z0-9-]{8,80}-postgres-data$') {
+        throw "proof_target_mount_invalid"
+    }
+    $volumeLabels = ((& docker.exe volume inspect ([string]$mount.Name) --format '{{json .Labels}}') -join "") | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or [string]$volumeLabels.'next.stabil.owner' -ne $Owner) {
+        throw "proof_target_volume_ownership_invalid"
+    }
+}
+
+function Get-V2QdrantRecords {
+    param([object]$Manifest, [hashtable]$Artifacts)
+    $records = @($Manifest.qdrant_collections)
+    if ($records.Count -ne $v2RequiredCollections.Count) { throw "backup_qdrant_collection_coverage_invalid" }
+    $names = @($records | ForEach-Object { [string]$_.collection })
+    if (@($names | Select-Object -Unique).Count -ne $names.Count -or
+        @($v2RequiredCollections | Where-Object { $_ -notin $names }).Count -ne 0) {
+        throw "backup_qdrant_collection_coverage_invalid"
+    }
+    foreach ($record in $records) {
+        $file = [string]$record.artifact_file
+        Assert-SafeRelative $file
+        $leaf = Split-Path -Leaf $file
+        if ([string]::IsNullOrWhiteSpace($leaf) -or -not $Artifacts.ContainsKey($leaf)) {
+            throw "backup_qdrant_artifact_binding_invalid"
+        }
+        $expectedRelative = [IO.Path]::GetFullPath((Join-Path $script:checkpoint $file))
+        if ($Artifacts[$leaf] -ne $expectedRelative) { throw "backup_qdrant_artifact_binding_invalid" }
+        if ($record.structurally_valid -ne $true) { throw "backup_qdrant_structure_status_invalid" }
+    }
+    return $records
+}
+
 function Restore-DatabaseToTemporary {
-    param([string]$Dump, [object]$Manifest)
+    param([string]$Dump, [object]$Manifest, [string]$Container, [string]$DatabaseUser)
     $token = [Guid]::NewGuid().ToString("N").Substring(0, 12)
     $name = "ai_lab_restore_test_$token"; $containerDump = "/tmp/$name.dump"; $created = $false
     try {
-        Invoke-Checked "docker.exe" @("cp", $Dump, "postgres`:$containerDump") | Out-Null
-        Invoke-Checked "docker.exe" @("exec", "postgres", "createdb", "-U", "ai_lab", $name) | Out-Null; $created = $true
-        Invoke-Checked "docker.exe" @("exec", "postgres", "pg_restore", "-U", "ai_lab", "-d", $name, "--no-owner", "--exit-on-error", $containerDump) | Out-Null
-        $actual = (& docker.exe exec postgres psql -U ai_lab -d $name -At -c "SELECT current_database();").Trim()
+        Invoke-Checked "docker.exe" @("cp", $Dump, "${Container}:$containerDump") | Out-Null
+        Invoke-Checked "docker.exe" @("exec", $Container, "createdb", "-U", $DatabaseUser, $name) | Out-Null; $created = $true
+        Invoke-Checked "docker.exe" @("exec", $Container, "pg_restore", "-U", $DatabaseUser, "-d", $name, "--no-owner", "--exit-on-error", $containerDump) | Out-Null
+        $actual = (& docker.exe exec $Container psql -U $DatabaseUser -d $name -At -c "SELECT current_database();").Trim()
         if ($LASTEXITCODE -ne 0 -or $actual -ne $name -or $actual -eq "ai_lab") { throw "restore_database_guard_failed" }
-        $revision = (& docker.exe exec postgres psql -U ai_lab -d $name -At -c "SELECT version_num FROM alembic_version;").Trim()
+        $revision = (& docker.exe exec $Container psql -U $DatabaseUser -d $name -At -c "SELECT version_num FROM alembic_version;").Trim()
         if ($LASTEXITCODE -ne 0 -or $revision -ne [string]$Manifest.db_revision) { throw "restore_database_revision_mismatch" }
         foreach ($table in @("clients", "users", "documents", "work_items", "projects", "change_history_events")) {
-            Invoke-Checked "docker.exe" @("exec", "postgres", "psql", "-U", "ai_lab", "-d", $name, "-v", "ON_ERROR_STOP=1", "-At", "-c", "SELECT count(*) FROM $table;") | Out-Null
+            Invoke-Checked "docker.exe" @("exec", $Container, "psql", "-U", $DatabaseUser, "-d", $name, "-v", "ON_ERROR_STOP=1", "-At", "-c", "SELECT count(*) FROM $table;") | Out-Null
         }
-        $invalid = (& docker.exe exec postgres psql -U ai_lab -d $name -At -c "SELECT count(*) FROM pg_constraint WHERE contype='f' AND NOT convalidated;").Trim()
+        $invalid = (& docker.exe exec $Container psql -U $DatabaseUser -d $name -At -c "SELECT count(*) FROM pg_constraint WHERE contype='f' AND NOT convalidated;").Trim()
         if ($LASTEXITCODE -ne 0 -or $invalid -ne "0") { throw "restore_database_fk_validation_failed" }
         return [ordered]@{ name = $name; revision = $revision; container_dump = $containerDump }
     } catch {
-        if ($created) { & docker.exe exec postgres dropdb -U ai_lab --if-exists $name 2>$null | Out-Null }
-        & docker.exe exec postgres rm -f $containerDump 2>$null | Out-Null
+        if ($created) { & docker.exe exec $Container dropdb -U $DatabaseUser --if-exists $name 2>$null | Out-Null }
+        & docker.exe exec $Container rm -f $containerDump 2>$null | Out-Null
         throw
     }
 }
 
 function Remove-TemporaryDatabase {
-    param([object]$Proof)
+    param([object]$Proof, [string]$Container, [string]$DatabaseUser)
     if ($null -ne $Proof -and [string]$Proof.name -like "ai_lab_restore_test_*") {
-        & docker.exe exec postgres dropdb -U ai_lab --if-exists ([string]$Proof.name) 2>$null | Out-Null
-        & docker.exe exec postgres rm -f ([string]$Proof.container_dump) 2>$null | Out-Null
+        & docker.exe exec $Container dropdb -U $DatabaseUser --if-exists ([string]$Proof.name) 2>$null | Out-Null
+        & docker.exe exec $Container rm -f ([string]$Proof.container_dump) 2>$null | Out-Null
     }
 }
 
@@ -192,13 +285,30 @@ function Stage-Full {
     }
     [void](Get-Content -LiteralPath $Artifacts["n8n-workflows.json"] -Raw | ConvertFrom-Json)
     [void](Get-Content -LiteralPath $Artifacts["n8n-credentials.encrypted.json"] -Raw | ConvertFrom-Json)
-    $expected = $Manifest.qdrant_restore_result
     $qdrantVerifier = Join-Path $PSScriptRoot "verify-qdrant-snapshot-offline.ps1"
-    $qdrantJson = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $qdrantVerifier `
-        -SnapshotPath $Artifacts["qdrant.snapshot"] -QdrantImage $qdrantImage `
-        -ExpectedPoints ([int64]$expected.points) -ExpectedDimensions ([int]$expected.dimensions) -ExpectedDistance ([string]$expected.distance)
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($qdrantJson -join ""))) { throw "qdrant_offline_restore_failed" }
-    return (($qdrantJson -join "") | ConvertFrom-Json)
+    $proofs = @()
+    if ($Manifest.schema_version -eq $legacySchema) {
+        $records = @([ordered]@{ collection = "ai_lab_document_chunks"; artifact_file = "qdrant.snapshot"; points_count = $Manifest.qdrant_restore_result.points; vectors = [ordered]@{ size = $Manifest.qdrant_restore_result.dimensions; distance = $Manifest.qdrant_restore_result.distance } })
+    } else {
+        $records = @(Get-V2QdrantRecords $Manifest $Artifacts)
+    }
+    $index = 0
+    foreach ($record in $records) {
+        $index++
+        if ($null -eq $record.vectors.size -or [string]::IsNullOrWhiteSpace([string]$record.vectors.distance)) {
+            throw "qdrant_named_vector_proof_not_supported"
+        }
+        $leaf = Split-Path -Leaf ([string]$record.artifact_file)
+        $proofOperation = "${ProofTargetOwner}-qdrant-$index"
+        $qdrantJson = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $qdrantVerifier `
+            -SnapshotPath $Artifacts[$leaf] -QdrantImage $qdrantImage -TargetCollection ([string]$record.collection) `
+            -ExpectedPoints ([int64]$record.points_count) -ExpectedDimensions ([int]$record.vectors.size) `
+            -ExpectedDistance ([string]$record.vectors.distance) -OperationId $proofOperation `
+            -ClientImage $ProofQdrantClientImage
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($qdrantJson -join ""))) { throw "qdrant_offline_restore_failed" }
+        $proofs += (($qdrantJson -join "") | ConvertFrom-Json)
+    }
+    return $proofs
 }
 
 function Invoke-SafetyBackup {
@@ -225,6 +335,13 @@ function Write-RecoveryReport {
     if ($ErrorCode) { Write-Output "RECOVERY_ERROR=$ErrorCode" }
 }
 
+if ($ProofOnly) {
+    if ($ProofPostgresUser -notmatch '^[A-Za-z_][A-Za-z0-9_]{0,62}$') { throw "proof_postgres_user_invalid" }
+    Assert-IsolatedPostgresTarget -Container $ProofPostgresContainer -Owner $ProofTargetOwner
+    if ([string]::IsNullOrWhiteSpace($ProofQdrantClientImage) -or $ProofQdrantClientImage -notmatch '^sha256:[a-f0-9]{64}$') {
+        throw "proof_qdrant_client_image_not_pinned"
+    }
+}
 if (-not $ValidateOnly) { New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null }
 try {
     try { $mutexHeld = $mutex.WaitOne(0, $false) } catch [Threading.AbandonedMutexException] { $mutexHeld = $true }
@@ -235,7 +352,7 @@ try {
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw "backup_manifest_missing" }
     $manifestHash = Get-Sha256 $manifestPath
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    if ($manifest.schema_version -ne $schema) { throw "backup_manifest_unsupported" }
+    if ($manifest.schema_version -notin @($legacySchema, $recoveryPointSchema)) { throw "backup_manifest_unsupported" }
     Add-Stage "preflight" "started"
     $artifacts = Get-ArtifactMap $manifest
     if (-not $artifacts.ContainsKey("postgres.dump")) { throw "backup_database_missing" }
@@ -243,19 +360,38 @@ try {
     if (-not $databaseArchiveReadable) { throw "backup_database_format_invalid" }
     $compatibility = Get-Compatibility $manifest
     $compatible = @("compatible", "older_supported_checkpoint", "requires_migration_after_restore") -contains $compatibility
+    $fullRequired = if ($manifest.schema_version -eq $legacySchema) { $legacyFullRequired } else {
+        $v2BaseRequired + @($v2RequiredCollections | ForEach-Object { "$_.snapshot" })
+    }
     $fullComponentsPresent = $true
     foreach ($name in $fullRequired) { if (-not $artifacts.ContainsKey($name)) { $fullComponentsPresent = $false } }
     $qdrantStructural = $false
     $qdrantReason = "snapshot_missing"
-    if ($artifacts.ContainsKey("qdrant.snapshot")) {
+    $qdrantRecords = @()
+    if ($manifest.schema_version -eq $legacySchema -and $artifacts.ContainsKey("qdrant.snapshot")) {
         $qdrantResult = Test-QdrantStructure $artifacts["qdrant.snapshot"]
         $qdrantStructural = $qdrantResult.valid -eq $true
         $qdrantReason = if ($qdrantStructural) { "valid" } else { [string]$qdrantResult.reason }
+    } elseif ($manifest.schema_version -eq $recoveryPointSchema) {
+        $qdrantRecords = @(Get-V2QdrantRecords $manifest $artifacts)
+        $qdrantStructural = $true
+        foreach ($record in $qdrantRecords) {
+            $leaf = Split-Path -Leaf ([string]$record.artifact_file)
+            $qdrantResult = Test-QdrantStructure $artifacts[$leaf]
+            if ($qdrantResult.valid -ne $true) { $qdrantStructural = $false; $qdrantReason = [string]$qdrantResult.reason; break }
+        }
+        if ($qdrantStructural) { $qdrantReason = "valid" }
     }
     $databaseEligible = $compatible -and $databaseArchiveReadable
-    $fullEligible = $databaseEligible -and $fullComponentsPresent -and $qdrantStructural -and ($manifest.qdrant_restore_verified -eq $true)
+    $captureComplete = $databaseEligible -and $fullComponentsPresent -and $qdrantStructural
+    if ($manifest.schema_version -eq $recoveryPointSchema) {
+        $captureComplete = $captureComplete -and [string]$manifest.capture_status -eq "COMPLETE" -and
+            [string]$manifest.scope_status -eq "COMPLETE" -and [string]$manifest.provenance_status -eq "RECORDED"
+    }
+    $fullEligible = $captureComplete -and ($manifest.qdrant_restore_verified -eq $true)
     if ($Mode -eq "Full" -and -not $fullComponentsPresent) { throw "backup_full_component_missing" }
-    if ($Mode -eq "Full" -and $manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" }
+    if ($Mode -eq "Full" -and $manifest.schema_version -eq $legacySchema -and $manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" }
+    if ($Mode -eq "Full" -and -not $ValidateOnly -and -not $ProofOnly -and $manifest.qdrant_restore_verified -ne $true) { throw "qdrant_restore_verification_required" }
     if ($Mode -eq "Full" -and -not $qdrantStructural) { throw "qdrant_snapshot_invalid" }
     Add-Stage "preflight" "completed"
 
@@ -271,6 +407,10 @@ try {
             compatibility = $compatibility; database_eligible = $databaseEligible; full_eligible = $fullEligible
             qdrant_structurally_valid = $qdrantStructural; qdrant_reason = $qdrantReason
             qdrant_restore_verified = ($manifest.qdrant_restore_verified -eq $true)
+            capture_complete = $captureComplete; capture_status = [string]$manifest.capture_status
+            scope_status = [string]$manifest.scope_status; provenance_status = [string]$manifest.provenance_status
+            consistency_status = [string]$manifest.consistency_status; restore_status = [string]$manifest.restore_status
+            qdrant_collections = @($qdrantRecords | ForEach-Object { [string]$_.collection })
         }
         Write-Output ("RECOVERY_VALIDATION_JSON=" + ($summary | ConvertTo-Json -Compress -Depth 5))
         return
@@ -282,14 +422,14 @@ try {
     if (-not $ProofOnly) { throw "production_restore_approval_required" }
 
     Add-Stage "database_staging" "started"
-    $dbProof = Restore-DatabaseToTemporary $artifacts["postgres.dump"] $manifest
+    $dbProof = Restore-DatabaseToTemporary $artifacts["postgres.dump"] $manifest $ProofPostgresContainer $ProofPostgresUser
     Add-Stage "database_staging" "completed" ([string]$dbProof.revision)
     $qdrantProof = $null
     if ($Mode -eq "Full") { Add-Stage "full_staging" "started"; $qdrantProof = Stage-Full $artifacts $manifest; Add-Stage "full_staging" "completed" }
 
     if ($ProofOnly) {
         Add-Stage "post_validation" "completed"
-        Remove-TemporaryDatabase $dbProof
+        Remove-TemporaryDatabase $dbProof $ProofPostgresContainer $ProofPostgresUser
         Write-RecoveryReport "PASS"
         return
     }
@@ -308,7 +448,7 @@ catch {
     throw
 }
 finally {
-    if ($ProofOnly -and $null -ne $dbProof) { try { Remove-TemporaryDatabase $dbProof } catch { } }
+    if ($ProofOnly -and $null -ne $dbProof) { try { Remove-TemporaryDatabase $dbProof $ProofPostgresContainer $ProofPostgresUser } catch { } }
     if ($ProofOnly -and (Test-Path -LiteralPath $stageRoot -PathType Container)) {
         $resolvedStage = [IO.Path]::GetFullPath($stageRoot)
         $allowedStagePrefix = [IO.Path]::GetFullPath((Join-Path $stateRoot "staging-"))
