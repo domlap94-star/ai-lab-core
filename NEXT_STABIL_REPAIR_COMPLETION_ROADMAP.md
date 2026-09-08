@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00 i R01 ACCEPTED; R02 IN_PROGRESS. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00 i R01 ACCEPTED; R02 READY_FOR_REVIEW. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,23 +20,23 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | `ROADMAP_SYNCED@535ab0b80d12d3f18b9f734dfb9e769c91e11e74`; R01 zaakceptowane przez właściciela na tym SHA; R02 uruchomione w zatwierdzonym zakresie testów i syntetycznej izolacji |
-| Checkpoint ID | `R02-20260907T233129Z-START-S1` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-07T23:31:29Z` |
+| Stan rejestracji | Ostatni opublikowany checkpoint startowy: `ROADMAP_SYNCED@c4bcfc67df6724e367f79a6a5a5e23d20988cd72`; R01 zaakceptowane przez właściciela na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74`; R02 gotowe do odbioru właściciela |
+| Checkpoint ID | `R02-20260908T005056Z-HANDOFF-S2` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T00:50:56Z` |
 | Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R02 |
-| Aktywny pakiet / podetap | `R02 / ISOLATION BASELINE` — odtworzono FND-034 przed poprawką; następne są minimalna korekta harnessu, pinned test image i reprodukcje |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; starting local/remote `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
+| Aktywny pakiet / podetap | `R02 / HANDOFF` — `READY_FOR_REVIEW`; poprawiona izolacja DOC-03, przypięte środowisko i osobne baseline main/rescue są zakończone |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; checkpoint startowy opublikowany na `c4bcfc67df6724e367f79a6a5a5e23d20988cd72` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: backend z clean main; Supervisor/gatewaye/workery mają mixed path/hash; DB head `followup_assistant_chat_history_20260829`; live Web `1.0.2+41`, source Flutter `1.0.2+29`, backend `1.0.0` |
-| Ostatnia faktycznie zakończona czynność | W odizolowanej sieci i syntetycznej DB R02 odtworzono FND-034: starszy obcy queued job został wybrany przez realny `claim_next()`, a niezmieniony DOC-03 dał 17 PASS / 1 FAIL |
-| Potwierdzone testy bieżącego wykonania | Preflight Git `PASS`; pełny manifest oryginalnego worktree 203/203, drift 0; syntetyczna DB osiągnęła head `followup_assistant_chat_history_20260829`; historyczny zestaw 92/92 `PASS`; celowy contaminated DOC-03 17 PASS / 1 FAIL (oczekiwany dowód przed poprawką) |
+| Ostatnia faktycznie zakończona czynność | Zakończono osobne kampanie main/rescue, REP-001–004 i KB+Visual; własny kontener PostgreSQL, sieć internal i tymczasowe env usunięto po utrwaleniu dowodów |
+| Potwierdzone testy bieżącego wykonania | Fail-before DOC-03 `17 PASS / 1 FAIL`; po korekcie: DOC-03 `19/19`, kolejność A `92/92`, kolejność B seed `20260908` `92/92`; main pytest-only `199/199`, Assistant `34/34`, scope/Temporary Chat `16/16`; rescue pytest-only `201/201`, Visual/resource `51/51`, visual/chat `30/30`, combined `31/31`, scope/Temporary Chat `16/16`; chat integration main/rescue `PASS`; compile `2/2` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | Aktywny wyłącznie własny PostgreSQL `next-stabil-r02-pg-20260907t232229z` w sieci internal bez portu hosta; surowe logi pod `C:\ai-lab-core-staging\recovery\R02_20260907T232229Z`; runtime produkcyjny nieprzejęty |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260907T233129Z-R02-START-S1.md` |
+| Niezakończone procesy i skutki operacyjne | Brak własnego kontenera/DB/sieci R02; przypięty obraz testowy, snapshoty, nakładka rescue i 41 surowych logów pozostają `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R02_20260907T232229Z`; runtime produkcyjny nieprzejęty |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T005056Z-R02-HANDOFF-S2.md` |
 | Zakres aktualnej zgody | R02: test code/config, syntetyczna izolacja, dowody i checkpoint commit/push wyłącznie na recovery; bez logiki produktu, produkcji, adopcji rescue i R03–R24 |
-| Blokada / wymagana decyzja | Brak blokady startowej; FND-034 odtworzone jako wada izolacji harnessu, nie wada leasingu produktu. Wynik naprawy i obu snapshotów pozostaje do wykonania |
-| Jeden następny bezpieczny krok | Wprowadzić minimalny testowy namespace DOC-03 i osobne pinned środowisko pytest, następnie uruchomić wymagane kolejności i reprodukcje |
+| Blokada / wymagana decyzja | Brak blokady wykonania R02; REP-001–004 oraz utrata KB po supplemental Visual na rescue potwierdzają odrębne błędy produktu przypisane późniejszym pakietom i nie są maskowane przez wynik harnessu |
+| Jeden następny bezpieczny krok | Odbiór R02 przez właściciela; R03 pozostaje `PLANNED` i wymaga osobnej zgody |
 | Warunek STOP | Zakończyć po raporcie/checkpoincie R02; nie rozpoczynać R03–R24 bez osobnej decyzji właściciela |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -62,7 +62,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 |---|---|---|---|
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
-| R02 | IN_PROGRESS | `R02-20260907T233129Z-START-S1` / ISOLATION BASELINE | Zgoda właściciela obejmuje wyłącznie testy/config izolacji, syntetyczne zasoby, dowody i recovery commit/push |
+| R02 | READY_FOR_REVIEW | `R02-20260908T005056Z-HANDOFF-S2` / OWNER REVIEW | Izolacja i baseline zakończone; jawne błędy produktu pozostają w późniejszych pakietach; agent nie nadaje `ACCEPTED` |
 | R03 | PLANNED | — | Osobne zgody restore/escrow |
 | R04 | PLANNED | — | — |
 | R05 | PLANNED | — | — |

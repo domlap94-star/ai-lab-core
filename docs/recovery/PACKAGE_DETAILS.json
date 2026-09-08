@@ -109,7 +109,7 @@
     "approval": "Zgoda na pakiet źródłowy/testowy i jego oddzielny commit. Brak zgody na deployment.",
     "rollback": "Revert wyłącznie zmian testów; dokładnie nazwane zasoby syntetyczne usuwane według własności.",
     "exclude": "Sztuczne usuwanie testów, przepisywanie całego harnessu, pobieranie nowego modelu, podmienianie production data.",
-    "status": "IN_PROGRESS",
+    "status": "READY_FOR_REVIEW",
     "primary_requirements": [
       "M-033"
     ],

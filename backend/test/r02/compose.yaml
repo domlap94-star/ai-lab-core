@@ -1,0 +1,80 @@
+services:
+  postgres:
+    image: postgres@sha256:cf78e76683e8344a243d883bab7ef2196c729336a437517c53b2478f7f0f77a1
+    environment:
+      POSTGRES_DB: ${R02_DATABASE_NAME:?set R02_DATABASE_NAME}
+      POSTGRES_USER: ${R02_DATABASE_USER:?set R02_DATABASE_USER}
+      POSTGRES_PASSWORD: ${R02_DATABASE_PASSWORD:?set R02_DATABASE_PASSWORD}
+    labels:
+      next-stabil.owner: R02
+      next-stabil.purpose: isolated-test-database
+    networks:
+      - r02_internal
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  tests:
+    build:
+      context: ../..
+      dockerfile: test/r02/Dockerfile
+      args:
+        R02_BASE_IMAGE: ${R02_BASE_IMAGE:?set R02_BASE_IMAGE}
+    image: ${R02_TEST_IMAGE:?set R02_TEST_IMAGE}
+    read_only: true
+    working_dir: /workspace/backend
+    environment:
+      POSTGRES_DB: ${R02_DATABASE_NAME:?set R02_DATABASE_NAME}
+      POSTGRES_USER: ${R02_DATABASE_USER:?set R02_DATABASE_USER}
+      POSTGRES_PASSWORD: ${R02_DATABASE_PASSWORD:?set R02_DATABASE_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      SECRET_KEY: ${R02_SECRET_KEY:?set R02_SECRET_KEY}
+      ADMIN_USERNAME: r02-admin
+      ADMIN_EMAIL: r02-admin@example.invalid
+      ADMIN_PASSWORD: ${R02_ADMIN_PASSWORD:?set R02_ADMIN_PASSWORD}
+      N8N_INGEST_API_KEY: ${R02_N8N_INGEST_API_KEY:?set R02_N8N_INGEST_API_KEY}
+      DATA_DIR: /r02-data
+      DOCUMENT_PREPARATION_ENABLED: "false"
+      ASSISTANT_PIPELINE_V2_ENABLED: "false"
+      VISION_AUTOMATION_ENABLED: "false"
+      ADVANCED_ANALYSIS_ENABLED: "false"
+      BACKUP_SCHEDULER_ENABLED: "false"
+      BACKUP_RETENTION_DELETE_ENABLED: "false"
+      OLLAMA_URL: http://127.0.0.1:9
+      QDRANT_HOST: 127.0.0.1
+      QDRANT_PORT: "9"
+      N8N_URL: http://127.0.0.1:9
+      BACKUP_SUPERVISOR_URL: http://127.0.0.1:9
+      VISION_SUPERVISOR_URL: http://127.0.0.1:9
+    labels:
+      next-stabil.owner: R02
+      next-stabil.purpose: isolated-test-runner
+    volumes:
+      - type: bind
+        source: ${R02_SOURCE_ROOT:?set R02_SOURCE_ROOT}
+        target: /workspace
+        read_only: true
+      - type: bind
+        source: ${R02_HARNESS_ROOT:?set R02_HARNESS_ROOT}
+        target: /r02-harness
+        read_only: true
+    tmpfs:
+      - /tmp
+      - /r02-data
+    networks:
+      - r02_internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  r02_internal:
+    internal: true
+    labels:
+      next-stabil.owner: R02
+      next-stabil.purpose: isolated-test-network

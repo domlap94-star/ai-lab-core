@@ -62,33 +62,90 @@ class _ControlledSleep:
 class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.foreign_storage = tempfile.TemporaryDirectory()
+        previous_data_dir = settings.data_dir
+        settings.data_dir = cls.foreign_storage.name
         db = SessionLocal()
         try:
             assert_isolated_database(db, TEST_DATABASE_NAME)
             cls.analysis_jobs_before = db.query(AnalysisJob).count()
             cls.assistant_runs_before = db.query(AssistantRun).count()
+            marker = uuid.uuid4().hex
+            stored = DocumentService(db).store_document(
+                content=f"synthetic foreign DOC-03 queue {marker}\n".encode("utf-8"),
+                original_filename=f"doc03-foreign-{marker}.txt",
+                content_type="text/plain",
+                source_type="manual_upload",
+            )
+            sentinel = db.query(DocumentPreparationJob).filter_by(
+                document_id=stored.document.id
+            ).one()
+            sentinel.priority = 0
+            sentinel.queued_at = datetime(2000, 1, 1, tzinfo=UTC)
+            db.commit()
+            cls.foreign_sentinel_job_id = sentinel.id
+            cls.foreign_sentinel_document_id = stored.document.id
         finally:
             db.close()
+            settings.data_dir = previous_data_dir
 
     @classmethod
     def tearDownClass(cls) -> None:
         db = SessionLocal()
         try:
             assert_isolated_database(db, TEST_DATABASE_NAME)
+            sentinel = db.get(DocumentPreparationJob, cls.foreign_sentinel_job_id)
+            if sentinel is None:
+                raise AssertionError("DOC-03 foreign queue sentinel disappeared")
+            if (
+                sentinel.status != "queued"
+                or sentinel.stage != "queued"
+                or sentinel.attempt_count != 0
+                or sentinel.lease_owner is not None
+                or sentinel.lease_expires_at is not None
+            ):
+                raise AssertionError("DOC-03 touched a foreign queued job")
+            db.delete(sentinel)
+            db.flush()
+            document = db.get(Document, cls.foreign_sentinel_document_id)
+            if document is None:
+                raise AssertionError("DOC-03 foreign queue document disappeared")
+            db.delete(document)
+            db.commit()
             if db.query(AnalysisJob).count() != cls.analysis_jobs_before:
                 raise AssertionError("DOC-03 tests created AnalysisJob rows")
             if db.query(AssistantRun).count() != cls.assistant_runs_before:
                 raise AssertionError("DOC-03 tests created AssistantRun rows")
         finally:
             db.close()
+            cls.foreign_storage.cleanup()
 
     def setUp(self) -> None:
         self.storage = tempfile.TemporaryDirectory()
         self.previous_data_dir = settings.data_dir
         settings.data_dir = self.storage.name
+        self.foreign_queue_lock = SessionLocal()
+        self.addCleanup(self._release_foreign_queue_lock)
+        assert_isolated_database(self.foreign_queue_lock, TEST_DATABASE_NAME)
+        self.locked_foreign_job_ids = {
+            row.id
+            for row in self.foreign_queue_lock.query(DocumentPreparationJob)
+            .filter(DocumentPreparationJob.status.in_(["queued", "running"]))
+            .with_for_update()
+            .all()
+        }
+        self.assertIn(
+            self.foreign_sentinel_job_id,
+            self.locked_foreign_job_ids,
+            "DOC-03 test namespace did not fence its foreign queue sentinel",
+        )
         self.db = SessionLocal()
         assert_isolated_database(self.db, TEST_DATABASE_NAME)
         self.job_ids: list[str] = []
+
+    def _release_foreign_queue_lock(self) -> None:
+        self.foreign_queue_lock.rollback()
+        self.foreign_queue_lock.close()
 
     def tearDown(self) -> None:
         self.db.rollback()
@@ -191,6 +248,22 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
         self.db.commit()
         second = self._claim(current)
         return first, second
+
+    def test_t00_foreign_queued_job_does_not_capture_claim(self) -> None:
+        job = self._store_job()
+        claim = self._claim(job)
+        self.assertEqual(claim.job_id, job.id)
+        probe = SessionLocal()
+        try:
+            sentinel = probe.get(
+                DocumentPreparationJob, self.foreign_sentinel_job_id
+            )
+            assert sentinel is not None
+            self.assertEqual((sentinel.status, sentinel.stage), ("queued", "queued"))
+            self.assertEqual(sentinel.attempt_count, 0)
+            self.assertIsNone(sentinel.lease_owner)
+        finally:
+            probe.close()
 
     def test_t01_unique_claim_tokens(self) -> None:
         job = self._store_job()
