@@ -109,7 +109,7 @@
     "approval": "Zgoda na pakiet źródłowy/testowy i jego oddzielny commit. Brak zgody na deployment.",
     "rollback": "Revert wyłącznie zmian testów; dokładnie nazwane zasoby syntetyczne usuwane według własności.",
     "exclude": "Sztuczne usuwanie testów, przepisywanie całego harnessu, pobieranie nowego modelu, podmienianie production data.",
-    "status": "READY_FOR_REVIEW",
+    "status": "ACCEPTED",
     "primary_requirements": [
       "M-033"
     ],
@@ -149,7 +149,7 @@
     "approval": "Osobna zgoda operacyjna na restore/escrow i zmianę kolejności historycznego CHUNK23; rotacja nadal wymaga oddzielnej zgody.",
     "rollback": "Usunąć wyłącznie nazwane izolowane cele po zatwierdzeniu; zachować zweryfikowane kopie. Nigdy nie nadpisywać czynnego systemu.",
     "exclude": "Sekrety w dokumentacji, automatyczne włączenie retencji, uznanie verified backup za restore PASS.",
-    "status": "PLANNED",
+    "status": "WAITING_APPROVAL",
     "primary_requirements": [
       "M-066",
       "M-067",
