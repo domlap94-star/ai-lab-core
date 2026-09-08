@@ -9,8 +9,8 @@
     },
     {
       "file": "operations/hardening/backup-production.ps1",
-      "bytes": 23432,
-      "sha256": "4c8261d48e2b16693034f670542799cb8e41fbb784da953725cb669d07db5e0a"
+      "bytes": 24865,
+      "sha256": "16d15a770b1476ed5aaede1833ef3b2d2f908f3d774791b521450956fc5250a8"
     },
     {
       "file": "operations/hardening/verify-qdrant-snapshot-offline.ps1",

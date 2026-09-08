@@ -188,10 +188,12 @@ function Test-RealWriterWithSyntheticBoundaries {
                 $destination = [string]$Arguments[-1]
                 if ([string]$Arguments[1] -match '^postgres:') { [IO.File]::WriteAllBytes($destination, [Text.Encoding]::ASCII.GetBytes("PGDMPwriter")) }
                 elseif ([string]$Arguments[1] -match '^n8n:') { '[]' | Set-Content -LiteralPath $destination -Encoding UTF8 }
-            } elseif ($Arguments[0] -eq "inspect" -and $Arguments.Count -eq 2) {
-                @([ordered]@{ Image = "sha256:" + ("1" * 64); Config = [ordered]@{ Image = "synthetic/image@sha256:" + ("2" * 64) } }) | ConvertTo-Json -Depth 5
+            } elseif ($Arguments[0] -eq "inspect" -and $Arguments.Count -eq 4 -and [string]$Arguments[2] -eq "--format") {
+                if ([string]$Arguments[3] -eq '{{.Config.Image}}') { "synthetic/image@sha256:" + ("2" * 64) }
+                elseif ([string]$Arguments[3] -eq '{{.Image}}') { "sha256:" + ("1" * 64) }
+                else { throw "mock_docker_inspect_format_unexpected" }
             } elseif ($Arguments[0] -eq "image" -and $Arguments[1] -eq "inspect") {
-                @([ordered]@{ RepoDigests = @("synthetic/image@sha256:" + ("2" * 64)) }) | ConvertTo-Json -Depth 5
+                '["synthetic/image@sha256:' + ("2" * 64) + '"]'
             } elseif ($joined -match 'SELECT version_num FROM alembic_version') {
                 "followup_assistant_chat_history_20260829"
             }
@@ -329,6 +331,9 @@ try {
     Assert-True ($backupText -match 'RecoveryPointV2' -and $backupText -match 'QdrantCollections') "writer_v2_two_collection_contract"
     Assert-True ($backupText -match 'CaptureOnly' -and $backupText -match 'qdrant_restore_not_run_waiting_approval') "capture_mode_records_restore_not_run"
     Assert-True ($backupText -match '\$toolRoot.+qdrant_snapshot_validator' -and $backupText -match 'tool_source_head') "helper_identity_separate_from_data_source"
+    Assert-True ($backupText -match 'Never open the' -and $backupText -notmatch 'Join-Path \$repo "\.env"') "capture_does_not_open_runtime_env"
+    Assert-True ($backupText -match 'docker\.exe inspect \$containerName --format ''\{\{\.Config\.Image\}\}''') "image_inventory_uses_bounded_docker_fields"
+    Assert-True ($backupText -notmatch '& docker inspect \$containerName \| ConvertFrom-Json') "image_inventory_does_not_materialize_container_environment"
     Assert-True ($restoreText -match 'Assert-IsolatedPostgresTarget' -and $restoreText -notmatch 'docker\.exe exec postgres') "proof_has_explicit_postgres_target"
     Assert-True ($offlineText -match 'network.+create.+--internal' -and $offlineText -notmatch '127\.0\.0\.1:\$port' -and $offlineText -notmatch '"-p"') "qdrant_proof_has_no_host_port"
     Assert-True ($offlineText -match 'qdrant_restore_target_collision' -and $offlineText -match 'next\.stabil\.owner') "qdrant_proof_has_owned_collision_guard"

@@ -320,23 +320,55 @@ if ($Scope -in @("full", "n8n_config")) {
         Copy-Item -LiteralPath $source -Destination $destination
     }
 
+    # Inventory setting names from tracked specifications only. Never open the
+    # runtime .env while producing a capture: A1 authorizes neither plaintext
+    # secret access nor an environment-value inventory.
     $envNamesPath = Join-Path $configDir "required-env-names.txt"
-    if (Test-Path -LiteralPath (Join-Path $repo ".env")) {
-        Get-Content -LiteralPath (Join-Path $repo ".env") |
-            Where-Object { $_ -match '^\s*[A-Za-z_][A-Za-z0-9_]*\s*=' } |
-            ForEach-Object { (($_ -split '=', 2)[0]).Trim() } |
-            Sort-Object -Unique | Set-Content -LiteralPath $envNamesPath -Encoding UTF8
-    } else { @() | Set-Content -LiteralPath $envNamesPath -Encoding UTF8 }
+    $requiredEnvNames = @()
+    $settingsSpec = Join-Path $repo "backend\app\core\config.py"
+    if (Test-Path -LiteralPath $settingsSpec -PathType Leaf) {
+        foreach ($line in Get-Content -LiteralPath $settingsSpec) {
+            if ($line -match '^\s{4}@computed_field') { break }
+            if ($line -match '^\s{4}([a-z][a-z0-9_]*)\s*:') {
+                $requiredEnvNames += $Matches[1].ToUpperInvariant()
+            }
+        }
+    }
+    foreach ($relative in $configFiles) {
+        $source = Join-Path $repo $relative
+        foreach ($line in Get-Content -LiteralPath $source) {
+            foreach ($match in [regex]::Matches($line, '\$\{([A-Za-z_][A-Za-z0-9_]*)')) {
+                $requiredEnvNames += $match.Groups[1].Value.ToUpperInvariant()
+            }
+            if ($line -match '^\s*-\s*([A-Z_][A-Z0-9_]*)=') {
+                $requiredEnvNames += $Matches[1].ToUpperInvariant()
+            }
+            elseif ($line -match '^\s*([A-Z_][A-Z0-9_]*)\s*:') {
+                $requiredEnvNames += $Matches[1].ToUpperInvariant()
+            }
+        }
+    }
+    $requiredEnvNames | Sort-Object -Unique |
+        Set-Content -LiteralPath $envNamesPath -Encoding UTF8
 
     $imageInventory = @()
     foreach ($containerName in @("postgres", "qdrant", "ollama", "n8n", "open-webui", "ai-lab-backend")) {
-        $container = (& docker inspect $containerName | ConvertFrom-Json | Select-Object -First 1)
-        if ($LASTEXITCODE -ne 0) { throw "Unable to inspect $containerName." }
-        $image = (& docker image inspect $container.Image | ConvertFrom-Json | Select-Object -First 1)
-        if ($LASTEXITCODE -ne 0) { throw "Unable to inspect image for $containerName." }
+        $configuredImage = (& docker.exe inspect $containerName --format '{{.Config.Image}}').Trim()
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($configuredImage)) {
+            throw "Unable to inspect configured image for $containerName."
+        }
+        $imageId = (& docker.exe inspect $containerName --format '{{.Image}}').Trim()
+        if ($LASTEXITCODE -ne 0 -or $imageId -notmatch '^sha256:[a-f0-9]{64}$') {
+            throw "Unable to inspect image identity for $containerName."
+        }
+        $repoDigestsJson = (& docker.exe image inspect $imageId --format '{{json .RepoDigests}}').Trim()
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($repoDigestsJson)) {
+            throw "Unable to inspect image digests for $containerName."
+        }
+        $repoDigests = @($repoDigestsJson | ConvertFrom-Json)
         $imageInventory += [ordered]@{
-            container = $containerName; configured_image = $container.Config.Image
-            image_id = $container.Image; repo_digests = @($image.RepoDigests)
+            container = $containerName; configured_image = $configuredImage
+            image_id = $imageId; repo_digests = $repoDigests
         }
     }
     $imageInventory | ConvertTo-Json -Depth 6 |
