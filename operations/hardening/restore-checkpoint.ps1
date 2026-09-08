@@ -161,6 +161,17 @@ function Test-DeploymentRoot {
     return $root
 }
 
+function Get-ManifestStatus {
+    param([object]$Manifest, [string]$Name, [bool]$Required)
+    $property = $Manifest.PSObject.Properties[$Name]
+    if ($null -eq $property -or $null -eq $property.Value -or
+        [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+        if ($Required) { throw "backup_manifest_v2_status_missing:$Name" }
+        return $null
+    }
+    return [string]$property.Value
+}
+
 function Assert-IsolatedPostgresTarget {
     param([string]$Container, [string]$Owner)
     if ([string]::IsNullOrWhiteSpace($Container) -or [string]::IsNullOrWhiteSpace($Owner)) {
@@ -353,6 +364,11 @@ try {
     $manifestHash = Get-Sha256 $manifestPath
     $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if ($manifest.schema_version -notin @($legacySchema, $recoveryPointSchema)) { throw "backup_manifest_unsupported" }
+    $manifestStatuses = @{}
+    $requireManifestStatuses = $manifest.schema_version -eq $recoveryPointSchema
+    foreach ($name in @("capture_status", "scope_status", "provenance_status", "consistency_status", "restore_status")) {
+        $manifestStatuses[$name] = Get-ManifestStatus $manifest $name $requireManifestStatuses
+    }
     Add-Stage "preflight" "started"
     $artifacts = Get-ArtifactMap $manifest
     if (-not $artifacts.ContainsKey("postgres.dump")) { throw "backup_database_missing" }
@@ -385,8 +401,9 @@ try {
     $databaseEligible = $compatible -and $databaseArchiveReadable
     $captureComplete = $databaseEligible -and $fullComponentsPresent -and $qdrantStructural
     if ($manifest.schema_version -eq $recoveryPointSchema) {
-        $captureComplete = $captureComplete -and [string]$manifest.capture_status -eq "COMPLETE" -and
-            [string]$manifest.scope_status -eq "COMPLETE" -and [string]$manifest.provenance_status -eq "RECORDED"
+        $captureComplete = $captureComplete -and [string]$manifestStatuses["capture_status"] -eq "COMPLETE" -and
+            [string]$manifestStatuses["scope_status"] -eq "COMPLETE" -and
+            [string]$manifestStatuses["provenance_status"] -eq "RECORDED"
     }
     $fullEligible = $captureComplete -and ($manifest.qdrant_restore_verified -eq $true)
     if ($Mode -eq "Full" -and -not $fullComponentsPresent) { throw "backup_full_component_missing" }
@@ -407,9 +424,9 @@ try {
             compatibility = $compatibility; database_eligible = $databaseEligible; full_eligible = $fullEligible
             qdrant_structurally_valid = $qdrantStructural; qdrant_reason = $qdrantReason
             qdrant_restore_verified = ($manifest.qdrant_restore_verified -eq $true)
-            capture_complete = $captureComplete; capture_status = [string]$manifest.capture_status
-            scope_status = [string]$manifest.scope_status; provenance_status = [string]$manifest.provenance_status
-            consistency_status = [string]$manifest.consistency_status; restore_status = [string]$manifest.restore_status
+            capture_complete = $captureComplete; capture_status = $manifestStatuses["capture_status"]
+            scope_status = $manifestStatuses["scope_status"]; provenance_status = $manifestStatuses["provenance_status"]
+            consistency_status = $manifestStatuses["consistency_status"]; restore_status = $manifestStatuses["restore_status"]
             qdrant_collections = @($qdrantRecords | ForEach-Object { [string]$_.collection })
         }
         Write-Output ("RECOVERY_VALIDATION_JSON=" + ($summary | ConvertTo-Json -Compress -Depth 5))

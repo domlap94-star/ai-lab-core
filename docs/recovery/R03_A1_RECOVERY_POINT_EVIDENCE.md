@@ -2,7 +2,7 @@
 
 ## Wynik i granica
 
-Podetap A1 ma status `CHECKPOINT_READY_FOR_REVIEW / WAITING_ISOLATED_DRILL_APPROVAL`.
+Podetap A1 ma status `LEGACY_READER_FIX_READY_FOR_REVIEW / WAITING_ISOLATED_DRILL_APPROVAL`.
 Cały R03 pozostaje `WAITING_APPROVAL`. Utworzono i zweryfikowano capture; nie
 wykonano firmowego restore/drill, escrow ani pomiaru RTO.
 
@@ -42,10 +42,40 @@ runtime inventory, okna składników oraz rozdzielone statusy capture,
 spójności, restore, escrow i RTO. Wymagane są dokładnie:
 `ai_lab_document_chunks` oraz `ai_lab_knowledge_base_chunks`.
 
-Wspólny reader rozpoznaje V1 i V2. Test dowiódł, że V1 nadal jest rozpoznawany,
-ale nie udaje pełnego V2. Trzy niezmienione czytniki V1-only jawnie odmawiają
-V2 zamiast interpretować go jako punkt jednokolekcyjny. CaptureOnly nie wywołuje
-restore helpera i nie fabrykuje `restore_verified`.
+Wspólny reader rozpoznaje V1 i V2. Pierwotny test A1 obejmował jednak tylko V1
+uzupełniony o pięć późniejszych właściwości z wartością `null`; nie dowodził
+odczytu historycznego V1, w którym tych właściwości w ogóle nie ma. Korekta
+poniżej zamyka tę lukę bez zmiany writera ani bajtów istniejących backupów.
+Trzy niezmienione czytniki V1-only jawnie odmawiają V2 zamiast interpretować go
+jako punkt jednokolekcyjny. CaptureOnly nie wywołuje restore helpera i nie
+fabrykuje `restore_verified`.
+
+## Korekta kompatybilności historycznego V1
+
+Reprodukcja ma klasyfikację `REPRODUCED`. Syntetyczny manifest odwzorowuje blok
+historycznego writera V1 z `75e19ff8ebf96951e0a0335bf3ad7c9b5dfd792b` i
+nie zawiera `capture_status`, `scope_status`, `provenance_status`,
+`consistency_status` ani `restore_status` — również jako `null`.
+
+- Przed poprawką bieżący reader (`38776e8...`) w Windows PowerShell
+  `5.1.26100.8894` zakończył `Database / ValidateOnly` kodem `1`,
+  `PropertyNotFoundStrict` na `capture_status`.
+- Reader sprzed A1 z `75e19ff8...` na tym samym fixture zakończył kodem `0`,
+  `database_eligible=true`, `full_eligible=false`.
+- Po poprawce bieżący reader kończy kodem `0`; brak historycznych statusów jest
+  raportowany jako JSON `null`, a nie jako `COMPLETE`, `RECORDED` lub dowód
+  restore.
+- Historyczny siedmioartefaktowy V1 Full z zapisanym pozytywnym dowodem Qdrant
+  pozostaje czytelny; analogiczny V1 bez tego dowodu nadal jest odrzucany przez
+  `qdrant_restore_verification_required`.
+- Dla V2 wszystkie pięć statusów pozostaje wymaganych. Brak statusu,
+  kolekcji/artefaktu, błędny hash i nieobsługiwany schemat nadal są odrzucane.
+
+Reader ma wersję narzędzia `1.1.1`; manifest integralności wiąże
+`restore-checkpoint.ps1` jako `28,148` B / SHA-256
+`49E7F690CE8D23760B55E5EADE02A07F23727A38947DFD3A9087603D0A7A36A0`.
+Zmiana nie nadaje V1 dwukolekcyjnego zakresu V2 i nie zmienia statusu restore
+istniejącego capture.
 
 ## Testy
 
@@ -64,6 +94,14 @@ Wyniki: tool contract `38/38 PASS`, recovery PowerShell `15/15 PASS`, trzy
 testy Node `PASS`, pełny synthetic proof `PASS`. Proof użył własnego ownera,
 internal network, bez portów hosta, bind mountów produkcyjnych, Docker socketa
 i privileged; końcowe containers/volumes/networks `0/0/0`.
+
+Ograniczona regresja korekty readera, wykonana ponownie bez pełnego proof
+Dockera i bez kampanii R02: tool contract `43/43 PASS`, recovery PowerShell oraz
+niezależny manifest narzędzia `15/15 PASS`. Jednorazowy dozwolony read-only
+`restore-checkpoint.ps1 -ValidateOnly -Mode Full` istniejącego punktu V2
+zakończył kodem `0`: 9 artefaktów, 2 kolekcje, `capture_complete=true`,
+`full_eligible=false`, `restore_status=NOT_RUN_WAITING_APPROVAL`. Nie wykonano
+restore ani proof.
 
 Fail-before potwierdził 5/5 braków starego przepływu. Nowe testy obejmują dwie
 kolekcje, brak kolekcji/artefaktu, zły hash, kolizję, przerwany capture,
@@ -167,6 +205,23 @@ Root: `C:\ai-lab-core-staging\recovery\R03_A1_20260908T115703Z`.
 | runtime inventory | `B8A79CCD47858AAB35BA4F7F09A36F9B317E453507E3A4984DC88F11FF8F0817` |
 | pre/post state | `D425A1AE31A953DBD931AC96055E74756673C0612A0C7A47B88D42C7E685DC6E` / `57F364DC672D892B9E3722266B564B4C4DDD4FFD4DB18E0B0CFF964FEC82DAF2` |
 | reference consistency | `C1EBD4CB8C78F52265EDCD6FDAD2C363A31963C909D8535F3971C3EB0494986C` |
+
+Dowody korekty readera pozostają `LOCAL_ONLY` pod
+`C:\ai-lab-core-staging\recovery\R03_A1_LEGACY_READER_20260908T153850Z`:
+
+| Dowód | SHA-256 |
+|---|---|
+| fail-before bieżącego readera | `A4612E41E5EB488E89C270C33642D22D3A9AE01DF0AC20568F60AC3B95782DB2` |
+| ten sam fixture / reader `75e19ff8...` | `62BF695A61909B41A7A6E5CB4DC093DAA6E368E7CFE23016815CF0208863606D` |
+| pass-after bieżącego readera | `9CF0BC7F4645C0C802443EB73D9B7E628335850C1D24F04366019C0B6F9F5DB4` |
+| tool contract 43/43 | `BA7739D0CE4841E22C9022C7B2FC12DFB561CBBF54FAEA64DC1C55544DB359D3` |
+| wrapper/tool manifest 15/15 | `B2869F0A99B68FF126F5EFC2022C547B776BCA6130DEB633DF24D646B90E7353` |
+| V2 `ValidateOnly` po poprawce | `91F461F777C939372D7FAA4EB99FC60BD2C181A3FE02ADBC12871704FE36EF4A` |
+
+Manifest syntetycznego fixture ma SHA-256
+`215389577598B9724F932A5DE973EBE2CB43369B11E3F7E53FEB0B2E21797D44`.
+Fixture i logi nie zawierają danych firmy. Test akceptuje nagłówek `PGDMP`
+wyłącznie jako kontrakt readera; nie dowodzi odtwarzalności syntetycznego dumpu.
 
 ## Następna osobna decyzja
 

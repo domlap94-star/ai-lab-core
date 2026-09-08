@@ -117,6 +117,67 @@ function New-V2Checkpoint {
     return $checkpoint
 }
 
+function New-LegacyV1Checkpoint {
+    param(
+        [string]$Name,
+        [ValidateSet("database", "full")]
+        [string]$Scope,
+        [bool]$QdrantRestoreVerified,
+        [switch]$IncludeLaterStatusProperties
+    )
+    $checkpoint = Join-Path $root $Name
+    $artifactRoot = Join-Path $checkpoint "artifacts"
+    New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $artifactRoot "postgres.dump"), [Text.Encoding]::ASCII.GetBytes("PGDMPsynthetic-historical-v1"))
+    $artifacts = @(Add-Artifact $checkpoint "artifacts/postgres.dump")
+    if ($Scope -eq "full") {
+        New-Archive (Join-Path $artifactRoot "document-storage.tar.gz") "documents\fixture.txt"
+        New-Archive (Join-Path $artifactRoot "release-stable.tar.gz") "release-channel\stable\manifest.json"
+        New-FakeQdrantSnapshot (Join-Path $artifactRoot "qdrant.snapshot")
+        '[]' | Set-Content -LiteralPath (Join-Path $artifactRoot "n8n-workflows.json") -Encoding UTF8
+        '[]' | Set-Content -LiteralPath (Join-Path $artifactRoot "n8n-credentials.encrypted.json") -Encoding UTF8
+        New-Archive (Join-Path $artifactRoot "configuration.tar.gz") "configuration\runtime-images.json"
+        $artifacts = @(
+            Add-Artifact $checkpoint "artifacts/postgres.dump"
+            Add-Artifact $checkpoint "artifacts/document-storage.tar.gz"
+            Add-Artifact $checkpoint "artifacts/release-stable.tar.gz"
+            Add-Artifact $checkpoint "artifacts/qdrant.snapshot"
+            Add-Artifact $checkpoint "artifacts/n8n-workflows.json"
+            Add-Artifact $checkpoint "artifacts/n8n-credentials.encrypted.json"
+            Add-Artifact $checkpoint "artifacts/configuration.tar.gz"
+        )
+    }
+    $manifest = [ordered]@{
+        schema_version = "NEXT_STABIL_BACKUP_V1"; scope = $Scope
+        run_id = $null; schedule_id = $null; trigger = "manual"
+        app_version = "1.0.2+21"; created_at = "2026-08-21T00:00:00Z"
+        source_head = ("c" * 40); release = "1.0.2+21"
+        db_revision = "followup_admin_backup_restore_ui_20260821"
+        qdrant_collection = "ai_lab_document_chunks"
+        qdrant_snapshot_name = $(if ($Scope -eq "full") { "synthetic.snapshot" } else { $null })
+        artifact_hash_verified = $true
+        qdrant_snapshot_structurally_valid = $(if ($Scope -eq "full") { $true } else { $null })
+        qdrant_snapshot_validation_reason = $(if ($Scope -eq "full") { "valid" } else { $null })
+        qdrant_restore_verified = $(if ($Scope -eq "full") { $QdrantRestoreVerified } else { $null })
+        qdrant_restore_result = $(if ($Scope -eq "full" -and $QdrantRestoreVerified) {
+            [ordered]@{ points = 1; dimensions = 4; distance = "Cosine" }
+        } else { $null })
+        qdrant_restore_error_code = $(if ($Scope -eq "full" -and -not $QdrantRestoreVerified) { "qdrant_restore_drill_failed" } else { $null })
+        document_directories = $(if ($Scope -eq "full") { @("documents", "document-pages", "document-assets", "archive-extracted") } else { @() })
+        estimated_source_bytes = [int64]0
+        secrets_in_protected_backup = $false
+        secrets_note = "Synthetic historical V1 compatibility fixture."
+        artifacts = $artifacts
+    }
+    if ($IncludeLaterStatusProperties) {
+        foreach ($name in @("capture_status", "scope_status", "provenance_status", "consistency_status", "restore_status")) {
+            $manifest[$name] = $null
+        }
+    }
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $checkpoint "backup-manifest.json") -Encoding UTF8
+    return $checkpoint
+}
+
 function Test-RealWriterWithSyntheticBoundaries {
     $source = Join-Path $root "writer-source"
     $backupRoot = Join-Path $root "writer-backups"
@@ -199,6 +260,10 @@ function Test-RealWriterWithSyntheticBoundaries {
             }
             $global:LASTEXITCODE = 0
         }
+        function global:docker {
+            param([Parameter(ValueFromRemainingArguments = $true)][object[]]$Arguments)
+            docker.exe @Arguments
+        }
         function global:Invoke-RestMethod {
             param([string]$Method = "Get", [string]$Uri, [int]$TimeoutSec)
             $global:R03A1MockCommands.Add("rest $Method $Uri")
@@ -257,7 +322,7 @@ function Test-RealWriterWithSyntheticBoundaries {
         return $checkpoint
     }
     finally {
-        foreach ($name in @("Get-PSDrive", "git", "icacls.exe", "tar.exe", "node.exe", "curl.exe", "docker.exe", "Invoke-RestMethod")) {
+        foreach ($name in @("Get-PSDrive", "git", "icacls.exe", "tar.exe", "node.exe", "curl.exe", "docker", "docker.exe", "Invoke-RestMethod")) {
             Remove-Item -LiteralPath ("function:" + $name) -Force -ErrorAction SilentlyContinue
         }
         Remove-Variable -Name R03A1MockCommands,R03A1MockSnapshotCounter,R03A1RecoveryRoot,R03A1FailKnowledgeSnapshot -Scope Global -ErrorAction SilentlyContinue
@@ -351,22 +416,29 @@ try {
     $writerCheckpoint = [string]$writerTestOutput[-1]
     if ($writerTestOutput.Count -gt 1) { $writerTestOutput[0..($writerTestOutput.Count - 2)] | Write-Output }
     $writerReadResult = Invoke-Recovery @("-CheckpointPath", $writerCheckpoint, "-Mode", "Full", "-ValidateOnly")
+    if ($writerReadResult.exit_code -ne 0) { Write-Output ("SYNTHETIC_READER_DIAGNOSTIC=" + $writerReadResult.text) }
     Assert-True ($writerReadResult.exit_code -eq 0 -and $writerReadResult.text -match '"capture_complete":true') "real_writer_output_is_accepted_by_real_reader"
 
-    $legacy = Join-Path $root "legacy-v1"
-    New-Item -ItemType Directory -Path (Join-Path $legacy "artifacts") -Force | Out-Null
-    [IO.File]::WriteAllBytes((Join-Path $legacy "artifacts\postgres.dump"), [Text.Encoding]::ASCII.GetBytes("PGDMPlegacy"))
-    $legacyArtifact = Add-Artifact $legacy "artifacts/postgres.dump"
-    [ordered]@{
-        schema_version = "NEXT_STABIL_BACKUP_V1"; scope = "database"; app_version = "1.0.2+29"
-        created_at = (Get-Date).ToUniversalTime().ToString("o"); source_head = ("c" * 40)
-        db_revision = "followup_assistant_chat_history_20260829"; qdrant_restore_verified = $false
-        capture_status = $null; scope_status = $null; provenance_status = $null
-        consistency_status = $null; restore_status = $null; artifacts = @($legacyArtifact)
-    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $legacy "backup-manifest.json") -Encoding UTF8
-    $legacyResult = Invoke-Recovery @("-CheckpointPath", $legacy, "-Mode", "Database", "-ValidateOnly")
-    Assert-True ($legacyResult.exit_code -eq 0 -and $legacyResult.text -match 'RECOVERY_VALIDATION_JSON=') "legacy_v1_reader_still_recognizes_database_checkpoint"
-    Assert-True ($legacyResult.text -match '"capture_complete":false') "legacy_v1_not_promoted_to_complete_v2_point"
+    $historicalDatabase = New-LegacyV1Checkpoint "legacy-v1-historical-database" "database" $false
+    $historicalDatabaseResult = Invoke-Recovery @("-CheckpointPath", $historicalDatabase, "-Mode", "Database", "-ValidateOnly")
+    Assert-True ($historicalDatabaseResult.exit_code -eq 0 -and $historicalDatabaseResult.text -match 'RECOVERY_VALIDATION_JSON=') "historical_v1_database_without_later_status_fields_is_readable"
+    Assert-True ($historicalDatabaseResult.text -match '"capture_complete":false' -and
+        $historicalDatabaseResult.text -match '"capture_status":null' -and
+        $historicalDatabaseResult.text -match '"restore_status":null') "historical_v1_missing_statuses_are_unknown_not_fabricated"
+
+    $legacyWithNull = New-LegacyV1Checkpoint "legacy-v1-with-null-statuses" "database" $false -IncludeLaterStatusProperties
+    $legacyWithNullResult = Invoke-Recovery @("-CheckpointPath", $legacyWithNull, "-Mode", "Database", "-ValidateOnly")
+    Assert-True ($legacyWithNullResult.exit_code -eq 0 -and $legacyWithNullResult.text -match '"capture_status":null') "legacy_v1_with_explicit_null_statuses_remains_readable"
+
+    $historicalFull = New-LegacyV1Checkpoint "legacy-v1-historical-full" "full" $true
+    $historicalFullResult = Invoke-Recovery @("-CheckpointPath", $historicalFull, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($historicalFullResult.exit_code -eq 0 -and $historicalFullResult.text -match '"full_eligible":true' -and
+        $historicalFullResult.text -match '"capture_status":null') "historical_v1_full_with_prior_qdrant_proof_is_readable"
+
+    $historicalFullNoProof = New-LegacyV1Checkpoint "legacy-v1-historical-full-no-proof" "full" $false
+    $historicalFullNoProofResult = Invoke-Recovery @("-CheckpointPath", $historicalFullNoProof, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($historicalFullNoProofResult.exit_code -ne 0 -and
+        $historicalFullNoProofResult.text -match 'qdrant_restore_verification_required') "historical_v1_full_without_qdrant_proof_remains_rejected"
 
     $v2 = New-V2Checkpoint "v2-valid"
     $v2Result = Invoke-Recovery @("-CheckpointPath", $v2, "-Mode", "Full", "-ValidateOnly")
@@ -374,6 +446,21 @@ try {
     Assert-True ($v2Result.text -match 'ai_lab_document_chunks' -and $v2Result.text -match 'ai_lab_knowledge_base_chunks') "v2_reader_reports_both_collections"
     Assert-True ($v2Result.text -match '"full_eligible":false' -and $v2Result.text -match 'NOT_RUN_WAITING_APPROVAL') "capture_does_not_fabricate_restore_evidence"
     Test-ProofTargetGuardsWithMocks $v2
+
+    $missingStatus = New-V2Checkpoint "v2-missing-required-status"
+    $missingStatusPath = Join-Path $missingStatus "backup-manifest.json"
+    $missingStatusManifest = Get-Content -LiteralPath $missingStatusPath -Raw | ConvertFrom-Json
+    $missingStatusManifest.PSObject.Properties.Remove("consistency_status")
+    $missingStatusManifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $missingStatusPath -Encoding UTF8
+    $missingStatusResult = Invoke-Recovery @("-CheckpointPath", $missingStatus, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($missingStatusResult.exit_code -ne 0 -and
+        $missingStatusResult.text -match 'backup_manifest_v2_status_missing') "v2_missing_required_status_rejected"
+
+    $missingArtifact = New-V2Checkpoint "v2-missing-artifact"
+    [IO.File]::Delete((Join-Path $missingArtifact "artifacts\runtime-inventory.json"))
+    $missingArtifactResult = Invoke-Recovery @("-CheckpointPath", $missingArtifact, "-Mode", "Full", "-ValidateOnly")
+    Assert-True ($missingArtifactResult.exit_code -ne 0 -and
+        $missingArtifactResult.text -match 'backup_artifact_missing') "v2_missing_artifact_rejected"
 
     $missing = New-V2Checkpoint "v2-missing-kb"
     $missingManifestPath = Join-Path $missing "backup-manifest.json"

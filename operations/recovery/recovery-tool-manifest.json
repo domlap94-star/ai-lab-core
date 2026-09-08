@@ -1,11 +1,11 @@
 {
   "schema": "NEXT_STABIL_RECOVERY_TOOL_V1",
-  "tool_version": "1.1.0",
+  "tool_version": "1.1.1",
   "helpers": [
     {
       "file": "operations/hardening/restore-checkpoint.ps1",
-      "bytes": 27139,
-      "sha256": "9e5850470b4c52af68dfb3159fb1daa54bdd90658f219fe7a1254139505eb26b"
+      "bytes": 28148,
+      "sha256": "49e7f690ce8d23760b55e5eade02a07f23727a38947dfd3a9087603d0a7a36a0"
     },
     {
       "file": "operations/hardening/backup-production.ps1",
