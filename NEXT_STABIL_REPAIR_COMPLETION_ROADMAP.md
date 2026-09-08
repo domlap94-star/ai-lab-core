@@ -21,22 +21,22 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
 | Stan rejestracji | Właściciel przyjął dowód R03-A2 na `afedb4d1025feb8bd287272c36935ce9feb4f877` z ograniczeniem 0/10 źródłowych plików KB i autoryzował wyłącznie R03-A3; cały R03, escrow i pełny drill nowego punktu pozostają niezaakceptowane |
-| Checkpoint ID | `R03-20260908T202602Z-A3-KB-SOURCE-START` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T20:26:02Z` |
+| Checkpoint ID | `R03-20260908T210559Z-A3-CAPTURE-GATE` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T21:05:59Z` |
 | Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 A3 |
 | Aktywny pakiet / podetap | `R03 / A3 KB_SOURCE_CAPTURE` — `SOURCE_PASS`; cały R03 nadal `WAITING_APPROVAL` |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; podetap rozpoczęty z clean local/remote `afedb4d1025feb8bd287272c36935ce9feb4f877` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: DB head `followup_assistant_chat_history_20260829`; aktywne Assistant/Preparation/Analysis/Backup/Restore `0/0/0/0/0`, Preparation queued `15`; trzy harmonogramy backupu `Ready/synced`, najbliższy `2026-09-08T23:00:00Z`; Qdrant live: document `57`, KB `157`, oba `1024/Cosine`, aliasy `0`; runtime nadal mixed i jawnie zinwentaryzowany |
-| Ostatnia faktycznie zakończona czynność | Odtworzono fail-before starego writera, dodano jawny kontrakt pięciu domen storage i zweryfikowanego inventory KB oraz zakończono syntetyczną regresję SOURCE_PASS. Nowy capture jeszcze nie został uruchomiony |
+| Ostatnia faktycznie zakończona czynność | Opublikowano SOURCE_PASS jako `9e7df2068e1138fbbb5ca2e213c13efffe4c0945`; ponowny preflight potwierdził bezpieczne okno, pojemność, brak aktywnej pracy i nieistnienie wybranego celu `E:\ai-lab-backup\20260908T210559Z`. Capture jeszcze nie został uruchomiony |
 | Potwierdzone testy bieżącego wykonania | Fail-before: exit `1` na braku domeny KB; pass-after writer/reader/guard `58/58`; wrapper/tool manifest `15/15`; Qdrant validator, backup storage i scheduler `PASS/PASS/PASS`. Historyczne V1 oraz węższe V2 pozostają czytelne bez fałszywej deklaracji bieżącego pokrycia. Testy aplikacji/modeli: `NOT_RUN` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
 | Niezakończone procesy i skutki operacyjne | Własne kontenery drill `5/5` zatrzymane i zachowane; zachowano 3 wolumeny, 3 sieci oraz chroniony root z odtworzonymi danymi firmy. Produkcja nie była restartowana; Preparation queued `15`, Advanced queued `16`, modele `0`; nic nie było drainowane. Escrow i uruchomienie aplikacji: `NOT_RUN` |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T202602Z-R03-A3-KB-SOURCE-START.md`; dowody A2/A1 pozostają odpowiednio w `docs/recovery/R03_A2_ISOLATED_DRILL_EVIDENCE.md` i `docs/recovery/R03_A1_RECOVERY_POINT_EVIDENCE.md` |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T210559Z-R03-A3-CAPTURE-GATE.md`; wcześniejszy SOURCE_PASS: `docs/recovery/checkpoints/20260908T202602Z-R03-A3-KB-SOURCE-START.md` |
 | Zakres aktualnej zgody | Tylko R03 A3: zmiana istniejących narzędzi/testów dla pokrycia źródłowych plików KB, syntetyczny fail-before/pass-after, jeden nowy `CaptureOnly` po SOURCE_PASS i ograniczony roundtrip samych plików KB. Bez pełnego drill nowej kopii, escrow, cleanupu A2/A3, deploymentu i R04–R24 |
 | Blokada / wymagana decyzja | Przed capture muszą przejść testy syntetyczne i kontrola wszystkich trwałych referencji KB; po capture wymagany jest odbiór A3 oraz osobna zgoda wskazująca nowy manifest na pełny drill. Escrow/recovery key pozostaje oddzielną decyzją |
-| Jeden następny bezpieczny krok | Zacommitować i opublikować SOURCE_PASS na recovery, potwierdzić czyste bajty narzędzia, a następnie wykonać preflight i jeden autoryzowany nowy `CaptureOnly` |
+| Jeden następny bezpieczny krok | Utworzyć bieżący zanonimizowany runtime inventory i uruchomić dokładnie jeden `CaptureOnly` poprawionym writerem z `9e7df206...` do `E:\ai-lab-backup\20260908T210559Z` |
 | Warunek STOP | Przy niezgodnym pliku KB, nieudanym teście, braku pojemności lub niestabilnym inventory zatrzymać przed capture; po dowodzie A3 zatrzymać się przed pełnym drill, escrow, cleanupem i R04–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -63,7 +63,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
-| R03 | WAITING_APPROVAL | `R03-20260908T202602Z-A3-KB-SOURCE-START` / A3 SOURCE_PASS | Właściciel przyjął dowód A2 na `afedb4d...` z ograniczeniem 0/10 plików KB i autoryzował A3. Poprawka/testy są SOURCE_PASS, capture nie został jeszcze uruchomiony; pełny drill nowej kopii, escrow, cleanup i cały R03 pozostają decyzjami właściciela |
+| R03 | WAITING_APPROVAL | `R03-20260908T210559Z-A3-CAPTURE-GATE` / A3 SOURCE_PASS | SOURCE_PASS opublikowany jako `9e7df206...`; wybrany nowy cel `E:\ai-lab-backup\20260908T210559Z` przeszedł bramkę przed pierwszym zapisem. Capture nadal `NOT_RUN`; pełny drill nowej kopii, escrow, cleanup i cały R03 pozostają decyzjami właściciela |
 | R04 | PLANNED | — | — |
 | R05 | PLANNED | — | — |
 | R06 | PLANNED | — | — |
