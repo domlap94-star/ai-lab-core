@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet. Podetap A1 osiągnął LEGACY_READER_FIX_READY_FOR_REVIEW / WAITING_ISOLATED_DRILL_APPROVAL: nowy punkt pozostaje niezmieniony, a reader ponownie obsługuje historyczny format V1. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet. R03-A2 ma stan `ISOLATED_DRILL_READY_FOR_REVIEW / WAITING_ESCROW_DECISION`: dziewięć niezmiennych artefaktów punktu `1195AE5B...` odtworzono do odizolowanych celów, lecz kopia nie zawiera dziesięciu źródłowych plików KB. Escrow, cleanup i uruchomienie odtworzonej aplikacji pozostają niezatwierdzone. Wspólna roadmapa jest opublikowana na zatwierdzonej gałęzi recovery. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,24 +20,24 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | Właściciel zaakceptował podetap preflight R03, lecz nie cały R03 ani A1; po opublikowaniu dowodu capture na `38776e8ebae470d3b4dc41149c4de0c8a62d7021` zatwierdził wyłącznie korektę kompatybilności czytnika z historycznymi manifestami V1 i jej testy/dowody — bez nowego capture, firmowego restore/drill i escrow |
-| Checkpoint ID | `R03-20260908T155419Z-A1-LEGACY-READER` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T15:54:19Z` |
-| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 A1 |
-| Aktywny pakiet / podetap | `R03 / A1 LEGACY_READER_COMPATIBILITY_REVIEW_FIX` — `LEGACY_READER_FIX_READY_FOR_REVIEW / WAITING_ISOLATED_DRILL_APPROVAL`; cały R03 nadal `WAITING_APPROVAL` |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; podetap rozpoczęty z clean local/remote `38776e8ebae470d3b4dc41149c4de0c8a62d7021` |
+| Stan rejestracji | Właściciel zaakceptował R03-A1 na `0bbf3acba547b3174169cf27c7fcd8e8c60fd196` i autoryzował wyłącznie R03-A2: jeden izolowany drill kopii `E:\ai-lab-backup\20260908T135012Z`; cały R03 i escrow pozostają niezaakceptowane |
+| Checkpoint ID | `R03-20260908T180734Z-A2-DRILL` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-08T19:06:51Z` |
+| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 A2 |
+| Aktywny pakiet / podetap | `R03 / A2 ISOLATED_DRILL` — `READY_FOR_REVIEW / WAITING_ESCROW_DECISION`; cały R03 nadal `WAITING_APPROVAL` |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; podetap rozpoczęty z clean local/remote `0bbf3acba547b3174169cf27c7fcd8e8c60fd196` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only: DB head `followup_assistant_chat_history_20260829`; aktywne Assistant/Preparation/Analysis/Backup/Restore `0/0/0/0/0`, Preparation queued `15`; trzy harmonogramy backupu `Ready/synced`, najbliższy `2026-09-08T23:00:00Z`; Qdrant live: document `57`, KB `157`, oba `1024/Cosine`, aliasy `0`; runtime nadal mixed i jawnie zinwentaryzowany |
-| Ostatnia faktycznie zakończona czynność | Odtworzono `PropertyNotFoundStrict` na syntetycznym manifeście zgodnym z writerem V1 z `75e19ff8...`; reader rozróżnia teraz opcjonalne statusy V1 od obowiązkowych statusów V2. Ten sam fixture przechodzi, a brak informacji pozostaje `null`; istniejący capture V2 nie został zmieniony |
-| Potwierdzone testy bieżącego wykonania | Windows PowerShell `5.1.26100.8894`: fail-before `exit 1`, pass-after `exit 0`; R03 tool contract `43/43 PASS`; recovery PowerShell i niezależny tool manifest `15/15 PASS`; jednorazowy read-only V2 `ValidateOnly`: 9 artefaktów, 2 kolekcje, `capture_complete=true`, `full_eligible=false`, restore `NOT_RUN_WAITING_APPROVAL` |
+| Ostatnia faktycznie zakończona czynność | Odtworzono 9/9 artefaktów do nowych celów: PostgreSQL, cztery katalogi document storage, release/config, dwie kolekcje Qdrant i struktury n8n; wykonano kontrole wiązań, ponownie potwierdzono niezmienność manifestu, a pięć własnych kontenerów zatrzymano bez usuwania celów |
+| Potwierdzone testy bieżącego wykonania | `pg_restore` exit `0`; DB: 52 tabele, 113 FK, 114 PK, invalid FK `0`, 14/14 baseline counts; storage: 6349/6349 referencji, 5998 hashy bez mismatch; Qdrant: 57/57 i 157/157 referencji związanych z odtworzoną DB, oba `1024/Cosine`, aliasy `0`; końcowy reader `ValidateOnly / Full` exit `0`. Aplikacja, credentials i escrow `NOT_RUN` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | Zachowano nowy punkt (8,181,448,907 B) i po jednym nowym snapshotcie obu kolekcji. Aktywne operacje po capture `0`; Preparation queued `15` bez zmiany; modele `0`. Restore/drill, escrow i RTO: `NOT_RUN / WAITING_APPROVAL`, `NOT_RUN / WAITING_OWNER_DECISION`, `NOT_MEASURED`. Surowy log z nazwami plików jest chroniony `LOCAL_ONLY` i nie trafia do Git |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T155419Z-R03-A1-LEGACY-READER.md`; raport `docs/recovery/R03_A1_RECOVERY_POINT_EVIDENCE.md` |
-| Zakres aktualnej zgody | Tylko R03 A1: korekta czytnika, testów i dowodów dla historycznych V1 bez pięciu późniejszych pól; jeden read-only `ValidateOnly` istniejącego V2. Bez writera, nowego backupu/snapshotu, firmowego restore/drill, escrow, zmian produkcji, R04–R24 i wdrożenia rescue |
-| Blokada / wymagana decyzja | Właściciel osobno zatwierdza izolowany drill dokładnie manifestu `1195AE5B...` do nieutworzonego celu `R03_DRILL_20260908_A1`; escrow/vault/recovery key pozostają odrębną decyzją. Brak `embedding_version` w 57 historycznych payloadach dokumentowych jest jawnym ograniczeniem generacji do sprawdzenia w drill, nie uzupełniono go |
-| Jeden następny bezpieczny krok | Ograniczony odbiór poprawki readera przez właściciela; następnie osobna decyzja o izolowanym drill tego konkretnego punktu. Nie wykonywać drill, escrow ani R04 bez nowej zgody |
-| Warunek STOP | Po A1 zatrzymać się przed firmowym restore/drill, escrow, cleanupem starych kopii i R04–R24 |
+| Niezakończone procesy i skutki operacyjne | Własne kontenery drill `5/5` zatrzymane i zachowane; zachowano 3 wolumeny, 3 sieci oraz chroniony root z odtworzonymi danymi firmy. Produkcja nie była restartowana; Preparation queued `15`, Advanced queued `16`, modele `0`; nic nie było drainowane. Escrow i uruchomienie aplikacji: `NOT_RUN` |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260908T180734Z-R03-A2-DRILL.md`; dowód: `docs/recovery/R03_A2_ISOLATED_DRILL_EVIDENCE.md`; wcześniejszy raport A1: `docs/recovery/R03_A1_RECOVERY_POINT_EVIDENCE.md` |
+| Zakres aktualnej zgody | Tylko R03 A2: zapisy do dokładnie nazwanych nowych zasobów drill dla PostgreSQL, document storage i dwóch kolekcji Qdrant; walidacja release/config/n8n bez ich uruchamiania; zachowanie celów po zatrzymaniu. Bez produkcyjnych zapisów biznesowych, nowego backupu/snapshotu, aplikacji, escrow, cleanupu i R04–R24 |
+| Blokada / wymagana decyzja | Właściciel odrębnie odbiera A2 oraz rozstrzyga: brak 10 źródłowych plików KB w zakresie capture, escrow/recovery key i późniejszy exact-name cleanup zachowanych zasobów. Brak `embedding_version` w 57 historycznych payloadach dokumentowych pozostaje jawnym ograniczeniem legacy, nie wartością do dopisania |
+| Jeden następny bezpieczny krok | Odbiór A2 przez właściciela i osobne decyzje o domknięciu zakresu plików KB, escrow oraz cleanupie; bez rozpoczynania R04 |
+| Warunek STOP | Po dowodzie A2 zatrzymać własne kontenery, zachować root/wolumeny i zatrzymać się przed escrow, cleanupem, uruchomieniem aplikacji i R04–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
 odczytuje się z Git (`git log -1 --format=%H -- NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`).
@@ -63,7 +63,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
-| R03 | WAITING_APPROVAL | `R03-20260908T155419Z-A1-LEGACY-READER` / A1 LEGACY_READER_FIX_READY_FOR_REVIEW | Capture/integrity A1 zachowane; poprawka czytnika czeka na odbiór, a izolowany drill konkretnego manifestu i escrow wymagają osobnych decyzji; cały R03 nie jest READY ani ACCEPTED |
+| R03 | WAITING_APPROVAL | `R03-20260908T180734Z-A2-DRILL` / A2 READY_FOR_REVIEW | Odtworzenie 9/9 artefaktów i wiązań DB/storage/Qdrant przeszło; zakres nie obejmuje 10 źródłowych plików KB. Odbiór A2, escrow, cleanup i cały R03 pozostają decyzjami właściciela |
 | R04 | PLANNED | — | — |
 | R05 | PLANNED | — | — |
 | R06 | PLANNED | — | — |
