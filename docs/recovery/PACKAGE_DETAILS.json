@@ -194,7 +194,7 @@
     "approval": "Commit źródłowy oddzielnie; przed operacyjnym przepięciem: R03 i osobny approval konfiguracji/deploy/gateway. Brak zmian firewall/Tailscale.",
     "rollback": "Poprzedni podpisany lub hashowany zestaw wraz z konfiguracją i schema compatibility; zachowane stare ścieżki do czasu odbioru.",
     "exclude": "Usuwanie live Web lub zewnętrznego workera, podwyższanie minimum dla wymuszenia pozornego sukcesu, reset lokalnego repo.",
-    "status": "PLANNED",
+    "status": "IN_PROGRESS",
     "primary_requirements": [
       "M-003",
       "M-004",
