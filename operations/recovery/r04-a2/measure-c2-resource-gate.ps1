@@ -9,6 +9,12 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$StopFile,
 
+    [string]$ExpectedContainerName = "next-stabil-r04-a2-c2--telemetry",
+
+    [string]$ExpectedOwner = "R04-A2-C2",
+
+    [string]$ExpectedRunId = "20260909T184535Z",
+
     [ValidateRange(5, 10)]
     [int]$IntervalSeconds = 5,
 
@@ -19,9 +25,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
-$container = "next-stabil-r04-a2-c2--telemetry"
-$expectedOwner = "R04-A2-C2"
-$expectedRun = "20260909T184535Z"
+$container = $ExpectedContainerName
 $gib = [double](1024 * 1024 * 1024)
 $mib = [double](1024 * 1024)
 $minimumReserveGiB = 4.0
@@ -68,8 +72,8 @@ $actualId = Invoke-DockerValue @("inspect", "--format", "{{.Id}}", $container)
 $owner = Invoke-DockerValue @("inspect", "--format", '{{index .Config.Labels \"next.stabil.owner\"}}', $container)
 $run = Invoke-DockerValue @("inspect", "--format", '{{index .Config.Labels \"next.stabil.run-id\"}}', $container)
 $state = Invoke-DockerValue @("inspect", "--format", "{{.State.Status}}", $container)
-if ($actualId -ne $ExpectedContainerId -or $owner -ne $expectedOwner -or
-    $run -ne $expectedRun -or $state -ne "running") {
+if ($actualId -ne $ExpectedContainerId -or $owner -ne $ExpectedOwner -or
+    $run -ne $ExpectedRunId -or $state -ne "running") {
     throw "TELEMETRY_IDENTITY_MISMATCH"
 }
 
@@ -94,10 +98,10 @@ for ($index = 0; $index -lt $MaxSamples; $index++) {
         $swapUsed = [int64]$pool.SwapTotal - [int64]$pool.SwapFree
         $swapGrowth = $swapUsed - $baselineSwapUsed
         $status = "PASS"
-        if ($windowsAvailable -lt (4 * $gib)) { $status = "RAM_GATE_BLOCKED" }
-        elseif ($commitReserve -lt (4 * $gib)) { $status = "COMMIT_GATE_BLOCKED" }
-        elseif ([double]$pool.MemAvailable -lt (4 * $gib)) { $status = "POOL_RESERVE_BLOCKED" }
-        elseif ($swapGrowth -gt (256 * $mib)) { $status = "POOL_SWAP_GROWTH_BLOCKED" }
+        if ($windowsAvailable -lt ($minimumReserveGiB * $gib)) { $status = "RAM_GATE_BLOCKED" }
+        elseif ($commitReserve -lt ($minimumReserveGiB * $gib)) { $status = "COMMIT_GATE_BLOCKED" }
+        elseif ([double]$pool.MemAvailable -lt ($minimumReserveGiB * $gib)) { $status = "POOL_RESERVE_BLOCKED" }
+        elseif ($swapGrowth -gt ($maximumSwapGrowthMiB * $mib)) { $status = "POOL_SWAP_GROWTH_BLOCKED" }
 
         $line = [string]::Format(
             [System.Globalization.CultureInfo]::InvariantCulture,

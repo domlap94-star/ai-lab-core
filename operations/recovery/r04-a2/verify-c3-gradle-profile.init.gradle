@@ -1,0 +1,37 @@
+import java.lang.management.ManagementFactory
+
+gradle.projectsLoaded {
+    def root = gradle.rootProject
+    root.tasks.register('r04C3ResourceGuard') {
+        group = 'verification'
+        description = 'Verify the bounded R04-A2/C3 build profile without compiling.'
+
+        doLast {
+            def inputArgs = ManagementFactory.runtimeMXBean.inputArguments
+            def requiredJvmArgs = [
+                '-Xmx2048m',
+                '-XX:MaxMetaspaceSize=768m',
+                '-XX:ReservedCodeCacheSize=256m'
+            ]
+            requiredJvmArgs.each { expected ->
+                if (!inputArgs.contains(expected)) {
+                    throw new GradleException("R04 C3 JVM argument missing: ${expected}")
+                }
+            }
+            if (gradle.startParameter.maxWorkerCount != 1) {
+                throw new GradleException('R04 C3 max worker count is not 1')
+            }
+            if (gradle.startParameter.parallelProjectExecutionEnabled) {
+                throw new GradleException('R04 C3 parallel project execution is enabled')
+            }
+            if (!gradle.startParameter.offline) {
+                throw new GradleException('R04 C3 Gradle offline mode is not enabled')
+            }
+            def strategy = project.findProperty('kotlin.compiler.execution.strategy')?.toString()
+            if (strategy != 'in-process') {
+                throw new GradleException('R04 C3 Kotlin compiler is not configured in-process')
+            }
+            println 'R04_C3_PROFILE|xmx=2048m|metaspace=768m|code_cache=256m|workers=1|parallel=false|offline=true|kotlin=in-process'
+        }
+    }
+}

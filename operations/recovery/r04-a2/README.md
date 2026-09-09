@@ -402,3 +402,98 @@ The real smoke must correlate visible UI state with HTTP and the synthetic DB.
 API-only calls, parser tests and screenshots of an empty/start screen are not a
 substitute. Qwen, embedding, Qdrant, Gmail, Temporary Chat and AI acceptance are
 not part of this run.
+
+## C3 low-memory Android build
+
+C3 reuses the preserved `android-source`; it does not recreate, clean or seed
+the A2 environment. The source archive remains
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`. The published package/signing
+overlay has SHA-256 `1956D912C97F95B0B0BE3367EC580D6AA52C645B31444E129BC8FE6F92DC8DA8`.
+The additional build-only overlay is `android-c3-low-memory-build.patch`,
+SHA-256 `199415DAE534690CC251707732C71C81BFF061257430AB17E38E2D75C1667666`.
+Its resulting `android/gradle.properties` SHA-256 is
+`E323EA871057548A1798B9BFF94BCE1B5774C492E92F22F62CB4D26922165D88`.
+
+Do not run `git -C` against the ordinary extracted copy. First confirm that it
+has no Git parent, then enter the exact directory and use apply/reverse checks
+to distinguish a fresh source from the already-applied C3 state:
+
+```powershell
+$AndroidRoot = "C:\ai-lab-core-staging\recovery\R04_A2_REAL_APP_20260909T131617Z\android-source"
+$PackagePatch = "C:\ai-lab-core-recovery\operations\recovery\r04-a2\android-r04test-build-only.patch"
+$MemoryPatch = "C:\ai-lab-core-recovery\operations\recovery\r04-a2\android-c3-low-memory-build.patch"
+if (Test-Path -LiteralPath (Join-Path $AndroidRoot '.git')) { throw 'unexpected Git metadata' }
+Push-Location -LiteralPath $AndroidRoot
+try {
+    git apply --reverse --check $PackagePatch
+    if ($LASTEXITCODE -ne 0) { throw 'package/signing overlay is not applied' }
+    git apply --reverse --check $MemoryPatch
+    if ($LASTEXITCODE -ne 0) { throw 'low-memory overlay is not applied' }
+} finally { Pop-Location }
+```
+
+The effective profile is checked by the real Gradle 9.1.0 wrapper, offline and
+without compiling. `JAVA_HOME` is process-local and points at the already
+installed Android Studio JBR; no global Gradle/Java settings are changed:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Android\Android Studio\jbr'
+$AndroidGradle = Join-Path $AndroidRoot 'android'
+$Guard = 'C:\ai-lab-core-recovery\operations\recovery\r04-a2\verify-c3-gradle-profile.init.gradle'
+Push-Location -LiteralPath $AndroidGradle
+try {
+    & .\gradlew.bat --offline --max-workers=1 --no-parallel --no-daemon `
+        -I $Guard r04C3ResourceGuard
+    if ($LASTEXITCODE -ne 0) { throw 'BUILD_PROFILE_NOT_APPLIED' }
+} finally { Pop-Location }
+```
+
+The guard requires the actual JVM input arguments `-Xmx2048m`, metaspace
+`768m`, code cache `256m`, one worker, `parallel=false`, Gradle offline and
+Kotlin `in-process`. The C3 build uses the same flags in one direct wrapper
+invocation. It passes only the Flutter properties reconstructed from the
+checked Flutter 3.44.8 tool path and the two explicit test Dart defines:
+
+```powershell
+$defines = @(
+    'API_BASE_URL=http://10.0.2.2:18004',
+    'ANDROID_AUTH_DIAGNOSTICS=false'
+) | ForEach-Object { [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($_)) }
+$dartDefines = $defines -join ','
+Push-Location -LiteralPath $AndroidGradle
+try {
+    & .\gradlew.bat --offline --max-workers=1 --no-parallel --no-daemon `
+        -I $Guard -q `
+        '-Ptarget-platform=android-arm,android-arm64,android-x64' `
+        '-Ptarget=lib/main.dart' `
+        '-Pbase-application-name=android.app.Application' `
+        "-Pdart-defines=$dartDefines" `
+        '-Pdart-obfuscation=false' '-Ptrack-widget-creation=true' `
+        '-Ptree-shake-icons=false' r04C3ResourceGuard assembleDebug
+    if ($LASTEXITCODE -ne 0) { throw 'Android C3 build failed or was stopped' }
+} finally { Pop-Location }
+```
+
+Both commands must run under the session-bounded resource monitor with explicit
+C3 `ExpectedContainerName`, `ExpectedOwner` and `ExpectedRunId`; the helper's
+C2 defaults remain backward compatible. C3 completed exactly one assemble in
+about 3 minutes 15 seconds. The build gate stayed PASS with minimum Windows
+available `5.602 GiB`, commit reserve `36.065 GiB`, pool available
+`14.135 GiB` and unchanged swap use. The new APK is `166479535` bytes with
+SHA-256 `FAF545C0F6E6DD55DC48898A10714AA099FF3EBE78B648EADAC2B036C7AE325E`,
+package `pl.ailab.app.r04test`, Android debug certificate and the test API URL
+inside `kernel_blob.bin`.
+
+After the build, the preserved A2 stack passed identity/DB/fixture checks. The
+verified `Pixel_8` appeared as `emulator-5554`, but before boot completed the
+active monitor recorded Windows available `3.900 GiB`. C3 therefore stopped
+that exact emulator and classified Android runtime `RAM_GATE_BLOCKED`; APK
+install and UI-01–UI-06 were not run. Do not retry automatically. The bounded
+next proposal is a separately approved AVD-only window that begins with at
+least `8.5 GiB` Windows available while the A2 stack is running, retaining all
+existing 4 GiB/commit/pool/swap gates and the same already-built APK.
+
+Web UI-03 remains independent and `WAITING_OWNER_VISUAL_EVIDENCE`. Open the
+retained clicked download in a local viewer and capture only that viewer window;
+do not rerun Web or fetch the file again. `R04-A2-UI06` remains
+`KNOWN_DEFECT_OPEN_R16`.

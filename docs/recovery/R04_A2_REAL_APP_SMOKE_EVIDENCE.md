@@ -278,3 +278,91 @@ Werdykt C2: `R04 A2 APP_SMOKE_PARTIAL / TEST_ONLY`; Android ma konkretny
 jeden krok właściciela dla Web UI-03: otworzyć dokładny zachowany download w
 lokalnym viewerze i przekazać zrzut wyłącznie tego okna. Ponowienie Android
 wymaga osobnego bezpiecznego okna/scope; C2 nie otwiera R16 ani dalszego R04.
+
+## Kontynuacja C3 — 2026-09-09
+
+Właściciel przyjął dowód C2 na
+`6d715ddd0df01b95960951a5a8859003aaabf431` jako częściowy i dopuścił
+wyłącznie jeden profil low-memory, najwyżej jeden build APK oraz Android UI
+dopiero po sukcesie builda i ponownej bramce zasobów. Kod produktu pozostał
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`; main/rescue nie zostały
+zmienione ani adoptowane.
+
+### Profil i jeden build
+
+Zewnętrzny `android-source` pozostał zwykłą kopią bez metadanych Git. Kontrola
+316 tracked plików względem code-under-test wykazała wyłącznie dwie jawne
+nakładki build-only: wcześniejszy `android/app/build.gradle.kts` oraz nowy
+`android/gradle.properties`. Patch low-memory ma SHA-256
+`199415DAE534690CC251707732C71C81BFF061257430AB17E38E2D75C1667666`, a
+wynikowy plik właściwości
+`E323EA871057548A1798B9BFF94BCE1B5774C492E92F22F62CB4D26922165D88`.
+Apply/reverse-check obu nakładek = PASS.
+
+Rzeczywisty wrapper Gradle 9.1.0 potwierdził efektywne parametry:
+`-Xmx2048m`, metaspace `768m`, code cache `256m`, jeden worker,
+`parallel=false`, offline, Kotlin `in-process`. Pierwsze dwie próby konfiguracji
+ujawniły wyłącznie lokalne błędy przygotowania (`JAVA_HOME` i nazwa zadania
+wchodząca w istniejący release-profile gate); żadna nie uruchomiła
+`assembleDebug`. Po użyciu istniejącego JBR OpenJDK 21.0.10 i neutralnego
+zadania guard zakończył się `BUILD SUCCESSFUL`.
+
+Minimalnie sparametryzowany `measure-c2-resource-gate.ps1` zachowuje domyślne
+dane C2 i nie zmienia progów. Parser PowerShell 5.1 = PASS; rzeczywisty odczyt
+C3 = PASS, a osobne próby z błędnym pełnym ID, ownerem i run ID zakończyły się
+odmową `TELEMETRY_IDENTITY_MISMATCH`.
+
+Dokładnie jedna kompilacja `assembleDebug` rozpoczęła się
+`2026-09-09T21:16:35.1906220Z` i zakończyła exit `0` po około 3 min 15 s.
+Monitor zebrał 44 próbki. Minima wyniosły: Windows available `5.602 GiB`,
+commit reserve `36.065 GiB`, Docker/WSL pool available `14.135 GiB`; swap
+pozostał około `1.9 MiB` bez wzrostu. Wynikowy APK:
+
+- package `pl.ailab.app.r04test`, version `1.0.2` (`29`);
+- rozmiar `166479535 B`;
+- SHA-256 `FAF545C0F6E6DD55DC48898A10714AA099FF3EBE78B648EADAC2B036C7AE325E`;
+- Android debug certificate SHA-256
+  `7A4397BF69CF0B21A6D028510C13FE84FAD7D3892B62F1C524B78D0B05CBE0F4`;
+- testowy endpoint `http://10.0.2.2:18004` obecny w `kernel_blob.bin`.
+
+### Bramka uruchomienia Androida
+
+Po buildzie zachowany stos A2 przeszedł ponownie kontrolę pełnych ID,
+`current_database()`, DB head i fixture: dwaj syntetyczni klienci, jeden
+dokument `204 B`, backend source revision zgodna z code-under-test.
+`component_identity.verification` pozostało uczciwie `UNVERIFIED`, a runtime
+configuration `REVIEW_REQUIRED`.
+
+Istniejący AVD ma nazwę `Pixel_8`, API 37.1, 4 CPU i zadeklarowane 2048 MiB
+RAM. Po starcie rzeczywisty serial `emulator-5554` został potwierdzony przez
+`adb emu avd name`. Zanim boot zakończył się, aktywny monitor o
+`2026-09-09T21:28:29.6247112Z` odnotował Windows available `3.900 GiB`.
+Commit reserve wynosił wtedy `33.024 GiB`, pool available `13.945 GiB`, swap
+około `1.9 MiB`; jedyną naruszoną bramką był fizyczny RAM Windows. Dokładny
+emulator zatrzymano do `21:28:56Z`. Nie wykonano retry, instalacji APK ani
+Android UI-01–UI-06.
+
+Android = `RAM_GATE_BLOCKED / NOT_RUN`. Zaobserwowany spadek podczas bootu z
+około `7.949` do `3.900 GiB` uzasadnia wyłącznie ograniczoną propozycję
+osobnego okna AVD-only rozpoczynającego się przy co najmniej `8.5 GiB`
+Windows available, z tym samym już zbudowanym APK i bez zmiany dotychczasowych
+bramek 4 GiB/commit/pool/swap. Nie jest to wykonana ani domyślnie zatwierdzona
+próba.
+
+### Stan końcowy C3
+
+Web UI-03 nie było ponawiane: hash pobrania zachowuje wcześniejszy PASS, a
+widoczna treść nadal `WAITING_OWNER_VISUAL_EVIDENCE`. `R04-A2-UI06` pozostaje
+`PARTIAL / KNOWN_DEFECT_OPEN_R16`; D-15/D-16 oraz modele pozostają `NOT_RUN`.
+
+Trzy exact-name kontenery A2 są `exited`; porty `18004/18005` nie nasłuchują,
+`adb devices` nie wskazuje urządzenia, a procesy emulatora/Java/Dart/Flutter
+uruchomione w C3 zakończyły się. Jedyny kontener telemetryczny został usunięty
+po kontroli pełnego ID/owner/run. Testowe DB/storage/cache i APK pozostają
+`LOCAL_ONLY`. Produkcyjne business writes, modele, kolejki, Qdrant, Gmail,
+Vision, Temporary Chat, backup/snapshot, escrow, deploy i rescue adoption:
+`0` działań C3.
+
+Werdykt: `R04 A2 APP_SMOKE_PARTIAL / TEST_ONLY`; build APK jest PASS, lecz
+Android UI-01–UI-06 pozostają `NOT_RUN` z powodu `RAM_GATE_BLOCKED` podczas
+bootu AVD. C3 nie otwiera R16 ani dalszego podetapu R04.
