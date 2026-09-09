@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet. Właściciel zaakceptował R03-A3 na `fed9b9423269047e116715edb4318033b37cc6c4` i autoryzował wyłącznie R03-A4: jeden izolowany drill punktu `E:\ai-lab-backup\20260908T210559Z`. A4 odtworzyło i zweryfikowało PostgreSQL, pięć domen storage, obie kolekcje Qdrant oraz pakiety release/config/n8n w nowych izolowanych celach; wynik oczekuje na odbiór właściciela. Escrow, cleanup zachowanych celów, rollout harmonogramów i R04 pozostają niezatwierdzone. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL jako cały pakiet. Właściciel zaakceptował R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` w zakresie udokumentowanego izolowanego odzyskania danych z punktu `E:\ai-lab-backup\20260908T210559Z`, związanego z niezmiennym manifestem `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`. Escrow, odzyskanie credentials, pełne RTO, cleanup zachowanych celów, rollout harmonogramów i R04 pozostają niezatwierdzone. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,24 +20,24 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | Właściciel zaakceptował R03-A3 na `fed9b9423269047e116715edb4318033b37cc6c4` w zakresie poprawki, jednego capture i roundtripu KB oraz autoryzował wyłącznie jeden izolowany drill R03-A4. Cały R03 i escrow pozostają niezaakceptowane |
-| Checkpoint ID | `R03-20260909T002210Z-A4-DRILL` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-09T00:22:10Z` |
-| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja R03 A4 |
-| Aktywny pakiet / podetap | `R03 / A4 NEW_POINT_DRILL` — `NEW_POINT_DRILL_READY_FOR_REVIEW / WAITING_ESCROW_DECISION`; cały R03 nadal `WAITING_APPROVAL` |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; A4 rozpoczęto z clean local/remote `fed9b9423269047e116715edb4318033b37cc6c4` |
+| Stan rejestracji | Właściciel zaakceptował R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` wyłącznie w zakresie udokumentowanego odzyskania danych dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`. Cały R03, escrow i gotowość produkcyjnego restore pozostają niezaakceptowane |
+| Checkpoint ID | `R03-20260909T064442Z-A4-ACCEPTANCE` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-09T06:44:42Z` |
+| Aktualny wykonawca / sesja | Codex / jedna aktywna sesja dokumentacyjnego zapisu odbioru R03 A4 |
+| Aktywny pakiet / podetap | `R03 / A4 ACCEPTANCE` — `ACCEPTED / DATA_RESTORE_VERIFIED_FOR_MANIFEST_8F20A784`; cały R03 nadal `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; zapis odbioru rozpoczęto z clean local/remote `92cc3aa38f0a81ff40e3798981970bd2e45b6206` |
 | Gałąź / SHA kodu objętego sprawdzeniem | source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` oceniane osobno, nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
-| Źródła runtime / release / DB | Końcowy bounded read-only: produkcyjne ID kontenerów bez zmian, backend/gateway HTTP `200`, public `/control` `404`, DB head `followup_assistant_chat_history_20260829`; aktywne Assistant/Preparation/Analysis/Backup/Restore `0/0/0/0/0`, Preparation queued `15`, Advanced queued `16`; Qdrant live `57/157`, snapshoty `8/2`, Ollama residency `0`. Naturalny Backup-3 zwiększył completed runs `40→41`; nie był skutkiem A4 |
-| Ostatnia faktycznie zakończona czynność | A4 odtworzyło DB przez `pg_restore --no-owner --exit-on-error`, rozpakowało pięć domen i pakiety, odtworzyło obie kolekcje przez przypięty helper oraz wykonało content-free join do odtworzonej DB. Wszystkie kontrole PASS; dokładnie 5 kontenerów A4 zatrzymano, 3 wolumeny, 3 sieci internal i chroniony root zachowano |
-| Potwierdzone testy bieżącego wykonania | A4: PostgreSQL head/tables/FK/PK `PASS`; storage `6359/6359` referencji, `6008` hashy i KB `10/10`; Qdrant document `57/57`, KB `157/157`; release/config/n8n strukturalnie `PASS`; końcowy reader `ValidateOnly / Full` exit `0`, manifest niezmieniony. Aplikacja, credentials, escrow i pełne RTO: `NOT_RUN/NOT_MEASURED` |
+| Źródła runtime / release / DB | Zakończony dowód A4 na `92cc3aa...`: produkcyjne ID kontenerów bez zmian, backend/gateway HTTP `200`, public `/control` `404`, DB head `followup_assistant_chat_history_20260829`; aktywne Assistant/Preparation/Analysis/Backup/Restore `0/0/0/0/0`, Preparation queued `15`, Advanced queued `16`; Qdrant live `57/157`, snapshoty `8/2`, Ollama residency `0`. Naturalny Backup-3 zwiększył completed runs `40→41`; nie był skutkiem A4. W tej sesji dokumentacyjnej nie ponawiano odczytów runtime |
+| Ostatnia faktycznie zakończona czynność | Zapisano decyzję właściciela: R03-A4 `ACCEPTED` dla wskazanego SHA, zakresu i pełnego hasha manifestu. Poprzednia luka `0/10` oryginałów KB jest zamknięta dla tego punktu dowodem `10/10` oraz powiązaniami odtworzonego pliku, rekordu, strony i indeksu |
+| Potwierdzone testy bieżącego wykonania | Testy aplikacyjne/restore w tej sesji: `NOT_RUN` — wyłącznie zapis decyzji. Przytoczone wyniki A4 są zakończonym dowodem z `92cc3aa...`: PostgreSQL, storage `6359/6359`, KB `10/10`, Qdrant `57/57` i `157/157`, release/config/n8n `PASS`; aplikacja i integracje `NOT_RUN`, credentials/escrow `NOT_RUN`, pełne RTO `NOT_MEASURED` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | A4 zapisało wyłącznie nowe izolowane cele: 5 kontenerów `exited`, 3 wolumeny, 3 sieci internal i root `C:\ai-lab-core-staging\recovery\R03_DRILL_A4_20260908T210559Z` (`8 707 671 777` B po zapisaniu indeksu dowodów); niczego nie usunięto. A2 i A3 zachowane. Produkcja bez restartu/zapisu biznesowego; naturalny harmonogram zwiększył completed backup runs `40→41`. Cleanup, aplikacja, credentials, escrow i pełne RTO nadal niewykonane |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260909T002210Z-R03-A4-DRILL.md`; dowód: `docs/recovery/R03_A4_NEW_POINT_DRILL_EVIDENCE.md`; poprzedni checkpoint: `docs/recovery/checkpoints/20260908T233516Z-R03-A4-OPERATION-START.md` |
-| Zakres aktualnej zgody | Tylko R03 A4: jeden izolowany drill dokładnie `E:\ai-lab-backup\20260908T210559Z` do exact-name nowych celów, pięć domen storage, obie kolekcje, read-only bindingi i weryfikacja release/config/n8n. Bez zmian narzędzi, aplikacji, escrow, rollout, cleanupu i R04–R24 |
-| Blokada / wymagana decyzja | Właściciel musi odebrać wynik A4 oraz oddzielnie rozstrzygnąć escrow/recovery key i późniejszy exact-name cleanup zachowanych celów. Drill nie uruchamiał aplikacji ani nie dowodzi odzyskania credentials lub pełnego RTO |
-| Jeden następny bezpieczny krok | Odbiór wyniku R03-A4 przez właściciela i osobne decyzje o escrow oraz cleanupie dokładnie nazwanych celów; nie rozpoczynać R04 |
-| Warunek STOP | Bez odbioru A4 nie ogłaszać pełnego R03; bez osobnych zgód nie odszyfrowywać credentials, nie wykonywać escrow, cleanupu, rollout ani R04–R24 |
+| Niezakończone procesy i skutki operacyjne | Zakończone A4 zachowało 5 kontenerów `exited`, 3 wolumeny, 3 sieci internal i chroniony root; A2, A3, A4 i stare kopie nie uzyskały zgody na cleanup. Immutable capture pozostaje `COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL`, a jego historyczny `restore_status=NOT_RUN_WAITING_APPROVAL` nie został zmieniony; odrębny dowód A4 jest związany pełnym hashem manifestu. Scheduled backupy nie zostały przełączone na poprawione narzędzia recovery |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260909T064442Z-R03-A4-ACCEPTANCE.md`; dowód operacyjny: `docs/recovery/R03_A4_NEW_POINT_DRILL_EVIDENCE.md`; poprzedni checkpoint: `docs/recovery/checkpoints/20260909T002210Z-R03-A4-DRILL.md` |
+| Zakres aktualnej zgody | Wyłącznie dokumentacyjny zapis odbioru R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A784...`. Bez nowych testów, odczytu artefaktów, operacji runtime, escrow, credentials, cleanupu, rollout, backupu, snapshotu, drill oraz R04–R24 |
+| Blokada / wymagana decyzja | Cały R03 pozostaje `WAITING_APPROVAL / WAITING_ESCROW_DECISION`: właściciel musi wybrać i zatwierdzić sposób przechowania escrow, cel, osoby uprawnione/opiekuna oraz niezależny sposób odzyskania recovery key. Aplikacji i integracji nie uruchamiano, credentials nie odszyfrowano, recovery key nie sprawdzono, a pełnego RTO nie zmierzono |
+| Jeden następny bezpieczny krok | Decyzja właściciela o mechanizmie i celu escrow, uprawnionych osobach/opiekunie oraz niezależnym sposobie odzyskania klucza; nie rozpoczynać R04 |
+| Warunek STOP | Bez osobnej decyzji nie wykonywać escrow, nie odczytywać/odszyfrowywać credentials lub sekretów, nie uruchamiać aplikacji, nie przełączać scheduled backupów, nie wykonywać cleanupu ani R04–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
 odczytuje się z Git (`git log -1 --format=%H -- NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`).
@@ -63,7 +63,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R00 | ACCEPTED | `R00-20260907T204252Z-HANDOFF-B1` / OWNER REVIEW | Właściciel zaakceptował `ROADMAP_SYNCED@9af4026eeffed2509af943bff1e37b2514bfd5e8` |
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
-| R03 | WAITING_APPROVAL | `R03-20260909T002210Z-A4-DRILL` / A4 READY_FOR_REVIEW | Właściciel zaakceptował A3 na `fed9b942...`; autoryzowany drill A4 punktu `8F20A784...` odtworzył DB, 5 domen storage i 2 kolekcje oraz wykazał content-free binding PASS. A4 oczekuje na odbiór; escrow, credentials, cleanup, rollout i cały R03 pozostają decyzjami właściciela |
+| R03 | WAITING_APPROVAL | `R03-20260909T064442Z-A4-ACCEPTANCE` / A4 ACCEPTED | Właściciel zaakceptował A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206`: `DATA_RESTORE_VERIFIED_FOR_MANIFEST_8F20A784`. Cały R03 nadal `WAITING_ESCROW_DECISION`; credentials, recovery key, aplikacja, pełne RTO, cleanup i rollout pozostają niezatwierdzone/niewykonane |
 | R04 | PLANNED | — | — |
 | R05 | PLANNED | — | — |
 | R06 | PLANNED | — | — |
