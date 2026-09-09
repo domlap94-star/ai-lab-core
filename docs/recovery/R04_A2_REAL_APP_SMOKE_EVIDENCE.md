@@ -191,3 +191,90 @@ pełnych ID. Porty `18004/18005` finalnie nie nasłuchują. C1 nie wykonał
 migracji, seeda, mutacji UI/DB, modelu, kolejki, Qdrant, Gmail, Vision ani
 Temporary Chat. Dwa pobrania syntetycznego pliku i nowe dowody `LOCAL_ONLY` są
 jedynymi trwałymi skutkami poza dokumentacją i Git.
+
+## Kontynuacja C2 — 2026-09-09
+
+Właściciel przyjął ograniczony dowód C1 na
+`e63ed05c6a9a31cb3657215dba548076e7f8297c` i zezwolił wyłącznie na C2.
+Kod produktu pozostał `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`;
+main/rescue nie były adoptowane ani zmieniane.
+
+### Rozstrzygnięcie dostępu i ta sama pula Docker/WSL
+
+Podstawowa próba o `2026-09-09T18:49:25Z` uruchomiła ten sam
+`docker.exe`, użytkownika, SID/session i context `desktop-linux`, lecz została
+odrzucona na `npipe:////./pipe/dockerDesktopLinuxEngine` z exit `1`. Jedyna
+uzasadniona alternatywa — identyczny read-only `docker info` przez wąską bramkę
+approval — o `18:49:48Z` zakończyła się exit `0`. Przyczyna to
+`CODEX_EXECUTION_SANDBOX_NAMED_PIPE_BOUNDARY`; nie awaria engine, brak RAM ani
+potrzeba administratora. Nie zmieniono użytkownika, grup, ACL pipe, kontekstu,
+Dockera, WSL ani zabezpieczeń.
+
+Engine ID `78446bed-994a-42ea-ad86-46f8232848a8`, Docker Desktop/Linux i
+kernel `6.18.33.2-microsoft-standard-WSL2` zgadzały się po obu stronach.
+Jedyny kontener pomiarowy miał ID `bdb22257...`, lokalny obraz
+`sha256:4b12cf0e...`, boot ID `f2d33511...`, limit cgroup dokładnie 64 MiB i
+brak mountów/sieci. `/proc` raportował `17.563 GiB` MemTotal, zgodne z
+`18,858,258,432 B` engine memory i jawnie różne od limitu kontenera.
+Trzy próbki z około 10 s dały MemAvailable `14.312`, `14.300`, `14.302 GiB`;
+swap `8 GiB`, wolne `7.998 GiB`. Direct WSL CLI pozostaje
+`WSL_CLI_UNAVAILABLE`, ale właściwa pula ma status
+`POOL_OBSERVED_THROUGH_VERIFIED_DOCKER_ENGINE`.
+
+Helper `measure-c2-resource-gate.ps1` ma parser PowerShell 5.1 PASS, pozytywny
+realny odczyt PASS i odmowę przy złym pełnym container ID PASS. Pierwszy test
+ujawnił locale-ambiguous przecinki dziesiętne; poprawiono wyłącznie serializację
+CSV na invariant culture i ponownie uzyskano 10 poprawnych kolumn.
+
+### Pomiary, build i bramka
+
+| UTC / etap | Windows available | Commit reserve | Pool available / swap used | Wynik |
+|---|---:|---:|---:|---|
+| `2026-09-09T18:51:11Z`, przed telemetry | `8.476 GiB` | `39.531 GiB` | jeszcze nieuruchomiony helper | Windows gate PASS |
+| `2026-09-09T18:58:43Z`, po wznowieniu DB/backend/transport | `8.113 GiB` | `39.317 GiB` | `14.080 GiB` / ok. `1.9 MiB` | RESUME PASS |
+| `2026-09-09T19:09:33Z`, początek monitorowanego builda | `7.757 GiB` | `38.932 GiB` | `13.881 GiB` / `1.9 MiB` | build rozpoczęty |
+| `2026-09-09T19:10:52Z`, STOP | `3.889 GiB` | `34.636 GiB` | `13.852 GiB` / `1.9 MiB` | `RAM_GATE_BLOCKED` |
+| `2026-09-09T19:12:25Z`, po przerwaniu | `7.617 GiB` | `38.875 GiB` | `13.876 GiB` / `1.9 MiB` | obciążenie odzyskane, bez retry |
+| `2026-09-09T19:17:35Z`, final | `7.760 GiB` | `39.014 GiB` | kontener pomiarowy już usunięty | test zatrzymany |
+
+Monitor zebrał 24 próbki co około 5–7 s. Minimum pool MemAvailable wyniosło
+`13.835 GiB`, minimum commit reserve `34.636 GiB`; obserwowalność nie została
+utracona. Jedyną bramką był fizyczny RAM Windows poniżej 4 GiB. Aktywne
+pagefile końcowo: C `13312 MiB`, used `521 MiB`, peak `2660`; D `32768 MiB`,
+used `664 MiB`, peak `3485`. D nadal miał `854.43 GiB` wolne. Pagefile i swap
+nie były doliczane do fizycznego RAM i nie zmieniono żadnych ustawień.
+
+Zewnętrzny `android-source` przed overlay odpowiadał dokładnie source dla 316
+tracked plików. Opublikowany build-only patch zmienił wyłącznie
+`android/app/build.gradle.kts`: package `pl.ailab.app.r04test` oraz debug bez
+odczytu produkcyjnego `key.properties`. Patch apply/reverse-check PASS;
+`pubspec.lock` bez zmian; `flutter pub get --offline` exit `0`. Jedyny
+`flutter build apk --debug --no-pub` osiągnął `assembleDebug`, ale został
+przerwany natychmiast po `RAM_GATE_BLOCKED` (exit `1`). Nie powstał APK, nie
+było retry, instalacji ani uruchomienia `Pixel_8`; Android UI-01–06 = `NOT_RUN`.
+Wygenerowane cache/partial build pod zewnętrznym rootem zachowano zgodnie ze
+scope, bez cleanupu.
+
+### UI-03 i stan końcowy C2
+
+Download z C1 nadal istnieje pod dokładną ścieżką z manifestu, ma 204 B i
+niezmieniony SHA `C0EBC642...`. C2 nie uruchamiało Web/backendu dla tego
+dowodu i nie wykonało trzeciego downloadu. Dostępne narzędzia nie zawierały
+kontroli/screenshotu interaktywnego okna desktopowego; zgodnie z bramką nie
+uruchomiono ponownie nieinteraktywnego Notatnika ani obejścia `file://`.
+Widoczna treść = `WAITING_OWNER_VISUAL_EVIDENCE`, nie FAIL produktu.
+
+Na końcu wszystkie trzy exact-name kontenery A2 są `exited`, porty
+`18004/18005` nie nasłuchują, emulator nie był uruchamiany, a jedyny kontener
+telemetrii został stop/remove po weryfikacji exact ID/owner/run. Wolumen DB,
+storage, android-source/cache/partial build i dowody pozostają zachowane.
+Produkcyjne business writes, modele, kolejki, Qdrant, Gmail, Vision, Temporary
+Chat, backup/snapshot, escrow, deploy i rescue adoption: `0` działań C2.
+`R04-A2-UI06` pozostaje `PARTIAL / KNOWN_DEFECT_OPEN_R16`; D-15/D-16 nadal
+`NOT_RUN`.
+
+Werdykt C2: `R04 A2 APP_SMOKE_PARTIAL / TEST_ONLY`; Android ma konkretny
+`RAM_GATE_BLOCKED`, natomiast obserwowalność puli została domknięta. Pozostały
+jeden krok właściciela dla Web UI-03: otworzyć dokładny zachowany download w
+lokalnym viewerze i przekazać zrzut wyłącznie tego okna. Ponowienie Android
+wymaga osobnego bezpiecznego okna/scope; C2 nie otwiera R16 ani dalszego R04.

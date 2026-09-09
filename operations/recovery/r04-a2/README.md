@@ -323,6 +323,73 @@ or uninstall `pl.ailab.app`. In the recorded run the projected Windows reserve
 was below 4 GiB, so Android correctly stopped at `BLOCKED_RESOURCE_GATE` and no
 overlay/build/install was performed.
 
+## C2 resource observation and interrupted Android build
+
+C2 established that the earlier Docker denial occurred at the Codex execution
+sandbox boundary to `npipe:////./pipe/dockerDesktopLinuxEngine`. The same
+normal user, session, `docker.exe` and `desktop-linux` context reached engine
+`78446bed-994a-42ea-ad86-46f8232848a8` only through the narrow command approval;
+no administrator role, Docker context change, pipe ACL change or restart was
+used. Direct WSL CLI remained unavailable, while the verified Docker engine
+provided the same WSL2 pool telemetry.
+
+The bounded session helper is `measure-c2-resource-gate.ps1`. It requires the
+full ID of the exact C2 telemetry container, verifies its owner/run labels,
+samples Windows physical RAM/commit and Linux `/proc/meminfo` every 5–10
+seconds, and stops on a missing field, read failure, a reserve below 4 GiB or
+swap growth above the existing 256 MiB bound. Its CSV uses invariant decimal
+format and was parsed under Windows PowerShell 5.1. It is not a persistent
+monitor and must not be pointed at an application or production container.
+
+The recorded C2 container was created from the already local image
+`sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`
+as `next-stabil-r04-a2-c2--telemetry`, with `--network none`, read-only root,
+all capabilities dropped, no-new-privileges, 64 MiB memory, 32 PIDs, no mounts,
+no host PID/socket and no restart policy. It was removed after the run by exact
+ID/owner/run verification.
+
+For the Android candidate, apply the reviewed build-only overlay to the
+preserved external `android-source`; it changes only
+`android/app/build.gradle.kts`, sets `pl.ailab.app.r04test`, and lets a debug
+build use the normal local debug signing path without reading production
+`key.properties`:
+
+```powershell
+$AndroidRoot = "<preserved-R04-A2-root>\android-source"
+$Overlay = "C:\ai-lab-core-recovery\operations\recovery\r04-a2\android-r04test-build-only.patch"
+git -C $AndroidRoot apply --check $Overlay
+if ($LASTEXITCODE -ne 0) { throw "Android overlay does not apply" }
+git -C $AndroidRoot apply $Overlay
+if ($LASTEXITCODE -ne 0) { throw "Android overlay apply failed" }
+& "C:\FlutterSDK-New\flutter\bin\flutter.bat" pub get --offline
+if ($LASTEXITCODE -ne 0) { throw "offline dependency resolution failed" }
+$env:GRADLE_OPTS = "-Dorg.gradle.offline=true"
+& "C:\FlutterSDK-New\flutter\bin\flutter.bat" build apk --debug --no-pub `
+    --dart-define=API_BASE_URL=http://10.0.2.2:18004 `
+    --dart-define=ANDROID_AUTH_DIAGNOSTICS=false
+if ($LASTEXITCODE -ne 0) { throw "Android debug build failed or was stopped" }
+```
+
+C2 did not complete that command: the live monitor observed Windows available
+RAM fall from `7.757 GiB` to `3.889 GiB` while commit reserve stayed
+`34.636 GiB` and the WSL/Docker pool stayed near `13.852 GiB`. The build was
+interrupted during `assembleDebug`, no APK was created, no retry was made, and
+`Pixel_8` was not started. A later execution requires a new explicit scope and
+a resource gate; this recipe is evidence, not standing authorization.
+
+Web UI-03 does not require another Web run. The retained clicked download is:
+
+```text
+C:\ai-lab-core-staging\recovery\R04_A2_REAL_APP_20260909T131617Z\continuation-20260909T162252Z\web-ui03-download-1.txt
+```
+
+It is 204 B with SHA-256
+`C0EBC642C0AE14C7A3D8D4A4A6B5F9178E0370CDC3241E3155E710D88E7EB0F2`.
+Because this Codex session had no supported desktop-window capture tool, the
+only remaining owner action is to open that exact file in a local viewer and
+capture only that viewer window. Until such evidence is supplied, visible
+content remains `WAITING_OWNER_VISUAL_EVIDENCE`, not PASS or product FAIL.
+
 At handoff stop only the exact-name test services and the Web process from this
 run. Preserve the volume, data root and evidence pending owner review:
 

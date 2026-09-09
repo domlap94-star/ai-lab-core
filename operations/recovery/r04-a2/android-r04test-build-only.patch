@@ -1,0 +1,33 @@
+diff --git a/android/app/build.gradle.kts b/android/app/build.gradle.kts
+--- a/android/app/build.gradle.kts
++++ b/android/app/build.gradle.kts
+@@ -68,3 +68,3 @@ android {
+     defaultConfig {
+-        applicationId = "pl.ailab.app"
++        applicationId = "pl.ailab.app.r04test"
+         minSdk = flutter.minSdkVersion
+@@ -76,8 +76,10 @@ android {
+     signingConfigs {
+-        create("release") {
+-            keyAlias = keystoreProperties["keyAlias"] as String
+-            keyPassword = keystoreProperties["keyPassword"] as String
+-            storeFile = keystoreProperties["storeFile"]?.let { file(it) }
+-            storePassword = keystoreProperties["storePassword"] as String
++        if (keystorePropertiesFile.exists()) {
++            create("release") {
++                keyAlias = keystoreProperties["keyAlias"] as String
++                keyPassword = keystoreProperties["keyPassword"] as String
++                storeFile = keystoreProperties["storeFile"]?.let { file(it) }
++                storePassword = keystoreProperties["storePassword"] as String
++            }
+         }
+     }
+@@ -85,5 +87,7 @@ android {
+     buildTypes {
+         release {
+-            signingConfig = signingConfigs.getByName("release")
++            if (keystorePropertiesFile.exists()) {
++                signingConfig = signingConfigs.getByName("release")
++            }
+         }
+     }
