@@ -2743,3 +2743,23 @@ IDs, reproducibility fields and JSON bounds. Production remains on parent
 roundtrip and canonical CHUNK15 checkpoint pass. PRE-CHUNK23 physical
 acceptance remains blocked; CHUNK23 remains BLOCKED / NOT STARTED; stable
 remains `1.0.2+29`.
+
+**OWNER REQUIREMENT CLARIFICATIONS — ESTIMATION AND COMPLETE CASE CONTEXT —
+2026-09-09.** The owner clarified existing Masterplan §§22–28, §§31–33 and
+§§42–45. Incomplete documents do not by themselves require refusal: when facts,
+approved KB or justified comparisons support it, the Assistant should provide
+explicitly labelled ranges or variants with assumptions, uncertainty,
+sensitivity and applicability limits. Unsupported numbers remain forbidden;
+when a number is not defensible, the Assistant should still provide qualitative
+help and identify the smallest decision-changing missing fact. Material
+calculations continue through the proper deterministic tool and human review.
+
+After selecting a client/case, the Assistant must stage authorized reads across
+the client card, inbound/outbound mail and attachments, documents, inspections,
+notes, measurements, photos and realizations. It must not treat an unread source
+or retrieval failure as missing data, nor ask again for information already
+available within scope. Version, conflict, freshness, tenant scope and
+provenance controls remain mandatory. Full local case reading does not authorize
+exporting the full case to Temporary Chat. These are requirements for later
+R07/R08/R13/R15/R16 acceptance with the calculation linkage in R17; no model or
+runtime acceptance was performed by this documentation record.

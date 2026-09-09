@@ -2286,6 +2286,39 @@ AI NIE powinno:
 
 [ ] wykonywać wysokiego ryzyka akcji bez wymaganej zgody
 
+
+DOPRECYZOWANIE WŁAŚCICIELA — 2026-09-09
+(dotyczy wymagań §§22–28, §§31–33 oraz §§42–45)
+
+ESTYMACJA PRZY NIEPEŁNYCH DANYCH
+
+- Asystent szacuje, gdy dostępne fakty sprawy, zatwierdzona KB lub uzasadnione
+  porównania pozwalają przedstawić przedział albo warianty. Brak pełnego
+  kompletu dokumentów nie oznacza automatycznej odmowy ani REVIEW_REQUIRED.
+- Estymacja jawnie rozdziela fakty od założeń, podaje zakres niepewności,
+  wpływ istotnych parametrów i granice zastosowania. Nie staje się faktem ani
+  finalnie zatwierdzonym obliczeniem i nie otrzymuje wymyślonego procentu
+  pewności.
+- Bezpodstawna liczba pozostaje niedopuszczalna. Gdy nie można jej uzasadnić,
+  Asystent nadal pomaga jakościowo i wskazuje najmniejszy brak, który zmieniłby
+  decyzję. Istotny rachunek korzysta z właściwego narzędzia; robocze założenia
+  wariantów nie wymagają osobnej zgody przed każdym rozważeniem.
+
+PEŁEN OBRAZ SPRAWY BEZ RĘCZNEGO DOSTARCZANIA KONTEKSTU
+
+- Po wybraniu klienta lub sprawy system sam dobiera i etapowo czyta potrzebne,
+  uprawnione dane: kartę klienta, pocztę przychodzącą i wychodzącą wraz z
+  załącznikami, dokumenty, wizje, notatki, pomiary, zdjęcia i realizacje.
+- System kontroluje wersje, sprzeczności, aktualność, zakres klienta i
+  pochodzenie. Nie pyta o informację już obecną w uprawnionych źródłach tylko
+  dlatego, że nie znalazła się w pierwszym promptcie lub wybranym PDF. Błąd
+  retrieval i nieprzeczytany materiał nie są rzeczywistym brakiem danych.
+- Dopytanie dotyczy dopiero istotnego, nieodnalezionego faktu, którego nie da
+  się rozsądnie zastąpić wariantami. Etapowy odczyt zachowuje ustalenia bez
+  nieograniczonego kontekstu, nie omija uprawnień ani human approval. Pełny
+  lokalny odczyt sprawy nie jest zgodą na wysłanie całej teczki do Temporary
+  Chat.
+
 ================================================================================
 45. KRYTERIUM SUKCESU PROJEKTU
 ================================================================================

@@ -191,7 +191,7 @@
     ],
     "done": "RELEASE_ID + compatibility manifest gotowe. Stan source-ready/staged/deployed/accepted jest rozdzielony. Samo przygotowanie nie oznacza promocji rescue.",
     "impact": "Źródła wersjonowania/build/config. Operacyjne przepięcie i restart to oddzielne działania po R03, privacy gate i zgodzie.",
-    "approval": "Commit źródłowy oddzielnie; przed operacyjnym przepięciem: R03 i osobny approval konfiguracji/deploy/gateway. Brak zmian firewall/Tailscale.",
+    "approval": "R04-A1 source/test zaakceptowane na f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99 jako NOT_DEPLOYED. R04-A2 autoryzuje wyłącznie izolowany test realnego backendu i Flutter Web/Android na syntetycznych danych; produkcyjny deploy/release nadal wymaga R03 i osobnej zgody.",
     "rollback": "Poprzedni podpisany lub hashowany zestaw wraz z konfiguracją i schema compatibility; zachowane stare ścieżki do czasu odbioru.",
     "exclude": "Usuwanie live Web lub zewnętrznego workera, podwyższanie minimum dla wymuszenia pozornego sukcesu, reset lokalnego repo.",
     "status": "IN_PROGRESS",
@@ -328,11 +328,13 @@
       "Dodać parafrazy do testu rzeczywistego routera i endpointu: wybrany dokument, jawny tytuł, pytanie ogólne o funkcje i brak/niejednoznaczny cel.",
       "Rozdzielić polecenie działania od pytania o możliwości. Brak zaznaczonego pliku nie oznacza automatycznie SYSTEM_META: zastosować istniejące bezpieczne rozwiązywanie celu albo poprosić o wskazanie.",
       "Zapytanie techniczne + adres ma zachować techniczne retrieval KB oraz autoryzowany odczyt CRM. Nie doklejać adresu do zewnętrznego pakietu tylko dlatego, że był częścią pytania.",
-      "Nie tworzyć kolejnego planner LLM. Doprecyzować istniejące reguły oraz testy ich priorytetu."
+      "Nie tworzyć kolejnego planner LLM. Doprecyzować istniejące reguły oraz testy ich priorytetu.",
+      "Zachować decyzje D-15/D-16: nie klasyfikować braku kompletu dokumentów jako automatycznej odmowy, gdy można uzasadnić warianty/estymację, i nie dopytywać o fakt już dostępny w uprawnionych źródłach sprawy. Nieprzeczytany materiał ani błąd retrieval nie są rzeczywistym brakiem."
     ],
     "checks": [
       "„Czy możesz przeanalizować ten dokument?” przy wybranym materiale uruchamia analizę; prawdziwe pytanie o możliwości nadal otrzymuje opis.",
-      "Technika + adres ma oba lokalne zakresy i poprawną izolację klienta; brak celu jest jawny, a nie domyślnie zgadywany."
+      "Technika + adres ma oba lokalne zakresy i poprawną izolację klienta; brak celu jest jawny, a nie domyślnie zgadywany.",
+      "Osobno odebrać: uzasadnioną estymację przy niepełnych danych, odmowę samej bezpodstawnej liczby bez odmowy całej pomocy oraz dopytanie dopiero po wyczerpaniu uprawnionych źródeł i rozsądnych wariantów."
     ],
     "done": "Reprezentatywny zestaw parafraz daje zgodny plan/intencję i prawidłowe zachowanie uprawnień.",
     "impact": "Kod routingu i testy, bez produkcyjnych zapisów i migracji.",
@@ -367,12 +369,14 @@
       "Oddzielić ERROR, NOT_READY, EMPTY_CORPUS, NO_MATCH i PARTIAL; fault injection nie może być interpretowane jako brak wiedzy. Ewentualny lexical fallback jest jawny.",
       "Na rzeczywistym _collect() rescue rozstrzygnąć C-004: 5 źródeł sprawy + 3 KB + 4 supplemental Visual. Zastosować jeden końcowy dobór uwzględniający wymagane warstwy i deduplikację, nie zwykłe odcinanie końca.",
       "Sprawdzić zgodność listy źródeł, tool payloads, mapy handle i final prompt. Source count nie jest jedyną miarą: fragment KB musi rzeczywiście zawierać potrzebną zasadę.",
-      "Zawęzić filtrowanie wewnętrznych uchwytów do rzeczywistego manifestu/kontraktu; S235/S355 mają przejść bez usuwania treści technicznej."
+      "Zawęzić filtrowanie wewnętrznych uchwytów do rzeczywistego manifestu/kontraktu; S235/S355 mają przejść bez usuwania treści technicznej.",
+      "Po wybraniu klienta/sprawy etapowo zebrać pełny potrzebny, uprawniony obraz z karty klienta, poczty i załączników, dokumentów, wizji, notatek, pomiarów, zdjęć i realizacji. Zachować wersje, konflikty, aktualność, tenant scope i provenance; nie mylić błędu odczytu z brakiem danych."
     ],
     "checks": [
       "Test 5+3+4 nie traci całej wymaganej KB; kontekst mieści się w zatwierdzonym budżecie 9B. Gdy wymagania nie mieszczą się, system etapuje lub zgłasza zakres, nie twierdzi complete.",
       "Cel poza globalnym top-N jest znaleziony; fault injection odróżnia awarię; S235/S355 dozwolone, rzeczywiste niedopuszczone handle/obce źródła odrzucone.",
-      "Dla explicit covered page wynik przechodzi; broad partial wymaga uzupełnienia; żadne evidence nie pochodzi od innego klienta."
+      "Dla explicit covered page wynik przechodzi; broad partial wymaga uzupełnienia; żadne evidence nie pochodzi od innego klienta.",
+      "Rozproszone, lecz wystarczające dane sprawy są rzeczywiście przekazane do kolejnych etapów bez zbędnego dopytania; błędny scope, nieaktualny pomiar i sprzeczne źródła są jawnie rozstrzygnięte. Kryterium nie oznacza nieograniczonego jednorazowego kontekstu."
     ],
     "done": "Spójny ślad retrieved → selected → actually provided → claimed. Sporna teza ma rozstrzygnięcie na właściwym commicie, nie etykietę z innej gałęzi.",
     "impact": "Istniejące retrieval/context/validator i testy. Brak masowej indeksacji, zmiany modelu i migracji bez potrzeby.",
@@ -620,12 +624,14 @@
       "Zdefiniować minimalny korpus dla fundamentów, gruntów, osiadań, posadzek i robót firmy na legalnych źródłach. Rejestr źródła zawiera wersję, datę dostępu, typ, URL/pochodzenie, licencję/uprawnienie i status review.",
       "Dostarczyć kontrolowane pobieranie/odświeżanie zatwierdzonych źródeł internetowych z ograniczeniami i audytem; ręczny upload jest etapem przejściowym, nie pełną realizacją masterplanu §28.",
       "Trzymać osobno fakty klienta, reguły KB i zewnętrzne publikacje. Nie nazywać tekstu aktualną normą bez jej identyfikacji; brak dostępu licencyjnego i nieaktualność są jawne.",
-      "Sprawdzić abstrakt vs treść: na pytanie analityczne deterministic topic inventory nie kończy się accepted analysis. Wymagana lokalna synteza i poprawne źródła."
+      "Sprawdzić abstrakt vs treść: na pytanie analityczne deterministic topic inventory nie kończy się accepted analysis. Wymagana lokalna synteza i poprawne źródła.",
+      "Zgodnie z D-15 KB może uzasadniać przedział lub wariant estymacji tylko razem z jawnymi faktami sprawy, założeniami, niepewnością, analizą wpływu i granicą stosowalności. Brak podstaw do liczby nie kończy pomocy jakościowej."
     ],
     "checks": [
       "Każdy zatwierdzony current item jest wyszukiwalny albo jawnie wyłączony z uzasadnieniem; zmiana wersji unieważnia stale artifact/index.",
       "Pytanie wymaga połączenia faktu sprawy z zasadą KB; ślad pokazuje fragment faktycznie podany 9B i twierdzenie oparte na nim.",
-      "Brak normy/licencji/danych wywołuje właściwy MISSING/review, nie fikcyjny cytat; public-safe źródło internetowe przechodzi kontrolowany import z provenance."
+      "Brak normy/licencji/danych wywołuje właściwy MISSING/review, nie fikcyjny cytat; public-safe źródło internetowe przechodzi kontrolowany import z provenance.",
+      "Brak dokumentu przy wystarczających, zgodnych przesłankach daje oznaczoną estymację; nieznany istotny parametr daje warianty bez pozornej dokładności; brak podstaw daje odmowę liczby, nie całej analizy."
     ],
     "done": "Zatwierdzony korpus i mechanizm świeżości działają; nie wystarcza liczba itemów ani sam indeks green.",
     "impact": "Istniejące KB/retrieval/źródła; Qdrant i corpus writes po zgodzie. Możliwa mała additive schema po projekcie, nie domyślne NO za wszelką cenę.",
@@ -733,12 +739,14 @@
       "Oddzielnie sprawdzić trudną analizę: najpierw 9B i deterministic gate, potem minimalny pakiet bez zbędnej tożsamości, wynik bound do job/target/evidence i lokalna kontrola merytoryczna.",
       "Obserwować rzeczywisty temporary mode, AUTH_REQUIRED/UI_CHANGED, brak zwykłego-chat fallback, bounded retry/spool i izolację równoległych klientów. Nie obchodzić login/auth/protections.",
       "Dla dokumentu >4 źródeł odebrać etapowanie ograniczonych porcji i końcową agregację zakresu. Gdy potrzebny następny etap, wykonać go lub jawnie zawęzić pytanie; nie oznaczać połowy dokumentu jako complete.",
-      "Zamrozić użyteczne zadania: analiza osiadania z materiału sprawy i KB, rysy na obrazie, różne hipotezy z brakującymi badaniami, odmowa wyliczenia przy brakach. Zachować przyjęte wcześniej progi i hard safety gates; rozszerzać zestaw, nie obniżać progów po wyniku."
+      "Zamrozić użyteczne zadania: analiza osiadania z materiału sprawy i KB, rysy na obrazie, różne hipotezy z brakującymi badaniami, odmowa wyliczenia przy brakach. Zachować przyjęte wcześniej progi i hard safety gates; rozszerzać zestaw, nie obniżać progów po wyniku.",
+      "Pełny lokalny odczyt sprawy z D-16 nie jest zgodą na wysłanie całej teczki do Temporary Chat. Eksport nadal wymaga minimalizacji, dozwolonego zakresu, ścisłego bindingu i lokalnej re-syntezy; estymacja z D-15 nie może stać się fikcyjną zewnętrzną liczbą."
     ],
     "checks": [
       "Pozytywny public-safe Visual i realna trudna analiza kończą się poprawnym lokalnym wynikiem; privacy/wrong-source/target-binding negative dają zero fałszywej akceptacji.",
       "Sam summary/overview nie liczy się jako wykonanie zadania analitycznego; każda hipoteza ma status i podstawę, brak danych nie jest zastępowany fantazją.",
-      "Eskalacja pozostaje wyjątkową, kontrolowaną ścieżką; wynik zewnętrzny nie wykonuje biznesowych zapisów ani indeksacji."
+      "Eskalacja pozostaje wyjątkową, kontrolowaną ścieżką; wynik zewnętrzny nie wykonuje biznesowych zapisów ani indeksacji.",
+      "Osobno odebrać lokalne wykorzystanie pełnego potrzebnego obrazu sprawy i minimalny pakiet eksportowy; materiał dostępny lokalnie nie zostaje pominięty, ale również nie jest automatycznie eksportowany."
     ],
     "done": "Obie ścieżki Temporary Chat mają dzisiejszy evidence i wersję workerów; poprawność, użyteczność i bezpieczeństwo odebrane razem.",
     "impact": "Syntetyczne external/model jobs i lokalne wyniki w wyznaczonym środowisku; produkcyjne kolejki nadal bez drainu.",
@@ -802,12 +810,14 @@
       "Najpierw sprawdzić zainstalowaną wersję i kompatybilność. Nowy candidate APK tylko po osobnej zgodzie, zachowując certyfikat i dane. Test starego APK nie potwierdza nowego UI.",
       "Przejść login/expiry, Client 360, upload/source viewer, chat, tło, powrót, przerwanie sieci, rename/delete/cancel, wielokrotne finalizacje i wiadomości błędu.",
       "Odebrać analogiczny zakres na Windows/Web z tego samego RELEASE_ID; dotyk/układ/loading/back/deep links, role i brak rzeczywistych wysyłek.",
-      "W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu."
+      "W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu.",
+      "W odbiorze Asystenta przejść oddzielne scenariusze D-15/D-16: rozproszone wystarczające dane bez zbędnego dopytania; brak dokumentu z uzasadnioną estymacją; nieznany parametr z wariantami; odmowa nieuzasadnionej liczby przy zachowanej pomocy; oraz jawne rozstrzygnięcie złego scope, nieaktualnego pomiaru i konfliktu źródeł."
     ],
     "checks": [
       "Operator wykonuje syntetyczną sprawę od kliknięcia do zapisanej odpowiedzi z prawidłowym źródłem i wraca do niej po zamknięciu klienta.",
       "Background nie anuluje; cancel jest jawny; usunięta rozmowa nie pojawia się ponownie; utrata sieci nie dubluje runu.",
-      "Każdy wspierany target ma zidentyfikowany build i zaakceptowany krytyczny przepływ."
+      "Każdy wspierany target ma zidentyfikowany build i zaakceptowany krytyczny przepływ.",
+      "Odbiór samego dokumentu nie zastępuje odbioru całej uprawnionej sprawy, a poprawna odmowa liczby bez podstaw nie zastępuje pozytywnego testu estymacji tam, gdzie podstawy istnieją. R04-A2 bez modelu nie nadaje tym kryteriom PASS."
     ],
     "done": "Kamień K1: działający CRM + analityczny Asystent, gotowy do osobnego kontrolowanego wydania, mimo nadal otwartych ofert/umów/metod. Nie oznaczać pełnego Masterplan PASS.",
     "impact": "Testy runtime i ewentualne małe UX fixes. Brak automatycznej publikacji lub kasowania AVD.",
@@ -861,11 +871,12 @@
       "Wykorzystać istniejący deterministic calculation engine. Dla metody zapisać wersję, wiarygodne źródło/wzór, zakres stosowalności, jednostki, wymagane dane, założenia, wyniki pośrednie i końcowe, autor/date/status weryfikacji.",
       "Qwen dobiera metodę i wyjaśnia; nie generuje kluczowej wartości rachunku jako tekstowej odpowiedzi bez wykonania narzędzia.",
       "Dodać trwały artefakt obliczenia związany ze sprawą i wejściami, jeżeli obecny model tego nie zapewnia. Migracja tylko po projekcie i approval.",
-      "Odbiór poprawności dziedzinowej wymaga uzgodnionych przykładów referencyjnych oraz kompetentnej weryfikacji; wynik AI nie staje się końcową ekspertyzą bez człowieka."
+      "Odbiór poprawności dziedzinowej wymaga uzgodnionych przykładów referencyjnych oraz kompetentnej weryfikacji; wynik AI nie staje się końcową ekspertyzą bez człowieka.",
+      "Decyzja D-15 dopuszcza robocze warianty i przedziały bez osobnego approval dla każdego założenia, lecz wymaga jawnych założeń, niepewności, analizy wpływu i granic stosowalności. Właściwy deterministic tool pozostaje obowiązkowy dla istotnego rachunku."
     ],
     "checks": [
       "Każda metoda: co najmniej przypadek referencyjny z udokumentowaną tolerancją, konwersja jednostek, wartości graniczne, brak danych i wejście poza stosowalnością.",
-      "Brak danych prowadzi do jasnej odmowy wyliczenia lub oznaczonej estymacji tylko wtedy, gdy kontrakt ją dopuszcza; brak wymyślonych parametrów gruntu.",
+      "Brak danych prowadzi do wariantów lub oznaczonej estymacji, gdy fakty/KB/porównania dają podstawę; brak podstaw prowadzi do odmowy samej liczby i pomocy jakościowej ze wskazaniem najmniejszego braku. Brak wymyślonych parametrów gruntu i procentów pewności.",
       "Re-run tej samej metody/wersji/inputs daje ten sam wynik i historię; zmiana danych tworzy nową wersję."
     ],
     "done": "Rejestr metod rozstrzygnięty: wymagane metody zwalidowane; pozostałe jawnie odroczone decyzją scope i nie liczone do pełnej realizacji. Funkcje nie są zamykane samym green engine test.",

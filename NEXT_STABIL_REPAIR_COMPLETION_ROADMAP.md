@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION jako cały pakiet. Właściciel zaakceptował R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B` i osobno zezwolił na źródłowy podetap R04-A1. Ograniczona poprawka rodzaju tożsamości R04-A1 jest `IDENTITY_KIND_FIX_READY_FOR_REVIEW / NOT_DEPLOYED`; cały R04 pozostaje IN_PROGRESS, a jego pozostały zakres nie został uruchomiony. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION jako cały pakiet. Właściciel zaakceptował R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`. R04-A1 jest zaakceptowane na `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99` jako source/test i pozostaje `NOT_DEPLOYED`; właściciel zezwolił na izolowany testowy podetap R04-A2. Cały R04 pozostaje IN_PROGRESS. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,24 +20,24 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | R03-A4 pozostaje zaakceptowane na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`; cały R03 nadal `WAITING_APPROVAL / WAITING_ESCROW_DECISION`. Autoryzowany R04-A1 source/test pozostaje oparty na `ec102a8dacac529c3ac5f6715c08e4dd3ac35020`; ograniczona poprawka review rodzaju tożsamości przeszła testy i oczekuje na odbiór. Bez deploy, buildów release i dalszych podetapów R04 |
-| Checkpoint ID | `R04-20260909T105341Z-A1-IDENTITY-KIND` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-09T10:53:41Z` |
-| Aktualny wykonawca / sesja | Codex / R04-A1 identity-kind review fix handoff |
-| Aktywny pakiet / podetap | `R04 / A1 IDENTITY_KIND_FIX` — `READY_FOR_REVIEW / NOT_DEPLOYED`; cały R04 nadal `IN_PROGRESS` |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; parent `10b6c4eafeb14fcba0bd17e5bad6f4753f8624c5`, source/test A1 `ec102a8dacac529c3ac5f6715c08e4dd3ac35020`; SHA atomowego commita tej notatki należy odczytać z Git |
-| Gałąź / SHA kodu objętego sprawdzeniem | recovery parent `10b6c4eafeb14fcba0bd17e5bad6f4753f8624c5` plus dokładny micro-diff source/test tego checkpointu; source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` nieadoptowane |
+| Stan rejestracji | R03-A4 pozostaje zaakceptowane na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`; cały R03 nadal `WAITING_APPROVAL / WAITING_ESCROW_DECISION`. Właściciel zaakceptował pełne R04-A1 source/test na `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99` jako `NOT_DEPLOYED` i zezwolił na wyłącznie testowy, izolowany R04-A2. Bez produkcyjnego deploy/release, modeli i dalszych podetapów R04 |
+| Checkpoint ID | `R04-20260909T131617Z-A2-START` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-09T13:16:17Z` |
+| Aktualny wykonawca / sesja | Codex / R04-A2 isolated real-app smoke |
+| Aktywny pakiet / podetap | `R04 / A2 REAL_APP_SMOKE` — `IN_PROGRESS / TEST_ONLY`; cały R04 nadal `IN_PROGRESS` |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`, clean start `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`; SHA przyszłego checkpointu należy odczytać z Git |
+| Gałąź / SHA kodu objętego sprawdzeniem | recovery `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`; source baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` nieadoptowane |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Bounded read-only R04-A1: backend `9d9b46c53041`, image ID `sha256:6342b36f...`, `/app=C:/ai-lab-core/build/deploy-main-483f9bf8/backend`; publiczne `/version` nadal zwraca legacy fields, backend `1.0.0`, API `1`, environment `development`, `debug=true`, minimum/latest `1.0.0`, bez `component_identity`. Kandydat A1 jest zatem jawnie `NOT_DEPLOYED`. DB revision nie była ponownie odczytywana; zakończony dowód A4 zachowuje `followup_assistant_chat_history_20260829` |
-| Ostatnia faktycznie zakończona czynność | Powiązano dozwolone `identity_kind` z rolą komponentu w istniejącym walidatorze. API zachowuje `contract_version`, DB `schema_revision`, a kod/workery/buildy wymagają właściwego hash/digest/git SHA. Niewłaściwy rodzaj daje `UNVERIFIED`; niezależna prawidłowa sprzeczność zachowuje priorytet `MISMATCH` |
-| Potwierdzone testy bieżącego wykonania | To nie wcześniejszy `ModuleNotFoundError`: bezpośredni fail-before na niezmienionym module zwracał błędne `VERIFIED` dla worker=`contract_version` i Web=`schema_revision`; nowe testy przed fixem `12 failed, 11 passed`, exit `1`. Po fixie bezpośrednie kontrole PASS; focused `23/23`; combined `34/34`; compile 2/2; `git diff --check` PASS. Szczegóły: `docs/recovery/R04_A1_VERSION_IDENTITY_EVIDENCE.md` |
+| Ostatnia faktycznie zakończona czynność | Zweryfikowano start Git, brak drugiego autora, brak kolizji rootu/portów/zasobów oraz zapisano dokładne cele i allowlistę R04-A2 przed pierwszym zapisem runtime. Doprecyzowania estymacji i pełnego obrazu sprawy zapisano jako wymagania do późniejszego odbioru, bez nadawania im PASS |
+| Potwierdzone testy bieżącego wykonania | R04-A2: `NOT_RUN` przed uruchomieniem środowiska. R04-A1 zachowuje zaakceptowane focused `23/23`, combined `34/34`, compile `2/2` oraz `git diff --check` PASS na `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | Microfix pozostawił `0` kontenerów/DB/sieci/wolumenów; wszystkie testowe kontenery były `--rm`, z `--network none` i read-only source. Nie uruchomiono Fluttera, lifespan, DB, modeli, workerów ani kolejek. Zasoby A2/A3/A4 i kopie pozostały nietknięte; scheduled backupy nie zostały przełączone |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260909T105341Z-R04-A1-IDENTITY-KIND.md`; dowód: `docs/recovery/R04_A1_VERSION_IDENTITY_EVIDENCE.md`; poprzedni checkpoint: `docs/recovery/checkpoints/20260909T092544Z-R04-A1-SOURCE.md` |
-| Zakres aktualnej zgody | Wykonano wyłącznie ograniczoną poprawkę review R04-A1: regułę komponent → dozwolony rodzaj identity, testy, dowód i checkpoint oraz commit/push na recovery. Bez zmiany `/version`, parsera, stable/minimum, frontendu, rescue adoption, buildów, deploymentu, migracji, runtime/config, modeli, kolejek, backupów, escrow, cleanupu i R05–R24 |
+| Niezakończone procesy i skutki operacyjne | Przed startem R04-A2: własne kontenery/DB/sieci/wolumeny i procesy Flutter/emulator `0`; zasoby produkcji i R03 nietknięte. Planowany root i exact-name cele znajdują się w checkpointcie startowym |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260909T131617Z-R04-A2-START.md`; poprzedni checkpoint: `docs/recovery/checkpoints/20260909T105341Z-R04-A1-IDENTITY-KIND.md` |
+| Zakres aktualnej zgody | R04-A1 zaakceptowane jako source/test i `NOT_DEPLOYED`. Dozwolony tylko izolowany R04-A2: syntetyczna DB/storage, realny backend, Flutter Web i — po bramce zasobów — boczny debug build dla `Pixel_8`, UI/API evidence, dokumentacja i commit/push recovery. Bez modeli, produkcji, release, escrow, rescue adoption i R05–R24 |
 | Blokada / wymagana decyzja | Cały R03 pozostaje `WAITING_APPROVAL / WAITING_ESCROW_DECISION`: właściciel musi wybrać i zatwierdzić sposób przechowania escrow, cel, osoby uprawnione/opiekuna oraz niezależny sposób odzyskania recovery key. Aplikacji i integracji nie uruchamiano, credentials nie odszyfrowano, recovery key nie sprawdzono, a pełnego RTO nie zmierzono |
-| Jeden następny bezpieczny krok | Odbiór ograniczonej poprawki identity-kind R04-A1 przez właściciela; następny podetap R04 nadal wymaga osobnej decyzji i nie może obejść bramek R03, privacy ani deploy |
-| Warunek STOP | Bez osobnej decyzji nie wykonywać escrow, deploy/build/release, adopcji rescue, dalszych podetapów R04 ani R05–R24; nie odczytywać sekretów i nie zmieniać runtime |
+| Jeden następny bezpieczny krok | Utworzyć wyłącznie zapisane exact-name zasoby izolowane, potwierdzić tożsamość syntetycznej DB przed migracją i wykonać Web jako pierwszy realny smoke |
+| Warunek STOP | Nie używać produkcyjnych DB/storage/sieci/sekretów ani usług zewnętrznych; bez modeli, escrow, deploy/release, adopcji rescue, dalszych podetapów R04 i R05–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
 odczytuje się z Git (`git log -1 --format=%H -- NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`).
@@ -64,7 +64,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
 | R03 | WAITING_APPROVAL | `R03-20260909T064442Z-A4-ACCEPTANCE` / A4 ACCEPTED | Właściciel zaakceptował A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206`: `DATA_RESTORE_VERIFIED_FOR_MANIFEST_8F20A784`. Cały R03 nadal `WAITING_ESCROW_DECISION`; credentials, recovery key, aplikacja, pełne RTO, cleanup i rollout pozostają niezatwierdzone/niewykonane |
-| R04 | IN_PROGRESS | `R04-20260909T105341Z-A1-IDENTITY-KIND` / A1 IDENTITY_KIND_FIX_READY_FOR_REVIEW | Ograniczona poprawka istniejącego walidatora przeszła focused `23/23` i combined `34/34`; `NOT_DEPLOYED`. Source/test A1 pozostaje oparty na `ec102a8dacac529c3ac5f6715c08e4dd3ac35020`; pozostały zakres R04 wymaga odbioru oraz osobnej zgody z zachowaniem bramek R03/privacy/deploy |
+| R04 | IN_PROGRESS | `R04-20260909T131617Z-A2-START` / A2 REAL_APP_SMOKE | Właściciel zaakceptował A1 source/test na `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99` jako `NOT_DEPLOYED` i zezwolił na izolowany test R04-A2. Web/Android/HTTP/DB pozostają `NOT_RUN` w checkpointcie startowym; modele, release i produkcja są poza zakresem |
 | R05 | PLANNED | — | — |
 | R06 | PLANNED | — | — |
 | R07 | PLANNED | — | — |
@@ -517,11 +517,13 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 2. Rozdzielić polecenie działania od pytania o możliwości. Brak zaznaczonego pliku nie oznacza automatycznie SYSTEM_META: zastosować istniejące bezpieczne rozwiązywanie celu albo poprosić o wskazanie.
 3. Zapytanie techniczne + adres ma zachować techniczne retrieval KB oraz autoryzowany odczyt CRM. Nie doklejać adresu do zewnętrznego pakietu tylko dlatego, że był częścią pytania.
 4. Nie tworzyć kolejnego planner LLM. Doprecyzować istniejące reguły oraz testy ich priorytetu.
+5. Zachować decyzje D-15/D-16: nie klasyfikować braku kompletu dokumentów jako automatycznej odmowy, gdy można uzasadnić warianty/estymację, i nie dopytywać o fakt już dostępny w uprawnionych źródłach sprawy. Nieprzeczytany materiał ani błąd retrieval nie są rzeczywistym brakiem.
 
 **Sprawdzenia i dowody**
 
 - „Czy możesz przeanalizować ten dokument?” przy wybranym materiale uruchamia analizę; prawdziwe pytanie o możliwości nadal otrzymuje opis.
 - Technika + adres ma oba lokalne zakresy i poprawną izolację klienta; brak celu jest jawny, a nie domyślnie zgadywany.
+- Osobno odebrać: uzasadnioną estymację przy niepełnych danych, odmowę samej bezpodstawnej liczby bez odmowy całej pomocy oraz dopytanie dopiero po wyczerpaniu uprawnionych źródeł i rozsądnych wariantów.
 
 **Warunek zamknięcia:** Reprezentatywny zestaw parafraz daje zgodny plan/intencję i prawidłowe zachowanie uprawnień.
 
@@ -550,12 +552,14 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 3. Na rzeczywistym _collect() rescue rozstrzygnąć C-004: 5 źródeł sprawy + 3 KB + 4 supplemental Visual. Zastosować jeden końcowy dobór uwzględniający wymagane warstwy i deduplikację, nie zwykłe odcinanie końca.
 4. Sprawdzić zgodność listy źródeł, tool payloads, mapy handle i final prompt. Source count nie jest jedyną miarą: fragment KB musi rzeczywiście zawierać potrzebną zasadę.
 5. Zawęzić filtrowanie wewnętrznych uchwytów do rzeczywistego manifestu/kontraktu; S235/S355 mają przejść bez usuwania treści technicznej.
+6. Po wybraniu klienta/sprawy etapowo zebrać pełny potrzebny, uprawniony obraz z karty klienta, poczty i załączników, dokumentów, wizji, notatek, pomiarów, zdjęć i realizacji. Zachować wersje, konflikty, aktualność, tenant scope i provenance; nie mylić błędu odczytu z brakiem danych.
 
 **Sprawdzenia i dowody**
 
 - Test 5+3+4 nie traci całej wymaganej KB; kontekst mieści się w zatwierdzonym budżecie 9B. Gdy wymagania nie mieszczą się, system etapuje lub zgłasza zakres, nie twierdzi complete.
 - Cel poza globalnym top-N jest znaleziony; fault injection odróżnia awarię; S235/S355 dozwolone, rzeczywiste niedopuszczone handle/obce źródła odrzucone.
 - Dla explicit covered page wynik przechodzi; broad partial wymaga uzupełnienia; żadne evidence nie pochodzi od innego klienta.
+- Rozproszone, lecz wystarczające dane sprawy są rzeczywiście przekazane do kolejnych etapów bez zbędnego dopytania; błędny scope, nieaktualny pomiar i sprzeczne źródła są jawnie rozstrzygnięte. Kryterium nie oznacza nieograniczonego jednorazowego kontekstu.
 
 **Warunek zamknięcia:** Spójny ślad retrieved → selected → actually provided → claimed. Sporna teza ma rozstrzygnięcie na właściwym commicie, nie etykietę z innej gałęzi.
 
@@ -715,12 +719,14 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 3. Dostarczyć kontrolowane pobieranie/odświeżanie zatwierdzonych źródeł internetowych z ograniczeniami i audytem; ręczny upload jest etapem przejściowym, nie pełną realizacją masterplanu §28.
 4. Trzymać osobno fakty klienta, reguły KB i zewnętrzne publikacje. Nie nazywać tekstu aktualną normą bez jej identyfikacji; brak dostępu licencyjnego i nieaktualność są jawne.
 5. Sprawdzić abstrakt vs treść: na pytanie analityczne deterministic topic inventory nie kończy się accepted analysis. Wymagana lokalna synteza i poprawne źródła.
+6. Zgodnie z D-15 KB może uzasadniać przedział lub wariant estymacji tylko razem z jawnymi faktami sprawy, założeniami, niepewnością, analizą wpływu i granicą stosowalności. Brak podstaw do liczby nie kończy pomocy jakościowej.
 
 **Sprawdzenia i dowody**
 
 - Każdy zatwierdzony current item jest wyszukiwalny albo jawnie wyłączony z uzasadnieniem; zmiana wersji unieważnia stale artifact/index.
 - Pytanie wymaga połączenia faktu sprawy z zasadą KB; ślad pokazuje fragment faktycznie podany 9B i twierdzenie oparte na nim.
 - Brak normy/licencji/danych wywołuje właściwy MISSING/review, nie fikcyjny cytat; public-safe źródło internetowe przechodzi kontrolowany import z provenance.
+- Brak dokumentu przy wystarczających, zgodnych przesłankach daje oznaczoną estymację; nieznany istotny parametr daje warianty bez pozornej dokładności; brak podstaw daje odmowę liczby, nie całej analizy.
 
 **Warunek zamknięcia:** Zatwierdzony korpus i mechanizm świeżości działają; nie wystarcza liczba itemów ani sam indeks green.
 
@@ -782,12 +788,14 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 3. Obserwować rzeczywisty temporary mode, AUTH_REQUIRED/UI_CHANGED, brak zwykłego-chat fallback, bounded retry/spool i izolację równoległych klientów. Nie obchodzić login/auth/protections.
 4. Dla dokumentu >4 źródeł odebrać etapowanie ograniczonych porcji i końcową agregację zakresu. Gdy potrzebny następny etap, wykonać go lub jawnie zawęzić pytanie; nie oznaczać połowy dokumentu jako complete.
 5. Zamrozić użyteczne zadania: analiza osiadania z materiału sprawy i KB, rysy na obrazie, różne hipotezy z brakującymi badaniami, odmowa wyliczenia przy brakach. Zachować przyjęte wcześniej progi i hard safety gates; rozszerzać zestaw, nie obniżać progów po wyniku.
+6. Pełny lokalny odczyt sprawy z D-16 nie jest zgodą na wysłanie całej teczki do Temporary Chat. Eksport nadal wymaga minimalizacji, dozwolonego zakresu, ścisłego bindingu i lokalnej re-syntezy; estymacja z D-15 nie może stać się fikcyjną zewnętrzną liczbą.
 
 **Sprawdzenia i dowody**
 
 - Pozytywny public-safe Visual i realna trudna analiza kończą się poprawnym lokalnym wynikiem; privacy/wrong-source/target-binding negative dają zero fałszywej akceptacji.
 - Sam summary/overview nie liczy się jako wykonanie zadania analitycznego; każda hipoteza ma status i podstawę, brak danych nie jest zastępowany fantazją.
 - Eskalacja pozostaje wyjątkową, kontrolowaną ścieżką; wynik zewnętrzny nie wykonuje biznesowych zapisów ani indeksacji.
+- Osobno odebrać lokalne wykorzystanie pełnego potrzebnego obrazu sprawy i minimalny pakiet eksportowy; materiał dostępny lokalnie nie zostaje pominięty, ale również nie jest automatycznie eksportowany.
 
 **Warunek zamknięcia:** Obie ścieżki Temporary Chat mają dzisiejszy evidence i wersję workerów; poprawność, użyteczność i bezpieczeństwo odebrane razem.
 
@@ -816,12 +824,14 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 3. Przejść login/expiry, Client 360, upload/source viewer, chat, tło, powrót, przerwanie sieci, rename/delete/cancel, wielokrotne finalizacje i wiadomości błędu.
 4. Odebrać analogiczny zakres na Windows/Web z tego samego RELEASE_ID; dotyk/układ/loading/back/deep links, role i brak rzeczywistych wysyłek.
 5. W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu.
+6. W odbiorze Asystenta przejść oddzielne scenariusze D-15/D-16: rozproszone wystarczające dane bez zbędnego dopytania; brak dokumentu z uzasadnioną estymacją; nieznany parametr z wariantami; odmowa nieuzasadnionej liczby przy zachowanej pomocy; oraz jawne rozstrzygnięcie złego scope, nieaktualnego pomiaru i konfliktu źródeł.
 
 **Sprawdzenia i dowody**
 
 - Operator wykonuje syntetyczną sprawę od kliknięcia do zapisanej odpowiedzi z prawidłowym źródłem i wraca do niej po zamknięciu klienta.
 - Background nie anuluje; cancel jest jawny; usunięta rozmowa nie pojawia się ponownie; utrata sieci nie dubluje runu.
 - Każdy wspierany target ma zidentyfikowany build i zaakceptowany krytyczny przepływ.
+- Odbiór samego dokumentu nie zastępuje odbioru całej uprawnionej sprawy, a poprawna odmowa liczby bez podstaw nie zastępuje pozytywnego testu estymacji tam, gdzie podstawy istnieją. R04-A2 bez modelu nie nadaje tym kryteriom PASS.
 
 **Warunek zamknięcia:** Kamień K1: działający CRM + analityczny Asystent, gotowy do osobnego kontrolowanego wydania, mimo nadal otwartych ofert/umów/metod. Nie oznaczać pełnego Masterplan PASS.
 
@@ -850,11 +860,12 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 3. Qwen dobiera metodę i wyjaśnia; nie generuje kluczowej wartości rachunku jako tekstowej odpowiedzi bez wykonania narzędzia.
 4. Dodać trwały artefakt obliczenia związany ze sprawą i wejściami, jeżeli obecny model tego nie zapewnia. Migracja tylko po projekcie i approval.
 5. Odbiór poprawności dziedzinowej wymaga uzgodnionych przykładów referencyjnych oraz kompetentnej weryfikacji; wynik AI nie staje się końcową ekspertyzą bez człowieka.
+6. Decyzja D-15 dopuszcza robocze warianty i przedziały bez osobnego approval dla każdego założenia, lecz wymaga jawnych założeń, niepewności, analizy wpływu i granic stosowalności. Właściwy deterministic tool pozostaje obowiązkowy dla istotnego rachunku.
 
 **Sprawdzenia i dowody**
 
 - Każda metoda: co najmniej przypadek referencyjny z udokumentowaną tolerancją, konwersja jednostek, wartości graniczne, brak danych i wejście poza stosowalnością.
-- Brak danych prowadzi do jasnej odmowy wyliczenia lub oznaczonej estymacji tylko wtedy, gdy kontrakt ją dopuszcza; brak wymyślonych parametrów gruntu.
+- Brak danych prowadzi do wariantów lub oznaczonej estymacji, gdy fakty/KB/porównania dają podstawę; brak podstaw prowadzi do odmowy samej liczby i pomocy jakościowej ze wskazaniem najmniejszego braku. Brak wymyślonych parametrów gruntu i procentów pewności.
 - Re-run tej samej metody/wersji/inputs daje ten sam wynik i historię; zmiana danych tworzy nową wersję.
 
 **Warunek zamknięcia:** Rejestr metod rozstrzygnięty: wymagane metody zwalidowane; pozostałe jawnie odroczone decyzją scope i nie liczone do pełnej realizacji. Funkcje nie są zamykane samym green engine test.
