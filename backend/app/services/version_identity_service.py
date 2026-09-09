@@ -25,6 +25,21 @@ _GIT_SHA_RE = re.compile(r"[0-9a-fA-F]{40}")
 _SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 _REPO_DIGEST_RE = re.compile(r"sha256:[0-9a-fA-F]{64}")
 _CONTRACT_VERSION_RE = re.compile(r"[0-9]+")
+_CODE_OR_ARTIFACT_IDENTITY_KINDS = frozenset(
+    {"git_sha", "sha256", "repo_digest"}
+)
+_ALLOWED_COMPONENT_IDENTITY_KINDS = {
+    "backend": _CODE_OR_ARTIFACT_IDENTITY_KINDS,
+    "api": frozenset({"contract_version"}),
+    "database": frozenset({"schema_revision"}),
+    "web": frozenset({"sha256"}),
+    "windows": frozenset({"sha256"}),
+    "android": frozenset({"sha256"}),
+    "supervisor": _CODE_OR_ARTIFACT_IDENTITY_KINDS,
+    "gateway": _CODE_OR_ARTIFACT_IDENTITY_KINDS,
+    "analysis_worker": _CODE_OR_ARTIFACT_IDENTITY_KINDS,
+    "vision_worker": _CODE_OR_ARTIFACT_IDENTITY_KINDS,
+}
 
 
 def _safe_token(value: object) -> str:
@@ -53,6 +68,10 @@ def _identity_is_valid(kind: str, value: object) -> bool:
     return validator is not None and validator.fullmatch(candidate) is not None
 
 
+def _identity_kind_is_allowed(component: str, kind: str) -> bool:
+    return kind in _ALLOWED_COMPONENT_IDENTITY_KINDS.get(component, ())
+
+
 def _component_record(
     manifest: Mapping[str, Any],
     component: str,
@@ -68,10 +87,12 @@ def evaluate_component_compatibility(
     expected: Mapping[str, Any],
     observed: Mapping[str, Any],
 ) -> dict[str, object]:
-    """Compare independently evidenced components without exposing identities.
+    """Compare correctly typed supplied evidence without exposing identities.
 
     Component version numbers are intentionally compared only to the matching
     component. They are not required to equal one another across the release.
+    This comparator does not inspect files, processes, or runtime; independent
+    collection remains required before an observed manifest is authoritative.
     """
 
     mismatches: set[str] = set()
@@ -114,6 +135,12 @@ def evaluate_component_compatibility(
         expected_identity = expected_record.get("identity")
         observed_identity = observed_record.get("identity")
 
+        if not _identity_kind_is_allowed(component, expected_kind):
+            unverified.add(f"{component}.identity_kind")
+            continue
+        if not _identity_kind_is_allowed(component, observed_kind):
+            unverified.add(f"{component}.identity_kind")
+            continue
         if not _identity_is_valid(expected_kind, expected_identity):
             unverified.add(f"{component}.identity")
             continue

@@ -59,6 +59,115 @@ def test_semantically_distinct_component_versions_can_be_verified() -> None:
 
 
 @pytest.mark.parametrize(
+    ("component", "invalid_kind", "invalid_identity"),
+    [
+        ("backend", "contract_version", "1"),
+        ("web", "schema_revision", "same-label"),
+        ("windows", "contract_version", "1"),
+        ("android", "schema_revision", "same-label"),
+        ("supervisor", "contract_version", "1"),
+        ("gateway", "schema_revision", "same-label"),
+        ("analysis_worker", "contract_version", "1"),
+        ("vision_worker", "schema_revision", "same-label"),
+    ],
+)
+def test_code_and_artifact_components_reject_label_only_identity_kinds(
+    component: str,
+    invalid_kind: str,
+    invalid_identity: str,
+) -> None:
+    expected = _manifest()
+    observed = deepcopy(expected)
+    expected["components"][component].update(
+        identity_kind=invalid_kind,
+        identity=invalid_identity,
+    )
+    observed["components"][component].update(
+        identity_kind=invalid_kind,
+        identity=invalid_identity,
+    )
+
+    result = evaluate_component_compatibility(expected, observed)
+
+    assert result["status"] == "UNVERIFIED"
+    assert result["mismatches"] == []
+    assert f"{component}.identity_kind" in result["unverified"]
+
+
+@pytest.mark.parametrize("invalid_side", ["expected", "observed", "both"])
+def test_wrong_identity_kind_is_rejected_on_either_manifest(
+    invalid_side: str,
+) -> None:
+    expected = _manifest()
+    observed = deepcopy(expected)
+    if invalid_side in {"expected", "both"}:
+        expected["components"]["vision_worker"].update(
+            identity_kind="contract_version",
+            identity="1",
+        )
+    if invalid_side in {"observed", "both"}:
+        observed["components"]["vision_worker"].update(
+            identity_kind="contract_version",
+            identity="1",
+        )
+
+    result = evaluate_component_compatibility(expected, observed)
+
+    assert result["status"] == "UNVERIFIED"
+    assert "vision_worker.identity_kind" in result["unverified"]
+
+
+def test_api_and_database_accept_only_their_semantic_identity_kinds() -> None:
+    expected = _manifest()
+    observed = deepcopy(expected)
+
+    result = evaluate_component_compatibility(expected, observed)
+
+    assert expected["components"]["api"]["identity_kind"] == "contract_version"
+    assert expected["components"]["database"]["identity_kind"] == "schema_revision"
+    assert result["status"] == "VERIFIED"
+
+    for component, invalid_kind, invalid_identity in (
+        ("api", "schema_revision", "same-label"),
+        ("database", "contract_version", "1"),
+    ):
+        invalid_expected = _manifest()
+        invalid_observed = deepcopy(invalid_expected)
+        invalid_expected["components"][component].update(
+            identity_kind=invalid_kind,
+            identity=invalid_identity,
+        )
+        invalid_observed["components"][component].update(
+            identity_kind=invalid_kind,
+            identity=invalid_identity,
+        )
+
+        invalid_result = evaluate_component_compatibility(
+            invalid_expected,
+            invalid_observed,
+        )
+
+        assert invalid_result["status"] == "UNVERIFIED"
+        assert f"{component}.identity_kind" in invalid_result["unverified"]
+
+
+def test_valid_mismatch_keeps_priority_over_independent_unverified_kind() -> None:
+    expected = _manifest()
+    observed = deepcopy(expected)
+    expected["components"]["vision_worker"].update(
+        identity_kind="contract_version",
+        identity="1",
+    )
+    observed["components"]["windows"]["identity"] = "9" * 64
+
+    result = evaluate_component_compatibility(expected, observed)
+
+    assert result["status"] == "MISMATCH"
+    assert result["mismatches"] == ["windows.identity"]
+    assert "vision_worker.identity_kind" in result["unverified"]
+
+
+@pytest.mark.parametrize(
     ("mutation", "expected_status", "expected_field"),
     [
         ("missing_component", "UNVERIFIED", "vision_worker"),
