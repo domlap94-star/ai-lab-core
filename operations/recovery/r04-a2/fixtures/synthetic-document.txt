@@ -1,0 +1,4 @@
+NEXT STABIL R04-A2 — SYNTHETIC DOCUMENT
+Case marker: R04-A2-PRIMARY-20260909
+Known observation: reference level is 101.25 m in this synthetic fixture.
+This file contains no production or customer data.

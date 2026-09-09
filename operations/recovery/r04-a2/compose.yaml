@@ -1,0 +1,153 @@
+name: ${R04_A2_PROJECT:?set R04_A2_PROJECT}
+
+services:
+  postgres:
+    image: ${R04_A2_POSTGRES_IMAGE:?set pinned local R04_A2_POSTGRES_IMAGE}
+    pull_policy: never
+    container_name: ${R04_A2_POSTGRES_CONTAINER:?set R04_A2_POSTGRES_CONTAINER}
+    environment:
+      POSTGRES_DB: ${R04_A2_DATABASE_NAME:?set R04_A2_DATABASE_NAME}
+      POSTGRES_USER: ${R04_A2_DATABASE_USER:?set R04_A2_DATABASE_USER}
+      POSTGRES_PASSWORD: ${R04_A2_DATABASE_PASSWORD:?set R04_A2_DATABASE_PASSWORD}
+    labels:
+      next-stabil.owner: R04-A2
+      next-stabil.run-id: ${R04_A2_RUN_ID:?set R04_A2_RUN_ID}
+      next-stabil.purpose: isolated-real-app-database
+    volumes:
+      - r04_a2_postgres_data:/var/lib/postgresql/data
+    networks:
+      - r04_a2_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 2s
+      retries: 45
+    security_opt:
+      - no-new-privileges:true
+
+  backend:
+    image: ${R04_A2_BACKEND_IMAGE:?set pinned local R04_A2_BACKEND_IMAGE}
+    pull_policy: never
+    container_name: ${R04_A2_BACKEND_CONTAINER:?set R04_A2_BACKEND_CONTAINER}
+    entrypoint: ["python"]
+    command: ["-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    read_only: true
+    working_dir: /workspace/backend
+    environment:
+      POSTGRES_DB: ${R04_A2_DATABASE_NAME:?set R04_A2_DATABASE_NAME}
+      POSTGRES_USER: ${R04_A2_DATABASE_USER:?set R04_A2_DATABASE_USER}
+      POSTGRES_PASSWORD: ${R04_A2_DATABASE_PASSWORD:?set R04_A2_DATABASE_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      SECRET_KEY: ${R04_A2_SECRET_KEY:?set R04_A2_SECRET_KEY}
+      ADMIN_USERNAME: ${R04_A2_ADMIN_USERNAME:?set R04_A2_ADMIN_USERNAME}
+      ADMIN_EMAIL: ${R04_A2_ADMIN_EMAIL:?set R04_A2_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${R04_A2_ADMIN_PASSWORD:?set R04_A2_ADMIN_PASSWORD}
+      N8N_INGEST_API_KEY: ${R04_A2_N8N_INGEST_API_KEY:?set R04_A2_N8N_INGEST_API_KEY}
+      DATA_DIR: /r04-data
+      ENVIRONMENT: r04-a2-test
+      DEBUG: "false"
+      CORS_ORIGINS: http://127.0.0.1:18005
+      RELEASE_ID: r04-a2-f4ea20c
+      SOURCE_REVISION: f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99
+      BACKEND_IMAGE_DIGEST: ${R04_A2_BACKEND_IMAGE_ID:?set observed R04_A2_BACKEND_IMAGE_ID}
+      DATABASE_SCHEMA_REVISION: followup_assistant_chat_history_20260829
+      DOCUMENT_PREPARATION_ENABLED: "false"
+      ASSISTANT_PIPELINE_V2_ENABLED: "false"
+      VISION_AUTOMATION_ENABLED: "false"
+      ADVANCED_ANALYSIS_ENABLED: "false"
+      KNOWLEDGE_BASE_PROCESSING_ENABLED: "false"
+      KNOWLEDGE_BASE_VECTOR_WRITES_ENABLED: "false"
+      BACKUP_RETENTION_DELETE_ENABLED: "false"
+      PRODUCTION_RESTORE_ENABLED: "false"
+      OLLAMA_URL: http://127.0.0.1:9
+      OPENWEBUI_URL: http://127.0.0.1:9
+      QDRANT_HOST: 127.0.0.1
+      QDRANT_PORT: "9"
+      N8N_URL: http://127.0.0.1:9
+      BACKUP_SUPERVISOR_URL: http://127.0.0.1:9
+      VISION_SUPERVISOR_URL: http://127.0.0.1:9
+      BACKUP_ROOT: /r04-data/backups
+    labels:
+      next-stabil.owner: R04-A2
+      next-stabil.run-id: ${R04_A2_RUN_ID:?set R04_A2_RUN_ID}
+      next-stabil.purpose: isolated-real-app-backend
+    volumes:
+      - type: bind
+        source: ${R04_A2_SOURCE_ROOT:?set R04_A2_SOURCE_ROOT}
+        target: /workspace
+        read_only: true
+      - type: bind
+        source: ${R04_A2_DATA_ROOT:?set R04_A2_DATA_ROOT}
+        target: /r04-data
+    tmpfs:
+      - /tmp
+    networks:
+      - r04_a2_internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    security_opt:
+      - no-new-privileges:true
+
+  transport:
+    image: ${R04_A2_BACKEND_IMAGE:?set pinned local R04_A2_BACKEND_IMAGE}
+    pull_policy: never
+    container_name: ${R04_A2_TRANSPORT_CONTAINER:?set R04_A2_TRANSPORT_CONTAINER}
+    entrypoint: ["python"]
+    command: ["/transport/loopback_proxy.py"]
+    read_only: true
+    labels:
+      next-stabil.owner: R04-A2
+      next-stabil.run-id: ${R04_A2_RUN_ID:?set R04_A2_RUN_ID}
+      next-stabil.purpose: loopback-only-test-transport
+    volumes:
+      - type: bind
+        source: ${R04_A2_TRANSPORT_SCRIPT:?set R04_A2_TRANSPORT_SCRIPT}
+        target: /transport/loopback_proxy.py
+        read_only: true
+    tmpfs:
+      - /tmp
+    ports:
+      - "127.0.0.1:18004:18004"
+    networks:
+      - r04_a2_internal
+      - r04_a2_ingress
+    depends_on:
+      backend:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  r04_a2_postgres_data:
+    name: ${R04_A2_POSTGRES_VOLUME:?set R04_A2_POSTGRES_VOLUME}
+    labels:
+      next-stabil.owner: R04-A2
+      next-stabil.run-id: ${R04_A2_RUN_ID:?set R04_A2_RUN_ID}
+
+networks:
+  r04_a2_internal:
+    name: ${R04_A2_NETWORK:?set R04_A2_NETWORK}
+    internal: true
+    labels:
+      next-stabil.owner: R04-A2
+      next-stabil.run-id: ${R04_A2_RUN_ID:?set R04_A2_RUN_ID}
+      next-stabil.purpose: isolated-real-app-network
+  r04_a2_ingress:
+    name: ${R04_A2_INGRESS_NETWORK:?set R04_A2_INGRESS_NETWORK}
+    labels:
+      next-stabil.owner: R04-A2
+      next-stabil.run-id: ${R04_A2_RUN_ID:?set R04_A2_RUN_ID}
+      next-stabil.purpose: loopback-transport-only
