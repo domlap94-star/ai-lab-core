@@ -34,7 +34,12 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Invoke-DockerValue {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
-    $lines = & docker.exe @Arguments 2>&1
+    # PowerShell 5.1 passes backslash-escaped quotes literally to docker.exe.
+    # Normalize only those quotes before invoking Docker's Go template parser.
+    $normalizedArguments = @(
+        $Arguments | ForEach-Object { ([string]$_).Replace('\"', '"') }
+    )
+    $lines = & docker.exe @normalizedArguments 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "DOCKER_READ_FAILED"
     }
@@ -69,8 +74,8 @@ if ((Split-Path -Parent $StopFile) -ne $parent) {
 }
 
 $actualId = Invoke-DockerValue @("inspect", "--format", "{{.Id}}", $container)
-$owner = Invoke-DockerValue @("inspect", "--format", '{{index .Config.Labels \"next.stabil.owner\"}}', $container)
-$run = Invoke-DockerValue @("inspect", "--format", '{{index .Config.Labels \"next.stabil.run-id\"}}', $container)
+$owner = Invoke-DockerValue @("inspect", "--format", '{{index .Config.Labels \"next-stabil.owner\"}}', $container)
+$run = Invoke-DockerValue @("inspect", "--format", '{{index .Config.Labels \"next-stabil.run-id\"}}', $container)
 $state = Invoke-DockerValue @("inspect", "--format", "{{.State.Status}}", $container)
 if ($actualId -ne $ExpectedContainerId -or $owner -ne $ExpectedOwner -or
     $run -ne $ExpectedRunId -or $state -ne "running") {

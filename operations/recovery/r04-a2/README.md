@@ -497,3 +497,57 @@ Web UI-03 remains independent and `WAITING_OWNER_VISUAL_EVIDENCE`. Open the
 retained clicked download in a local viewer and capture only that viewer window;
 do not rerun Web or fetch the file again. `R04-A2-UI06` remains
 `KNOWN_DEFECT_OPEN_R16`.
+
+## WEB-FIRST resume after D-17
+
+D-17 supersedes the earlier operational instruction not to rerun Web. It does
+not authorize Android, product changes, a fresh environment, migration, seed or
+production access. Resume only the preserved `20260909T131617Z` run after the
+full container IDs, images, labels, mounts and networks match
+`raw/resource-manifest.json` and ports `18004/18005` have no foreign listener.
+
+For a new bounded resource-reading run, create one telemetry container with the
+labels `next-stabil.owner` and `next-stabil.run-id`, then pass its full ID, exact
+name and both label values explicitly to `measure-c2-resource-gate.ps1`. The
+helper normalizes PowerShell 5.1 quote marshalling before Docker template
+parsing and verifies those hyphenated label keys. A wrong ID, owner or run ID
+must stop with `TELEMETRY_IDENTITY_MISMATCH`. Keep the existing thresholds:
+Windows physical/commit and Docker/WSL-pool available each at least 4 GiB, with
+pool swap growth no more than 256 MiB.
+
+Start the three preserved containers by their full manifest IDs, in order:
+PostgreSQL, backend, transport. Do not run Compose `up`, migration or seed.
+Before opening Web, require the expected database/user/head, two clients, one
+document, the allowlisted disabled worker flags, `/health=ok` and:
+
+```powershell
+$version = Invoke-RestMethod -UseBasicParsing http://127.0.0.1:18004/version
+Assert-R04A2SourceRevision `
+    -Version $version `
+    -Expected 'f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99' | Out-Null
+```
+
+Run Web from the preserved `web-source` only:
+
+```powershell
+Set-Location -LiteralPath 'C:\ai-lab-core-staging\recovery\R04_A2_REAL_APP_20260909T131617Z\web-source'
+& 'C:\FlutterSDK-New\flutter\bin\flutter.bat' run -d web-server `
+    --web-hostname 127.0.0.1 --web-port 18005 `
+    --dart-define=API_BASE_URL=http://127.0.0.1:18004 `
+    --dart-define=ANDROID_AUTH_DIAGNOSTICS=false
+```
+
+The recorded WEB-FIRST pass used a separate browser profile for W-01 through
+W-05. It made exactly one synthetic client-field mutation, and exactly one
+stop/start of the verified backend. The file action remained a download/external
+viewer flow: the browser confirmed the UI action and the retained 204-byte file
+hash, but its URL policy blocked `file://`, so visible content remains
+`WAITING_OWNER_VISUAL_EVIDENCE` rather than a backend failure. The current run
+showed the correct disconnect message and recovered without duplication;
+the previously observed `R04-A2-UI06` remains open until an accepted source fix
+and regression close it.
+
+At handoff, close only the browser tabs and Web process created by the run,
+stop the three preserved containers by revalidated full IDs, stop/remove only
+the exact telemetry container, and verify ports `18004/18005` are free. Preserve
+the test volume, storage, downloaded file, APK, build cache and evidence.

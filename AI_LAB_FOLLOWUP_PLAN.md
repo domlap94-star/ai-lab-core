@@ -2763,3 +2763,15 @@ provenance controls remain mandatory. Full local case reading does not authorize
 exporting the full case to Temporary Chat. These are requirements for later
 R07/R08/R13/R15/R16 acceptance with the calculation linkage in R17; no model or
 runtime acceptance was performed by this documentation record.
+
+**OWNER EXECUTION DECISION — WEB-FIRST, ANDROID RUNTIME DEFERRED —
+2026-09-10.** The owner accepted the limited R04-A2/C3 evidence on
+`a6e8f7f50a843c26334bff90440905e00f163d61` and selected Web as the first path
+for continuing shared API and application-logic tests. Android remains a
+supported but untested runtime: the C3 APK/evidence is retained, while native
+lifecycle, permissions, camera/GPS, transport and signing still require later
+acceptance before Android release. A narrow Web viewport is not Android proof.
+This decision does not permit breaking the shared backend contract, treating a
+client workaround as a backend fix, or marking D-15/D-16/AI as tested. R04 and
+multi-platform R16/K1 remain open; production, models and deployment are not
+authorized by this record.

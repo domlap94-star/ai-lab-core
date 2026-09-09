@@ -366,3 +366,73 @@ Vision, Temporary Chat, backup/snapshot, escrow, deploy i rescue adoption:
 Werdykt: `R04 A2 APP_SMOKE_PARTIAL / TEST_ONLY`; build APK jest PASS, lecz
 Android UI-01–UI-06 pozostają `NOT_RUN` z powodu `RAM_GATE_BLOCKED` podczas
 bootu AVD. C3 nie otwiera R16 ani dalszego podetapu R04.
+
+## WEB-FIRST / D-17 — 2026-09-09 UTC
+
+Właściciel przyjął C3 na
+`a6e8f7f50a843c26334bff90440905e00f163d61` jako częściowy dowód i decyzją
+D-17 wybrał Web jako pierwszą ścieżkę dalszego sprawdzania wspólnego API oraz
+logiki aplikacji. Android runtime ma status `DEFERRED_BY_OWNER / NOT_TESTED`;
+zachowany APK `FAF545C0...` nie został uruchomiony ani przebudowany.
+
+### Preflight, izolacja i monitoring
+
+- Recovery local/remote rozpoczęły na `a6e8f7...`; code under test pozostał
+  `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`. Main `483f9bf8...`, rescue
+  `5cd8f86e...` oraz 203 wpisy oryginalnego worktree nie zostały zmienione.
+- `source-f4ea20c.tar` zachował SHA-256 `B93DF8FE...`; 316 tracked plików
+  `web-source` było zgodnych z code-under-test po normalizacji Git. Sześć
+  generowanych registrantów różniło się wyłącznie końcami linii.
+- Pełne ID, obrazy, owner/run, mounty i sieci trzech zachowanych kontenerów
+  odpowiadały chronionemu `raw/resource-manifest.json`. Wznowiono te same
+  PostgreSQL/backend/transport bez Compose `up`, migracji i seeda.
+- Syntetyczna DB zwróciła `ai_lab_r04_a2_20260909`, użytkownika
+  `r04_a2_owner`, head `followup_assistant_chat_history_20260829`, dwa rekordy
+  klientów i jeden dokument. Wszystkie allowlistowane flagi
+  preparation/Assistant/Vision/Advanced/KB/vector writes/retention/restore
+  miały wartość `false`; zewnętrzne cele wskazywały niedostępny loopback.
+- Pierwszy realny test opublikowanego monitora ujawnił wadę harnessu:
+  PowerShell 5.1 przekazywał `\"` literalnie do formatu Dockera, a helper
+  odczytywał nieistniejące klucze `next.stabil.*` zamiast kontraktu
+  `next-stabil.*`. To nie była wada produktu ani brak zasobów. Minimalna
+  poprawka normalizuje tylko te cytowania i odczytuje dwa właściwe klucze.
+  Parser PowerShell 5.1 = PASS, trzy realne próbki = PASS; błędny pełny ID,
+  owner i run ID = trzy odmowy `TELEMETRY_IDENTITY_MISMATCH`.
+- Monitor Web zebrał 203 próbki od `2026-09-09T22:59:24Z` do
+  `2026-09-09T23:19:14Z`, wszystkie PASS. Minima: Windows available
+  `5.875 GiB`, commit reserve `35.257 GiB`, Docker/WSL pool available
+  `13.641 GiB`; maksymalne użycie swap puli `1.9 MiB`, bez przekroczenia
+  progu wzrostu. SHA-256 CSV: `FC32E615...`.
+
+### Wyniki jednego przebiegu W-01–W-05
+
+| Test | Mapowanie | Nowy wynik | Dowód i ograniczenie |
+|---|---|---|---|
+| W-01 | UI-01 / UI-02 | PASS | Jedno błędne logowanie dało 401 i widoczny błąd; poprawne logowanie otworzyło syntetyczny dashboard, dwa rozróżnialne rekordy oraz `R04 A2 Primary Case`. Log backendu: 3 loginy, 2 sukcesy i 1 oczekiwana odmowa. |
+| W-02 | UI-03 | PARTIAL / `WAITING_OWNER_VISUAL_EVIDENCE` | Przycisk `Otwórz plik` został użyty z listy filtrowanej do klienta. Zachowany plik z wcześniejszego rzeczywistego kliknięcia nadal ma 204 B i SHA-256 `C0EBC642...`. Ta przeglądarka nie zgłosiła nowego download eventu, a jej polityka bezpieczeństwa zablokowała lokalny `file://`; nie wykonano obejścia, bezpośredniego URL ani renderu fixture. Brak nowego czytelnego widoku jest ograniczeniem narzędzia, nie dowodem błędu backendu. |
+| W-03 | UI-04 | PASS | Preimage `R04-A2-UI-MUTATION-ONE` zapisano przed operacją. Jedno pole zmieniono przez UI na marker `R04-A2-WEBFIRST-0910-ONE`; po innym ekranie i po restarcie odczytano tę samą wartość. Log zawiera dokładnie 1 udane żądanie mutujące klienta; read-only DB: `primary_rows=1`, `marker_rows=1`, klientów 2, dokumentów 1. |
+| W-04 | UI-05 | PASS / TEST_ONLY | Rzeczywisty `/version` zachował osiem legacy pól, `component_identity.backend.source_revision=f4ea20c...`, `verification=UNVERIFIED` i `runtime_configuration=REVIEW_REQUIRED`; brak prywatnych ścieżek i secret-like pól. Klient Web działał dalej. Nie jest to odbiór stable/release. |
+| W-05 | UI-06 | transport/lista/brak duplikatu PASS; UX PASS w tej sesji; historyczny defekt nadal OPEN | Jedno zatrzymanie wyłącznie pełnego ID backendu dało komunikat „Nie można połączyć się z serwerem NEXT Stabil”. Po uruchomieniu tego samego ID `Spróbuj ponownie` odtworzyło listę, a marker W-03 pozostał jeden. `LateInitializationError` nie odtworzył się w tym przebiegu; wcześniejszy dowód `R04-A2-UI06` nie jest przez to zamknięty i pozostaje `KNOWN_DEFECT_OPEN_R16` do odebranej poprawki/regresji. |
+
+### Skutki i handoff
+
+Trwałym skutkiem biznesowym jest dokładnie jedna mutacja w syntetycznej DB.
+Operacyjnie wykonano jeden stop/start syntetycznego backendu, start/stop trzech
+zachowanych kontenerów A2 oraz utworzenie i usunięcie jednego kontenera
+telemetrycznego po kontroli pełnego ID/owner/run. Web i własne karty browsera
+zamknięto; porty `18004/18005` są wolne. Wolumen DB, storage, download, APK,
+cache i dowody pozostały zachowane.
+
+Mały pakiet trzech zanonimizowanych screenshotów znajduje się `LOCAL_ONLY` pod
+`web-first-20260909T223759Z/R04_A2_WEBFIRST_SAFE_SCREENSHOTS_20260909T223759Z.zip`;
+ma `100983 B` i SHA-256 `1A679F4B6F439FA475194702FA3AE8161D61A1D9C6BBD9074D775F4FD47A5E79`.
+Nie zawiera haseł, tokenów, HAR ani danych firmy.
+
+Nie wykonano Android/Gradle/APK/install/AVD, modeli, Assistant/KB/Vision,
+Temporary Chat, Qdrant/Gmail, backupu, escrow, deployu ani operacji produkcyjnej.
+D-15/D-16 i odbiór AI pozostają `NOT_RUN`.
+
+Werdykt: `R04 A2 WEB_EVIDENCE_READY_FOR_REVIEW / TEST_ONLY` z
+`WEB_SMOKE_PARTIAL / KNOWN_UI_DEFECT_OPEN_R16`; Android runtime pozostaje
+`DEFERRED_BY_OWNER / NOT_TESTED`. Cały R04 nadal `IN_PROGRESS`, a R03
+`WAITING_APPROVAL / WAITING_ESCROW_DECISION`.
