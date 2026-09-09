@@ -102,7 +102,169 @@ docker network inspect $env:R04_A2_INGRESS_NETWORK --format '{{.Name}}|internal=
 
 Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18004/health
 $version = Invoke-RestMethod -UseBasicParsing http://127.0.0.1:18004/version
-if ($version.component_identity.source_revision -ne $SourceSha) { throw "runtime source mismatch" }
+function Assert-R04A2SourceRevision {
+    param([Parameter(Mandatory=$true)][object]$Version,
+          [Parameter(Mandatory=$true)][string]$Expected)
+    $identity = $Version.PSObject.Properties['component_identity']
+    if ($null -eq $identity -or $null -eq $identity.Value) { throw "component_identity missing" }
+    $backend = $identity.Value.PSObject.Properties['backend']
+    if ($null -eq $backend -or $null -eq $backend.Value) { throw "component_identity.backend missing" }
+    $source = $backend.Value.PSObject.Properties['source_revision']
+    if ($null -eq $source) { throw "component_identity.backend.source_revision missing" }
+    $observed = [string]$source.Value
+    if ([string]::IsNullOrWhiteSpace($observed) -or $observed -eq 'UNKNOWN') {
+        throw "backend source revision is not verified"
+    }
+    if ($observed -notmatch '^[0-9a-f]{40}$' -or $observed -ne $Expected) {
+        throw "runtime source mismatch"
+    }
+    $observed
+}
+Assert-R04A2SourceRevision -Version $version -Expected $SourceSha | Out-Null
+```
+
+## Resume the preserved 20260909T131617Z run
+
+`RESUME` is different from `FRESH RUN`: do not create the root again, extract
+Git, migrate, seed, or use values remembered by an old shell. Start from the
+published resource manifest and the protected local synthetic credential file.
+The manifest records historical running state; resume compares immutable IDs,
+images, labels, mounts and networks, then requires the current state to be
+stopped before it starts anything.
+
+```powershell
+$ErrorActionPreference = "Stop"
+$ExpectedSource = "f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99"
+$Root = "C:\ai-lab-core-staging\recovery\R04_A2_REAL_APP_20260909T131617Z"
+$ContinuationRoot = Join-Path $Root "continuation-<actual-UTC>"
+$ResourceManifestPath = Join-Path $Root "raw\resource-manifest.json"
+$CredentialsPath = Join-Path $Root "raw\ui-credentials.local.json"
+$SourceArchive = Join-Path $Root "source-f4ea20c.tar"
+$SourceRoot = Join-Path $Root "source-clean"
+$WebRoot = Join-Path $Root "web-source"
+$expectedArchiveHash = "B93DF8FE6F2D86EE32394D7DE08EF45DB44E99A97C9A38F6231A44200400F391"
+$expectedDocumentHash = "C0EBC642C0AE14C7A3D8D4A4A6B5F9178E0370CDC3241E3155E710D88E7EB0F2"
+
+foreach ($required in $Root,$ContinuationRoot,$ResourceManifestPath,$CredentialsPath,$SourceArchive,$SourceRoot,$WebRoot) {
+    if (-not (Test-Path -LiteralPath $required)) { throw "required preserved path missing" }
+}
+if ((Get-FileHash -LiteralPath $SourceArchive -Algorithm SHA256).Hash -ne $expectedArchiveHash) {
+    throw "preserved source archive mismatch"
+}
+if (Get-NetTCPConnection -State Listen -LocalPort 18004,18005 -ErrorAction SilentlyContinue) {
+    throw "R04-A2 loopback port collision"
+}
+
+$resourceManifest = Get-Content -LiteralPath $ResourceManifestPath -Raw | ConvertFrom-Json
+if ($resourceManifest.run_id -ne '20260909T131617Z') { throw "resource manifest run mismatch" }
+
+function Invoke-R04DockerValue {
+    param([Parameter(Mandatory=$true)][string[]]$Arguments)
+    $value = & docker @Arguments
+    if ($LASTEXITCODE -ne 0) { throw "docker command failed" }
+    (($value | ForEach-Object { [string]$_ }) -join "`n").Trim()
+}
+
+foreach ($expected in $resourceManifest.docker_resources) {
+    $actualId = Invoke-R04DockerValue @('inspect','--format','{{.Id}}',$expected.name)
+    $actualImage = Invoke-R04DockerValue @('inspect','--format','{{.Image}}',$expected.name)
+    $actualState = Invoke-R04DockerValue @('inspect','--format','{{.State.Status}}',$expected.name)
+    $actualOwner = Invoke-R04DockerValue @('inspect','--format','{{index .Config.Labels "next-stabil.owner"}}',$expected.name)
+    $actualRun = Invoke-R04DockerValue @('inspect','--format','{{index .Config.Labels "next-stabil.run-id"}}',$expected.name)
+    if ($actualId -ne $expected.id -or $actualImage -ne $expected.image_id) { throw "container identity mismatch" }
+    if ($actualOwner -ne 'R04-A2' -or $actualRun -ne '20260909T131617Z') { throw "container ownership mismatch" }
+    if ($actualState -ne 'exited') { throw "preserved container is not stopped" }
+}
+
+$postgres = 'next-stabil-r04-a2-20260909t131617z-postgres'
+$backend = 'next-stabil-r04-a2-20260909t131617z-backend'
+$transport = 'next-stabil-r04-a2-20260909t131617z-transport'
+$database = 'ai_lab_r04_a2_20260909'
+$databaseUser = 'r04_a2_owner'
+
+$postgresMounts = (Invoke-R04DockerValue @('inspect','--format','{{json .Mounts}}',$postgres)) | ConvertFrom-Json
+$backendMounts = (Invoke-R04DockerValue @('inspect','--format','{{json .Mounts}}',$backend)) | ConvertFrom-Json
+$transportMounts = (Invoke-R04DockerValue @('inspect','--format','{{json .Mounts}}',$transport)) | ConvertFrom-Json
+if (@($postgresMounts | Where-Object { $_.Name -eq 'next-stabil-r04-a2-20260909t131617z-postgres-data' -and $_.Destination -eq '/var/lib/postgresql/data' }).Count -ne 1) { throw "postgres mount mismatch" }
+if (@($backendMounts | Where-Object { $_.Source -eq $SourceRoot -and $_.Destination -eq '/workspace' -and -not $_.RW }).Count -ne 1) { throw "backend source mount mismatch" }
+if (@($backendMounts | Where-Object { $_.Source -eq (Join-Path $Root 'data') -and $_.Destination -eq '/r04-data' -and $_.RW }).Count -ne 1) { throw "backend data mount mismatch" }
+if (@($transportMounts | Where-Object { $_.Destination -eq '/transport/loopback_proxy.py' -and -not $_.RW }).Count -ne 1) { throw "transport mount mismatch" }
+
+Invoke-R04DockerValue @('start',$postgres) | Out-Null
+$deadline=[DateTime]::UtcNow.AddSeconds(90)
+do {
+    $health=Invoke-R04DockerValue @('inspect','--format','{{.State.Health.Status}}',$postgres)
+    if ($health -eq 'healthy') { break }
+    Start-Sleep -Seconds 2
+} while ([DateTime]::UtcNow -lt $deadline)
+if ($health -ne 'healthy') { throw "postgres health timeout" }
+
+$currentDatabase=Invoke-R04DockerValue @('exec',$postgres,'psql','-U',$databaseUser,'-d',$database,'-Atc','select current_database();')
+$dbHead=Invoke-R04DockerValue @('exec',$postgres,'psql','-U',$databaseUser,'-d',$database,'-Atc','select version_num from alembic_version;')
+if ($currentDatabase -ne $database) { throw "database identity mismatch" }
+if ($dbHead -ne 'followup_assistant_chat_history_20260829') { throw "database head mismatch" }
+
+Invoke-R04DockerValue @('start',$backend) | Out-Null
+$deadline=[DateTime]::UtcNow.AddSeconds(90)
+do {
+    $health=Invoke-R04DockerValue @('inspect','--format','{{.State.Health.Status}}',$backend)
+    if ($health -eq 'healthy') { break }
+    Start-Sleep -Seconds 2
+} while ([DateTime]::UtcNow -lt $deadline)
+if ($health -ne 'healthy') { throw "backend health timeout" }
+Invoke-R04DockerValue @('start',$transport) | Out-Null
+
+function Assert-R04A2SourceRevision {
+    param([Parameter(Mandatory=$true)][object]$Version,
+          [Parameter(Mandatory=$true)][string]$Expected)
+    $identity = $Version.PSObject.Properties['component_identity']
+    if ($null -eq $identity -or $null -eq $identity.Value) { throw "component_identity missing" }
+    $backendIdentity = $identity.Value.PSObject.Properties['backend']
+    if ($null -eq $backendIdentity -or $null -eq $backendIdentity.Value) { throw "component_identity.backend missing" }
+    $source = $backendIdentity.Value.PSObject.Properties['source_revision']
+    if ($null -eq $source) { throw "component_identity.backend.source_revision missing" }
+    $observed = [string]$source.Value
+    if ([string]::IsNullOrWhiteSpace($observed) -or $observed -eq 'UNKNOWN') { throw "backend source revision is not verified" }
+    if ($observed -notmatch '^[0-9a-f]{40}$' -or $observed -ne $Expected) { throw "runtime source mismatch" }
+    $observed
+}
+
+$version=Invoke-RestMethod -UseBasicParsing http://127.0.0.1:18004/version
+Assert-R04A2SourceRevision -Version $version -Expected $ExpectedSource | Out-Null
+$credential=Get-Content -LiteralPath $CredentialsPath -Raw | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace([string]$credential.username) -or [string]::IsNullOrWhiteSpace([string]$credential.password)) { throw "synthetic credentials unavailable" }
+$api='http://127.0.0.1:18004/api/v1'
+$login=Invoke-RestMethod -UseBasicParsing -Method Post -Uri "$api/auth/login" -ContentType 'application/x-www-form-urlencoded' -Body @{username=$credential.username;password=$credential.password}
+$headers=@{Authorization="Bearer $($login.access_token)"}
+$clientsResponse=Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri "$api/clients?limit=100"
+$clients=if ($clientsResponse -is [System.Array]) { [object[]]$clientsResponse } else { @($clientsResponse) }
+$primary=@($clients | Where-Object name -eq 'R04 A2 Primary Case')
+$other=@($clients | Where-Object name -eq 'R04 A2 Distinguishing Record')
+if ($primary.Count -ne 1 -or $other.Count -ne 1 -or $primary[0].id -eq $other[0].id) { throw "synthetic client identity mismatch" }
+$documents=Invoke-RestMethod -UseBasicParsing -Headers $headers -Uri "$api/documents?client_id=$($primary[0].id)&limit=100"
+$document=@($documents.items | Where-Object original_filename -eq 'synthetic-document.txt')
+if ($document.Count -ne 1 -or $document[0].client_id -ne $primary[0].id -or $document[0].file_size -ne 204) { throw "synthetic document identity mismatch" }
+```
+
+Run the guard contract without a backend by using synthetic response objects.
+Every negative case below must throw; a missing field or `UNKNOWN` is never a
+default to the expected SHA:
+
+```powershell
+$expected='f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99'
+$positive=[pscustomobject]@{component_identity=[pscustomobject]@{backend=[pscustomobject]@{source_revision=$expected}}}
+Assert-R04A2SourceRevision -Version $positive -Expected $expected | Out-Null
+$negative=@(
+    [pscustomobject]@{component_identity=[pscustomobject]@{backend=[pscustomobject]@{}}},
+    [pscustomobject]@{component_identity=[pscustomobject]@{backend=[pscustomobject]@{source_revision='UNKNOWN'}}},
+    [pscustomobject]@{component_identity=[pscustomobject]@{backend=[pscustomobject]@{source_revision=('0' * 40)}}}
+)
+foreach($case in $negative) {
+    $stopped=$false
+    try { Assert-R04A2SourceRevision -Version $case -Expected $expected | Out-Null }
+    catch { $stopped=$true }
+    if (-not $stopped) { throw "negative source identity case did not stop" }
+}
 ```
 
 Before seeding, inspect the exact containers with allowlisted fields and require

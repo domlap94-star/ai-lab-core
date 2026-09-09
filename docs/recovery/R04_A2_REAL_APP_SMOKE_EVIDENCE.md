@@ -61,7 +61,7 @@ aplikację. Żaden wynik CRM ani auth nie był mockowany.
 | UI-03 dokument | PARTIAL | UI otworzył szczegóły dokumentu ID 1 i akcja „Otwórz plik” wykonała `GET /api/v1/documents/1/content` `200`; odebrane bajty miały SHA-256 `C0EBC642C0AE14C7A3D8D4A4A6B5F9178E0370CDC3241E3155E710D88E7EB0F2`, identyczny z fixture. In-app browser nie zachował osobnej widocznej karty/podglądu po akcji, więc wizualnego renderu treści nie ogłoszono PASS. |
 | UI-04 mutacja i ponowne otwarcie | PASS | UI zmienił syntetyczny numer rejestracyjny, `PATCH /api/v1/clients/1` dał `200`, snackbar potwierdził zapis; po wyjściu i ponownym otwarciu wartość była identyczna. Read-only SQL: dokładnie 1 rekord z markerem, brak duplikatu. |
 | UI-05 `/version` + klient | PASS | Aplikacja pobrała `/version` i dalej działała. Legacy fields pozostały, a `component_identity.schema=NEXT_STABIL_COMPONENT_COMPATIBILITY_V1`; backend SHA i DB revision odpowiadały testowanemu zestawowi. `verification=UNVERIFIED` i `runtime_configuration=REVIEW_REQUIRED` są prawdziwym stanem testowego, niepełnego zestawu, nie fikcyjnym VERIFIED. Publiczna odpowiedź nie zawierała ścieżek hosta ani prywatnego inventory. |
-| UI-06 utrata i powrót | PASS z ustaleniem UX | Zatrzymano wyłącznie exact-name backend, UI pokazał błąd, ten sam kontener uruchomiono ponownie, a „Spróbuj ponownie” przywróciło listę. Mutacja nadal występowała raz. Komunikat ujawnił jednak wewnętrzny `LateInitializationError: Field '_repository' has already been initialized`; to odtworzony problem UI do R16, bez poprawki w A2. |
+| UI-06 utrata i powrót | PARTIAL / KNOWN_DEFECT_OPEN | Transport/lista odzyskały działanie po uruchomieniu tego samego exact-name backendu, a mutacja nadal występowała raz. Stan aplikacji i komunikat nie przeszły: UI ujawnił wewnętrzny `LateInitializationError: Field '_repository' has already been initialized`. To ustalenie wykonawcze `R04-A2-UI06` do R16; przyczyna i zakres wpływu nie są jeszcze dowiedzione, a produktu nie poprawiano w A2. |
 
 Testowy backend zwrócił dla stable-update `404`, ponieważ A2 nie montowało ani
 nie modyfikowało stable manifestu. Próba nie podnosi minimum klienta i nie jest
@@ -111,3 +111,83 @@ R04. Następna bezpieczna czynność: właściciel ocenia dowód Web i wyznacza 
 okno z wystarczającą rezerwą do dokończenia Android oraz powtórzenia tylko
 ograniczonej wizualnej części UI-03; naprawa `LateInitializationError` należy do
 osobno zleconego zakresu R16.
+
+## Kontynuacja C1 — 2026-09-09
+
+Właściciel przyjął powyższy dowód Web jako częściowy na
+`5809350704916bf03aec9b8d39575fd0247fb7b8`. C1 wznowił te same zachowane
+zasoby bez migracji, seeda lub zmiany danych i nie zmienił kodu produktu
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`.
+
+### Korekta recipe i bezpieczne RESUME
+
+- Fail-before na zachowanej rzeczywistej odpowiedzi `/version` potwierdził, że
+  opublikowane `$version.component_identity.source_revision` jest nieobecne,
+  podczas gdy `component_identity.backend.source_revision` zawiera dokładne
+  `f4ea20c...`. To błąd instrukcji, nie endpointu.
+- Guard po poprawce akceptuje tylko niepusty 40-znakowy SHA równy oczekiwanemu;
+  brak pola, `UNKNOWN`, niepoprawny format i inny SHA kończą się STOP.
+- Windows PowerShell 5.1: rzeczywisty pozytywny response PASS, negatywne
+  przypadki STOP `4/4`, normalizacja JSON array `2/2`; siedem bloków
+  PowerShell w README ma `0` błędów parsera.
+- `RESUME` sprawdza pełne ID, obrazy, owner/run labels, mounty, sieci i stan
+  trzech zachowanych kontenerów, a następnie bazę, head, dwie rozróżnialne
+  syntetyczne sprawy i dokument. Nie tworzy rootu, archiwum, migracji ani seeda.
+- Dodatkowa korekta recipe normalizuje tablicę klientów zwracaną przez
+  `Invoke-RestMethod` w PowerShell 7; bez niej poprawny JSON był traktowany jako
+  jeden obiekt pipeline. Kontrakt produktu pozostał niezmieniony.
+
+### Bieżące pomiary zasobów
+
+| UTC / etap | Windows physical | Commit used / limit / reserve | Docker/WSL pool | Decyzja |
+|---|---|---|---|---|
+| `2026-09-09T16:21:49Z`, przed wznowieniem | `25.802 / 8.118 GiB` total/available | `31.629 / 70.802 / 39.174 GiB` | ten sam pool przez `/proc`: `17.563 GiB` total, `14.143 GiB` available; swap `8 GiB`, użyte ok. `2 MiB` | krótki Web dozwolony |
+| `2026-09-09T16:32:46Z`, bezpośrednio przed Web | `8.465 GiB` available | reserve `39.226 GiB` | `14.313 GiB` available, swap użyty ok. `2 MiB` | Web start |
+| `2026-09-09T17:24:30Z`, po Web | `7.398 GiB` available | `32.336 / 70.802 / 38.466 GiB` | odczyt bieżący niedostępny: Docker pipe access denied; WSL CLI wcześniej `E_ACCESSDENIED` | bez Android build/start |
+| `2026-09-09T17:28:47Z`, final | `25.802 / 7.100 GiB` total/available | `32.099 / 70.802 / 38.703 GiB` | nadal brak wiarygodnego bieżącego odczytu tej samej puli | `RESOURCE_OBSERVABILITY_BLOCKED` |
+
+Aktywne pagefile zmierzone przed testem: `C:\pagefile.sys` `13312 MiB`
+przydzielone, `522 MiB` użyte, peak `2660 MiB`; `D:\pagefile.sys`
+`32768 MiB` przydzielone, `677 MiB` użyte, peak `3485 MiB`. Konfiguracja:
+C: system-managed, D: `32768–65536 MiB`. Późniejszy odczyt bieżącego użycia
+został zablokowany przez uprawnienia i nie został sfabrykowany. Pagefile nie
+był doliczany do physical available.
+
+D: miał `854.43 GiB` wolne z `931.50 GiB`, health `Healthy/Online`; był na
+fizycznym NVMe `WD Green SN3000 1TB`, innym niż C: (`TWSC NVMe`). Krótki
+odczyt I/O przed testem: D `0 MiB/s`, queue `0`; C ok. `0.37 MiB/s`, queue `0`.
+Dostępne Windows `HealthStatus` nie jest pełnym SMART; SMART pozostaje
+`UNKNOWN`. Nie zmieniono pagefile, WSL, AVD, RAM, firewalla ani usług.
+
+### Web UI-03 C1
+
+Rzeczywisty klient Flutter zalogował się nową sesją do zachowanego backendu,
+pokazał dwie odrębne syntetyczne sprawy, otworzył właściwy dokument ID `1` i
+akcję „Otwórz plik”. Dwa kontrolowane kliknięcia diagnostyczne utworzyły dwa
+lokalne pobrania po `204 B`; oba miały SHA-256
+`C0EBC642C0AE14C7A3D8D4A4A6B5F9178E0370CDC3241E3155E710D88E7EB0F2`,
+zgodny z fixture. Screenshot dialogu ma SHA-256
+`874737B27AEF5D90B11D2ECFA952B98643E83FC95F8DB8A759003B477638CB9B`.
+
+Treść pobranego pliku nie uzyskała wymaganego dowodu ekranowego: in-app
+browser bezpiecznie odmówił renderu `file://`, a uruchomiony lokalny viewer w
+nieinteraktywnym kontekście nie udostępnił okna do capture. Własne procesy
+viewera zatrzymano. Wynik UI-03 pozostaje zatem
+`PARTIAL / BLOCKED_TOOLING`, nie FAIL produktu i nie PASS wizualny. Nie
+otwierano fixture z dysku zamiast akcji aplikacji ani bezpośredniego URL.
+
+### Android i stan końcowy C1
+
+`Pixel_8` nadal istnieje z `hw.ramSize=2048`, ale `adb devices -l` nie wskazał
+uruchomionego urządzenia. Zachowana `android-source` była czysta, wciąż miała
+produkcyjne `applicationId=pl.ailab.app`, więc nie zastosowano overlay,
+nie wykonano build/install i nie uruchomiono emulatora. Windows RAM i commit
+nie były blockerem w ostatnim odczycie, lecz wymagana obserwowalność właściwej
+puli Docker/WSL zniknęła po Web; zgodnie z bramką Android =
+`RESOURCE_OBSERVABILITY_BLOCKED / NOT_STARTED`.
+
+Trzy zachowane kontenery zostały wznowione i ponownie zatrzymane po weryfikacji
+pełnych ID. Porty `18004/18005` finalnie nie nasłuchują. C1 nie wykonał
+migracji, seeda, mutacji UI/DB, modelu, kolejki, Qdrant, Gmail, Vision ani
+Temporary Chat. Dwa pobrania syntetycznego pliku i nowe dowody `LOCAL_ONLY` są
+jedynymi trwałymi skutkami poza dokumentacją i Git.
