@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:ai_lab/features/app_update/domain/app_update.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -104,6 +107,66 @@ void main() {
       expect(manifest.channel, 'stable');
       expect(manifest.buildNumber, 2);
       expect(manifest.releaseFor(AppUpdatePlatform.windows)?.available, isTrue);
+    });
+
+    test('parses the repository stable manifest without changing policy', () {
+      final Map<String, dynamic> json = Map<String, dynamic>.from(
+        jsonDecode(
+          File('../release-channel/stable/manifest.json').readAsStringSync(),
+        ) as Map,
+      );
+      final UpdateManifest manifest = UpdateManifest.fromJson(json);
+
+      final UpdateCheckResult decision = UpdateDecisionEngine.evaluate(
+        currentVersion: manifest.version,
+        currentBuildNumber: manifest.buildNumber,
+        manifest: manifest,
+        platform: AppUpdatePlatform.windows,
+      );
+
+      expect(manifest.channel, 'stable');
+      expect(manifest.minimumVersion, isNotEmpty);
+      expect(decision.state, AppUpdateState.current);
+    });
+
+    test('supported client ignores additive component identity metadata', () {
+      final UpdateManifest manifest = UpdateManifest.fromJson(<String, dynamic>{
+        'channel': 'stable',
+        'version': '1.0.2',
+        'build_number': 29,
+        'minimum_version': '1.0.0',
+        'published_at': '2026-08-31T19:22:59Z',
+        'component_identity': <String, dynamic>{
+          'schema': 'NEXT_STABIL_COMPONENT_COMPATIBILITY_V1',
+          'release_id': 'candidate-source-only',
+          'status': 'UNVERIFIED',
+        },
+        'platforms': <String, dynamic>{
+          'web': <String, dynamic>{'available': true, 'url': '/'},
+          'windows': <String, dynamic>{
+            'available': true,
+            'url': '/updates/stable/windows/ai-lab-setup.exe',
+            'sha256': 'ABC',
+          },
+          'android': <String, dynamic>{
+            'available': true,
+            'url': '/updates/stable/android/ai-lab.apk',
+            'sha256': 'DEF',
+          },
+        },
+      });
+
+      final UpdateCheckResult decision = UpdateDecisionEngine.evaluate(
+        currentVersion: '1.0.0',
+        currentBuildNumber: 28,
+        manifest: manifest,
+        platform: AppUpdatePlatform.windows,
+      );
+
+      expect(manifest.version, '1.0.2');
+      expect(manifest.minimumVersion, '1.0.0');
+      expect(manifest.buildNumber, 29);
+      expect(decision.state, AppUpdateState.available);
     });
 
     test('rejects malformed manifest newer minimum version', () {

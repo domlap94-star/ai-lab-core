@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     api_version: int = 1
     minimum_app_version: str = "1.0.0"
     latest_app_version: str = "1.0.0"
+    release_id: str | None = None
+    source_revision: str | None = None
+    backend_image_digest: str | None = None
+    database_schema_revision: str | None = None
 
     environment: str = "development"
     debug: bool = False

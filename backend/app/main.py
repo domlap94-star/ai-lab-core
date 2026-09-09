@@ -14,6 +14,7 @@ from app.services.knowledge_base_dispatcher import start_knowledge_base_dispatch
 from app.services.backup_plan_reconciler import start_backup_plan_reconciler
 from app.services.document_preparation_dispatcher import start_document_preparation_dispatcher
 from app.services.assistant_run_dispatcher import start_assistant_run_dispatcher
+from app.services.version_identity_service import build_public_component_identity
 
 
 logger = logging.getLogger("ai_lab")
@@ -141,5 +142,17 @@ def version():
         ),
         "latest_app_version": (
             settings.latest_app_version
+        ),
+        "component_identity": build_public_component_identity(
+            backend_version=app.version,
+            api_version=settings.api_version,
+            database_schema_revision=settings.database_schema_revision,
+            minimum_app_version=settings.minimum_app_version,
+            latest_app_version=settings.latest_app_version,
+            release_id=settings.release_id,
+            source_revision=settings.source_revision,
+            backend_image_digest=settings.backend_image_digest,
+            environment=settings.environment,
+            debug=settings.debug,
         ),
     }
