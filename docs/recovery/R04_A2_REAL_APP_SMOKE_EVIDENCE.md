@@ -535,3 +535,23 @@ Historyczny B pozostaje `PASS / OWNER_OPERATED_RUSTDESK`, a dwa historyczne A
 pozostają `NOT_VERIFIED`. Całe A2/R04/R16 nadal oczekuje na odbiór właściciela;
 Android jest `DEFERRED_BY_OWNER / NOT_TESTED`, W-02 nadal
 `WAITING_OWNER_VISUAL_EVIDENCE`, a D-15/D-16 i modele pozostają `NOT_RUN`.
+
+## Odbiór funkcjonalny UI06 Web A/B — 2026-09-10 UTC
+
+Właściciel zaakceptował source/test
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` oraz funkcjonalne Web A/B
+wyłącznie dla naprawy `DocumentsController`. Route-first A ma
+`PASS / OWNER_OPERATED_RUSTDESK` na dowodzie
+`0d0ac4d48624035682b4b7dda06f83dd80d6abe8`; historyczny B ma
+`FUNCTIONAL_PASS / OWNER_OPERATED_RUSTDESK` przy
+`25c30e7dd9e3d451772eee812bdef190665e1b8d`.
+
+B zachowuje historyczne przekroczenie 25 minut i przerwy monitoringu ponad
+30 sekund, dlatego nie otrzymuje wstecz proceduralnego PASS. Dwa wcześniejsze
+A pozostają `NOT_VERIFIED`; Dashboard preview `limit=6` jest prawidłowy i nie
+zastępuje pierwszego ładowania route-local `DocumentsController`.
+
+Wynik: `SOURCE_ACCEPTED / WEB_AB_FUNCTIONAL_ACCEPTED / NOT_DEPLOYED`.
+Całe A2/R04/R16, `ClientsController`, Android, W-02, D-15/D-16, modele oraz
+docelowy zestaw wydania pozostają poza tym odbiorem. Testy aplikacyjne, Flutter,
+Web A/B i restore w tej sesji dokumentacyjnej: `NOT_RUN`.

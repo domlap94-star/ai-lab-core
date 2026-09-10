@@ -2,19 +2,27 @@
 
 ## Zakres i werdykt
 
-Właściciel decyzją D-18 zaakceptował wcześniejszy WEB-FIRST wyłącznie jako
-dowód częściowy i dopuścił minimalną naprawę `R04-A2-UI06`, testy oraz jeden
-ograniczony Web A/B na zachowanym syntetycznym backendzie A2.
+Właściciel decyzją D-18 najpierw dopuścił minimalną naprawę
+`R04-A2-UI06`, testy i ograniczony Web A/B, a następnie zaakceptował ich
+funkcjonalny wynik wyłącznie dla `DocumentsController`.
 
-Wynik: `SOURCE_FIXED / WEB_NOT_VERIFIED / BLOCKED_TOOLING`.
+Wynik bieżący:
+`SOURCE_ACCEPTED / WEB_AB_FUNCTIONAL_ACCEPTED / NOT_DEPLOYED`.
 
-- source/test fix: `48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`;
-- deployment: `NOT_DEPLOYED`;
-- fizyczne scenariusze Web A/B: `NOT_RUN`, ponieważ dozwolona powierzchnia
-  Browser Use odmówiła dostępu do lokalnego originu;
+- source/test: `48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`;
+- route-first A: `PASS / OWNER_OPERATED_RUSTDESK`, dowód opublikowany na
+  `0d0ac4d48624035682b4b7dda06f83dd80d6abe8`;
+- historyczny B: `FUNCTIONAL_PASS / OWNER_OPERATED_RUSTDESK`, dowód przy
+  `25c30e7dd9e3d451772eee812bdef190665e1b8d`, z zachowanym przekroczeniem
+  25 minut i przerwami monitoringu ponad 30 sekund;
+- dwa wcześniejsze A: `NOT_VERIFIED`;
+- deployment: `NOT_DEPLOYED`, środowisko prób `TEST_ONLY`;
 - Android: `DEFERRED_BY_OWNER / NOT_TESTED`;
 - W-02: `WAITING_OWNER_VISUAL_EVIDENCE`;
 - D-15/D-16 i odbiór AI: `NOT_RUN`.
+
+Odbiór nie obejmuje `ClientsController`, wszystkich możliwych przyczyn
+historycznego incydentu, całego A2/R04/R16 ani docelowego zestawu wydania.
 
 ## Historyczny symptom i rozstrzygnięta przyczyna
 
@@ -387,3 +395,24 @@ pozostaje `PASS / OWNER_OPERATED_RUSTDESK`, a dwa wcześniejsze A zachowują
 nie samodzielny odbiór całego A2/R04/R16, `ClientsController`, Androida,
 W-02 ani deploymentu. Testy aplikacyjne: `NOT_RUN`, ponieważ source/test nie
 uległy zmianie.
+
+## Odbiór właściciela Web A/B — 2026-09-10 UTC
+
+Właściciel zaakceptował funkcjonalną regresję Web A/B dla naprawy
+`DocumentsController` na źródle/testach
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` i backendzie testowym
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`. Route-first A opiera się na
+dowodzie `0d0ac4d48624035682b4b7dda06f83dd80d6abe8`; historyczny B na dowodzie
+przy `25c30e7dd9e3d451772eee812bdef190665e1b8d`.
+
+Przyjęcie B jest funkcjonalne, nie proceduralne: zapisane przekroczenie okna
+25 minut i przerwy monitoringu ponad 30 sekund pozostają bez zmian. Nie
+przeniesiono telemetrii nowego A do B. Dwa wcześniejsze A nadal mają
+`NOT_VERIFIED`, a Dashboard preview `limit=6` pozostaje prawidłowym,
+niezależnym od route-local kontrolera zachowaniem.
+
+Stan końcowy wąskiego ustalenia:
+`R04-A2-UI06 SOURCE_ACCEPTED / WEB_AB_FUNCTIONAL_ACCEPTED / NOT_DEPLOYED`.
+Nie jest to odbiór całego A2/R04/R16, `ClientsController`, Androida, W-02, AI
+ani produkcyjnego wdrożenia. W tej sesji dokumentacyjnej nie uruchomiono
+aplikacji, Fluttera, Web A/B, restore, monitoringu ani runtime.
