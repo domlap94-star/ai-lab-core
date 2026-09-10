@@ -480,3 +480,18 @@ są `exited`, Web zatrzymany, telemetry usunięta, porty `18004/18005` wolne.
 Pełny opis i ograniczenia: `docs/recovery/R04_A2_UI06_REPAIR_EVIDENCE.md`.
 Status: `R04-A2 UI06 SOURCE_ACCEPTED / WEB_AB_PARTIAL / TEST_ONLY`;
 R04 `IN_PROGRESS`, R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION`.
+
+## Powtórzenie UI06 A — 2026-09-10 UTC
+
+Na jawne polecenie właściciela wykonano jedną dodatkową próbę A bez zmiany
+source/test. Pełny reload przy zatrzymanym backendzie zatrzymał aplikację na
+wcześniejszym sprawdzeniu sesji. Po przywróceniu backendu operator potwierdził
+Dashboard bez wejścia do repozytorium, lecz log wykazał dashboardowy
+`GET /api/v1/documents?...limit=6`. Wymagany brak wcześniejszego pobrania listy
+nie został spełniony; nie wykonano kolejnego outage ani prób do skutku.
+
+Wynik pozostaje `A=NOT_VERIFIED / AUTH_GATE_THEN_DASHBOARD_PREFETCH`,
+`B=PASS`, całość `WEB_AB_PARTIAL / TEST_ONLY`. Screenshot auth gate, logi i
+`68/68` próbek zasobów PASS są zhashowane w
+`R04_A2_LOCAL_EVIDENCE_MANIFEST.csv`. Pełny opis znajduje się w
+`R04_A2_UI06_REPAIR_EVIDENCE.md`.

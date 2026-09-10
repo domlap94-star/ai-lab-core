@@ -256,3 +256,55 @@ kolejki, migracje, backup, escrow, main i rescue nie zostały zmienione ani
 uruchomione. Testy aplikacyjne: `NOT_RUN`, ponieważ source/test nie zmieniono.
 Werdykt: `SOURCE_ACCEPTED / WEB_AB_PARTIAL`; A `NOT_VERIFIED`, B `PASS`;
 `UI_OBSERVER=OWNER_OPERATED_RUSTDESK`; `NOT_DEPLOYED`.
+
+## Powtórzenie A zlecone przez właściciela — 2026-09-10 UTC
+
+Właściciel poleceniem `powtorz A` zatwierdził dokładnie jedną dodatkową próbę
+A na zachowanym zestawie. Start dokumentacji:
+`25c30e7dd9e3d451772eee812bdef190665e1b8d`; frontend i backend pozostały
+odpowiednio `48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` oraz
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`. Nie zmieniono source, testów,
+DB ani fixture.
+
+Pierwsze podejście użyło zachowanej sesji oraz pełnego przeładowania przy
+zatrzymanym testowym backendzie. Aplikacja zatrzymała się wcześniej, na
+odtworzeniu sesji, i pokazała: „Nie udało się sprawdzić sesji. Sprawdź
+połączenie i spróbuj ponownie.” Screenshot
+`scenario-a-auth-gate.jpg` ma `198361 B` i SHA-256
+`FFA564DDD065F7F6738829DAA5ECA41EAAE8DBDDA51CB4F24135E556C8D69ED6`.
+Nie był to błąd `DocumentsController`, ponieważ strona dokumentów nie została
+osiągnięta.
+
+Po uruchomieniu tego samego pełnego ID backendu operator przeładował aplikację
+i potwierdził Dashboard bez kliknięcia Dokumentów. Log zawierał jednak:
+
+```text
+GET /api/v1/auth/me HTTP/1.1 200
+GET /api/v1/documents?link_state=ALL&skip=0&limit=6 HTTP/1.1 200
+```
+
+Źródło potwierdza, że właściwy `DocumentsController` jest tworzony przy trasie
+`/documents` i pobiera stronę z limitem 50; odczyt z limitem 6 pochodzi z
+wcześniejszego widoku Dashboard. Ścisły kontrakt ręcznej próby wymagał jednak,
+aby lista dokumentów nie była wcześniej pobrana w tej sesji. Bramka nie
+przeszła, więc backendu drugi raz nie zatrzymano, operator nie klikał Dokumenty
+i nie wykonywano kolejnych prób do skutku.
+
+Wynik powtórzenia: `A=NOT_VERIFIED / AUTH_GATE_THEN_DASHBOARD_PREFETCH`.
+Jest to ograniczenie obecnej procedury, nie `WEB_REGRESSION_FAIL` i nie
+unieważnia funkcjonalnego `B=PASS`.
+
+Izolowany monitor zapisał `68/68` próbek PASS. Minima: Windows available
+`4.539 GiB`, commit reserve `33.645 GiB`, pool available `13.808 GiB`;
+swap maksymalnie `1.9 MiB`. Wykonano jeden stop/start testowego backendu dla
+próby auth gate. Końcowa kontrola wymagała nadal 2 klientów, 1 dokument i head
+`followup_assistant_chat_history_20260829`; log nie zawierał biznesowych
+POST/PUT/PATCH/DELETE. Logowanie i kontrola sesji mogą mieć techniczne skutki
+audytowe.
+
+Po próbie trzy zachowane kontenery A2 są `exited`, Web zatrzymany, dokładnie
+utworzona telemetria usunięta, a porty `18004/18005` są wolne. Dowody pozostają
+`LOCAL_ONLY` pod
+`...\owner-ui06-a-repeat-20260910T173258Z`. Produkcja, R03, modele, kolejki,
+backupy, escrow, main i rescue nie zostały użyte ani zmienione. Testy
+aplikacyjne: `NOT_RUN`, ponieważ kod pozostał niezmieniony.
