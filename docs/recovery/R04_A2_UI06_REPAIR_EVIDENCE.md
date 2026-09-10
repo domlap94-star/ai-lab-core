@@ -136,3 +136,28 @@ R04 pozostaje `IN_PROGRESS`; R03 pozostaje
 `WAITING_APPROVAL / WAITING_ESCROW_DECISION`. Następna bezpieczna czynność to
 odbiór source/test fixu i osobna decyzja o jednym fizycznym A/B w dozwolonym
 narzędziu mogącym sterować lokalnym originem.
+
+## Odbiór source/test i bramka obserwacji UI — 2026-09-10 UTC
+
+Właściciel zaakceptował source/test
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` wyłącznie dla potwierdzonego
+błędu `DocumentsController`. Nie zaakceptował analogicznego ryzyka
+`ClientsController`, fizycznego Web, całego A2, R04 ani R16. Stan źródła to
+`UI06 SOURCE_ACCEPTED@48fbecae0a76edb25f60e9dd314bb8d65bfbae4b / NOT_DEPLOYED`.
+
+Przed uruchomieniem stacku sprawdzono zainstalowane instrukcje powierzchni
+przeglądarkowej i dostępne mechanizmy uprawnień. Instrukcje przewidują lokalne
+testy Web, ale nie udostępniają formalnego allowlist/approval override dla
+wcześniejszego odrzucenia dokładnego originu `http://127.0.0.1:18005`.
+Nie powtórzono tego samego dostępu ani nie użyto alternatywnego browsera,
+raw CDP, proxy, innego hosta/portu lub Computer Use. Tryb
+`AUTOMATED_ALLOWED` nie został więc ustanowiony.
+
+Tryb `OWNER_OPERATED` także nie został ustanowiony: samo zlecenie nie jest
+bieżącym potwierdzeniem obecności i gotowości właściciela przy tym komputerze.
+Z tego powodu nie uruchomiono zachowanego stacku, serwera Web ani przeglądarki;
+nie wykonano stop/start backendu i nie powstały nowe logi, screenshoty ani
+mutacje. Fizyczne scenariusze A/B pozostają
+`WEB_NOT_VERIFIED / WAITING_ALLOWED_UI_OR_OWNER_SESSION`. Dokładna procedura
+wznowienia znajduje się w checkpointcie
+`docs/recovery/checkpoints/20260910T094722Z-R04-A2-UI06-SOURCE-ACCEPTANCE.md`.

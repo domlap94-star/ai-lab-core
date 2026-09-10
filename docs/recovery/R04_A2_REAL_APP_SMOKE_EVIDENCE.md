@@ -447,3 +447,14 @@ Pełny dowód, zakres niepewności i hashe znajdują się w
 `docs/recovery/R04_A2_UI06_REPAIR_EVIDENCE.md`. Status tej kontynuacji:
 `SOURCE_FIXED / WEB_NOT_VERIFIED / BLOCKED_TOOLING`; nie zmienia wcześniejszych
 W-01–W-05 ani statusu W-02.
+
+## UI06 — odbiór source/test i oczekiwanie na dozwoloną sesję
+
+Właściciel zaakceptował source/test
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` wyłącznie dla potwierdzonego
+błędu `DocumentsController`; source pozostaje `NOT_DEPLOYED`. Przed kolejną
+próbą nie ustanowiono ani formalnie dozwolonego trybu automatycznego dla
+`http://127.0.0.1:18005`, ani bieżącej gotowości właściciela do trybu
+operatorskiego. Stack nie został uruchomiony, dlatego fizyczne A/B ma status
+`WEB_NOT_VERIFIED / WAITING_ALLOWED_UI_OR_OWNER_SESSION`. Nie zmienia to
+historycznych wyników W-01–W-05, W-02 ani odroczenia Androida.
