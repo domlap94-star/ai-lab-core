@@ -436,3 +436,14 @@ Werdykt: `R04 A2 WEB_EVIDENCE_READY_FOR_REVIEW / TEST_ONLY` z
 `WEB_SMOKE_PARTIAL / KNOWN_UI_DEFECT_OPEN_R16`; Android runtime pozostaje
 `DEFERRED_BY_OWNER / NOT_TESTED`. Cały R04 nadal `IN_PROGRESS`, a R03
 `WAITING_APPROVAL / WAITING_ESCROW_DECISION`.
+
+## UI06-REPAIR — 2026-09-10 UTC
+
+Właściciel ograniczył D-18 do naprawy historycznego `R04-A2-UI06` i jednego
+Web A/B. Source/test fix znajduje się na
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`; nowa próba fizycznego Web została
+zablokowana przed scenariuszami przez politykę URL dozwolonej przeglądarki.
+Pełny dowód, zakres niepewności i hashe znajdują się w
+`docs/recovery/R04_A2_UI06_REPAIR_EVIDENCE.md`. Status tej kontynuacji:
+`SOURCE_FIXED / WEB_NOT_VERIFIED / BLOCKED_TOOLING`; nie zmienia wcześniejszych
+W-01–W-05 ani statusu W-02.

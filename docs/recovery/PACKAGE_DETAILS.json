@@ -191,7 +191,7 @@
     ],
     "done": "RELEASE_ID + compatibility manifest gotowe. Stan source-ready/staged/deployed/accepted jest rozdzielony. Samo przygotowanie nie oznacza promocji rescue.",
     "impact": "Źródła wersjonowania/build/config. Operacyjne przepięcie i restart to oddzielne działania po R03, privacy gate i zgodzie.",
-    "approval": "R04-A1 source/test zaakceptowane na f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99 jako NOT_DEPLOYED. D-17 WEB-FIRST wykonało W-01–W-05 i ma status WEB_EVIDENCE_READY_FOR_REVIEW / TEST_ONLY z WEB_SMOKE_PARTIAL / KNOWN_UI_DEFECT_OPEN_R16. Android runtime jest DEFERRED_BY_OWNER / NOT_TESTED, lecz pozostaje wymagany przed odbiorem platformy; APK C3 zachowano. Produkcyjny deploy/release wymaga R03 i osobnej zgody.",
+    "approval": "R04-A1 source/test zaakceptowane na f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99 jako NOT_DEPLOYED. D-18 UI06 naprawiło source/test na 48fbecae0a76edb25f60e9dd314bb8d65bfbae4b; fizyczne A/B poprawionego Web pozostaje WEB_NOT_VERIFIED / BLOCKED_TOOLING. D-17 WEB-FIRST zachowuje wcześniejsze częściowe wyniki, Android runtime DEFERRED_BY_OWNER / NOT_TESTED, a W-02 WAITING_OWNER_VISUAL_EVIDENCE. Produkcyjny deploy/release wymaga R03 i osobnej zgody.",
     "rollback": "Poprzedni podpisany lub hashowany zestaw wraz z konfiguracją i schema compatibility; zachowane stare ścieżki do czasu odbioru.",
     "exclude": "Usuwanie live Web lub zewnętrznego workera, podwyższanie minimum dla wymuszenia pozornego sukcesu, reset lokalnego repo.",
     "status": "IN_PROGRESS",
