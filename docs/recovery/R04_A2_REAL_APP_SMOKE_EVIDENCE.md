@@ -458,3 +458,25 @@ próbą nie ustanowiono ani formalnie dozwolonego trybu automatycznego dla
 operatorskiego. Stack nie został uruchomiony, dlatego fizyczne A/B ma status
 `WEB_NOT_VERIFIED / WAITING_ALLOWED_UI_OR_OWNER_SESSION`. Nie zmienia to
 historycznych wyników W-01–W-05, W-02 ani odroczenia Androida.
+
+## UI06 OWNER_OPERATED — częściowy Web A/B, 2026-09-10 UTC
+
+Właściciel ręcznie obsłużył Web przez istniejący RustDesk; Codex nie sterował
+browserem ani RustDesk. Na zaakceptowanym frontendzie
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` i zachowanym backendzie
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99` scenariusz B potwierdził
+właściwy błąd przy zatrzymanym backendzie oraz powrót jednej właściwej pozycji
+po jednym retry, bez `LateInitializationError`: `PASS / OWNER_OPERATED`.
+
+Scenariusz A pozostał `NOT_VERIFIED / PREFETCH_CONTAMINATED`: po kontrolowanym
+restarcie Web i świeżym logowaniu klient sam wykonał `GET /api/v1/documents`
+bez wejścia właściciela do repozytorium. Drugiego outage nie wykonano. Dwa
+screenshoty B i screenshot białego ekranu A są zachowane `LOCAL_ONLY` z
+hashami w `R04_A2_LOCAL_EVIDENCE_MANIFEST.csv`.
+
+Próba miała przerwy świeżych pomiarów >30 s i przekroczyła 25-minutowe okno,
+więc wynik nie jest pełnym proceduralnym PASS. Po zakończeniu trzy kontenery A2
+są `exited`, Web zatrzymany, telemetry usunięta, porty `18004/18005` wolne.
+Pełny opis i ograniczenia: `docs/recovery/R04_A2_UI06_REPAIR_EVIDENCE.md`.
+Status: `R04-A2 UI06 SOURCE_ACCEPTED / WEB_AB_PARTIAL / TEST_ONLY`;
+R04 `IN_PROGRESS`, R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION`.

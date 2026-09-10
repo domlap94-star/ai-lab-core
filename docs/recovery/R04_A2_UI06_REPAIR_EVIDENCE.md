@@ -161,3 +161,98 @@ mutacje. Fizyczne scenariusze A/B pozostają
 `WEB_NOT_VERIFIED / WAITING_ALLOWED_UI_OR_OWNER_SESSION`. Dokładna procedura
 wznowienia znajduje się w checkpointcie
 `docs/recovery/checkpoints/20260910T094722Z-R04-A2-UI06-SOURCE-ACCEPTANCE.md`.
+
+## OWNER_OPERATED Web A/B — 2026-09-10 UTC
+
+Właściciel ustanowił bieżący tryb `OWNER_OPERATED / OWNER_OBSERVED` przez
+istniejący RustDesk. Codex nie sterował RustDesk ani browserem i nie używał
+Browser tool, CDP, Selenium/Playwright, DevTools lub profilu/cookies. Kod
+frontendu pozostał `48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`, a zachowany
+backend `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`. Archiwum frontend zachowało
+`3684502 B` i SHA-256 `F37C2BDD20A1791EA94C2D9AE1FC9F1EF0AE34F7C1ADAF0989871605354FFE41`;
+kontroler w serwowanej kopii miał SHA-256
+`53D3F2D8D52E8A36AF8174EED50624D2AF62E8F5148B4B87C33D13D251B095CC`.
+Po próbie Git blob kontrolera i `pubspec.lock` nadal odpowiadały commitowi
+frontendu; powstały wyłącznie zewnętrzne generowane dane `.dart_tool`/build.
+
+### Scenariusz B — po wcześniejszym odczycie
+
+Logi pokazały, że pierwsza sesja zdążyła wykonać rzeczywiste odczyty listy,
+contentu i szczegółów dokumentu, mimo deklaracji operatora, że nie otworzył
+jeszcze repozytorium. Nie przedstawiono więc tej sesji jako A; wykorzystano ją
+wyłącznie jako B, gdzie wcześniejszy odczyt był wymaganym warunkiem.
+
+- testowy backend o pełnym ID `15e12852...` zatrzymano o
+  `2026-09-10T13:03:17.9234791Z`;
+- właściciel zobaczył „Nie udało się pobrać dokumentów. Spróbuj ponownie.”;
+  screenshot `scenario-b-outage.jpg`: `274703 B`, SHA-256
+  `21E3B76EB08502C2C62E723A9A33CF73FE6BCB3E8BB2E3107ABB7CC6C526B208`;
+- ten sam backend uruchomiono ponownie o `2026-09-10T13:26:25.9669855Z`;
+  `/health=ok`, a `component_identity.backend.source_revision` pozostało
+  `f4ea20c...`;
+- po jednym `Spróbuj ponownie` właściciel zgłosił PASS, a log backendu zawierał
+  wyłącznie udane odpowiedzi dokumentów, bez 5xx, `LateInitializationError`
+  lub tracebacku;
+- screenshot `scenario-b-recovered.jpg`: `291363 B`, SHA-256
+  `D0CFB1A74F2BD5D39AD2C328ABD73A3753765AC97AA4F8C19B87E3AE6CAC5101`,
+  pokazuje jedną pozycję `synthetic-document.txt`, `204 B` i dostępne filtry.
+
+Funkcjonalny wynik B: `PASS / OWNER_OPERATED_RUSTDESK`. Nie jest to odbiór
+`ClientsController`, Androida, całego A2/R04/R16 ani deploymentu.
+
+### Scenariusz A — prefetch uniemożliwił pierwszy odczyt
+
+Po zamknięciu starych kart nowa sesja początkowo pokazała biały ekran. Serwer
+Web i assety zwracały 200, backend miał `health=ok`, a od rozpoczęcia sesji nie
+było loginu ani żądania dokumentów. Screenshot `scenario-a-web-blank.jpg` ma
+`124329 B`, SHA-256
+`A475BA8582665CECDDD1140B839803A96DBDFE3CF5818173E2C146EBEA9010DE`.
+Wykonano jeden kontrolowany restart tylko procesu Flutter Web z tych samych
+źródeł i z `--no-pub`; backend nie był restartowany. Po tym operator zobaczył
+login i zalogował się bez wchodzenia do repozytorium.
+
+Mimo braku działania operatora klient wykonał o
+`2026-09-10T15:20:34.298643639Z` żądanie
+`GET /api/v1/documents` zakończone 200. Warunek „pierwsze ładowanie przy
+backend down” był więc zanieczyszczony przez prefetch. Zgodnie z bramką nie
+wykonano drugiego outage, refreshu ani serii prób do skutku.
+
+Wynik A: `NOT_VERIFIED / PREFETCH_CONTAMINATED`. To ograniczenie dowodu, nie
+potwierdzona regresja zaakceptowanej poprawki.
+
+### Zasoby, ograniczenia i zakończenie
+
+Siedem plików pomiarowych zawiera łącznie `998` próbek PASS. Minima z próbek
+PASS: Windows available `4.750 GiB`, commit reserve `32.620 GiB`, Docker/WSL
+pool available `13.790 GiB`; maksymalne użycie swap `1.9 MiB`. Jedna dodatkowa
+końcowa obserwacja `DOCKER_READ_FAILED` powstała po intencjonalnym zatrzymaniu
+kontenera telemetrycznego podczas shutdownu i nie była naruszeniem progu.
+
+Próba przekroczyła uzgodnione 25 minut i zawierała przerwy świeżych pomiarów
+większe niż 30 sekund podczas oczekiwania na odpowiedzi operatora. Zasoby nie
+zostały automatycznie zatrzymane po pięciu minutach. Jest to jawne odstępstwo
+proceduralne, dlatego nawet poprawnego B nie rozszerza się na pełny PASS całej
+procedury. Pierwsza próba uruchomienia monitora przez zagnieżdżony Windows
+PowerShell 5.1 zatrzymała się przed zapisem na marshallingu argumentu Docker;
+niezmieniony helper działał następnie przez bieżący host PowerShell. Dwa późne
+błędy lokalnej ścieżki monitora także zakończyły się przed zapisem i nie
+wpłynęły na aplikację.
+
+Wykonano jeden stop/start testowego backendu (B), dwa uruchomienia procesu Web
+(drugie po białym ekranie) oraz wielokrotne ograniczone okna tego samego
+kontenera telemetrycznego. Końcowa próbka była PASS. Następnie zatrzymano
+wyłącznie Web i trzy zachowane kontenery A2, usunięto wyłącznie telemetry
+`5d45b3de...`; porty `18004/18005` mają zero listenerów. Syntetyczna
+DB/volume/storage, cache, APK i dowody pozostały zachowane `LOCAL_ONLY`.
+Preflight potwierdził 2 klientów, 1 dokument i właściwy DB head; żaden log HTTP
+tej próby nie zawierał biznesowego POST/PATCH/DELETE. Logowanie może mieć
+techniczne skutki audytowe, których nie utożsamia się z brakiem wszystkich SQL
+writes. Końcowy read-only SQL wykonano przed shutdownem, ale jego stdout nie
+wrócił z procesu orkiestrującego, więc nie użyto go jako niezależnego dowodu
+końcowego countu.
+
+Produkcja, R03, modele, KB, Vision, Temporary Chat, Qdrant, Gmail, n8n,
+kolejki, migracje, backup, escrow, main i rescue nie zostały zmienione ani
+uruchomione. Testy aplikacyjne: `NOT_RUN`, ponieważ source/test nie zmieniono.
+Werdykt: `SOURCE_ACCEPTED / WEB_AB_PARTIAL`; A `NOT_VERIFIED`, B `PASS`;
+`UI_OBSERVER=OWNER_OPERATED_RUSTDESK`; `NOT_DEPLOYED`.
