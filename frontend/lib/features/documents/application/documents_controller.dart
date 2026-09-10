@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/document_filters.dart';
 import '../domain/document_page.dart';
 import 'documents_providers.dart';
-import 'documents_repository.dart';
 
 final documentsControllerProvider =
     AsyncNotifierProvider<DocumentsController, DocumentPage>(
@@ -16,7 +15,6 @@ class DocumentsController extends AsyncNotifier<DocumentPage> {
   }) : _filters = initialFilters;
 
   static const int pageSize = 50;
-  late final DocumentsRepository _repository;
 
   String _searchQuery = '';
   DocumentFilters _filters;
@@ -27,18 +25,19 @@ class DocumentsController extends AsyncNotifier<DocumentPage> {
 
   @override
   Future<DocumentPage> build() async {
-    _repository = ref.read(documentsRepositoryProvider);
     return _load();
   }
 
   Future<DocumentPage> _load() {
-    return _repository.fetchDocuments(
-      session: requireDocumentSession(ref),
-      filters: _filters,
-      search: _searchQuery,
-      skip: _skip,
-      limit: pageSize,
-    );
+    return ref
+        .read(documentsRepositoryProvider)
+        .fetchDocuments(
+          session: requireDocumentSession(ref),
+          filters: _filters,
+          search: _searchQuery,
+          skip: _skip,
+          limit: pageSize,
+        );
   }
 
   Future<void> refresh() async {
