@@ -510,3 +510,28 @@ Oba wcześniejsze A zachowują `NOT_VERIFIED`, a B zachowuje
 `PASS / OWNER_OPERATED_RUSTDESK`. Nowy, pojedynczy test pierwszego ładowania
 kontrolera ma stan `NOT_RUN / WAITING_OWNER_READY`; przed bieżącym
 potwierdzeniem właściciela nie uruchomiono stacku, Web ani telemetrii.
+
+## UI06 A route-first — wynik owner-operated, 2026-09-10 UTC
+
+Po bieżącym potwierdzeniu operatora wykonano dokładnie jeden skorygowany A na
+zaakceptowanym frontendzie `48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`
+i zachowanym backendzie `f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`.
+Dashboard wykonał tylko dozwolony preview `limit=6`. Po zatrzymaniu dokładnego
+backendu nawigacja menu, bez browser reload, osiągnęła `/documents` i pokazała
+route-local błąd z przyciskiem retry. Po powrocie tego samego backendu jeden
+retry wywołał dokładnie jeden udany GET `limit=50` i zwrócił jeden właściwy
+dokument. Nie wystąpił auth gate, `LateInitializationError`, nieskończone
+ładowanie, mutacja biznesowa ani duplikat.
+
+Wynik: `A_ROUTE_FIRST_LOAD_PASS / OWNER_OPERATED_RUSTDESK / TEST_ONLY`.
+Screenshoty błędu i odzyskania mają odpowiednio SHA-256
+`14466684EE6C34AE6CE3EEF64F2101226BCA62A8247D6CDC4F80E1D1C61A2F04` oraz
+`3E9CB8F9981CA34A3F963E286AE1C763D5C909DC4184FED4A62294B08CEA381A`.
+Monitor: `157/157 PASS`; minima Windows/commit/pool `5.363/33.771/13.774 GiB`,
+swap growth `0`. Trzy kontenery A2 i Web są zatrzymane, telemetry usunięta,
+porty `18004/18005` wolne; syntetyczne zasoby i dowody pozostają zachowane.
+
+Historyczny B pozostaje `PASS / OWNER_OPERATED_RUSTDESK`, a dwa historyczne A
+pozostają `NOT_VERIFIED`. Całe A2/R04/R16 nadal oczekuje na odbiór właściciela;
+Android jest `DEFERRED_BY_OWNER / NOT_TESTED`, W-02 nadal
+`WAITING_OWNER_VISUAL_EVIDENCE`, a D-15/D-16 i modele pozostają `NOT_RUN`.

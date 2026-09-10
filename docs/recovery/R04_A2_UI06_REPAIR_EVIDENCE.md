@@ -339,3 +339,51 @@ Nowy pojedynczy test route-first ma stan `NOT_RUN / WAITING_OWNER_READY`.
 Środowisko pozostaje zatrzymane do bieżącego potwierdzenia operatora. Ta
 korekta nie zmienia produktu, Dashboardu, auth, routera, retry ani testów i nie
 oznacza automatycznego PASS A.
+
+## Route-first A — wykonanie owner-operated, 2026-09-10 UTC
+
+Po bieżącym `GOTOWE` właściciela zweryfikowano pełne ID, obrazy, etykiety,
+mounty i sieci zachowanego zestawu A2, dokładny frontend
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`, backend
+`f4ea20c74f92c0423db087ba8d60bb8cc7f2ec99`, syntetyczną bazę
+`ai_lab_r04_a2_20260909` oraz head
+`followup_assistant_chat_history_20260829`. Właściciel obsługiwał istniejący
+RustDesk i świeże okno InPrivate; Codex nie sterował UI.
+
+Przed outage log zawierał Dashboard preview `limit=6` i zero wywołań
+route-local kontrolera z `limit=50`. O `2026-09-10T20:04:22.6031715Z`
+zatrzymano wyłącznie backend o pełnym, wcześniej zweryfikowanym ID. Bez F5,
+zmiany URL i ponownego logowania właściciel wszedł menu na `/documents`.
+Strona `Repozytorium dokumentów` pokazała kontrolowany błąd oraz przycisk
+`Spróbuj ponownie`; nie wystąpił auth gate ani `LateInitializationError`.
+
+Po uruchomieniu tego samego backendu o
+`2026-09-10T20:08:07.8492483Z` i jednym kliknięciu retry log wykazał dokładnie
+jedno udane `GET /api/v1/documents?link_state=ALL&skip=0&limit=50` z kodem
+200. Na tej samej trasie pojawił się jeden `synthetic-document.txt` (204 B)
+powiązany z właściwą syntetyczną sprawą. Nie było nieskończonego ładowania,
+żądania biznesowego mutującego ani duplikatu; końcowy bounded read potwierdził
+2 klientów i 1 dokument.
+
+Screenshot błędu ma SHA-256
+`14466684EE6C34AE6CE3EEF64F2101226BCA62A8247D6CDC4F80E1D1C61A2F04`,
+a screenshot odzyskanego dokumentu
+`3E9CB8F9981CA34A3F963E286AE1C763D5C909DC4184FED4A62294B08CEA381A`.
+Oba pozostają `LOCAL_ONLY_SAFE_SYNTHETIC_SCREENSHOT` wraz z logami i
+zanonimizowanymi JSON pod
+`owner-ui06-a-route-first-20260910T195623Z`.
+
+Monitor zasobów zakończył się kodem 0 i zapisał `157/157 PASS`. Minima:
+Windows available `5.363 GiB`, commit reserve `33.771 GiB`, Docker/WSL pool
+available `13.774 GiB`; swap growth `0`. Po próbie Web zakończono, trzy
+kontenery A2 zatrzymano po weryfikacji pełnych ID, dokładną telemetry usunięto,
+a porty `18004/18005` nie mają listenerów. DB/volume/storage/cache/APK i dowody
+pozostały zachowane.
+
+Werdykt tej jednej próby:
+`A_ROUTE_FIRST_LOAD_PASS / OWNER_OPERATED_RUSTDESK / TEST_ONLY`. Historyczny B
+pozostaje `PASS / OWNER_OPERATED_RUSTDESK`, a dwa wcześniejsze A zachowują
+`NOT_VERIFIED`. Jest to dowód wykonania zaakceptowanego `DocumentsController`,
+nie samodzielny odbiór całego A2/R04/R16, `ClientsController`, Androida,
+W-02 ani deploymentu. Testy aplikacyjne: `NOT_RUN`, ponieważ source/test nie
+uległy zmianie.
