@@ -308,3 +308,34 @@ utworzona telemetria usunięta, a porty `18004/18005` są wolne. Dowody pozostaj
 `...\owner-ui06-a-repeat-20260910T173258Z`. Produkcja, R03, modele, kolejki,
 backupy, escrow, main i rescue nie zostały użyte ani zmienione. Testy
 aplikacyjne: `NOT_RUN`, ponieważ kod pozostał niezmieniony.
+
+## Korekta warunku A — pierwsze ładowanie kontrolera, 2026-09-10 UTC
+
+Właściciel zastąpił wyłącznie pozostały warunek proceduralny A. Zwykły odczyt
+Dashboardu nie dyskwalifikuje nowej próby. Na dokładnym frontendzie
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` zweryfikowano pełne powiązanie:
+
+- `dashboardRecentDocumentsProvider` jest `FutureProvider` i wywołuje wspólne
+  `documentsRepositoryProvider.fetchDocuments(..., limit: 6)`;
+- `documentsControllerProvider` jest odrębnym `AsyncNotifierProvider`;
+- builder `/documents` tworzy `ProviderScope` z
+  `documentsControllerProvider.overrideWith(() => DocumentsController(...))`;
+- pierwsze `DocumentsController.build()` wywołuje `_load()` z `pageSize = 50`;
+- menu przechodzi do `/documents` przez `context.go()`, bez browser reload.
+
+Wspólny repository/endpoint nie jest wspólną instancją kontrolera. Parametr
+`limit` pomaga korelować ruch, lecz rozstrzygający jest caller i wiring
+providerów/trasy. Dlatego Dashboard preview jest w nowej procedurze
+`DASHBOARD_PREVIEW_ALLOWED`, a badany błąd ma powstać dopiero przy pierwszym
+wejściu do `/documents` po zatrzymaniu backendu.
+
+Historyczne wyniki nie zostały przepisane. Pierwsze A pozostaje
+`NOT_VERIFIED / PREFETCH_CONTAMINATED` według obowiązującej wtedy procedury;
+powtórzenie pozostaje
+`NOT_VERIFIED / AUTH_GATE_THEN_DASHBOARD_PREFETCH`. Pełny reload przy outage
+zatrzymał się na auth/session restore i nie dotarł do kontrolera strony.
+
+Nowy pojedynczy test route-first ma stan `NOT_RUN / WAITING_OWNER_READY`.
+Środowisko pozostaje zatrzymane do bieżącego potwierdzenia operatora. Ta
+korekta nie zmienia produktu, Dashboardu, auth, routera, retry ani testów i nie
+oznacza automatycznego PASS A.

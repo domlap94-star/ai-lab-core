@@ -551,3 +551,54 @@ At handoff, close only the browser tabs and Web process created by the run,
 stop the three preserved containers by revalidated full IDs, stop/remove only
 the exact telemetry container, and verify ports `18004/18005` are free. Preserve
 the test volume, storage, downloaded file, APK, build cache and evidence.
+
+## Owner-operated UI06 A: first DocumentsController load
+
+This section supersedes only the earlier scenario-A condition that prohibited
+every document-list GET in the browser session. It does not rewrite historical
+results or authorize a repeated B, selective proxy/interception, source changes,
+or retries-to-success.
+
+The accepted frontend wires two distinct flows:
+
+- Dashboard uses `dashboardRecentDocumentsProvider`, a `FutureProvider` that
+  calls `documentsRepositoryProvider.fetchDocuments(..., limit: 6)`.
+- `/documents` creates a route-local `ProviderScope` override backed by a new
+  `DocumentsController`; its first `build()` loads with `pageSize = 50`.
+- Navigation uses `context.go('/documents')`. A browser reload is neither
+  required nor allowed during the outage window.
+
+The shared repository/endpoint does not imply shared controller state. Confirm
+the caller/provider/route wiring for the exact served frontend; do not infer the
+instance solely from the URL limit.
+
+Run exactly once, only after a current owner `GOTOWE`:
+
+1. Perform the full `RESUME` identity, DB, source and resource gates above.
+   Start the preserved Web and wait for the owner to see the login screen.
+2. The owner opens a fresh InPrivate session, signs in with the protected
+   synthetic credential, reaches Dashboard, and confirms that this application
+   instance has not visited the full Documents page. Dashboard preview requests,
+   including `limit=6`, are `DASHBOARD_PREVIEW_ALLOWED`.
+3. Revalidate and stop exactly the preserved test backend by its full manifest
+   ID. Keep Web, transport, PostgreSQL, RustDesk and the authenticated in-memory
+   browser session running. Record the outage UTC.
+4. Tell the owner: do not press F5, use browser refresh, edit the URL or sign in
+   again. Click **Dokumenty** in the application menu and wait on that route.
+5. Preserve evidence that the error belongs to **Repozytorium dokumentów**, not
+   auth/session restoration or a stopped Web server. The expected first
+   controller load fails without `LateInitializationError`.
+6. Start the same backend ID, require `/health` and
+   `component_identity.backend.source_revision` to match the saved backend.
+   Keep the owner on the same Documents route and controller instance. If the
+   product leaves a **Spróbuj ponownie** button, the owner clicks it once.
+7. Require the one expected document to return, no internal exception or
+   infinite loading, no business mutation/duplicate, and correlate the
+   successful page request (currently `limit=50`) with route and time.
+
+One backend outage/start is allowed inside this scenario. Normal stack startup
+and final shutdown are separate. If auth blocks before `/documents`, the owner
+reloads, the controller-first condition is uncertain, the resource monitor is
+stale/failed, or the operator becomes unavailable, record `A_NOT_VERIFIED` and
+do not repeat. A real controller/recovery defect is `A_FAIL`; do not repair it
+under this procedure.

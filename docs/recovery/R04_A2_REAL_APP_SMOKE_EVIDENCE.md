@@ -495,3 +495,18 @@ Wynik pozostaje `A=NOT_VERIFIED / AUTH_GATE_THEN_DASHBOARD_PREFETCH`,
 `68/68` próbek zasobów PASS są zhashowane w
 `R04_A2_LOCAL_EVIDENCE_MANIFEST.csv`. Pełny opis znajduje się w
 `R04_A2_UI06_REPAIR_EVIDENCE.md`.
+
+## UI06 A route-first — korekta procedury, 2026-09-10 UTC
+
+Właściciel skorygował globalny warunek braku odczytu listy. Dashboardowy
+preview `limit=6` jest dozwolony, ponieważ źródło
+`48fbecae0a76edb25f60e9dd314bb8d65bfbae4b` używa osobnego
+`dashboardRecentDocumentsProvider`; dopiero trasa `/documents` tworzy własny
+override i nową instancję `DocumentsController`, której pierwsze `build()`
+pobiera `limit=50`. Pełne uzasadnienie caller/provider/route znajduje się w
+`R04_A2_UI06_REPAIR_EVIDENCE.md`.
+
+Oba wcześniejsze A zachowują `NOT_VERIFIED`, a B zachowuje
+`PASS / OWNER_OPERATED_RUSTDESK`. Nowy, pojedynczy test pierwszego ładowania
+kontrolera ma stan `NOT_RUN / WAITING_OWNER_READY`; przed bieżącym
+potwierdzeniem właściciela nie uruchomiono stacku, Web ani telemetrii.
