@@ -599,7 +599,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
         self.assertNotIn("process_explicit_vision_document", source)
         self.assertNotIn("VisionSupervisor", source)
 
-    def test_t13_vision_processing_service_matches_main_blob(self):
+    def test_t13_vision_processing_service_matches_r05_shared_gate_blob(self):
         service_path = (
             Path(__file__).resolve().parents[1]
             / "app"
@@ -615,7 +615,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
             0,
             len(content),
         )
-        self.assertEqual(git_blob, "5f0d14de81c16dd314efec4c7cbe9fe4c9d5bd59")
+        self.assertEqual(git_blob, "99798af2c7449afbe36cd15bae05c03c1a783890")
 
     def test_t14_ingestion_still_cannot_invoke_explicit_vision(self):
         source = Path(preparation_dispatcher.__file__).read_text(encoding="utf-8")

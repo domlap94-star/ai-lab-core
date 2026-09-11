@@ -207,7 +207,7 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
             finally:
                 settings.data_dir = original_data_dir
 
-    def test_worker_unavailable_preserves_document_and_sets_retryable(self):
+    def test_worker_unavailable_does_not_remove_staged_source(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             Image.new("RGB", (800, 600), "white").save(root / "photo.jpg")
@@ -218,13 +218,17 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
             service.spool_root = (root / "vision-spool").resolve()
             service.documents = _Documents(document, [page])
             service.assets = _Assets()
-            result = service.advance(5)
-            self.assertEqual(result.status, "failed_retryable")
-            self.assertEqual(document.vision_error_code, "WORKER_UNAVAILABLE")
-            self.assertEqual(document.vision_attempt_count, 1)
+            classification = service.classifier.classify(
+                document=document,
+                pages=[page],
+                assets=[],
+            )
+            _, payload, _ = service._stage(document, classification)
+            with self.assertRaises(VisionSupervisorUnavailable):
+                service.supervisor.create_job(payload)
             self.assertTrue((root / "photo.jpg").exists())
 
-    def test_historical_document_is_never_automatic_but_explicit_request_is_allowed(self):
+    def test_historical_document_is_never_automatic(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             Image.new("RGB", (800, 600), "white").save(root / "photo.jpg")
@@ -242,8 +246,6 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
             service.assets = _Assets()
             self.assertEqual(service.advance(7).status, "not_evaluated")
             self.assertEqual(document.vision_attempt_count, 0)
-            self.assertEqual(service.advance(7, explicit=True).status, "failed_retryable")
-            self.assertEqual(document.vision_attempt_count, 1)
 
     def test_complete_result_is_versioned_and_persisted_on_page(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -280,7 +282,20 @@ class Chunk15VisionImplementationTests(unittest.TestCase):
                     return {"job_id": job_id, "state": "COMPLETE", "attempt_count": 1}
 
             service.supervisor = _Complete()
-            result = service.advance(6)
+            classification = service.classifier.classify(
+                document=document,
+                pages=[page],
+                assets=[],
+            )
+            request_key, payload, source_map = service._stage(document, classification)
+            worker_job = service.supervisor.create_job(payload)
+            result = service._apply_job(
+                document,
+                classification,
+                request_key,
+                source_map,
+                worker_job,
+            )
             self.assertEqual(result.status, "complete")
             self.assertEqual(page.vision_status, "complete")
             self.assertEqual(page.vision_schema_version, "NEXT_STABIL_VISION_V1")

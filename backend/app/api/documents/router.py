@@ -32,7 +32,13 @@ from app.schemas.document import (
     DocumentPublicRead,
     DocumentUploadResponse,
 )
-from app.schemas.vision import VisionAnalyzeResponse, VisionStatusRead
+from app.schemas.vision import (
+    VisionAnalyzeResponse,
+    VisionExportApprovalCandidate,
+    VisionExportApprovalRequest,
+    VisionExportApprovalResult,
+    VisionStatusRead,
+)
 from app.schemas.trash import TrashEntryRead
 from app.services.document_service import (
     DocumentService,
@@ -66,7 +72,7 @@ from app.services.vision_supervisor_client import (
     VisionSupervisorUnavailable,
 )
 from app.services.document_preparation_service import DocumentPreparationService
-from app.services.visual_v2_service import VisualV2Service
+from app.services.visual_v2_service import VisualV2ContractError, VisualV2Service
 from app.services.trash_lifecycle_service import (
     TrashConflictError,
     TrashLifecycleService,
@@ -147,7 +153,7 @@ def get_document_vision_status(
 def analyze_document_vision(
     document_id: int,
     background_tasks: BackgroundTasks,
-    _: User = Depends(get_current_user),
+    actor: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> VisionAnalyzeResponse:
     document = DocumentService(db).get_document(document_id)
@@ -156,11 +162,136 @@ def analyze_document_vision(
     document.vision_status = "pending"
     document.vision_error_code = None
     db.commit()
-    background_tasks.add_task(process_explicit_vision_document, document.id)
+    background_tasks.add_task(process_explicit_vision_document, document.id, actor.id)
     return VisionAnalyzeResponse(
         document_id=document.id,
         status=document.vision_status,
         classification=document.vision_classification,
+    )
+
+
+@router.post(
+    "/{document_id}/vision/export-approval/candidate",
+    response_model=VisionExportApprovalCandidate,
+)
+def get_vision_export_approval_candidate(
+    document_id: int,
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> VisionExportApprovalCandidate:
+    """Prepare the exact local bytes an administrator may approve."""
+    document = DocumentService(db).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    service = VisualV2Service(db, enabled=True)
+    resolution = service.ensure(
+        document=document,
+        explicit=True,
+        created_by_user_id=actor.id,
+    )
+    if resolution.analysis_job_id is None:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": resolution.reason},
+        )
+    try:
+        candidate = service.approval_candidate(
+            resolution.analysis_job_id,
+            actor_user_id=actor.id,
+        )
+    except VisualV2ContractError as error:
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
+    if {row["document_id"] for row in candidate["sources"]} != {document.id}:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "VISUAL_V2_EXPORT_SCOPE_MISMATCH"},
+        )
+    return VisionExportApprovalCandidate.model_validate(candidate)
+
+
+@router.post(
+    "/{document_id}/vision/export-approval",
+    response_model=VisionExportApprovalResult,
+)
+def approve_vision_export(
+    document_id: int,
+    request: VisionExportApprovalRequest,
+    background_tasks: BackgroundTasks,
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> VisionExportApprovalResult:
+    """Approve only the server-derived final-byte binding for one document."""
+    document = DocumentService(db).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    service = VisualV2Service(db, enabled=True)
+    try:
+        candidate = service.approval_candidate(
+            request.analysis_job_id,
+            actor_user_id=actor.id,
+        )
+        if {row["document_id"] for row in candidate["sources"]} != {document.id}:
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
+        resolution = service.approve_export(
+            request.analysis_job_id,
+            actor_user_id=actor.id,
+            expected_package_sha256=request.package_sha256,
+            expected_source_sha256=request.source_sha256,
+            approval_kind=request.approval_kind,
+            expires_at=request.expires_at,
+        )
+    except VisualV2ContractError as error:
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
+    document.vision_status = "pending"
+    document.vision_error_code = None
+    document.vision_next_retry_at = None
+    db.commit()
+    background_tasks.add_task(process_explicit_vision_document, document.id, actor.id)
+    return VisionExportApprovalResult(
+        document_id=document.id,
+        analysis_job_id=request.analysis_job_id,
+        state=resolution.state,
+        reason=resolution.reason,
+    )
+
+
+@router.delete(
+    "/{document_id}/vision/export-approval/{analysis_job_id}",
+    response_model=VisionExportApprovalResult,
+)
+def revoke_vision_export_approval(
+    document_id: int,
+    analysis_job_id: str,
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> VisionExportApprovalResult:
+    """Revoke an unused exact-byte approval without touching local evidence."""
+    document = DocumentService(db).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    service = VisualV2Service(db, enabled=True)
+    try:
+        candidate = service.approval_candidate(
+            analysis_job_id,
+            actor_user_id=actor.id,
+        )
+        if {row["document_id"] for row in candidate["sources"]} != {document.id}:
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
+        resolution = service.revoke_export_approval(
+            analysis_job_id,
+            actor_user_id=actor.id,
+        )
+    except VisualV2ContractError as error:
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
+    document.vision_status = "pending_auth"
+    document.vision_error_code = "VISION_EXPORT_APPROVAL_REVOKED"
+    document.vision_next_retry_at = None
+    db.commit()
+    return VisionExportApprovalResult(
+        document_id=document.id,
+        analysis_job_id=analysis_job_id,
+        state=resolution.state,
+        reason=resolution.reason,
     )
 
 

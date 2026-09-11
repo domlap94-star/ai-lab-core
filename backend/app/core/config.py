@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     data_dir: str = "/data"
     vision_supervisor_url: str = "http://host.docker.internal:8787"
     vision_automation_enabled: bool = False
+    # Visual V2 may stage exact local bytes only when explicitly enabled.
+    # Export still requires a separate, server-verified operator approval.
+    visual_v2_enabled: bool = False
     advanced_analysis_enabled: bool = False
     knowledge_base_processing_enabled: bool = False
     knowledge_base_vector_writes_enabled: bool = False

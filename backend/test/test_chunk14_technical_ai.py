@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 import json
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import uuid
 
 from fastapi.testclient import TestClient
@@ -208,6 +209,32 @@ class TechnicalAiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("VISUAL_OBSERVATION: Widoczna ukośna linia.", prompt)
         self.assertIn("VISUAL_HYPOTHESIS: Linia może przypominać rysę.", prompt)
         self.assertIn("VISUAL_UNCERTAINTY: Brak skali.", prompt)
+
+    async def test_visual_question_uses_guarded_explicit_v1_call_site_without_actor_elevation(self):
+        item = GlobalSearchResult(
+            type="document",
+            id=self.document.id,
+            title="opinia.pdf",
+            snippet="Widoczny przekrój gruntu",
+            score=.9,
+            match_reason="document_text",
+            match_reasons=["document_text"],
+            route=f"/documents?document_id={self.document.id}",
+        )
+        calls = []
+
+        with patch(
+            "app.services.technical_ai_service.process_explicit_vision_document",
+            side_effect=lambda document_id: calls.append(document_id),
+        ):
+            result = await TechnicalAiService(
+                self.db,
+                search_service=_SearchStub([item]),
+                llm_client=_LlmStub(),
+            ).ask(question="Przeanalizuj obraz w dokumencie geotechnicznym")
+
+        self.assertEqual(calls, [self.document.id])
+        self.assertTrue(result.sources)
 
     async def test_qdrant_fail_open_and_llm_unavailable_are_typed(self):
         source = ClientAiSource(source_type="document", source_id=self.document.id, title="opinia.pdf", route=f"/documents?document_id={self.document.id}", snippet="grunt")

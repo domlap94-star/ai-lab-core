@@ -86,11 +86,12 @@ async def lifespan(app: FastAPI):
             await assistant_run_task
         except asyncio.CancelledError:
             pass
-    visual_v2_task.cancel()
-    try:
-        await visual_v2_task
-    except asyncio.CancelledError:
-        pass
+    if visual_v2_task is not None:
+        visual_v2_task.cancel()
+        try:
+            await visual_v2_task
+        except asyncio.CancelledError:
+            pass
     if document_preparation_task is not None:
         document_preparation_task.cancel()
         try:

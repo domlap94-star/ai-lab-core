@@ -70,3 +70,43 @@ class VisionAnalyzeResponse(BaseModel):
     document_id: int
     status: str
     classification: str | None
+
+
+class VisionExportApprovalSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_ref: str = Field(pattern=r"^S[1-4]$")
+    source_entity_type: str
+    source_entity_id: str
+    document_id: int
+    original_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    final_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class VisionExportApprovalCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    analysis_job_id: str
+    policy_version: str
+    channel: str
+    package_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sources: list[VisionExportApprovalSource] = Field(min_length=1, max_length=4)
+
+
+class VisionExportApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    analysis_job_id: str
+    package_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_sha256: dict[str, str]
+    approval_kind: Literal["public_safe", "locally_redacted"]
+    expires_at: datetime
+
+
+class VisionExportApprovalResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: int
+    analysis_job_id: str
+    state: str
+    reason: str

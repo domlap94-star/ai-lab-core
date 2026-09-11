@@ -1,136 +1,158 @@
-# R05-A1 — aktywacja Visual V2 i dopuszczenie dokładnych bajtów
+# R05-A1 — wspólna kontrola eksportu Vision V1 / Visual V2
 
 ## Wynik
 
-Status podetapu: `SOURCE_PARTIAL / NOT_DEPLOYED`.
+Status podetapu: `V1_V2_PRIVACY_SOURCE_READY_FOR_REVIEW / NOT_DEPLOYED`.
 
-Właściciel zaakceptował R04-A3 w zakresie źródeł
-`41d2b844a7b120a79001ad5cfbe6304b30580dfc` i dowodów
-`457a4321db835421c0d06847e2132d9623d735ae`. Zestaw
-`R04-A3-20260911T091750Z-41d2b844` pozostaje `TEST_ONLY`.
-Odbiór zachowuje dwa ograniczenia: brak zachowanego stdout/exit wrappera
-kompilacji Web oraz `test_followup_chunk13_api_auth.py = NOT_RUN`.
+Właściciel rozszerzył D-20 na źródła Vision V1, Visual V2, wspólny handoff
+oraz wskazane testy `SOURCE / TEST ONLY`. Zaakceptowany punkt wejścia to
+recovery `8550a11991924d5c905813374e4630e7c38b8244`; przyjęty wcześniej
+R04-A3 source pozostaje
+`41d2b844a7b120a79001ad5cfbe6304b30580dfc`, a evidence
+`457a4321db835421c0d06847e2132d9623d735ae`.
 
-Nowa kontrola Visual V2 została zaimplementowana jako WIP i przeszła testy
-pozytywne/negatywne, ale repo nadal zawiera aktywną ścieżkę Vision V1, która
-może wysłać materiał do Supervisora bez tego samego dopuszczenia dokładnych
-bajtów. Nie wolno więc deklarować pełnej ochrony granicy eksportu ani
-commitować tego WIP jako `SOURCE_PASS`.
+Obie aktywne ścieżki backendu korzystają teraz z jednej serwerowej decyzji
+exact-byte oraz jednego trwałego claimu/handoffu. Wynik obejmuje testy
+syntetyczne, prawdziwe metody serwisów, prawdziwy routing HTTP/auth i dwie
+równoległe sesje PostgreSQL. Nie obejmuje realnego eksportu, uploadera,
+workera, Supervisora, Temporary Chat, modelu, panelu operatora ani wdrożenia.
+Cały R05 pozostaje `IN_PROGRESS`.
 
-## Mapa badanego przepływu
+## Granica i mapa przepływu
 
-1. Assistant/preparation wywołuje `VisualV2Service.ensure()` i zapisuje
-   `AnalysisJob` / `AnalysisJobSource`.
-2. `advance()` wybiera źródła i przygotowuje finalny raster w lokalnym stagingu.
-3. Dopuszczenie operatora wiąże sprawę/źródło, wersję i checksum oryginału,
-   hash finalnego rastra, hash pakietu, kanał oraz wersję polityki.
-4. Bezpośrednio przed `create_job()` finalne bajty, źródła i pakiet są ponownie
-   sprawdzane. Do fake Supervisora trafia tylko zatwierdzony zestaw.
-5. Niezależna starsza ścieżka
-   `documents/router.py` / `technical_ai_service.py` →
-   `vision_dispatcher.py` → `VisionProcessingService.advance()` nadal może
-   utworzyć job Supervisora bez tej kontroli. Produkcyjna konfiguracja ma
-   historycznie `VISION_AUTOMATION_ENABLED=true`; nie uruchamiano jej w tej
-   sesji.
+1. `VisionProcessingService` albo `VisualV2Service` wybiera maksymalnie
+   cztery źródła i zapisuje istniejący `AnalysisJob` / `AnalysisJobSource`.
+2. `VisualV2Service` przygotowuje finalne rastry w lokalnym stagingu oraz
+   wylicza source hash, final raster hash i package hash.
+3. Administrator pobiera kandydat z serwerowego ledgeru i zatwierdza dokładny
+   zestaw bajtów dla sprawy, źródła, wersji/checksum oryginału, kanału
+   `temporary_chat_visual`, polityki `visual-export-v1` i okresu ważności.
+4. `claim_approved_export()` ponownie sprawdza scope, klasyfikację, ścieżki,
+   źródła, finalne bajty, pakiet, wygaśnięcie i cofnięcie. V1 i V2 używają
+   tego samego claimu `visual_export_<request_key>`.
+5. `submit_claimed_export()` jeszcze raz wylicza hash bajtów bezpośrednio
+   przed jedyną atrapioną w testach granicą `create_job()`.
+6. Trwały claim pozostaje po niepewnym handoffie i blokuje automatyczne
+   ponowienie; potwierdzony zewnętrzny identyfikator zapisuje wspólny wynik.
 
-## Zaimplementowany WIP Visual V2
+Alternatywne wejścia przejrzane w tym zakresie: dokumentowe API Vision V1,
+`vision_dispatcher.py`, bezpośrednie `advance()`, wcześniejszy queued job,
+Visual V2 dispatcher oraz call-site `TechnicalAiService`. Normalnego lifespan
+ani dispatcherów produktu nie uruchomiono.
+
+## Zmiana źródłowa
 
 - `VISUAL_V2_ENABLED` ma bezpieczny domyślny stan `false`; brak/false nie
   uruchamia pętli Visual V2.
-- `ensure()` i bezpośredni `advance()` odmawiają nowej pracy, gdy funkcja jest
-  wyłączona. Zaakceptowany lokalny wynik historyczny może nadal zostać użyty
-  bez eksportu.
-- Dopuszczenie jest zapisem serwerowym w istniejącym ledgerze
-  `AnalysisJob.quality_signals`; nie jest zaufanym polem requestu i nie wymaga
-  migracji. Utworzyć je może tylko aktywny administrator.
-- Polityka `visual-export-v1` dopuszcza `public_safe` albo
-  `locally_redacted`, dokładny kanał `temporary_chat_visual`, scope i czas
-  ważności. `restricted_never_external` zawsze blokuje.
-- Oryginał pozostaje niezmieniony. Staging korzysta z wyłącznego utworzenia
-  pliku i ponownie sprawdza hash bajtów przed handoffem. Zmiana źródła,
-  ścieżki/symlinku, rastra, pakietu, polityki, wygaśnięcie albo cofnięcie zgody
-  kończą się odmową.
-- Metadata eksportu nie zawierają nazw klientów, oryginalnych nazw plików,
-  ścieżek ani EXIF.
-- Niepewny wynik handoffu nie jest automatycznie wysyłany drugi raz.
+- Brak dopuszczenia, `restricted_never_external`, niepewna klasyfikacja,
+  obcy scope, cofnięcie, wygaśnięcie, zmiana źródła/rastra/pakietu albo
+  niebezpieczna ścieżka kończą się jawnie bez wywołania zewnętrznego.
+- Zwykły request, import lub payload modelu nie nadaje sobie zgody. Kandydat,
+  approve i revoke są addytywnymi trasami z rzeczywistym auth i wymaganiem
+  aktywnego administratora.
+- Oryginał nie jest modyfikowany. Metadane paczki nie zawierają nazwy klienta,
+  oryginalnej nazwy pliku, ścieżki ani EXIF.
+- Brak dopuszczenia w V1 daje `pending_auth` / `AUTH_REQUIRED`; dispatcher
+  nie zapętla statusów oczekujących na decyzję.
+- Lokalny reuse zaakceptowanego wyniku pozostaje możliwy i nie wraca do
+  zewnętrznej ścieżki V1.
+- Nie dodano migracji, tabel, workerów, pipeline'u ani kryptografii.
 
-Zmodyfikowane, niezatwierdzone pliki WIP:
+## Fail-before i wykryta regresja integracyjna
+
+Pierwszy dowód wykonawczy wywołał rzeczywisty
+`VisionProcessingService.advance()` na syntetycznym obrazie i fake
+Supervisorze. Bez wspólnej bramki V1 wywołało `create_job()`:
+
+- test:
+  `test_r05_a1_legacy_v1_unapproved_pixels_do_not_reach_supervisor`;
+- expected: `pending_auth`, zero wywołań;
+- actual before: `queued`, jedno wywołanie;
+- wynik: `1 failed`, exit `1`.
+
+Po pierwszej implementacji izolowany PostgreSQL ujawnił błąd integracyjny:
+separator `:` w identyfikatorze claimu nie spełniał istniejącego ograniczenia
+DB. Bez migracji zmieniono format na
+`visual_export_<64 hex>` (78 znaków) i powtórzono testy. Nie osłabiono
+constraintu ani asercji.
+
+Log fail-before:
+`C:\ai-lab-core-staging\recovery\R05_A1_V1_V2_20260911T141704Z\v1-fail-before.log`,
+SHA-256
+`A1BF2E932B9EF5BD1DA08AB598B1F6E81FD1157415AA96D28FE88F6711ECE87D`.
+
+## Pass-after
+
+Przypięty lokalny obraz testowy:
+`sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`.
+Źródła montowano read-only; testy bez DB miały `--network none`. Testy DB
+użyły nowego PostgreSQL w sieci `internal`, bez host ports, produkcyjnych
+mountów i prawdziwych zewnętrznych adresów. Supervisor/Ollama/Advanced/worker
+pozostały atrapione lub nieosiągalne.
+
+| Dowód | Komenda testowa | Wynik | Log SHA-256 |
+|---|---|---:|---|
+| regresje bez DB | `python -m pytest -q -p no:cacheprovider test/test_chunk15_vision_implementation.py test/test_visual_v2_service.py test/test_r05_visual_export_api.py test/test_assistant_visual_branch.py test/test_unified_assistant_scope_boundary.py test/test_unified_assistant_output_budget.py test/test_unified_assistant_kb_grounding.py test/test_unified_assistant_implementation.py test/test_unified_assistant_document_resolution.py test/test_unified_assistant_design_contract.py test/test_unified_assistant_contract_sync.py` | `301 passed`, exit `0` | `C88A63716EE58A29539A3F34A4369CA49EF94B6E94A018BCABBBA41074AFDA2F` |
+| izolowany PostgreSQL | `python -m pytest -q -p no:cacheprovider test/test_r05_visual_export_postgres.py test/test_chunk14_technical_ai.py test/test_document_ingestion_vision_containment.py test/test_document_office_archive_safety.py` | `49 passed`, exit `0` | `5E7E1EB02F53ABB61845345BB6CCFDD5ECA10ECD94D6CE17F7CFAC2B00176CBB` |
+| auth/lifespan | `python test/test_followup_chunk13_api_auth.py` w izolowanym kontenerze | `8 × 401`; product lifespan `0`; kontrolny TestClient context `1`; exit `0` | `47E12F02641D28E0375F6AF49F105500AB9A03EE7D74B18A534C30C8DA0CE63F` |
+| składnia/import | `python -m compileall -q app test` | exit `0` | `F33DB72EB310E5485E84600C3827D4F6F9578A90426FD96850D66E51178B2F97` |
+
+Pełne logi są `LOCAL_ONLY` w
+`C:\ai-lab-core-staging\recovery\R05_A1_V1_V2_20260911T141704Z`.
+Skrypty Office wymagające firmowego dokumentu 770 zostały zatrzymane na
+collection w syntetycznej DB i mają `NOT_RUN`; nie są dowodem R05 ani błędem
+produktu. Nie pobierano firmowego fixture.
+
+Testy pokrywają: flagę startupu, bezpośrednie i queued V1/V2, syntetyczne PII
+w pikselach, restricted/unknown, brak/stare/cofnięte dopuszczenie, obcy scope,
+nieuprawnionego aktora, zmianę bajtu źródła i finalnego rastra, zmianę pakietu,
+obcą ścieżkę/symlink, minimalne metadata, lokalny reuse, niepewny handoff oraz
+równoległy V1/V2 claim z dwóch sesji PostgreSQL. Dwie równoległe ścieżki
+wykonały dokładnie jeden fake handoff.
+
+## Skutki i zasoby
+
+Utworzono wyłącznie syntetyczne rekordy/pliki oraz:
+
+- kontener `next-stabil-r05-a1-test-20260911t155338z-postgres`, pełny ID
+  `7429505b864c668b2229926e0bb92b42464f83db872f44744fcb07262739441c`;
+- sieć `next-stabil-r05-a1-test-20260911t155338z-network`, ID
+  `69b0663c76750f78479898921357ce8d80545256f490884a24d286b2912d22db`.
+
+Oba zasoby miały owner/run R05, sieć była internal, kontener nie miał portów
+ani mountów. Po zachowaniu dowodów usunięto dokładnie te dwa zasoby; named
+volume nie utworzono. Dokładne rekordy pozostawione przez pierwszą nieudaną
+próbę usunięto z syntetycznej DB, a następnie potwierdzono brak syntetycznych
+dokumentów/użytkowników.
+
+Nie uruchomiono produktu, realnych dispatcherów, Supervisora, Temporary Chat,
+Qwena, embeddingu, Qdrant, Gmaila ani kolejek. Nie wykonano produkcyjnych
+zapisów, migracji, eksportu, deployu, buildu frontendowego ani zmian
+main/rescue/originalnego worktree.
+
+## Zmienione pliki i ograniczenia
+
+Kod i kontrakt:
 
 - `backend/app/core/config.py`;
 - `backend/app/main.py`;
 - `backend/app/services/visual_v2_service.py`;
-- `backend/test/test_visual_v2_service.py`.
-
-WIP pozostaje `LOCAL_ONLY` jako patch:
-`C:\ai-lab-core-staging\recovery\R05_A1_WIP_20260911T133256Z\r05-a1-source-wip.patch`,
-44 444 B, SHA-256
-`357AF58A42C94ADC09C88DFB2F15D5C36538C6035275ECC72B79E4409C65D958`.
-
-## Fail-before i pass-after
-
-Pierwsza poprawna konfiguracja odtworzenia luki, w przypiętym obrazie R02,
-`--network none`, read-only source i syntetycznym `DATA_DIR`, zakończyła się:
-
-- `test_r05_a1_disabled_visual_dispatcher_does_not_start`: FAIL,
-  `R05_A1_ACTIVATION_FLAG_MISSING`;
-- `test_r05_a1_unapproved_pixels_do_not_reach_supervisor`: FAIL, ponieważ
-  niezatwierdzone piksele doszły do fake Supervisora;
-- razem `2 failed`, exit `1`.
-
-Po WIP wykonano:
-
-```powershell
-docker run --rm --network none --read-only --tmpfs /tmp `
-  --mount type=bind,source=C:\ai-lab-core-recovery\backend,target=/workspace/backend,readonly `
-  -w /workspace/backend <R02_IMAGE_ID> -m pytest -q -p no:cacheprovider `
-  test/test_visual_v2_service.py test/test_assistant_visual_branch.py
-```
-
-Wynik: `68 passed`, exit `0`. Użyty image ID:
-`sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`.
-Świeży log: `LOCAL_ONLY` pod katalogiem WIP, 1 765 B, SHA-256
-`BDEE7C1C9E9DF64099A413592AB1F7A2606A1E6EE7CFF37572B3BF579FB29782`.
-
-Testy obejmują: wyłączenie startupu, bezpośredni `advance`, wcześniejszy queued
-job, niezaufany payload, sztuczne PII w pikselach, positive exact-byte handoff,
-minimalne metadata, actor bez uprawnień, obcy scope, cofnięcie/wygaśnięcie,
-restricted, zmianę bajtu źródła i rastra, symlink/obcą ścieżkę, zmianę pakietu,
-lokalny reuse oraz niepewny handoff bez duplikatu.
-
-W osobnej syntetycznej bazie PostgreSQL, na nowej sieci `internal`, bez host
-ports i produkcyjnych mountów, wykonano istniejące migracje do
-`followup_assistant_chat_history_20260829` i testy ingestion/chat:
-`18 passed`, exit `0`. Kontener i sieć o prefiksie
-`next-stabil-r05-a1-test-20260911t132905z` usunięto po kontroli ownera i ID.
-Pierwsza próba zestawu DB została odrzucona przez guard z powodu niedozwolonej
-nazwy bazy; testów wtedy nie wykonano. Następna użyła
-`ai_lab_isolated_r05_a1_132905`.
-
-`test_followup_chunk13_api_auth.py` pozostaje `NOT_RUN`: jego `TestClient(app)`
-uruchamia pełny lifespan, którego ta zgoda zabrania. Nie zastąpiono tego
-stałym adminem ani pozornym auth PASS.
-
-## Pozostała bramka
-
-Pełne domknięcie wymaga osobnej, jawnej zgody na kompatybilne objęcie albo
-bezpieczne wycofanie alternatywnej granicy Vision V1, co najmniej w:
-
+- `backend/app/services/vision_processing_service.py`;
 - `backend/app/services/vision_dispatcher.py`;
 - `backend/app/api/documents/router.py`;
-- `backend/app/services/technical_ai_service.py`;
-- odpowiadających testach kontraktu i auth.
+- `backend/app/schemas/vision.py`.
 
-Próba rozszerzenia obecnego diffu na tę publiczną/runtime ścieżkę została
-zatrzymana przez bramkę bezpieczeństwa jako szersza zmiana migracyjna. Nie
-obchodzono jej i nie zmieniono tych plików. Do czasu decyzji: `REAL_EXPORT` i
-`END_TO_END` pozostają `NOT_VERIFIED`, R05 `IN_PROGRESS`, a źródła WIP są
-`NOT_DEPLOYED`.
+Testy:
 
-## Skutki
+- `backend/test/test_visual_v2_service.py`;
+- `backend/test/test_r05_visual_export_api.py`;
+- `backend/test/test_r05_visual_export_postgres.py`;
+- `backend/test/test_assistant_visual_branch.py`;
+- `backend/test/test_chunk14_technical_ai.py`;
+- `backend/test/test_chunk15_vision_implementation.py`;
+- `backend/test/test_followup_chunk13_api_auth.py`.
 
-Nie uruchomiono aplikacji, lifespan, prawdziwych dispatcherów, Supervisora,
-Temporary Chat, Qwena, embeddingu, Qdrant, Gmaila ani produkcyjnych kolejek.
-Nie było produkcyjnych zapisów, migracji, deployu, builda frontendowego ani
-zmian main/rescue. Utworzono wyłącznie syntetyczne rekordy/pliki i jeden
-efemeryczny PostgreSQL; zasoby kontenerowe tej sesji usunięto, a patch i log
-pozostają chronione `LOCAL_ONLY`.
+Pozostają `NOT_VERIFIED`: rzeczywisty uploader/worker, realny Supervisor i
+Temporary Chat, używalny panel operatora, realny eksport, e2e, build oraz
+deployment. Źródłowa gotowość A1 nie nadaje żadnym plikom klienta zgody i nie
+zamyka R05/R06/R15.

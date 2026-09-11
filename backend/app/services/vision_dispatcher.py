@@ -19,8 +19,22 @@ from app.services.vision_processing_service import VisionProcessingService
 
 logger = logging.getLogger("ai_lab.vision")
 
+VISION_EXPORT_WAIT_CODES = (
+    "VISION_EXPORT_APPROVAL_REQUIRED",
+    "VISION_EXPORT_APPROVAL_REVOKED",
+    "VISION_EXPORT_APPROVAL_EXPIRED",
+    "VISION_EXPORT_APPROVAL_STALE",
+    "VISION_EXPORT_SCOPE_MISMATCH",
+    "VISION_EXPORT_HANDOFF_UNCERTAIN",
+)
 
-def process_one_vision_document(document_id: int, *, explicit: bool = False):
+
+def process_one_vision_document(
+    document_id: int,
+    *,
+    explicit: bool = False,
+    actor_user_id: int | None = None,
+):
     db = SessionLocal()
     try:
         document = db.query(Document).filter(
@@ -35,6 +49,7 @@ def process_one_vision_document(document_id: int, *, explicit: bool = False):
         result = VisionProcessingService(db).advance(
             document.id,
             explicit=explicit or not document.vision_auto_eligible,
+            actor_user_id=actor_user_id,
         )
         try:
             EmailAttachmentReconciliationService(db).reconcile(document.id)
@@ -51,12 +66,19 @@ def process_one_vision_document(document_id: int, *, explicit: bool = False):
         db.close()
 
 
-def process_explicit_vision_document(document_id: int) -> None:
+def process_explicit_vision_document(
+    document_id: int,
+    actor_user_id: int | None = None,
+) -> None:
     # The HTTP/background caller is bounded; the persistent dispatcher keeps
     # pending manual requests alive across process restarts and worker retries.
     deadline = time.monotonic() + 240
     while time.monotonic() < deadline:
-        result = process_one_vision_document(document_id, explicit=True)
+        result = process_one_vision_document(
+            document_id,
+            explicit=True,
+            actor_user_id=actor_user_id,
+        )
         if result is None or result.status not in {"pending", "queued", "processing"}:
             return
         time.sleep(2)
@@ -84,6 +106,10 @@ class VisionDispatcher:
                         "failed_retryable", "pending_auth", "ui_changed",
                     ]),
                     Document.vision_attempt_count < 3,
+                    or_(
+                        Document.vision_error_code.is_(None),
+                        Document.vision_error_code.notin_(VISION_EXPORT_WAIT_CODES),
+                    ),
                     Document.trashed_at.is_(None),
                     Document.purged_at.is_(None),
                     or_(Document.vision_next_retry_at.is_(None), Document.vision_next_retry_at <= now),

@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import shutil
 import uuid
@@ -14,6 +15,7 @@ from typing import Any, Literal
 
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,9 +25,14 @@ from app.models.document import Document
 from app.models.document_asset import DocumentAsset
 from app.models.document_page import DocumentPage
 from app.models.knowledge_base import AnalysisJob, AnalysisJobSource
+from app.models.role import Role
+from app.models.user import User
 from app.schemas.agent import AgentSource
 from app.schemas.vision import VISION_RESULT_SCHEMA, VisionResult
-from app.services.document_service import resolve_document_storage_path
+from app.services.document_service import (
+    DocumentStorageError,
+    resolve_document_storage_path,
+)
 from app.services.vision_need_classifier import (
     VisionNeedClassifier,
     VisionSourceCandidate,
@@ -61,6 +68,21 @@ MAX_VISUAL_TEXT = 800
 MAX_VISUAL_PAYLOAD_BYTES = 64 * 1024
 MAX_IMAGE_EDGE = 2048
 MAX_PREPARED_BYTES = 12 * 1024 * 1024
+VISUAL_EXPORT_POLICY_VERSION = "visual-export-v1"
+VISUAL_EXPORT_CHANNEL = "temporary_chat_visual"
+VISUAL_EXPORT_APPROVAL_KEY = "visual_export_approval"
+VISUAL_EXPORT_WAIT_CODES = (
+    "VISUAL_V2_EXPORT_APPROVAL_REQUIRED",
+    "VISUAL_V2_EXPORT_APPROVAL_REVOKED",
+    "VISUAL_V2_EXPORT_APPROVAL_EXPIRED",
+    "VISUAL_V2_EXPORT_APPROVAL_STALE",
+    "VISUAL_V2_EXPORT_SCOPE_MISMATCH",
+    "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN",
+)
+
+
+def _export_attempt_id(request_key: str) -> str:
+    return f"visual_export_{request_key}"
 
 _VISUAL_TERMS = re.compile(
     r"\b(?:obraz\w*|zdjec\w*|fotograf\w*|skan\w*|wykres\w*|map\w*|"
@@ -107,6 +129,15 @@ class _PlannedSource:
     candidate: VisionSourceCandidate
 
 
+@dataclass(frozen=True)
+class _StagedExport:
+    request_key: str
+    request: dict[str, Any]
+    package_sha256: str
+    package_size: int
+    approval_binding: dict[str, Any]
+
+
 class VisualV2ContractError(RuntimeError):
     pass
 
@@ -114,9 +145,16 @@ class VisualV2ContractError(RuntimeError):
 class VisualV2Service:
     """One durable Visual V2 boundary over the existing AnalysisJob ledger."""
 
-    def __init__(self, db: Session, *, supervisor: Any | None = None) -> None:
+    def __init__(
+        self,
+        db: Session,
+        *,
+        supervisor: Any | None = None,
+        enabled: bool | None = None,
+    ) -> None:
         self.db = db
         self.supervisor = supervisor or VisionSupervisorClient()
+        self.enabled = settings.visual_v2_enabled if enabled is None else enabled
         self.classifier = VisionNeedClassifier()
         self.data_root = Path(settings.data_dir).resolve()
         self.spool_root = (self.data_root / "vision-spool").resolve()
@@ -181,6 +219,12 @@ class VisualV2Service:
         )
         existing = self._current_job(fingerprint)
         if existing is not None:
+            if not self.enabled and existing.status != "accepted_advanced":
+                return VisualV2Resolution(
+                    "review_required",
+                    "VISUAL_V2_RUNTIME_DISABLED",
+                    existing.id,
+                )
             return self._resolution(existing)
 
         payload = {
@@ -249,6 +293,12 @@ class VisualV2Service:
             if current is None:
                 raise
             job = current
+        if not self.enabled and job.status != "accepted_advanced":
+            return VisualV2Resolution(
+                "review_required",
+                "VISUAL_V2_RUNTIME_DISABLED",
+                job.id,
+            )
         return self._resolution(job)
 
     def accepted_for_document(
@@ -265,6 +315,10 @@ class VisualV2Service:
         ).with_for_update().one_or_none()
         if job is None:
             return VisualV2Resolution("failed", "VISUAL_V2_JOB_NOT_FOUND")
+        if not self.enabled:
+            return VisualV2Resolution(
+                "review_required", "VISUAL_V2_RUNTIME_DISABLED", job.id
+            )
         if job.status not in VISUAL_V2_ACTIVE_STATUSES:
             return self._resolution(job)
         if job.cancel_requested_at is not None:
@@ -273,34 +327,13 @@ class VisualV2Service:
 
         try:
             if not job.external_job_id:
-                job.status = "local_processing"
-                job.started_at = job.started_at or datetime.now(UTC)
-                job.reasoning_attempt_count += 1
-                job.last_progress_at = datetime.now(UTC)
-                self.db.commit()
-                request_key, request, package_sha256, package_size = self._stage(job.id)
-                external = self.supervisor.create_job(request)
-                self.db.expire_all()
-                job = self.db.query(AnalysisJob).filter(
-                    AnalysisJob.id == job_id,
-                    AnalysisJob.analysis_type == VISUAL_V2_ANALYSIS_TYPE,
-                ).with_for_update().one()
-                if job.cancel_requested_at is not None or job.status == "cancelled":
-                    external_id = str(external.get("job_id") or "")
-                    if external_id:
-                        self.supervisor.cancel_job(external_id)
-                    self._cancel_locked(job)
+                staged = self.claim_approved_export(job.id)
+                if staged is None:
+                    return self._resolution(self._locked_job(job_id))
+                external = self.submit_claimed_export(job.id, staged)
+                job = self.record_external_handoff(job.id, external)
+                if job.status == "cancelled":
                     return self._resolution(job)
-                external_id = str(external.get("job_id") or "")
-                if not external_id:
-                    raise VisualV2ContractError("VISUAL_V2_EXTERNAL_JOB_ID_MISSING")
-                job.external_job_id = external_id
-                job.sanitized_package_hash = package_sha256
-                job.sanitized_package_size = package_size
-                job.status = self._external_status(external)
-                job.error_code = self._safe_error(external.get("error_code"))
-                job.last_progress_at = datetime.now(UTC)
-                self.db.commit()
                 # external_job_id and exact package binding are durable before
                 # any output is read or accepted.
                 return self._apply_external(job_id, external)
@@ -320,16 +353,157 @@ class VisualV2Service:
                 AnalysisJob.analysis_type == VISUAL_V2_ANALYSIS_TYPE,
             ).with_for_update().one_or_none()
             if job is not None and job.status != "cancelled":
-                job.status = "review_required"
+                handoff_uncertain = bool(job.attempt_id and not job.external_job_id)
+                job.status = "awaiting_auth" if handoff_uncertain else "review_required"
                 job.decision = "review_required"
-                job.error_code = self._safe_error(
-                    str(error) or f"VISUAL_V2_{error.__class__.__name__.upper()}"
+                job.error_code = (
+                    "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+                    if handoff_uncertain
+                    else self._safe_error(
+                        str(error) or f"VISUAL_V2_{error.__class__.__name__.upper()}"
+                    )
                 )
-                job.finished_at = datetime.now(UTC)
-                job.last_progress_at = job.finished_at
+                job.finished_at = None if handoff_uncertain else datetime.now(UTC)
+                job.last_progress_at = datetime.now(UTC)
                 self.db.commit()
                 return self._resolution(job)
             raise
+
+    def claim_approved_export(self, job_id: str) -> _StagedExport | None:
+        """Atomically bind approved final bytes before an external handoff.
+
+        Visual V2 and the legacy Vision V1 adapter share this claim. A durable
+        attempt without a known external identifier is intentionally paused so
+        neither route can send a second copy after an uncertain handoff.
+        """
+        job = self._locked_job(job_id)
+        if job.external_job_id:
+            return None
+        if job.attempt_id:
+            job.status = "awaiting_auth"
+            job.decision = "review_required"
+            job.error_code = "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+            job.finished_at = None
+            job.last_progress_at = datetime.now(UTC)
+            self.db.commit()
+            return None
+        if job.cancel_requested_at is not None or job.status == "cancelled":
+            self._cancel_locked(job)
+            self.db.commit()
+            return None
+
+        job.status = "local_processing"
+        job.started_at = job.started_at or datetime.now(UTC)
+        job.reasoning_attempt_count += 1
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
+        staged = self._stage_export(job.id)
+        self.db.expire_all()
+        job = self._locked_job(job_id)
+        if job.external_job_id:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+        if job.attempt_id:
+            job.status = "awaiting_auth"
+            job.decision = "review_required"
+            job.error_code = "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+            job.finished_at = None
+            job.last_progress_at = datetime.now(UTC)
+            self.db.commit()
+            return None
+        if job.cancel_requested_at is not None or job.status == "cancelled":
+            self._cancel_locked(job)
+            self.db.commit()
+            return None
+
+        # Re-derive the final-byte binding while holding the durable job lock.
+        staged = self._stage_export(job.id)
+        approval_error = self._approval_error(job, staged.approval_binding)
+        if approval_error is not None:
+            job.status = "awaiting_auth"
+            job.decision = "review_required"
+            job.error_code = approval_error
+            job.finished_at = None
+            job.last_progress_at = datetime.now(UTC)
+            self.db.commit()
+            return None
+        self._verify_staged_request(staged.request)
+        job.attempt_id = _export_attempt_id(staged.request_key)
+        job.sanitized_package_hash = staged.package_sha256
+        job.sanitized_package_size = staged.package_size
+        job.status = "advanced_processing"
+        job.decision = None
+        job.error_code = None
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
+        return staged
+
+    def record_external_handoff(
+        self,
+        job_id: str,
+        external: dict[str, Any],
+    ) -> AnalysisJob:
+        """Persist one external identifier before either pipeline reads output."""
+        external_id = str(external.get("job_id") or "")
+        if not external_id:
+            raise VisualV2ContractError("VISUAL_V2_EXTERNAL_JOB_ID_MISSING")
+        self.db.expire_all()
+        job = self._locked_job(job_id)
+        if job.cancel_requested_at is not None or job.status == "cancelled":
+            self.supervisor.cancel_job(external_id)
+            self._cancel_locked(job)
+            self.db.commit()
+            return job
+        job.external_job_id = external_id
+        job.status = self._external_status(external)
+        job.error_code = self._safe_error(external.get("error_code"))
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
+        return job
+
+    def submit_claimed_export(
+        self,
+        job_id: str,
+        staged: _StagedExport,
+    ) -> dict[str, Any]:
+        """Re-derive and verify the claimed bytes at the Supervisor boundary."""
+        job = self.db.get(AnalysisJob, job_id)
+        if (
+            job is None
+            or job.attempt_id != _export_attempt_id(staged.request_key)
+            or job.sanitized_package_hash != staged.package_sha256
+        ):
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_CLAIM_MISMATCH")
+        try:
+            current = self._stage_export(job_id)
+            if (
+                current.package_sha256 != staged.package_sha256
+                or current.approval_binding != staged.approval_binding
+                or current.request != staged.request
+            ):
+                raise VisualV2ContractError("VISUAL_V2_EXPORT_APPROVAL_STALE")
+            self._verify_staged_request(current.request)
+        except (
+            VisualV2ContractError,
+            OSError,
+            UnidentifiedImageError,
+            ValueError,
+        ):
+            # No external call has happened yet, so this claim may be released
+            # and reported as a deterministic local validation failure.
+            self.db.rollback()
+            current_job = self._locked_job(job_id)
+            if (
+                current_job.external_job_id is None
+                and current_job.attempt_id == _export_attempt_id(staged.request_key)
+            ):
+                current_job.attempt_id = None
+                current_job.sanitized_package_hash = None
+                current_job.sanitized_package_size = None
+                self.db.commit()
+            raise
+        # Only exceptions raised from this final call have an uncertain
+        # external side effect; callers preserve the durable claim in that case.
+        return self.supervisor.create_job(current.request)
 
     def cancel(self, job_id: str) -> bool:
         job = self.db.query(AnalysisJob).filter(
@@ -348,6 +522,148 @@ class VisualV2Service:
             except VisionSupervisorUnavailable:
                 pass
         return True
+
+    def approval_candidate(
+        self,
+        job_id: str,
+        *,
+        actor_user_id: int,
+    ) -> dict[str, Any]:
+        """Return the exact server-derived bytes/scope an operator may approve.
+
+        This method intentionally does not accept caller-provided source metadata.
+        It stages local bytes and derives every binding from the durable job/source
+        rows plus the current document records.
+        """
+        self._require_export_operator(actor_user_id)
+        job = self._locked_job(job_id)
+        if job.status == "accepted_advanced":
+            raise VisualV2ContractError("VISUAL_V2_ALREADY_ACCEPTED")
+        if job.external_job_id or job.attempt_id:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+        staged = self._stage_export(job.id)
+        return {
+            "analysis_job_id": job.id,
+            "policy_version": VISUAL_EXPORT_POLICY_VERSION,
+            "channel": VISUAL_EXPORT_CHANNEL,
+            "package_sha256": staged.package_sha256,
+            "sources": [
+                {
+                    "source_ref": row["source_ref"],
+                    "source_entity_type": row["source_entity_type"],
+                    "source_entity_id": row["source_entity_id"],
+                    "document_id": row["document_id"],
+                    "original_sha256": row["original_sha256"],
+                    "final_sha256": row["final_sha256"],
+                }
+                for row in staged.approval_binding["sources"]
+            ],
+        }
+
+    def approve_export(
+        self,
+        job_id: str,
+        *,
+        actor_user_id: int,
+        expected_package_sha256: str,
+        expected_source_sha256: dict[str, str],
+        approval_kind: Literal["public_safe", "locally_redacted"],
+        expires_at: datetime,
+    ) -> VisualV2Resolution:
+        """Persist a bounded administrator decision for exact staged bytes."""
+        self._require_export_operator(actor_user_id)
+        job = self._locked_job(job_id)
+        if job.status == "accepted_advanced":
+            raise VisualV2ContractError("VISUAL_V2_ALREADY_ACCEPTED")
+        if job.external_job_id or job.attempt_id:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+        if job.cancel_requested_at is not None or job.status == "cancelled":
+            raise VisualV2ContractError("VISUAL_V2_CANCELLED")
+        if expires_at.tzinfo is None:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_EXPIRY_INVALID")
+        normalized_expiry = expires_at.astimezone(UTC)
+        if normalized_expiry <= datetime.now(UTC):
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_EXPIRED")
+        if approval_kind not in {"public_safe", "locally_redacted"}:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_KIND_INVALID")
+        staged = self._stage_export(job.id)
+        actual_sources = {
+            row["source_ref"]: row["final_sha256"]
+            for row in staged.approval_binding["sources"]
+        }
+        if (
+            expected_package_sha256 != staged.package_sha256
+            or expected_source_sha256 != actual_sources
+        ):
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_BYTES_MISMATCH")
+        signals = dict(job.quality_signals or {})
+        signals[VISUAL_EXPORT_APPROVAL_KEY] = {
+            "schema": "VISUAL_EXPORT_APPROVAL_V1",
+            "state": "approved",
+            "policy_version": VISUAL_EXPORT_POLICY_VERSION,
+            "channel": VISUAL_EXPORT_CHANNEL,
+            "approved_by_user_id": actor_user_id,
+            "approval_kind": approval_kind,
+            "approved_at": datetime.now(UTC).isoformat(),
+            "expires_at": normalized_expiry.isoformat(),
+            "binding": staged.approval_binding,
+        }
+        job.quality_signals = signals
+        job.status = "advanced_queued"
+        job.decision = None
+        job.error_code = None
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
+        return self._resolution(job)
+
+    def revoke_export_approval(
+        self,
+        job_id: str,
+        *,
+        actor_user_id: int,
+    ) -> VisualV2Resolution:
+        self._require_export_operator(actor_user_id)
+        job = self._locked_job(job_id)
+        if job.external_job_id or job.attempt_id:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+        signals = dict(job.quality_signals or {})
+        previous = signals.get(VISUAL_EXPORT_APPROVAL_KEY)
+        approval = dict(previous) if isinstance(previous, dict) else {}
+        approval.update({
+            "schema": "VISUAL_EXPORT_APPROVAL_V1",
+            "state": "revoked",
+            "revoked_by_user_id": actor_user_id,
+            "revoked_at": datetime.now(UTC).isoformat(),
+        })
+        signals[VISUAL_EXPORT_APPROVAL_KEY] = approval
+        job.quality_signals = signals
+        job.status = "awaiting_auth"
+        job.decision = "review_required"
+        job.error_code = "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
+        return self._resolution(job)
+
+    def _locked_job(self, job_id: str) -> AnalysisJob:
+        job = self.db.query(AnalysisJob).filter(
+            AnalysisJob.id == job_id,
+            AnalysisJob.analysis_type == VISUAL_V2_ANALYSIS_TYPE,
+            AnalysisJob.source_domain == VISUAL_V2_SOURCE_DOMAIN,
+        ).with_for_update().one_or_none()
+        if job is None:
+            raise VisualV2ContractError("VISUAL_V2_JOB_NOT_FOUND")
+        return job
+
+    def _require_export_operator(self, actor_user_id: int) -> None:
+        actor = self.db.query(User).join(Role, User.role_id == Role.id).filter(
+            User.id == actor_user_id,
+            User.is_active.is_(True),
+            User.trashed_at.is_(None),
+            User.purged_at.is_(None),
+            Role.name == "Administrator",
+        ).with_for_update().one_or_none()
+        if actor is None:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_FORBIDDEN")
 
     def assistant_evidence(
         self,
@@ -430,6 +746,15 @@ class VisualV2Service:
         return self._resolution(job)
 
     def _stage(self, job_id: str) -> tuple[str, dict[str, Any], str, int]:
+        staged = self._stage_export(job_id)
+        return (
+            staged.request_key,
+            staged.request,
+            staged.package_sha256,
+            staged.package_size,
+        )
+
+    def _stage_export(self, job_id: str) -> _StagedExport:
         job = self.db.get(AnalysisJob, job_id)
         if job is None or not isinstance(job.request_payload, dict):
             raise VisualV2ContractError("VISUAL_V2_REQUEST_MISSING")
@@ -441,6 +766,7 @@ class VisualV2Service:
         }
         descriptors: list[dict[str, Any]] = []
         staged: list[tuple[str, Path, str]] = []
+        approval_sources: list[dict[str, Any]] = []
         for row in job.request_payload.get("sources") or []:
             if not isinstance(row, dict):
                 raise VisualV2ContractError("VISUAL_V2_SOURCE_MANIFEST_INVALID")
@@ -451,8 +777,28 @@ class VisualV2Service:
             path = self._source_path(source)
             if self._sha256(path) != source.checksum_sha256:
                 raise VisualV2ContractError("VISUAL_V2_SOURCE_SHA_MISMATCH")
+            document = self._document_for_source(source)
+            if self._restricted(document):
+                raise VisualV2ContractError("VISUAL_V2_RESTRICTED_NEVER_EXTERNAL")
             prepared = self._normalized_raster(path)
-            staged.append((str(row.get("external_ref") or ""), prepared, self._sha256(prepared)))
+            external_ref = str(row.get("external_ref") or "")
+            prepared_sha256 = self._sha256(prepared)
+            staged.append((external_ref, prepared, prepared_sha256))
+            approval_sources.append({
+                "source_ref": external_ref,
+                "source_entity_type": source.source_entity_type,
+                "source_entity_id": source.source_entity_id,
+                "document_id": document.id,
+                "document_sha256": str(document.checksum_sha256 or "").casefold(),
+                "original_sha256": source.checksum_sha256,
+                "final_sha256": prepared_sha256,
+                "storage_identity_sha256": self._storage_identity(path),
+                "sensitivity": (
+                    "restricted_never_external"
+                    if self._restricted(document)
+                    else source.sensitivity
+                ),
+            })
         request_key = hashlib.sha256(
             (VISUAL_V2_CONTRACT_GENERATION + "|" + "|".join(
                 f"{ref}:{checksum}" for ref, _, checksum in staged
@@ -464,11 +810,21 @@ class VisualV2Service:
             if ref != f"S{index}":
                 raise VisualV2ContractError("VISUAL_V2_EXTERNAL_REF_INVALID")
             target = incoming / f"S{index}.jpg"
-            if path != target:
-                shutil.copyfile(path, target)
+            if path != target and not target.exists():
+                try:
+                    with path.open("rb") as source_stream, target.open("xb") as target_stream:
+                        shutil.copyfileobj(source_stream, target_stream)
+                except FileExistsError:
+                    pass
             actual = self._sha256(target)
             if actual != checksum:
                 raise VisualV2ContractError("VISUAL_V2_STAGED_SHA_MISMATCH")
+            try:
+                os.chmod(target, 0o444)
+            except OSError:
+                # Exact hashes are rechecked immediately before the boundary;
+                # read-only mode is additional local hardening, not the proof.
+                pass
             descriptors.append({
                 "source_ref": ref,
                 # The V1 local Supervisor contract requires positive numeric
@@ -481,12 +837,91 @@ class VisualV2Service:
             })
         package = {
             "contract_generation": VISUAL_V2_CONTRACT_GENERATION,
+            "policy_version": VISUAL_EXPORT_POLICY_VERSION,
+            "channel": VISUAL_EXPORT_CHANNEL,
             "request_key": request_key,
             "sources": [{"source_ref": row["source_ref"], "sha256": row["sha256"]} for row in descriptors],
             "capabilities": list(job.request_payload.get("requested_capabilities") or []),
         }
         canonical = json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        return request_key, {"request_key": request_key, "sources": descriptors}, hashlib.sha256(canonical).hexdigest(), len(canonical)
+        package_sha256 = hashlib.sha256(canonical).hexdigest()
+        binding = {
+            "policy_version": VISUAL_EXPORT_POLICY_VERSION,
+            "channel": VISUAL_EXPORT_CHANNEL,
+            "package_sha256": package_sha256,
+            "request_key": request_key,
+            "sources": approval_sources,
+        }
+        return _StagedExport(
+            request_key=request_key,
+            request={"request_key": request_key, "sources": descriptors},
+            package_sha256=package_sha256,
+            package_size=len(canonical),
+            approval_binding=binding,
+        )
+
+    def _approval_error(
+        self,
+        job: AnalysisJob,
+        binding: dict[str, Any],
+    ) -> str | None:
+        signals = job.quality_signals if isinstance(job.quality_signals, dict) else {}
+        approval = signals.get(VISUAL_EXPORT_APPROVAL_KEY)
+        if not isinstance(approval, dict):
+            return "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+        if approval.get("state") == "revoked":
+            return "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
+        if approval.get("state") != "approved":
+            return "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+        if (
+            approval.get("schema") != "VISUAL_EXPORT_APPROVAL_V1"
+            or approval.get("policy_version") != VISUAL_EXPORT_POLICY_VERSION
+            or approval.get("channel") != VISUAL_EXPORT_CHANNEL
+            or approval.get("approval_kind") not in {"public_safe", "locally_redacted"}
+        ):
+            return "VISUAL_V2_EXPORT_SCOPE_MISMATCH"
+        try:
+            expires_at = datetime.fromisoformat(str(approval.get("expires_at") or ""))
+            if expires_at.tzinfo is None or expires_at.astimezone(UTC) <= datetime.now(UTC):
+                return "VISUAL_V2_EXPORT_APPROVAL_EXPIRED"
+        except ValueError:
+            return "VISUAL_V2_EXPORT_APPROVAL_EXPIRED"
+        if approval.get("binding") != binding:
+            return "VISUAL_V2_EXPORT_APPROVAL_STALE"
+        return None
+
+    def _verify_staged_request(self, request: dict[str, Any]) -> None:
+        for row in request.get("sources") or []:
+            if not isinstance(row, dict):
+                raise VisualV2ContractError("VISUAL_V2_SOURCE_MANIFEST_INVALID")
+            relative = str(row.get("incoming_relative_path") or "")
+            target = (self.spool_root / relative).resolve(strict=True)
+            if not target.is_relative_to(self.spool_root):
+                raise VisualV2ContractError("VISUAL_V2_STAGED_PATH_INVALID")
+            if self._sha256(target) != row.get("sha256"):
+                raise VisualV2ContractError("VISUAL_V2_STAGED_SHA_MISMATCH")
+
+    def _document_for_source(self, source: AnalysisJobSource) -> Document:
+        if source.source_entity_type == "Document":
+            document = self.db.get(Document, int(source.source_entity_id))
+        elif source.source_entity_type == "DocumentPage":
+            entity = self.db.get(DocumentPage, int(source.source_entity_id))
+            document = self.db.get(Document, entity.document_id) if entity else None
+        elif source.source_entity_type == "DocumentAsset":
+            entity = self.db.get(DocumentAsset, int(source.source_entity_id))
+            document = self.db.get(Document, entity.document_id) if entity else None
+        else:
+            document = None
+        if document is None or document.trashed_at is not None or document.purged_at is not None:
+            raise VisualV2ContractError("VISUAL_V2_DOCUMENT_UNAVAILABLE")
+        return document
+
+    def _storage_identity(self, path: Path) -> str:
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(self.data_root):
+            raise VisualV2ContractError("VISUAL_V2_SOURCE_PATH_INVALID")
+        relative = resolved.relative_to(self.data_root).as_posix()
+        return hashlib.sha256(relative.encode("utf-8")).hexdigest()
 
     def _validated_result(self, job: AnalysisJob) -> tuple[dict[str, Any], str]:
         if not job.external_job_id or not job.sanitized_package_hash:
@@ -770,13 +1205,15 @@ class VisualV2Service:
         job.status = "accepted_advanced"
         job.decision = "accepted"
         job.error_code = None
-        job.quality_signals = {
+        quality_signals = dict(job.quality_signals or {})
+        quality_signals.update({
             "contract": VISUAL_V2_RESULT_SCHEMA,
             "mode": mode,
             "raw_response_sha256": raw_sha256,
             "validated_payload_sha256": validated_sha256,
             "source_count": len(job.sources),
-        }
+        })
+        job.quality_signals = quality_signals
         job.finished_at = datetime.now(UTC)
         job.last_progress_at = job.finished_at
         self.db.flush()
@@ -870,7 +1307,13 @@ class VisualV2Service:
             storage_path = None
         if not storage_path:
             raise VisualV2ContractError("VISUAL_V2_SOURCE_UNAVAILABLE")
-        return resolve_document_storage_path(storage_path=storage_path, data_root=self.data_root)
+        try:
+            return resolve_document_storage_path(
+                storage_path=storage_path,
+                data_root=self.data_root,
+            )
+        except DocumentStorageError as error:
+            raise VisualV2ContractError("VISUAL_V2_SOURCE_PATH_INVALID") from error
 
     def _candidate_path(self, document: Document, candidate: VisionSourceCandidate) -> Path:
         storage_path = (
@@ -882,7 +1325,13 @@ class VisualV2Service:
         )
         if not storage_path:
             raise VisualV2ContractError("VISUAL_V2_SOURCE_UNAVAILABLE")
-        return resolve_document_storage_path(storage_path=storage_path, data_root=self.data_root)
+        try:
+            return resolve_document_storage_path(
+                storage_path=storage_path,
+                data_root=self.data_root,
+            )
+        except DocumentStorageError as error:
+            raise VisualV2ContractError("VISUAL_V2_SOURCE_PATH_INVALID") from error
 
     def _normalized_raster(self, source: Path) -> Path:
         converted_root = self.spool_root / "converted-v2"
@@ -1021,6 +1470,11 @@ def _next_visual_job_id() -> str | None:
             AnalysisJob.source_domain == VISUAL_V2_SOURCE_DOMAIN,
             AnalysisJob.status.in_(VISUAL_V2_ACTIVE_STATUSES),
             AnalysisJob.cancel_requested_at.is_(None),
+            or_(
+                AnalysisJob.status != "awaiting_auth",
+                AnalysisJob.error_code.is_(None),
+                AnalysisJob.error_code.notin_(VISUAL_EXPORT_WAIT_CODES),
+            ),
         ).order_by(
             AnalysisJob.last_progress_at.asc().nullsfirst(),
             AnalysisJob.created_at,
@@ -1066,5 +1520,8 @@ class VisualV2Dispatcher:
                 await asyncio.sleep(self.POLL_SECONDS)
 
 
-def start_visual_v2_dispatcher() -> asyncio.Task:
+def start_visual_v2_dispatcher() -> asyncio.Task | None:
+    if not settings.visual_v2_enabled:
+        logger.info("Visual V2 dispatcher disabled by configuration.")
+        return None
     return asyncio.create_task(VisualV2Dispatcher().run(), name="visual-v2-dispatcher")

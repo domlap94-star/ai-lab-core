@@ -15,6 +15,7 @@ from app.core.config import settings
 from app.models.document import Document
 from app.models.document_asset import DocumentAsset
 from app.models.document_page import DocumentPage
+from app.models.knowledge_base import AnalysisJob
 from app.repositories.document_asset_repository import DocumentAssetRepository
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.vision import VISION_RESULT_SCHEMA, VisionResult
@@ -31,6 +32,11 @@ from app.services.vision_need_classifier import (
 from app.services.vision_supervisor_client import (
     VisionSupervisorClient,
     VisionSupervisorUnavailable,
+)
+from app.services.visual_v2_service import (
+    VisualV2ContractError,
+    VisualV2Resolution,
+    VisualV2Service,
 )
 
 
@@ -66,7 +72,13 @@ class VisionProcessingService:
         self.data_root = Path(settings.data_dir).resolve()
         self.spool_root = (self.data_root / "vision-spool").resolve()
 
-    def advance(self, document_id: int, *, explicit: bool = False) -> VisionAdvanceResult:
+    def advance(
+        self,
+        document_id: int,
+        *,
+        explicit: bool = False,
+        actor_user_id: int | None = None,
+    ) -> VisionAdvanceResult:
         document = self.documents.get(document_id)
         if document is None:
             raise VisionDocumentNotFound
@@ -95,35 +107,178 @@ class VisionProcessingService:
             document.vision_error_code = "UNSUPPORTED"
             self.documents.commit()
             return self._result(document)
+        source_map = {
+            f"S{index}": candidate
+            for index, candidate in enumerate(classification.sources[:4], 1)
+        }
+        export_gate = VisualV2Service(
+            self.db,
+            supervisor=self.supervisor,
+            # V1 has its own dispatcher/runtime switch. This instance only
+            # provides the shared durable approval and exact-byte boundary.
+            enabled=True,
+        )
+        export_gate.classifier = self.classifier
+        export_job: AnalysisJob | None = None
         try:
-            request_key, payload, source_map = self._stage(document, classification)
-            job = self.supervisor.create_job(payload)
-            return self._apply_job(document, classification, request_key, source_map, job)
+            resolution = export_gate.ensure(
+                document=document,
+                explicit=True,
+                created_by_user_id=actor_user_id,
+            )
+            if resolution.analysis_job_id is None:
+                return self._apply_export_wait(document, classification, source_map, resolution)
+            export_job = self.db.get(AnalysisJob, resolution.analysis_job_id)
+            if export_job is None:
+                raise VisualV2ContractError("VISUAL_V2_JOB_NOT_FOUND")
+            if resolution.state == "accepted":
+                if export_job.external_job_id:
+                    return self._apply_job(
+                        document,
+                        classification,
+                        export_job.input_fingerprint,
+                        source_map,
+                        {"state": "COMPLETE", "job_id": export_job.external_job_id},
+                    )
+                self.documents.commit()
+                return self._result(document, "COMPLETE")
+            if export_job.external_job_id:
+                job = self.supervisor.get_job(export_job.external_job_id)
+            else:
+                staged = export_gate.claim_approved_export(export_job.id)
+                if staged is None:
+                    self.db.expire_all()
+                    current = self.db.get(AnalysisJob, export_job.id)
+                    if current is None:
+                        raise VisualV2ContractError("VISUAL_V2_JOB_NOT_FOUND")
+                    return self._apply_export_wait(
+                        document,
+                        classification,
+                        source_map,
+                        export_gate._resolution(current),
+                    )
+                job = export_gate.submit_claimed_export(export_job.id, staged)
+                export_gate.record_external_handoff(export_job.id, job)
+            export_gate._apply_external(export_job.id, job)
+            return self._apply_job(
+                document,
+                classification,
+                export_job.input_fingerprint,
+                source_map,
+                job,
+            )
         except (
+            VisualV2ContractError,
             VisionDocumentUnsupported,
             DocumentContentUnavailableError,
             UnsafeDocumentStoragePathError,
             UnidentifiedImageError,
-        ):
+        ) as error:
+            if isinstance(error, VisualV2ContractError) and export_job is not None:
+                current = self.db.get(AnalysisJob, export_job.id)
+                if current is not None and current.status != "cancelled":
+                    handoff_uncertain = bool(
+                        current.attempt_id and not current.external_job_id
+                    )
+                    current.status = (
+                        "awaiting_auth" if handoff_uncertain else "review_required"
+                    )
+                    current.decision = "review_required"
+                    current.error_code = (
+                        "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+                        if handoff_uncertain
+                        else str(error)[:100]
+                    )
+                    current.finished_at = None if handoff_uncertain else datetime.now(UTC)
+                    current.last_progress_at = datetime.now(UTC)
+                    if handoff_uncertain:
+                        document.vision_status = "pending_auth"
+                        document.vision_error_code = "VISION_EXPORT_HANDOFF_UNCERTAIN"
+                        document.vision_next_retry_at = None
+                        self.documents.commit()
+                        return self._result(document, "AUTH_REQUIRED")
             document.vision_status = "failed_permanent"
-            document.vision_error_code = "UNSUPPORTED_INPUT"
+            document.vision_error_code = (
+                str(error)[:100] if isinstance(error, VisualV2ContractError)
+                else "UNSUPPORTED_INPUT"
+            )
             self.documents.commit()
             return self._result(document, "FAILED")
         except VisionSupervisorUnavailable:
-            document.vision_attempt_count += 1
-            document.vision_status = (
-                "failed_permanent"
-                if document.vision_attempt_count >= 3
-                else "failed_retryable"
+            self.db.rollback()
+            current = (
+                self.db.get(AnalysisJob, export_job.id)
+                if export_job is not None
+                else None
             )
-            document.vision_error_code = "WORKER_UNAVAILABLE"
-            document.vision_next_retry_at = (
-                None
-                if document.vision_attempt_count >= 3
-                else self._next_retry(document.vision_attempt_count)
+            handoff_uncertain = bool(
+                current is not None
+                and current.attempt_id
+                and not current.external_job_id
             )
+            if handoff_uncertain:
+                current.status = "awaiting_auth"
+                current.decision = "review_required"
+                current.error_code = "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+                current.finished_at = None
+                current.last_progress_at = datetime.now(UTC)
+                document.vision_status = "pending_auth"
+                document.vision_error_code = "VISION_EXPORT_HANDOFF_UNCERTAIN"
+                document.vision_next_retry_at = None
+            else:
+                document.vision_attempt_count += 1
+                document.vision_status = (
+                    "failed_permanent"
+                    if document.vision_attempt_count >= 3
+                    else "failed_retryable"
+                )
+                document.vision_error_code = "WORKER_UNAVAILABLE"
+                document.vision_next_retry_at = (
+                    None
+                    if document.vision_attempt_count >= 3
+                    else self._next_retry(document.vision_attempt_count)
+                )
             self.documents.commit()
-            return self._result(document, "FAILED")
+            return self._result(
+                document,
+                "AUTH_REQUIRED" if handoff_uncertain else "FAILED",
+            )
+
+    def _apply_export_wait(
+        self,
+        document: Document,
+        classification: VisionClassificationResult,
+        source_map: dict[str, VisionSourceCandidate],
+        resolution: VisualV2Resolution,
+    ) -> VisionAdvanceResult:
+        reason = {
+            "VISUAL_V2_RESTRICTED_NEVER_EXTERNAL": "VISION_RESTRICTED_NEVER_EXTERNAL",
+            "VISUAL_V2_EXPORT_APPROVAL_REQUIRED": "VISION_EXPORT_APPROVAL_REQUIRED",
+            "VISUAL_V2_EXPORT_APPROVAL_REVOKED": "VISION_EXPORT_APPROVAL_REVOKED",
+            "VISUAL_V2_EXPORT_APPROVAL_EXPIRED": "VISION_EXPORT_APPROVAL_EXPIRED",
+            "VISUAL_V2_EXPORT_APPROVAL_STALE": "VISION_EXPORT_APPROVAL_STALE",
+            "VISUAL_V2_EXPORT_SCOPE_MISMATCH": "VISION_EXPORT_SCOPE_MISMATCH",
+            "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN": "VISION_EXPORT_HANDOFF_UNCERTAIN",
+            "VISUAL_V2_CANCELLED": "VISION_CANCELLED",
+        }.get(resolution.reason, resolution.reason)
+        document.vision_classification = classification.classification
+        approval_wait = reason in {
+            "VISION_EXPORT_APPROVAL_REQUIRED",
+            "VISION_EXPORT_APPROVAL_REVOKED",
+            "VISION_EXPORT_APPROVAL_EXPIRED",
+            "VISION_EXPORT_APPROVAL_STALE",
+            "VISION_EXPORT_SCOPE_MISMATCH",
+            "VISION_EXPORT_HANDOFF_UNCERTAIN",
+        }
+        document.vision_status = "pending_auth" if approval_wait else "failed_permanent"
+        document.vision_error_code = reason[:100]
+        document.vision_next_retry_at = None
+        for candidate in source_map.values():
+            source = candidate.page or candidate.asset
+            source.vision_status = document.vision_status
+            source.vision_error_code = document.vision_error_code
+        self.documents.commit()
+        return self._result(document, "AUTH_REQUIRED" if approval_wait else "FAILED")
 
     def _stage(self, document: Document, classification: VisionClassificationResult):
         descriptors = []

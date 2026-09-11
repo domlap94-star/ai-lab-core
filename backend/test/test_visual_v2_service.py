@@ -10,7 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageDraw
 from sqlalchemy import BigInteger, create_engine
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
@@ -23,6 +23,8 @@ from app.models.document_asset import DocumentAsset
 from app.models.document_page import DocumentPage
 from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.knowledge_base import AnalysisJob, AnalysisJobSource
+from app.models.role import Role
+from app.models.user import User
 from app.schemas.vision import VISION_RESULT_SCHEMA
 from app.services.visual_v2_service import (
     MAX_VISUAL_SOURCES,
@@ -34,6 +36,8 @@ from app.services.visual_v2_service import (
     VisualV2Service,
 )
 from app.services import visual_v2_service as visual_v2_module
+from app.services import vision_dispatcher as vision_dispatcher_module
+from app.services.vision_processing_service import VisionProcessingService
 
 
 @compiles(BigInteger, "sqlite")
@@ -62,6 +66,12 @@ class _Supervisor:
         return {"job_id": job_id, "state": "CANCELLED"}
 
 
+class _UncertainSupervisor(_Supervisor):
+    def create_job(self, payload: dict) -> dict:
+        self.created.append(payload)
+        raise visual_v2_module.VisionSupervisorUnavailable("synthetic uncertain handoff")
+
+
 @pytest.fixture()
 def visual_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     engine = create_engine("sqlite:///:memory:")
@@ -72,12 +82,34 @@ def visual_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             DocumentPage.__table__,
             DocumentAsset.__table__,
             DocumentPreparationJob.__table__,
+            Role.__table__,
+            User.__table__,
             AnalysisJob.__table__,
             AnalysisJobSource.__table__,
         ],
     )
     db = sessionmaker(bind=engine, expire_on_commit=False)()
     monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "visual_v2_enabled", True)
+    db.add(Role(id=1, name="Administrator", description="Synthetic R05 operator"))
+    db.add(User(
+        id=1,
+        username="r05-admin",
+        email="r05-admin@example.invalid",
+        password_hash="synthetic-not-a-real-password-hash",
+        role_id=1,
+        is_active=True,
+    ))
+    db.add(Role(id=2, name="Operator", description="Synthetic unprivileged user"))
+    db.add(User(
+        id=2,
+        username="r05-operator",
+        email="r05-operator@example.invalid",
+        password_hash="synthetic-not-a-real-password-hash",
+        role_id=2,
+        is_active=True,
+    ))
+    db.commit()
     try:
         yield db, tmp_path
     finally:
@@ -234,10 +266,233 @@ def _write_output(
 def _submitted(service: VisualV2Service, db, document: Document) -> AnalysisJob:
     resolution = service.ensure(document=document)
     assert resolution.state == "queued"
+    assert service.advance(resolution.analysis_job_id).state == "awaiting_auth"
+    _approve(service, resolution.analysis_job_id)
     service.advance(resolution.analysis_job_id)
     job = db.get(AnalysisJob, resolution.analysis_job_id)
     assert job.external_job_id
     return job
+
+
+def _approve(service: VisualV2Service, job_id: str) -> None:
+    candidate = service.approval_candidate(job_id, actor_user_id=1)
+    service.approve_export(
+        job_id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+
+def test_r05_a1_legacy_v1_unapproved_pixels_do_not_reach_supervisor(visual_db):
+    db, root = visual_db
+    document = _document(db, root, document_id=70)
+    document.vision_auto_eligible = True
+    document.vision_status = "not_evaluated"
+    db.commit()
+    supervisor = _Supervisor()
+    service = VisionProcessingService(db, supervisor=supervisor)
+
+    result = service.advance(document.id, explicit=True)
+
+    assert result.status == "pending_auth"
+    assert result.worker_status == "AUTH_REQUIRED"
+    assert document.vision_error_code == "VISION_EXPORT_APPROVAL_REQUIRED"
+    assert supervisor.created == []
+
+
+def test_r05_a1_legacy_v1_uses_same_exact_byte_approval_and_handoff(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    db, root = visual_db
+    monkeypatch.setattr(settings, "visual_v2_enabled", False)
+    document = _document(db, root, document_id=71)
+    document.vision_auto_eligible = True
+    document.vision_status = "not_evaluated"
+    db.commit()
+    supervisor = _Supervisor()
+    legacy = VisionProcessingService(db, supervisor=supervisor)
+
+    assert legacy.advance(document.id, explicit=True).status == "pending_auth"
+    job = db.query(AnalysisJob).filter(
+        AnalysisJob.analysis_type == VISUAL_V2_ANALYSIS_TYPE,
+    ).one()
+    gate = VisualV2Service(db, supervisor=supervisor, enabled=True)
+    candidate = gate.approval_candidate(job.id, actor_user_id=1)
+    gate.approve_export(
+        job.id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    result = legacy.advance(document.id, explicit=True)
+    db.expire_all()
+    job = db.get(AnalysisJob, job.id)
+    _write_output(
+        gate,
+        job,
+        _raw_result(job.external_job_id),
+        candidate["sources"][0]["final_sha256"],
+    )
+    supervisor.jobs[job.external_job_id]["state"] = "COMPLETE"
+    completed = legacy.advance(document.id, explicit=True)
+    gate.advance(job.id)
+
+    assert result.status == "queued"
+    assert completed.status == "complete"
+    assert len(supervisor.created) == 1
+    assert supervisor.created[0]["sources"][0]["sha256"] == (
+        candidate["sources"][0]["final_sha256"]
+    )
+    assert db.query(AnalysisJob).count() == 1
+    page = db.query(DocumentPage).filter(DocumentPage.document_id == document.id).one()
+    assert page.vision_status == "complete"
+    assert "Widoczny przekrój" in page.vision_analysis
+
+
+def test_r05_a1_historical_v1_document_requires_explicit_request_and_approval(visual_db):
+    db, root = visual_db
+    document = _document(db, root, document_id=75)
+    document.vision_auto_eligible = False
+    document.vision_status = "not_evaluated"
+    db.commit()
+    supervisor = _Supervisor()
+    legacy = VisionProcessingService(db, supervisor=supervisor)
+
+    assert legacy.advance(document.id).status == "not_evaluated"
+    assert legacy.advance(document.id, explicit=True).status == "pending_auth"
+    assert document.vision_error_code == "VISION_EXPORT_APPROVAL_REQUIRED"
+    assert supervisor.created == []
+
+
+def test_r05_a1_legacy_v1_uncertain_handoff_is_not_sent_twice(visual_db):
+    db, root = visual_db
+    document = _document(db, root, document_id=72)
+    document.vision_auto_eligible = True
+    document.vision_status = "not_evaluated"
+    db.commit()
+    supervisor = _UncertainSupervisor()
+    legacy = VisionProcessingService(db, supervisor=supervisor)
+
+    assert legacy.advance(document.id, explicit=True).status == "pending_auth"
+    job = db.query(AnalysisJob).one()
+    gate = VisualV2Service(db, supervisor=supervisor, enabled=True)
+    candidate = gate.approval_candidate(job.id, actor_user_id=1)
+    gate.approve_export(
+        job.id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="public_safe",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+
+    first = legacy.advance(document.id, explicit=True)
+    second = legacy.advance(document.id, explicit=True)
+
+    assert first.status == second.status == "pending_auth"
+    assert first.worker_status == second.worker_status == "AUTH_REQUIRED"
+    assert document.vision_error_code == "VISION_EXPORT_HANDOFF_UNCERTAIN"
+    assert len(supervisor.created) == 1
+
+
+def test_r05_a1_legacy_v1_restricted_document_never_stages_or_exports(visual_db):
+    db, root = visual_db
+    document = _document(db, root, document_id=73)
+    document.vision_auto_eligible = True
+    document.metadata_normalized = {"sensitivity": "restricted_never_external"}
+    db.commit()
+    supervisor = _Supervisor()
+
+    result = VisionProcessingService(db, supervisor=supervisor).advance(
+        document.id,
+        explicit=True,
+    )
+
+    assert result.status == "failed_permanent"
+    assert document.vision_error_code == "VISION_RESTRICTED_NEVER_EXTERNAL"
+    assert supervisor.created == []
+    assert db.query(AnalysisJob).count() == 0
+
+
+def test_r05_a1_legacy_dispatcher_does_not_spin_on_approval_wait(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=74)
+    document.vision_auto_eligible = True
+    document.vision_status = "pending_auth"
+    document.vision_error_code = "VISION_EXPORT_APPROVAL_REQUIRED"
+    db.commit()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    monkeypatch.setattr(vision_dispatcher_module, "SessionLocal", factory)
+
+    assert vision_dispatcher_module.VisionDispatcher().next_document_id() is None
+
+
+def test_r05_a1_explicit_v1_helper_stops_at_approval_without_sleep(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=76)
+    document.vision_auto_eligible = True
+    document.vision_status = "not_evaluated"
+    db.commit()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    monkeypatch.setattr(vision_dispatcher_module, "SessionLocal", factory)
+    monkeypatch.setattr(
+        vision_dispatcher_module.time,
+        "sleep",
+        lambda _seconds: (_ for _ in ()).throw(
+            AssertionError("approval wait must not poll for 240 seconds")
+        ),
+    )
+
+    vision_dispatcher_module.process_explicit_vision_document(document.id, 2)
+
+    db.expire_all()
+    assert db.get(Document, document.id).vision_status == "pending_auth"
+    assert db.get(Document, document.id).vision_error_code == (
+        "VISION_EXPORT_APPROVAL_REQUIRED"
+    )
+
+
+def test_r05_a1_single_legacy_dispatch_iteration_pauses_until_approval(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=77)
+    document.vision_auto_eligible = True
+    document.vision_status = "not_evaluated"
+    db.commit()
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    monkeypatch.setattr(vision_dispatcher_module, "SessionLocal", factory)
+    dispatcher = vision_dispatcher_module.VisionDispatcher()
+
+    selected = dispatcher.next_document_id()
+    result = vision_dispatcher_module.process_one_vision_document(selected)
+
+    assert selected == document.id
+    assert result.status == "pending_auth"
+    assert dispatcher.next_document_id() is None
 
 
 def test_v01_text_only_document_does_not_enqueue_visual(visual_db):
@@ -593,6 +848,8 @@ def _complete_multisource(
     observation_refs: tuple[str, ...] = ("S1", "S2", "S3", "S4"),
 ):
     resolution = service.ensure(document=document, question=question)
+    assert service.advance(resolution.analysis_job_id).state == "awaiting_auth"
+    _approve(service, resolution.analysis_job_id)
     service.advance(resolution.analysis_job_id)
     job = db.get(AnalysisJob, resolution.analysis_job_id)
     source_hashes = {
@@ -868,3 +1125,445 @@ def test_r04_a3_visual_dispatcher_start_is_lifespan_only() -> None:
 
     assert len(lifespan_starts) == 1
     assert module_starts == []
+
+
+def test_r05_a1_disabled_visual_dispatcher_does_not_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[object] = []
+
+    def _forbidden_create_task(coroutine):
+        coroutine.close()
+        created.append(coroutine)
+        raise AssertionError("R05_A1_DISABLED_DISPATCHER_STARTED")
+
+    assert hasattr(settings, "visual_v2_enabled"), "R05_A1_ACTIVATION_FLAG_MISSING"
+    monkeypatch.setattr(settings, "visual_v2_enabled", False)
+    monkeypatch.setattr(visual_v2_module.asyncio, "create_task", _forbidden_create_task)
+
+    assert visual_v2_module.start_visual_v2_dispatcher() is None
+    assert created == []
+
+
+def test_r05_a1_disabled_legacy_vision_dispatcher_does_not_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: list[object] = []
+
+    def _forbidden_create_task(coroutine):
+        coroutine.close()
+        created.append(coroutine)
+        raise AssertionError("R05_A1_DISABLED_V1_DISPATCHER_STARTED")
+
+    monkeypatch.setattr(settings, "vision_automation_enabled", False)
+    monkeypatch.setattr(
+        vision_dispatcher_module.asyncio,
+        "create_task",
+        _forbidden_create_task,
+    )
+
+    assert vision_dispatcher_module.start_vision_dispatcher() is None
+    assert created == []
+
+
+@pytest.mark.parametrize(
+    ("v1_enabled", "v2_enabled", "expected_tasks"),
+    [
+        (True, False, ["vision-dispatcher"]),
+        (False, True, ["visual-v2-dispatcher"]),
+    ],
+)
+def test_r05_a1_v1_v2_activation_flags_are_independent(
+    monkeypatch: pytest.MonkeyPatch,
+    v1_enabled: bool,
+    v2_enabled: bool,
+    expected_tasks: list[str],
+) -> None:
+    created: list[str] = []
+
+    def _record_task(coroutine, *, name: str):
+        coroutine.close()
+        created.append(name)
+        return object()
+
+    monkeypatch.setattr(settings, "vision_automation_enabled", v1_enabled)
+    monkeypatch.setattr(settings, "visual_v2_enabled", v2_enabled)
+    monkeypatch.setattr(vision_dispatcher_module.asyncio, "create_task", _record_task)
+    monkeypatch.setattr(visual_v2_module.asyncio, "create_task", _record_task)
+
+    vision_dispatcher_module.start_vision_dispatcher()
+    visual_v2_module.start_visual_v2_dispatcher()
+
+    assert created == expected_tasks
+
+
+def test_r05_a1_disabled_service_blocks_ensure_and_direct_advance(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    monkeypatch.setattr(settings, "visual_v2_enabled", False)
+    service = VisualV2Service(db, supervisor=supervisor)
+
+    resolution = service.ensure(document=document)
+
+    assert resolution.state == "review_required"
+    assert resolution.reason == "VISUAL_V2_RUNTIME_DISABLED"
+    assert service.advance(resolution.analysis_job_id).reason == (
+        "VISUAL_V2_RUNTIME_DISABLED"
+    )
+    assert supervisor.created == []
+
+
+def test_r05_a1_unapproved_pixels_do_not_reach_supervisor(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    image_path = root / document.storage_path
+    with Image.open(image_path) as original:
+        rendered = original.copy()
+    ImageDraw.Draw(rendered).text(
+        (20, 20),
+        "Jan Testowy, ul. Prywatna 12",
+        fill=(255, 255, 255),
+    )
+    rendered.save(image_path, format="JPEG")
+    document.checksum_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+    document.metadata_normalized = {"sensitivity": "customer_sanitizable"}
+    db.commit()
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+
+    resolution = service.ensure(document=document)
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    forged = dict(job.request_payload)
+    forged["external_approval"] = {
+        "state": "approved",
+        "label": "sanitized",
+        "actor_user_id": 1,
+    }
+    job.request_payload = forged
+    db.commit()
+    blocked = service.advance(resolution.analysis_job_id)
+
+    assert blocked.state == "awaiting_auth"
+    assert blocked.reason == "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+    assert supervisor.created == []
+
+
+def test_r05_a1_dispatcher_does_not_spin_on_privacy_wait(visual_db, monkeypatch) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    service = VisualV2Service(db, supervisor=_Supervisor())
+    resolution = service.ensure(document=document)
+    assert service.advance(resolution.analysis_job_id).reason == (
+        "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+    )
+    factory = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+    monkeypatch.setattr(visual_v2_module, "SessionLocal", factory)
+
+    assert visual_v2_module._next_visual_job_id() is None
+
+
+def test_r05_a1_approved_exact_raster_reaches_only_fake_supervisor(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    monkeypatch.setattr(settings, "vision_automation_enabled", False)
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document, created_by_user_id=2)
+
+    assert service.advance(resolution.analysis_job_id).reason == (
+        "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+    )
+    candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    expected = {
+        row["source_ref"]: row["final_sha256"]
+        for row in candidate["sources"]
+    }
+    approved = service.approve_export(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256=expected,
+        approval_kind="locally_redacted",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    assert approved.state == "queued"
+
+    submitted = service.advance(resolution.analysis_job_id)
+
+    assert submitted.waiting
+    assert len(supervisor.created) == 1
+    request = supervisor.created[0]
+    assert set(request) == {"request_key", "sources"}
+    assert set(request["sources"][0]) == {
+        "source_ref",
+        "document_id",
+        "page_number",
+        "asset_id",
+        "sha256",
+        "incoming_relative_path",
+    }
+    assert request["sources"][0]["sha256"] == expected["S1"]
+    serialized = json.dumps(request)
+    assert document.original_filename not in serialized
+    assert document.storage_path not in serialized
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    approval = job.quality_signals["visual_export_approval"]
+    assert approval["approved_by_user_id"] == 1
+    assert approval["binding"]["package_sha256"] == job.sanitized_package_hash
+
+
+def test_r05_a1_unprivileged_actor_cannot_approve_or_forge_payload(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document, created_by_user_id=2)
+    candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+
+    with pytest.raises(VisualV2ContractError, match="VISUAL_V2_APPROVAL_FORBIDDEN"):
+        service.approval_candidate(
+            resolution.analysis_job_id,
+            actor_user_id=2,
+        )
+
+    with pytest.raises(VisualV2ContractError, match="VISUAL_V2_APPROVAL_FORBIDDEN"):
+        service.approve_export(
+            resolution.analysis_job_id,
+            actor_user_id=2,
+            expected_package_sha256=candidate["package_sha256"],
+            expected_source_sha256={
+                row["source_ref"]: row["final_sha256"]
+                for row in candidate["sources"]
+            },
+            approval_kind="public_safe",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+
+    assert service.advance(resolution.analysis_job_id).reason == (
+        "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+    )
+    assert supervisor.created == []
+
+
+def test_r05_a1_revoked_and_foreign_scope_approvals_fail_closed(visual_db) -> None:
+    db, root = visual_db
+    first_document = _document(db, root, document_id=41)
+    second_document = _document(db, root, document_id=42)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    first = service.ensure(document=first_document)
+    second = service.ensure(document=second_document)
+    _approve(service, first.analysis_job_id)
+    first_job = db.get(AnalysisJob, first.analysis_job_id)
+    second_job = db.get(AnalysisJob, second.analysis_job_id)
+    second_job.quality_signals = copy.deepcopy(first_job.quality_signals)
+    db.commit()
+
+    foreign = service.advance(second.analysis_job_id)
+    assert foreign.reason == "VISUAL_V2_EXPORT_APPROVAL_STALE"
+    assert supervisor.created == []
+
+    revoked = service.revoke_export_approval(first.analysis_job_id, actor_user_id=1)
+    assert revoked.reason == "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
+    assert service.advance(first.analysis_job_id).reason == (
+        "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
+    )
+    assert supervisor.created == []
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["staged_bytes", "source_bytes", "source_path", "source_symlink", "package"],
+)
+def test_r05_a1_changed_binding_after_approval_never_exports(visual_db, mutation) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+
+    if mutation == "staged_bytes":
+        target = next((service.spool_root / "incoming").rglob("S1.jpg"))
+        target.chmod(0o644)
+        target.write_bytes(target.read_bytes() + b"changed")
+    elif mutation == "source_bytes":
+        source = root / document.storage_path
+        source.write_bytes(source.read_bytes() + b"changed")
+    elif mutation == "source_path":
+        bound = db.query(AnalysisJobSource).filter(
+            AnalysisJobSource.analysis_job_id == job.id
+        ).one()
+        entity = (
+            db.get(Document, int(bound.source_entity_id))
+            if bound.source_entity_type == "Document"
+            else db.get(DocumentPage, int(bound.source_entity_id))
+        )
+        source_path = entity.storage_path if isinstance(entity, Document) else entity.render_path
+        replacement = root / "documents" / "same-bytes-different-path.jpg"
+        replacement.write_bytes((root / source_path).read_bytes())
+        if isinstance(entity, Document):
+            entity.storage_path = str(replacement.relative_to(root)).replace("\\", "/")
+        else:
+            entity.render_path = str(replacement.relative_to(root)).replace("\\", "/")
+        db.commit()
+    elif mutation == "source_symlink":
+        bound = db.query(AnalysisJobSource).filter(
+            AnalysisJobSource.analysis_job_id == job.id
+        ).one()
+        entity = (
+            db.get(Document, int(bound.source_entity_id))
+            if bound.source_entity_type == "Document"
+            else db.get(DocumentPage, int(bound.source_entity_id))
+        )
+        source_path = entity.storage_path if isinstance(entity, Document) else entity.render_path
+        outside = root.parent / "r05-outside.jpg"
+        outside.write_bytes((root / source_path).read_bytes())
+        link = root / "documents" / "outside-link.jpg"
+        link.symlink_to(outside)
+        if isinstance(entity, Document):
+            entity.storage_path = str(link.relative_to(root)).replace("\\", "/")
+        else:
+            entity.render_path = str(link.relative_to(root)).replace("\\", "/")
+        db.commit()
+    else:
+        payload = dict(job.request_payload)
+        payload["requested_capabilities"] = list(payload["requested_capabilities"]) + [
+            "unapproved_extra"
+        ]
+        job.request_payload = payload
+        db.commit()
+
+    blocked = service.advance(resolution.analysis_job_id)
+
+    assert blocked.state in {"review_required", "awaiting_auth"}
+    assert blocked.reason in {
+        "VISUAL_V2_STAGED_SHA_MISMATCH",
+        "VISUAL_V2_SOURCE_SHA_MISMATCH",
+        "VISUAL_V2_EXPORT_APPROVAL_STALE",
+        "VISUAL_V2_SOURCE_PATH_INVALID",
+    }
+    assert supervisor.created == []
+
+
+def test_r05_a1_restricted_override_and_expired_approval_never_export(visual_db) -> None:
+    db, root = visual_db
+    first_document = _document(db, root, document_id=51)
+    second_document = _document(db, root, document_id=52)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    first = service.ensure(document=first_document)
+    second = service.ensure(document=second_document)
+    _approve(service, first.analysis_job_id)
+    _approve(service, second.analysis_job_id)
+
+    first_document.metadata_normalized = {"sensitivity": "restricted_never_external"}
+    second_job = db.get(AnalysisJob, second.analysis_job_id)
+    signals = copy.deepcopy(second_job.quality_signals)
+    signals["visual_export_approval"]["expires_at"] = (
+        datetime.now(UTC) - timedelta(seconds=1)
+    ).isoformat()
+    second_job.quality_signals = signals
+    db.commit()
+
+    assert service.advance(first.analysis_job_id).reason == (
+        "VISUAL_V2_RESTRICTED_NEVER_EXTERNAL"
+    )
+    assert service.advance(second.analysis_job_id).reason == (
+        "VISUAL_V2_EXPORT_APPROVAL_EXPIRED"
+    )
+    assert supervisor.created == []
+
+
+def test_r05_a1_disabled_mode_keeps_local_legacy_reuse_available(visual_db, monkeypatch) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    document.vision_status = "complete"
+    document.vision_schema_version = VISION_RESULT_SCHEMA
+    page = db.query(DocumentPage).one()
+    page.vision_analysis = json.dumps({
+        "observations": [{"source_ref": "S1", "text": "Synthetic local evidence."}],
+        "visible_text": [],
+    })
+    db.commit()
+    monkeypatch.setattr(settings, "visual_v2_enabled", False)
+    supervisor = _Supervisor()
+
+    result = VisualV2Service(db, supervisor=supervisor).ensure(document=document)
+
+    assert result.state == "accepted"
+    assert supervisor.created == []
+
+
+def test_r05_a1_uncertain_handoff_is_not_exported_twice(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+
+    class _UnavailableSupervisor(_Supervisor):
+        def __init__(self) -> None:
+            super().__init__()
+            self.attempts = 0
+
+        def create_job(self, payload: dict) -> dict:
+            self.attempts += 1
+            raise visual_v2_module.VisionSupervisorUnavailable(
+                "synthetic unavailable after claim"
+            )
+
+    supervisor = _UnavailableSupervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+
+    first = service.advance(resolution.analysis_job_id)
+    second = service.advance(resolution.analysis_job_id)
+
+    assert first.state == "awaiting_auth"
+    assert second.state == "awaiting_auth"
+    assert first.reason == second.reason == "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+    assert supervisor.attempts == 1
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    assert job.attempt_id.startswith("visual_export_")
+    assert job.external_job_id is None
+
+
+def test_r05_a1_changed_staged_bytes_after_claim_never_reach_supervisor(
+    visual_db,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+    target = next((service.spool_root / "incoming").rglob("S1.jpg"))
+    target.chmod(0o644)
+    target.write_bytes(target.read_bytes() + b"changed-after-claim")
+
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_(STAGED_SHA_MISMATCH|APPROVAL_STALE)",
+    ):
+        service.submit_claimed_export(resolution.analysis_job_id, claimed)
+
+    db.expire_all()
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    assert job.attempt_id is None
+    assert job.external_job_id is None
+    assert supervisor.created == []
