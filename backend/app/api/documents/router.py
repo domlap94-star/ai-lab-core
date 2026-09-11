@@ -65,6 +65,8 @@ from app.services.vision_supervisor_client import (
     VisionSupervisorClient,
     VisionSupervisorUnavailable,
 )
+from app.services.document_preparation_service import DocumentPreparationService
+from app.services.visual_v2_service import VisualV2Service
 from app.services.trash_lifecycle_service import (
     TrashConflictError,
     TrashLifecycleService,
@@ -160,6 +162,38 @@ def analyze_document_vision(
         status=document.vision_status,
         classification=document.vision_classification,
     )
+
+
+@router.post("/{document_id}/analyze", status_code=202)
+def analyze_document(
+    document_id: int,
+    actor: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object | None]:
+    """Ensure current durable document analysis and return without waiting."""
+    document = DocumentService(db).get_document(document_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    preparation, _ = DocumentPreparationService(db).get_or_create(
+        document=document,
+        trigger="operator_retry",
+        priority=0,
+        created_by_user_id=actor.id,
+    )
+    visual = VisualV2Service(db).ensure(
+        document=document,
+        created_by_user_id=actor.id,
+        preparation_job_id=preparation.id,
+    )
+    db.commit()
+    return {
+        "document_id": document.id,
+        "preparation_job_id": preparation.id,
+        "preparation_status": preparation.status,
+        "visual_job_id": visual.analysis_job_id,
+        "visual_state": visual.state,
+        "visual_reason": visual.reason,
+    }
 
 
 def _parse_intake_metadata(value: str | None) -> dict[str, object]:

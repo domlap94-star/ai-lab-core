@@ -219,7 +219,7 @@ class PreparationIntelligenceHeartbeatTests(unittest.IsolatedAsyncioTestCase):
             async def snapshot(self) -> LocalResourceSnapshot:
                 return LocalResourceSnapshot(
                     windows_total_bytes=32 * GIB,
-                    windows_available_bytes=9 * GIB,
+                    windows_available_bytes=int(3.5 * GIB),
                     wsl_total_bytes=16 * GIB,
                     wsl_available_bytes=12 * GIB,
                     wsl_swap_total_bytes=8 * GIB,

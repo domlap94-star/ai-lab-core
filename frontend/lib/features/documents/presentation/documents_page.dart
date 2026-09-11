@@ -861,7 +861,7 @@ class _DocumentDetailsDialog extends ConsumerWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Analiza wizualna została zlecona.'),
+                      content: Text('Pełna analiza dokumentu została zlecona.'),
                     ),
                   );
                 }
@@ -878,7 +878,7 @@ class _DocumentDetailsDialog extends ConsumerWidget {
               document.visionStatus == 'complete' ||
                       document.visionStatus == 'partial'
                   ? 'Analizuj ponownie'
-                  : 'Analizuj wizualnie',
+                  : 'Analizuj dokument',
             ),
           ),
         TextButton(

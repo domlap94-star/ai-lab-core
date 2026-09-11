@@ -30,9 +30,10 @@ WSL_TARGET_RESERVE_BYTES = 4 * GIB
 EMERGENCY_FLOOR_BYTES = 3 * GIB
 MAX_SWAP_GROWTH_BYTES = 256 * MIB
 
-# The diagnostic observed an approximately 6.34-GiB Windows-available drop
-# while qwen3.5:9b @4096 loaded next to the embedding model.  Admission uses a
-# larger 6.60-GiB increment and independently preserves the four-GiB reserve.
+# Qwen runs inside WSL.  Its cold-load projection is therefore applied to the
+# WSL reserve once; subtracting the same allocation independently from the
+# already host-wide Windows Available value double-counts the load.  Unknown
+# generators retain the conservative two-envelope projection below.
 QWEN9_WINDOWS_INCREMENT_BYTES = int(6.60 * GIB)
 QWEN9_WSL_INCREMENT_BYTES = int(6.25 * GIB)
 CONSERVATIVE_GENERATOR_WINDOWS_INCREMENT_BYTES = QWEN9_WINDOWS_INCREMENT_BYTES
@@ -305,16 +306,15 @@ class LocalModelResourceCoordinator:
         snapshot: LocalResourceSnapshot, model: str
     ) -> tuple[int, int]:
         already_resident = LocalModelResourceCoordinator._resident(snapshot, model)
-        windows_increment = 0 if already_resident else (
-            QWEN9_WINDOWS_INCREMENT_BYTES
-            if model == "qwen3.5:9b"
-            else CONSERVATIVE_GENERATOR_WINDOWS_INCREMENT_BYTES
-        )
-        wsl_increment = 0 if already_resident else (
-            QWEN9_WSL_INCREMENT_BYTES
-            if model == "qwen3.5:9b"
-            else CONSERVATIVE_GENERATOR_WSL_INCREMENT_BYTES
-        )
+        if already_resident:
+            windows_increment = 0
+            wsl_increment = 0
+        elif model == "qwen3.5:9b":
+            windows_increment = 0
+            wsl_increment = QWEN9_WSL_INCREMENT_BYTES
+        else:
+            windows_increment = CONSERVATIVE_GENERATOR_WINDOWS_INCREMENT_BYTES
+            wsl_increment = CONSERVATIVE_GENERATOR_WSL_INCREMENT_BYTES
         return (
             snapshot.windows_available_bytes - windows_increment,
             snapshot.wsl_available_bytes - wsl_increment,

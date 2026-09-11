@@ -6,6 +6,7 @@ import statistics
 import time
 import unittest
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -116,6 +117,30 @@ class AssistantChatHistorySourceContractTests(unittest.TestCase):
         source = inspect.getsource(inspect.getmodule(AssistantConversationService))
         for forbidden in ("Ollama", "Qwen", "Supervisor", "httpx", "requests"):
             self.assertNotIn(forbidden, source)
+
+    def test_app_background_and_page_dispose_do_not_cancel_durable_run(self) -> None:
+        page = (
+            Path(__file__).resolve().parents[2]
+            / "frontend"
+            / "lib"
+            / "features"
+            / "ai"
+            / "presentation"
+            / "unified_assistant_page.dart"
+        ).read_text(encoding="utf-8")
+        dispose = page.split("void dispose()", 1)[1].split("Widget build", 1)[0]
+        lifecycle = page.split("void didChangeAppLifecycleState", 1)[1].split(
+            "Widget _conversationView", 1
+        )[0]
+        for source in (dispose, lifecycle):
+            self.assertNotIn("cancelRun(", source)
+            self.assertNotIn("_cancelDurable(", source)
+            self.assertNotIn("/cancel", source)
+
+    def test_terminal_publication_uses_fresh_conversation_row_lock(self) -> None:
+        source = inspect.getsource(AssistantRunService._persist_terminal_message)
+        self.assertIn("populate_existing", source)
+        self.assertIn("with_for_update", source)
 
 
 def _answer(run_id: str, text: str = "Bezpieczna odpowiedź.") -> UnifiedAssistantResponse:
@@ -406,6 +431,12 @@ def integration_main() -> None:
             .count()
             == 1
         )
+        reopened = AssistantConversationService(db).get_owned_detail(
+            conversation_id=chat_a.id,
+            user_id=user_a_id,
+        )
+        assert [item.role for item in reopened.messages] == ["user", "assistant"]
+        assert reopened.messages[-1].run_status == "completed"
 
         second_request = AssistantRunCreateRequest(
             question="Kontynuuj bez obcego kontekstu.",
@@ -421,7 +452,9 @@ def integration_main() -> None:
         assert all(item["content"] != second_request.question for item in history)
 
         deleted = service.soft_delete(conversation_id=chat_a.id, user_id=user_a_id)
-        deleted_at = db.get(Conversation, chat_a.id).deleted_at
+        deleted_conversation = db.get(Conversation, chat_a.id)
+        deleted_at = deleted_conversation.deleted_at
+        deleted_last_activity_at = deleted_conversation.last_activity_at
         assert deleted.active_run_id == second.run_id
         assert second_row.status == "queued" and second_row.cancel_requested_at is None
         AssistantRunService(db).finish(run=second_row, response=_answer(second.run_id))
@@ -429,13 +462,135 @@ def integration_main() -> None:
         db.refresh(second_row)
         hidden = db.get(Conversation, chat_a.id)
         assert hidden.deleted_at == deleted_at
+        assert hidden.last_activity_at == deleted_last_activity_at
         assert second_row.status == "completed" and second_row.result_payload is not None
+        assert (
+            db.query(Message)
+            .filter_by(assistant_run_id=second.run_id, role="assistant")
+            .count()
+            == 0
+        )
         assert all(item.id != chat_a.id for item in service.list_owned(user_id=user_a_id).items)
         try:
             service.get_owned_detail(conversation_id=chat_a.id, user_id=user_a_id)
             raise AssertionError("deleted conversation was exposed")
         except AssistantConversationNotFound:
             pass
+
+        # Deletion wins in another transaction after this worker cached the
+        # active row. Terminal publication must refresh and lock that row,
+        # preserve the run result, and publish no late chat message.
+        with SessionLocal() as publication_db:
+            assert_isolated_database(publication_db, expected)
+            deletion_wins_chat = AssistantConversationService(publication_db).create(
+                request=AssistantConversationCreateRequest(title="Deletion wins"),
+                user_id=user_a_id,
+            )
+            deletion_wins_run = AssistantRunService(publication_db).create(
+                request=AssistantRunCreateRequest(
+                    question="Zakończ po usunięciu rozmowy.",
+                    attempt_id="history_deletion_wins_0001",
+                    conversation_id=deletion_wins_chat.id,
+                ),
+                user_id=user_a_id,
+            )
+            deletion_wins_row = publication_db.get(
+                AssistantRun, deletion_wins_run.run_id
+            )
+            stale_conversation = publication_db.get(
+                Conversation, deletion_wins_chat.id
+            )
+            prior_activity = stale_conversation.last_activity_at
+            with SessionLocal() as deletion_db:
+                assert_isolated_database(deletion_db, expected)
+                deleted_result = AssistantConversationService(deletion_db).soft_delete(
+                    conversation_id=deletion_wins_chat.id,
+                    user_id=user_a_id,
+                )
+                deleted_at = deleted_result.deleted_at
+            AssistantRunService(publication_db).finish(
+                run=deletion_wins_row,
+                response=_answer(deletion_wins_run.run_id),
+            )
+            publication_db.commit()
+            publication_db.expire_all()
+            preserved_run = publication_db.get(
+                AssistantRun, deletion_wins_run.run_id
+            )
+            preserved_chat = publication_db.get(
+                Conversation, deletion_wins_chat.id
+            )
+            assert preserved_run.status == "completed"
+            assert preserved_run.result_payload is not None
+            assert preserved_chat.deleted_at == deleted_at
+            assert preserved_chat.last_activity_at == prior_activity
+            assert (
+                publication_db.query(Message)
+                .filter_by(
+                    assistant_run_id=deletion_wins_run.run_id,
+                    role="assistant",
+                )
+                .count()
+                == 0
+            )
+
+        # Publication wins in its own transaction: exactly one message is
+        # durable before the separately locked soft delete, and replaying the
+        # terminal write remains idempotent.
+        with SessionLocal() as publication_db:
+            assert_isolated_database(publication_db, expected)
+            publication_wins_chat = AssistantConversationService(publication_db).create(
+                request=AssistantConversationCreateRequest(title="Publication wins"),
+                user_id=user_a_id,
+            )
+            publication_wins_run = AssistantRunService(publication_db).create(
+                request=AssistantRunCreateRequest(
+                    question="Opublikuj przed usunięciem rozmowy.",
+                    attempt_id="history_publication_wins_0001",
+                    conversation_id=publication_wins_chat.id,
+                ),
+                user_id=user_a_id,
+            )
+            publication_wins_row = publication_db.get(
+                AssistantRun, publication_wins_run.run_id
+            )
+            run_service = AssistantRunService(publication_db)
+            run_service.finish(
+                run=publication_wins_row,
+                response=_answer(publication_wins_run.run_id),
+            )
+            publication_db.commit()
+            run_service.finish(
+                run=publication_wins_row,
+                response=_answer(publication_wins_run.run_id),
+            )
+            publication_db.commit()
+        with SessionLocal() as deletion_db:
+            assert_isolated_database(deletion_db, expected)
+            AssistantConversationService(deletion_db).soft_delete(
+                conversation_id=publication_wins_chat.id,
+                user_id=user_a_id,
+            )
+        with SessionLocal() as verification_db:
+            assert_isolated_database(verification_db, expected)
+            publication_wins_row = verification_db.get(
+                AssistantRun, publication_wins_run.run_id
+            )
+            publication_wins_conversation = verification_db.get(
+                Conversation, publication_wins_chat.id
+            )
+            assert publication_wins_row.status == "completed"
+            assert publication_wins_row.result_payload is not None
+            assert publication_wins_conversation.deleted_at is not None
+            assert (
+                verification_db.query(Message)
+                .filter_by(
+                    assistant_run_id=publication_wins_run.run_id,
+                    role="assistant",
+                )
+                .count()
+                == 1
+            )
 
         cancel_chat = service.create(
             request=AssistantConversationCreateRequest(title="Cancel chat"),

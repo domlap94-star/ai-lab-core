@@ -14,6 +14,7 @@ from app.models.assistant_pipeline import AssistantRun, AssistantRunStage
 from app.models.conversation import Conversation
 from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.message import Message
+from app.models.knowledge_base import AnalysisJob
 from app.schemas.assistant_pipeline import (
     AssistantRunCreateRequest,
     AssistantRunListResponse,
@@ -223,8 +224,61 @@ class AssistantRunService:
         if run.status in {"completed", "review_required", "failed", "cancelled"}:
             self.db.rollback()
             return self.response(run)
+        linked_jobs = self.db.query(AnalysisJob).join(
+            AssistantRunStage,
+            AssistantRunStage.analysis_job_id == AnalysisJob.id,
+        ).filter(
+            AssistantRunStage.assistant_run_id == run.id,
+            AnalysisJob.status.in_([
+                "queued", "local_processing", "local_validating",
+                "advanced_queued", "advanced_processing", "awaiting_auth",
+                "awaiting_ui_fix", "advanced_validating",
+            ]),
+        ).all()
+        now = datetime.now(UTC)
+        external_jobs: list[tuple[str, str]] = []
+        for job in linked_jobs:
+            if job.analysis_type == "visual_v2":
+                other_active_consumers = self.db.query(AssistantRunStage.id).join(
+                    AssistantRun,
+                    AssistantRun.id == AssistantRunStage.assistant_run_id,
+                ).filter(
+                    AssistantRunStage.analysis_job_id == job.id,
+                    AssistantRunStage.assistant_run_id != run.id,
+                    AssistantRunStage.status.in_(["queued", "waiting", "running"]),
+                    AssistantRun.status.in_(["created", "queued", "running", "waiting"]),
+                ).first()
+                if (
+                    job.waiting_document_preparation_job_id is not None
+                    or other_active_consumers is not None
+                ):
+                    # Visual V2 is document work and may have more than one
+                    # durable consumer. Cancelling one chat must not cancel a
+                    # preparation-owned or shared perception job.
+                    continue
+            job.status = "cancelled"
+            job.decision = "cancelled"
+            job.error_code = "ASSISTANT_RUN_CANCELLED"
+            job.cancel_requested_at = job.cancel_requested_at or now
+            job.finished_at = now
+            if job.external_job_id:
+                external_jobs.append((job.analysis_type, job.external_job_id))
         AssistantRunStageService(self.db).cancel(run)
         self.db.commit()
+        for analysis_type, external_job_id in external_jobs:
+            try:
+                if analysis_type == "visual_v2":
+                    from app.services.vision_supervisor_client import VisionSupervisorClient
+
+                    VisionSupervisorClient().cancel_job(external_job_id)
+                else:
+                    from app.services.analysis_supervisor_client import AnalysisSupervisorClient
+
+                    AnalysisSupervisorClient().cancel_job(external_job_id)
+            except Exception:
+                # Cancellation intent and fencing are already durable locally;
+                # late external output cannot be accepted into a cancelled job.
+                pass
         try:
             from app.services.assistant_run_dispatcher import cancel_active_run
 
@@ -310,6 +364,15 @@ class AssistantRunService:
             or not response.answer.strip()
         ):
             return
+        conversation = (
+            self.db.query(Conversation)
+            .populate_existing()
+            .filter(Conversation.id == run.conversation_id)
+            .with_for_update()
+            .one_or_none()
+        )
+        if conversation is None or conversation.deleted_at is not None:
+            return
         existing = self.db.query(Message.id).filter(
             Message.assistant_run_id == run.id,
             Message.role == "assistant",
@@ -323,9 +386,7 @@ class AssistantRunService:
                     content=response.answer.strip(),
                 )
             )
-        conversation = self.db.get(Conversation, run.conversation_id)
-        if conversation is not None and conversation.deleted_at is None:
-            conversation.last_activity_at = run.finished_at or datetime.now(UTC)
+        conversation.last_activity_at = run.finished_at or datetime.now(UTC)
 
     @staticmethod
     def _threaded_request_matches(

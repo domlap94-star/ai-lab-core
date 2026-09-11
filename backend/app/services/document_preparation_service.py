@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.models.document import Document
 from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.assistant_pipeline import DocumentIntelligenceArtifact
+from app.models.knowledge_base import AnalysisJob
 from app.services.document_file_safety_service import DocumentFileSafetyService
 from app.services.document_processing_service import DocumentProcessingService
 from app.services.document_service import resolve_document_storage_path
@@ -207,17 +208,13 @@ class DocumentPreparationService:
         elif content.state == INTEGRITY_MISMATCH:
             self._terminal(job, "integrity_failed", "integrity_failed", "DOCUMENT_STORAGE_INTEGRITY_MISMATCH", "integrity")
         elif content.state == FILE_FOUND_REQUIRES_OCR:
-            if job.trigger == "ingestion":
-                # Normal ingestion is local-only. An explicit Assistant or
-                # operator request remains the sole compatibility authority
-                # for the legacy external Vision route.
-                self.contain_ingestion_external_vision(claim)
-            else:
-                job.status = "running"
-                job.stage = "vision_processing"
-                job.error_code = None
-                job.retryability = None
-                job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
+            # The current owner-approved Visual V2 path is a bounded raster
+            # analysis job. It is not the legacy ingestion-triggered V1 route.
+            job.status = "running"
+            job.stage = "vision_processing"
+            job.error_code = None
+            job.retryability = None
+            job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=LEASE_MINUTES)
         else:
             if job.attempt_count < job.max_attempts:
                 self._requeue(job, "DOCUMENT_PREPARATION_FAILED")
@@ -277,6 +274,51 @@ class DocumentPreparationService:
             or artifact.superseded_at is not None
         ):
             raise ValueError("intelligence_artifact_binding_invalid")
+        # Text and visual artifacts have independent durable owners. A mixed
+        # document becomes text-ready now while Visual V2 is ensured and may
+        # complete in its own AnalysisJob after this preparation lease ends.
+        document = self.db.get(Document, job.document_id)
+        if document is not None:
+            from app.services.visual_v2_service import VisualV2Service
+
+            VisualV2Service(self.db).ensure(
+                document=document,
+                created_by_user_id=job.created_by_user_id,
+                preparation_job_id=job.id,
+            )
+        self._terminal(job, "ready", "ready_for_ai", None, None)
+        self.db.flush()
+        return True
+
+    def complete_visual_handoff(
+        self, claim: PreparationClaim, analysis_job_id: str
+    ) -> bool:
+        job = self._owned_job(claim, stage="vision_processing", lock=True)
+        if job is None:
+            return False
+        visual = self.db.get(AnalysisJob, analysis_job_id)
+        if (
+            visual is None
+            or visual.analysis_type != "visual_v2"
+            or visual.source_domain != "document_visual_v2"
+            or visual.status not in {
+                "queued", "local_processing", "advanced_queued",
+                "advanced_processing", "awaiting_auth", "awaiting_ui_fix",
+                "advanced_validating", "accepted_advanced",
+            }
+            or not isinstance(visual.request_payload, dict)
+            or visual.request_payload.get("document_checksum") != job.input_checksum
+        ):
+            raise ValueError("visual_v2_artifact_binding_invalid")
+        if visual.status == "accepted_advanced" and (
+            not isinstance(visual.result_payload, dict)
+            or visual.result_payload.get("schema_version")
+            != "ASSISTANT_VISUAL_EVIDENCE_V2"
+        ):
+            raise ValueError("visual_v2_artifact_binding_invalid")
+        # Structural preparation is complete. Visual V2 owns its own durable
+        # AnalysisJob and must not occupy the serial preparation worker while
+        # Temporary Chat is queued, paused for auth, or processing.
         self._terminal(job, "ready", "ready_for_ai", None, None)
         self.db.flush()
         return True

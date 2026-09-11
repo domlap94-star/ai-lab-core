@@ -154,7 +154,7 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_t01_new_ingestion_never_enters_vision(self) -> None:
+    def test_t01_new_ingestion_enters_visual_v2_without_legacy_vision(self) -> None:
         document, job = self._store(suffix="txt", content_type="text/plain")
         claim = self._running(job)
         original_vision = (
@@ -164,10 +164,6 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
             document.vision_source_checksum,
         )
         with (
-            patch(
-                "app.services.document_preparation_dispatcher."
-                "process_explicit_vision_document"
-            ) as explicit,
             patch(
                 "app.services.vision_processing_service."
                 "VisionProcessingService.advance"
@@ -185,8 +181,8 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         terminal = self.db.get(DocumentPreparationJob, job.id)
         current_document = self.db.get(Document, document.id)
         assert terminal is not None and current_document is not None
-        self._assert_contained(self, terminal)
-        self.assertNotEqual(terminal.stage, "vision_processing")
+        self.assertEqual((terminal.status, terminal.stage), ("running", "vision_processing"))
+        self.assertIsNone(terminal.error_code)
         self.assertEqual(
             (
                 current_document.vision_status,
@@ -196,11 +192,10 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
             ),
             original_vision,
         )
-        explicit.assert_not_called()
         advance.assert_not_called()
         create_job.assert_not_called()
 
-    def test_t02_existing_ingestion_vision_processing_is_contained(self) -> None:
+    def test_t02_existing_ingestion_vision_processing_uses_visual_v2(self) -> None:
         document, job = self._store(suffix="txt", content_type="text/plain")
         claim = self._running(job, stage="vision_processing")
         original_vision = (
@@ -209,18 +204,35 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
             document.vision_error_code,
             document.vision_source_checksum,
         )
-        with patch(
-            "app.services.document_preparation_dispatcher."
-            "process_explicit_vision_document",
-            side_effect=AssertionError("legacy Vision must not run for ingestion"),
-        ) as explicit:
+        resolution = SimpleNamespace(
+            state="accepted",
+            reason="VISUAL_V2_ACCEPTED",
+            analysis_job_id="synthetic-visual-v2",
+            waiting=False,
+        )
+        with (
+            patch(
+                "app.services.document_preparation_dispatcher."
+                "VisualV2Service.ensure",
+                return_value=resolution,
+            ) as ensure,
+            patch(
+                "app.services.document_preparation_dispatcher."
+                "DocumentPreparationService.complete_visual_handoff",
+                return_value=True,
+            ) as complete,
+            patch(
+                "app.services.vision_supervisor_client."
+                "VisionSupervisorClient.create_job"
+            ) as legacy_create,
+        ):
             self.assertFalse(asyncio.run(process_preparation_vision(claim)))
 
         self.db.expire_all()
         terminal = self.db.get(DocumentPreparationJob, job.id)
         current_document = self.db.get(Document, document.id)
         assert terminal is not None and current_document is not None
-        self._assert_contained(self, terminal)
+        self.assertEqual((terminal.status, terminal.stage), ("running", "vision_processing"))
         self.assertEqual(
             (
                 current_document.vision_status,
@@ -230,7 +242,9 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
             ),
             original_vision,
         )
-        explicit.assert_not_called()
+        ensure.assert_called_once()
+        complete.assert_called_once_with(claim, "synthetic-visual-v2")
+        legacy_create.assert_not_called()
 
     def test_t03_containment_is_idempotent(self) -> None:
         _document, job = self._store(suffix="txt", content_type="text/plain")
@@ -277,30 +291,38 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         self.assertEqual(unchanged.error_code, "UNSUPPORTED_FORMAT")
         self.assertEqual(unchanged.finished_at, other_finished)
 
-    def _assert_explicit_compatibility(self, trigger: str) -> None:
-        document, job = self._store(suffix="txt", content_type="text/plain")
+    def _assert_visual_v2_trigger_compatibility(self, trigger: str) -> None:
+        _document, job = self._store(suffix="txt", content_type="text/plain")
         claim = self._running(
             job, trigger=trigger, stage="vision_processing"
         )
-        with patch(
-            "app.services.document_preparation_dispatcher."
-            "process_explicit_vision_document",
-            side_effect=self._complete_legacy_vision,
-        ) as explicit:
-            self.assertTrue(asyncio.run(process_preparation_vision(claim)))
-        explicit.assert_called_once_with(document.id)
-        self.db.expire_all()
-        current = self.db.get(DocumentPreparationJob, job.id)
-        assert current is not None
-        self.assertEqual(current.status, "running")
-        self.assertEqual(current.stage, "local_analysis")
-        self.assertIsNone(current.error_code)
+        resolution = SimpleNamespace(
+            state="accepted",
+            reason="VISUAL_V2_ACCEPTED",
+            analysis_job_id="synthetic-visual-v2",
+            waiting=False,
+        )
+        with (
+            patch(
+                "app.services.document_preparation_dispatcher."
+                "VisualV2Service.ensure",
+                return_value=resolution,
+            ) as ensure,
+            patch(
+                "app.services.document_preparation_dispatcher."
+                "DocumentPreparationService.complete_visual_handoff",
+                return_value=True,
+            ) as complete,
+        ):
+            self.assertFalse(asyncio.run(process_preparation_vision(claim)))
+        ensure.assert_called_once()
+        complete.assert_called_once_with(claim, "synthetic-visual-v2")
 
     def test_t04_assistant_explicit_compatibility_remains(self) -> None:
-        self._assert_explicit_compatibility("assistant")
+        self._assert_visual_v2_trigger_compatibility("assistant")
 
     def test_t05_operator_retry_is_not_misclassified_as_ingestion(self) -> None:
-        self._assert_explicit_compatibility("operator_retry")
+        self._assert_visual_v2_trigger_compatibility("operator_retry")
 
     def test_t06_local_text_ingestion_still_proceeds_locally(self) -> None:
         _document, job = self._store(suffix="txt", content_type="text/plain")
@@ -340,11 +362,12 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         self.assertNotIn("settings.vision_automation_enabled =", combined)
         self.assertNotIn("settings.document_preparation_enabled =", combined)
         self.assertNotIn("vision_auto_eligible =", combined)
+        self.assertIn("VisualV2Service(db).ensure", router_source)
         self.assertIn(
             "background_tasks.add_task(process_explicit_vision_document",
             router_source,
         )
-        self.assertIn("process_explicit_vision_document", dispatcher_source)
+        self.assertNotIn("process_explicit_vision_document", dispatcher_source)
 
     def test_t09_source_path_regression_assertion(self) -> None:
         services_root = Path(__file__).resolve().parents[1] / "app/services"
@@ -376,10 +399,10 @@ class DocumentIngestionVisionContainmentTests(unittest.TestCase):
         self.assertEqual(path.name, "document_preparation_service.py")
         self.assertIsInstance(parent, ast.If)
         assert isinstance(parent, ast.If)
-        self.assertIn(assignment, parent.orelse)
+        self.assertIn(assignment, parent.body)
         condition = ast.unparse(parent.test)
-        self.assertIn("job.trigger", condition)
-        self.assertIn("ingestion", condition)
+        self.assertIn("content.state", condition)
+        self.assertIn("FILE_FOUND_REQUIRES_OCR", condition)
 
 
 if __name__ == "__main__":

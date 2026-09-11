@@ -469,48 +469,24 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
         self.assertEqual((current.status, current.stage), ("running", "validating"))
 
     def test_t08_stale_vision_result_cannot_advance_job(self) -> None:
-        asyncio.run(self._t08_stale_vision_result_cannot_advance_job())
-
-    async def _t08_stale_vision_result_cannot_advance_job(self) -> None:
         job = self._store_job(trigger="assistant")
         old = self._claim(job)
         job = self.db.get(DocumentPreparationJob, job.id)
         assert job is not None
         job.stage = "vision_processing"
         self.db.commit()
-        entered = threading.Event()
-        release = threading.Event()
-
-        def fake_vision(document_id: int) -> None:
-            entered.set()
-            if not release.wait(5):
-                raise TimeoutError("synthetic Vision release timeout")
-            db = SessionLocal()
-            try:
-                document = db.get(Document, document_id)
-                if document is not None:
-                    document.vision_status = "complete"
-                    db.commit()
-            finally:
-                db.close()
-
-        with patch(
-            "app.services.document_preparation_dispatcher."
-            "process_explicit_vision_document",
-            side_effect=fake_vision,
-        ):
-            task = asyncio.create_task(process_preparation_vision(old))
-            self.assertTrue(await asyncio.to_thread(entered.wait, 5))
-            self.db.expire_all()
-            current = self.db.get(DocumentPreparationJob, job.id)
-            assert current is not None
-            current.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
-            self.db.commit()
-            self.assertEqual(DocumentPreparationService(self.db).recover_expired(), 1)
-            self.db.commit()
-            replacement = self._claim(current)
-            release.set()
-            self.assertFalse(await task)
+        current = self.db.get(DocumentPreparationJob, job.id)
+        assert current is not None
+        current.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        self.db.commit()
+        self.assertEqual(DocumentPreparationService(self.db).recover_expired(), 1)
+        self.db.commit()
+        replacement = self._claim(current)
+        self.assertFalse(
+            DocumentPreparationService(self.db).complete_visual_handoff(
+                old, "synthetic-stale-visual-v2"
+            )
+        )
 
         self.db.expire_all()
         current = self.db.get(DocumentPreparationJob, job.id)
@@ -895,20 +871,13 @@ class DocumentPreparationRecoveryFencingTests(unittest.TestCase):
         self._running(job, stage="local_analysis", expired=True)
         analysis_before = self.db.query(AnalysisJob).count()
         assistant_before = self.db.query(AssistantRun).count()
-        with (
-            patch(
-                "app.services.document_preparation_dispatcher."
-                "build_document_intelligence"
-            ) as model,
-            patch(
-                "app.services.document_preparation_dispatcher."
-                "process_explicit_vision_document"
-            ) as vision,
-        ):
+        with patch(
+            "app.services.document_preparation_dispatcher."
+            "build_document_intelligence"
+        ) as model:
             self.assertEqual(DocumentPreparationService(self.db).recover_expired(), 1)
             self.db.commit()
         model.assert_not_called()
-        vision.assert_not_called()
         self.assertEqual(self.db.query(AnalysisJob).count(), analysis_before)
         self.assertEqual(self.db.query(AssistantRun).count(), assistant_before)
 

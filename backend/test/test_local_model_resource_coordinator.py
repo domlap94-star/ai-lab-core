@@ -118,7 +118,24 @@ async def test_generator_admission_preserves_projected_four_gib_reserve() -> Non
 
 
 @pytest.mark.asyncio
-async def test_generator_fails_closed_when_projected_reserve_is_too_low(
+async def test_cold_qwen_uses_actual_windows_and_projected_wsl_reserve() -> None:
+    provider = FakeProvider([
+        snapshot(
+            windows_available=int(6.74 * GIB),
+            wsl_available=int(14.73 * GIB),
+        )
+    ])
+    coordinator = LocalModelResourceCoordinator(provider=provider)
+
+    async with coordinator.generator_session("qwen3.5:9b", wait_timeout=0.2):
+        assert coordinator.state()["heavy_active"] is True
+
+    assert provider.unloaded == ["qwen3.5:9b"]
+    assert coordinator.state()["heavy_active"] is False
+
+
+@pytest.mark.asyncio
+async def test_unknown_cold_generator_keeps_conservative_windows_projection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(resource_module, "RESOURCE_RETRY_SECONDS", 0.01)
@@ -126,11 +143,10 @@ async def test_generator_fails_closed_when_projected_reserve_is_too_low(
     coordinator = LocalModelResourceCoordinator(provider=provider)
 
     with pytest.raises(LocalModelResourceUnavailable, match="LOCAL_RESOURCE_RESERVE_WAIT"):
-        async with coordinator.generator_session("qwen3.5:9b", wait_timeout=0.03):
-            pytest.fail("unsafe generator admission")
+        async with coordinator.generator_session("unknown:latest", wait_timeout=0.03):
+            pytest.fail("unknown generator bypassed conservative projection")
 
     assert provider.unloaded == []
-    assert coordinator.state()["heavy_active"] is False
 
 
 @pytest.mark.asyncio

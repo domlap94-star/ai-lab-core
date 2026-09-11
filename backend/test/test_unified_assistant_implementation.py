@@ -11,6 +11,7 @@ from app.database.session import get_db
 from app.main import app
 from app.schemas.unified_assistant import UnifiedAssistantRequest
 from app.schemas.unified_assistant import UnifiedAssistantResponse
+from app.schemas.agent import AgentSource
 from app.services.unified_assistant_service import (
     MODEL,
     QUERY_MODE_EVIDENCE_GROUNDED,
@@ -666,6 +667,85 @@ def test_retry_attempt_gets_a_new_request_id_and_cannot_bind_stale_result():
     first = UnifiedAssistantRequest(question="Pytanie syntetyczne", attempt_id="attempt-one")
     retry = UnifiedAssistantRequest(question="Pytanie syntetyczne", attempt_id="attempt-two")
     assert UnifiedAssistantService._request_id(first, collected) != UnifiedAssistantService._request_id(retry, collected)
+
+
+def test_document_visual_kb_and_calculation_share_one_bounded_local_prompt():
+    document = AgentSource(
+        source_type="document", source_id=71, title="Dokument",
+        route="/documents/71", snippet="Parametr dokumentu wynosi 3000000 Pa.",
+    )
+    visual = AgentSource(
+        source_type="visual", source_id=71, title="Obserwacja",
+        route="/documents/71?page=2", snippet="Widoczny manometr.",
+    )
+    kb = AgentSource(
+        source_type="knowledge_base", source_id=17, title="Norma",
+        route="/settings/knowledge-base?item=17&page=4",
+        snippet="Wymaganie referencyjne wynosi 3 MPa.",
+    )
+    collected = SimpleNamespace(
+        sources=[document, visual, kb],
+        tool_payloads=[
+            {
+                "tool": "document_intelligence",
+                "data": {"summary": "Ciśnienie 3000000 Pa."},
+                "source_keys": [("document", 71, "/documents/71")],
+            },
+            {
+                "tool": "get_visual_v2",
+                "data": {
+                    "schema_version": "ASSISTANT_VISUAL_EVIDENCE_V2",
+                    "evidence": [{
+                        "kind": "observation",
+                        "source_ref": "V01",
+                        "text": "Widoczny manometr.",
+                    }],
+                },
+                "source_keys": [("visual", 71, "/documents/71?page=2")],
+            },
+            {
+                "tool": "knowledge_base",
+                "data": {"knowledge_base_item_id": 17, "page": 4},
+                "source_keys": [
+                    ("knowledge_base", 17, "/settings/knowledge-base?item=17&page=4")
+                ],
+            },
+            {
+                "tool": "calculate_pressure",
+                "data": {"value": 3, "unit": "MPa"},
+                "source_keys": [("document", 71, "/documents/71")],
+            },
+        ],
+        tools=[
+            "document_intelligence", "get_visual_v2", "knowledge_base",
+            "calculate_pressure",
+        ],
+        client_id=5,
+        visual_available=True,
+    )
+    prompt, source_map, tool_source_map = UnifiedAssistantService._prompt(
+        UnifiedAssistantRequest(
+            question="Porównaj dokument, obraz i normę oraz oblicz wynik.",
+            client_id=5,
+            document_id=71,
+        ),
+        collected,
+        QUERY_MODE_EVIDENCE_GROUNDED,
+        required_kb_item_id=17,
+    )
+
+    assert {source.source_type for source in source_map.values()} == {
+        "document", "visual", "knowledge_base"
+    }
+    assert all(
+        name in prompt
+        for name in (
+            "document_intelligence", "get_visual_v2", "knowledge_base",
+            "calculate_pressure", "3000000 Pa", "Widoczny manometr", "3 MPa",
+        )
+    )
+    assert len(tool_source_map) == 4
+    assert tool_source_map["T04"] == {"S01"}
 
 
 def test_advanced_hard_timeout_cancels_supervisor_and_finishes_fail_closed():

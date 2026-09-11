@@ -26,7 +26,6 @@ from app.schemas.unified_assistant import (
     UnifiedClaim,
     UnifiedSource,
 )
-from app.schemas.vision import VISION_RESULT_SCHEMA
 from app.services.assistant_run_material_service import (
     AssistantMaterialSourceRefConflict,
     AssistantRunMaterialService,
@@ -51,6 +50,7 @@ from app.services.local_model_time_policy import (
     utc_iso,
 )
 from app.services.unified_assistant_service import UnifiedAssistantService
+from app.services.visual_v2_service import VisualV2ContractError, VisualV2Service
 
 
 logger = logging.getLogger("ai_lab.assistant_pipeline_v2")
@@ -346,6 +346,18 @@ _VISUAL_LATER_STAGES = (
 
 def _visual_source_count(collected: Any) -> int:
     for item in collected.tool_payloads:
+        if item.get("tool") == "get_visual_v2":
+            data = item.get("data")
+            evidence = data.get("evidence") if isinstance(data, dict) else None
+            if isinstance(evidence, list):
+                return len({
+                    str(row.get("source_ref"))
+                    for row in evidence
+                    if isinstance(row, dict)
+                    and row.get("kind") in {"observation", "visible_text"}
+                    and isinstance(row.get("text"), str)
+                    and row["text"].strip()
+                })
         if item.get("tool") != "get_visual_analysis":
             continue
         data = item.get("data")
@@ -442,32 +454,95 @@ async def _execute_visual_stages(
 
     if run.status == "cancelled" or run.cancel_requested_at is not None:
         return collected, False
-    if document.vision_status == "partial":
-        error_code = "VISION_REQUIRED_COVERAGE_INCOMPLETE"
-    elif document.vision_status != "complete":
-        error_code = "VISION_REQUIRED_NOT_AVAILABLE"
-    elif document.vision_schema_version != VISION_RESULT_SCHEMA:
-        error_code = "VISION_SCHEMA_INVALID"
-    else:
-        stage_service.start(run, "waiting_for_vision")
-        recollected = service._collect(
-            request,
-            kb_resolution=kb_resolution,
+    stage_service.start(run, "waiting_for_vision")
+    visual_service = VisualV2Service(db)
+    visual = visual_service.ensure(
+        document=document,
+        question=request.question,
+        created_by_user_id=run.created_by_user_id,
+    )
+    if visual.state == "not_required":
+        stage_service.skip(run, "waiting_for_vision", visual.reason)
+        stage_service.skip(run, "analyzing_vision", visual.reason)
+        return collected, True
+    if visual.waiting:
+        stage_service.wait(
+            run,
+            "waiting_for_vision",
+            analysis_job_id=visual.analysis_job_id,
+            manifest={
+                "analysis_job_id": visual.analysis_job_id,
+                "visual_contract": "ASSISTANT_VISUAL_EVIDENCE_V2",
+                "state": visual.state,
+                "reason": visual.reason,
+            },
         )
+        db.commit()
+        try:
+            await OllamaClient().unload("qwen3.5:9b")
+        except Exception:
+            pass
+        return collected, False
+    if visual.state == "accepted":
+        try:
+            coverage = visual_service.validated_coverage(
+                visual,
+                question=request.question,
+            )
+        except VisualV2ContractError as error:
+            error_code = str(error) or "VISUAL_V2_COVERAGE_INVALID"
+        else:
+            required_page = coverage["required_page"]
+            if required_page is not None and not coverage["required_page_covered"]:
+                error_code = "VISUAL_V2_REQUIRED_PAGE_NOT_COVERED"
+            elif required_page is None and not coverage["complete"]:
+                _finish_visual_review(
+                    db=db,
+                    run=run,
+                    stage_service=stage_service,
+                    failed_stage="waiting_for_vision",
+                    error_code="VISION_REQUIRED_COVERAGE_INCOMPLETE",
+                    message=(
+                        "Analiza wizualna objęła tylko część materiału. "
+                        "Wskaż konkretną stronę lub węższy zakres."
+                    ),
+                )
+                return collected, False
+            else:
+                error_code = None
+        if error_code is not None:
+            _finish_visual_review(
+                db=db,
+                run=run,
+                stage_service=stage_service,
+                failed_stage="waiting_for_vision",
+                error_code=error_code,
+                message="Analiza wizualna nie pokryła wymaganego zakresu.",
+            )
+            return collected, False
+        visual_sources, visual_tools = visual_service.assistant_evidence(
+            visual,
+            document_id=document.id,
+            question=request.question,
+        )
+        service.supplemental_sources = visual_sources
+        service.supplemental_tool_payloads = visual_tools
+        recollected = service._collect(request, kb_resolution=kb_resolution)
         source_count = _visual_source_count(recollected)
         if recollected.visual_available and source_count > 0:
             manifest = {
                 "document_id": document.id,
-                "mode": "reused",
-                "vision_status": document.vision_status,
+                "mode": "visual_v2",
+                "analysis_job_id": visual.analysis_job_id,
                 "visual_source_count": source_count,
-                "schema_version": document.vision_schema_version,
+                "schema_version": "ASSISTANT_VISUAL_EVIDENCE_V2",
             }
             stage_service.complete(
                 run,
                 "waiting_for_vision",
                 result_kind="visual_evidence",
                 result_manifest=manifest,
+                analysis_job_id=visual.analysis_job_id,
             )
             stage_service.start(run, "analyzing_vision")
             AssistantRunMaterialService(db).bind_collected_sources(
@@ -479,9 +554,12 @@ async def _execute_visual_stages(
                 "analyzing_vision",
                 result_kind="visual_evidence",
                 result_manifest=manifest,
+                analysis_job_id=visual.analysis_job_id,
             )
             return recollected, True
         error_code = "VISION_REQUIRED_NOT_AVAILABLE"
+    else:
+        error_code = visual.reason or "VISION_REQUIRED_NOT_AVAILABLE"
 
     _finish_visual_review(
         db=db,
@@ -548,6 +626,33 @@ def _kb_catalog_response(run_id: str) -> UnifiedAssistantResponse:
         )
     finally:
         db.close()
+
+
+def _advanced_supplement(
+    response: UnifiedAssistantResponse, collected: Any
+) -> dict[str, Any]:
+    """Bound a validated external artifact as evidence for final local synthesis."""
+    source_keys = [
+        (source.source_type, source.source_id, source.route)
+        for source in collected.sources
+    ]
+    return {
+        "tool": "validated_advanced_analysis",
+        "data": {
+            "answer": " ".join(response.answer.split())[:2400],
+            "claims": [
+                {
+                    "class": claim.claim_class,
+                    "text": " ".join(claim.text.split())[:600],
+                    "source_refs": claim.source_refs[:8],
+                    "tool_refs": claim.tool_refs[:8],
+                    "confirm_or_refute": claim.confirm_or_refute,
+                }
+                for claim in response.claims[:24]
+            ],
+        },
+        "source_keys": source_keys,
+    }
 
 
 async def _execute_run(run_id: str) -> None:
@@ -645,6 +750,7 @@ async def _execute_run(run_id: str) -> None:
 
         artifact: DocumentIntelligenceArtifact | None = None
         document: Document | None = None
+        visual_only_ready = False
         if request.document_id is not None:
             document = db.get(Document, request.document_id)
             if document is None or (
@@ -683,16 +789,25 @@ async def _execute_run(run_id: str) -> None:
                         document_id=document.id, checksum=checksum
                     )
                     if artifact is None:
-                        response = _review_response(
-                            run.id,
-                            "Dokument ma treść, ale nie ma zwalidowanej inteligencji dla bieżącej wersji.",
-                            "building_intelligence",
+                        visual_only = VisualV2Service(db).accepted_for_document(
+                            document=document,
+                            question=request.question,
                         )
-                        stage_service.fail(run, "building_intelligence", "INTELLIGENCE_ARTIFACT_MISSING")
-                        run.status = "review_required"
-                        AssistantRunService(db).finish(run=run, response=response)
-                        db.commit()
-                        return
+                        # Structural preparation may be ready before the
+                        # independently durable Visual V2 job. The visual stage
+                        # below owns waiting, validation, and fail-closed output.
+                        visual_only_ready = visual_only.state != "not_required"
+                        if not visual_only_ready:
+                            response = _review_response(
+                                run.id,
+                                "Dokument nie ma jeszcze zwalidowanego materiału dla bieżącej wersji.",
+                                "building_intelligence",
+                            )
+                            stage_service.fail(run, "building_intelligence", "CURRENT_DOCUMENT_ARTIFACT_MISSING")
+                            run.status = "review_required"
+                            AssistantRunService(db).finish(run=run, response=response)
+                            db.commit()
+                            return
                 else:
                     AssistantRunMaterialService(db).attach_document(
                         run_id=run.id, document=document, required=True,
@@ -719,29 +834,38 @@ async def _execute_run(run_id: str) -> None:
                 run_id=run.id, document=document, required=True,
                 preparation_job_id=artifact.preparation_job_id if artifact else None,
                 artifact=artifact,
+                visual_ready=visual_only_ready,
             )
             stage_service.complete(
                 run, "waiting_for_material",
-                result_manifest={"readiness": "intelligence_ready"},
+                result_manifest={
+                    "readiness": (
+                        "visual_ready" if visual_only_ready else "intelligence_ready"
+                    )
+                },
                 intelligence_artifact_id=artifact.id if artifact else None,
             )
-            stage_service.complete(
-                run, "building_intelligence",
-                result_kind="intelligence_artifact",
-                result_manifest={
-                    "artifact_id": artifact.id,
-                    "payload_sha256": artifact.payload_sha256,
-                    "analyzer_generation": ANALYZER_GENERATION,
-                },
-                intelligence_artifact_id=artifact.id,
-            )
-            AssistantRunMaterialService.artifact_payload(artifact)
-            stage_service.complete(
-                run, "validating_intelligence",
-                result_kind="intelligence_artifact",
-                result_manifest={"artifact_id": artifact.id, "validation": "passed"},
-                intelligence_artifact_id=artifact.id,
-            )
+            if artifact is not None:
+                stage_service.complete(
+                    run, "building_intelligence",
+                    result_kind="intelligence_artifact",
+                    result_manifest={
+                        "artifact_id": artifact.id,
+                        "payload_sha256": artifact.payload_sha256,
+                        "analyzer_generation": ANALYZER_GENERATION,
+                    },
+                    intelligence_artifact_id=artifact.id,
+                )
+                AssistantRunMaterialService.artifact_payload(artifact)
+                stage_service.complete(
+                    run, "validating_intelligence",
+                    result_kind="intelligence_artifact",
+                    result_manifest={"artifact_id": artifact.id, "validation": "passed"},
+                    intelligence_artifact_id=artifact.id,
+                )
+            else:
+                stage_service.skip(run, "building_intelligence", "VISUAL_ONLY_DOCUMENT")
+                stage_service.skip(run, "validating_intelligence", "VISUAL_ONLY_DOCUMENT")
         else:
             for name in ("waiting_for_material", "building_intelligence", "validating_intelligence"):
                 stage_service.skip(run, name, "MATERIAL_NOT_REQUIRED")
@@ -781,7 +905,75 @@ async def _execute_run(run_id: str) -> None:
         if not visual_ready:
             return
 
-        analysis_stage = stage_service.start(run, "analyzing_local")
+        advanced_supplement: dict[str, Any] | None = None
+        analysis_stage_type = "analyzing_local"
+        if resuming_advanced:
+            # Poll and validate the existing external attempt without placing
+            # its prose directly in chat history. Legal external waiting has
+            # no global wall-clock expiry in the durable Assistant pipeline.
+            poller = UnifiedAssistantService(
+                db,
+                supervisor=service.supervisor,
+                document_intelligence_payload=(
+                    AssistantRunMaterialService.artifact_payload(artifact)
+                    if artifact is not None else None
+                ),
+                supplemental_sources=service.supplemental_sources,
+                supplemental_tool_payloads=service.supplemental_tool_payloads,
+                expire_durable_advanced_wait=False,
+            )
+            external_response = await poller.ask(
+                request=request, user_id=run.created_by_user_id
+            )
+            if external_response.status in {"advanced_queued", "advanced_processing"}:
+                stage_service.wait(
+                    run,
+                    "waiting_for_advanced",
+                    analysis_job_id=external_response.request_id,
+                    manifest={
+                        "analysis_job_id": external_response.request_id,
+                        "state": external_response.status,
+                        "privacy_gate": "passed",
+                    },
+                )
+                db.commit()
+                return
+            if external_response.status != "accepted_advanced":
+                _finish_visual_review(
+                    db=db,
+                    run=run,
+                    stage_service=stage_service,
+                    failed_stage="waiting_for_advanced",
+                    error_code="ADVANCED_VALIDATED_RESULT_UNAVAILABLE",
+                    message="Analiza rozszerzona nie dostarczyła zweryfikowanego wyniku.",
+                )
+                return
+            stage_service.complete(
+                run,
+                "waiting_for_advanced",
+                result_kind="advanced_job",
+                result_manifest={"disposition": "accepted_advanced"},
+                analysis_job_id=external_response.request_id,
+            )
+            stage_service.start(run, "analyzing_advanced")
+            stage_service.complete(
+                run,
+                "analyzing_advanced",
+                result_kind="advanced_job",
+                result_manifest={"disposition": "accepted_advanced"},
+                analysis_job_id=external_response.request_id,
+            )
+            stage_service.start(run, "validating_advanced")
+            stage_service.complete(
+                run,
+                "validating_advanced",
+                result_manifest={"disposition": "accepted_advanced"},
+                analysis_job_id=external_response.request_id,
+            )
+            advanced_supplement = _advanced_supplement(external_response, collected)
+            analysis_stage_type = "synthesizing"
+
+        analysis_stage = stage_service.start(run, analysis_stage_type)
         db.commit()
         payload = AssistantRunMaterialService.artifact_payload(artifact)
         streaming = StageStreamingOllamaClient(run.id, analysis_stage.id)
@@ -799,6 +991,14 @@ async def _execute_run(run_id: str) -> None:
             advanced_external_hard_seconds=1800,
             release_db_before_model=True,
             document_intelligence_payload=payload,
+            supplemental_sources=service.supplemental_sources,
+            supplemental_tool_payloads=[
+                *service.supplemental_tool_payloads,
+                *([advanced_supplement] if advanced_supplement else []),
+            ],
+            allow_advanced_escalation=not resuming_advanced,
+            allow_existing_advanced_result=not resuming_advanced,
+            expire_durable_advanced_wait=False,
         )
         response = await reasoner.ask(request=request, user_id=run.created_by_user_id)
         db.expire_all()
@@ -808,7 +1008,7 @@ async def _execute_run(run_id: str) -> None:
             return
         stage_service = AssistantRunStageService(db)
         stage_service.complete(
-            run, "analyzing_local",
+            run, analysis_stage_type,
             result_kind="analysis_job" if response.status in {"advanced_queued", "advanced_processing"} else None,
             result_manifest={
                 "disposition": response.status,
@@ -834,7 +1034,8 @@ async def _execute_run(run_id: str) -> None:
             ),
         )
         for name in ("reducing_findings", "synthesizing"):
-            stage_service.skip(run, name, "QUALIFIED_F0_ADAPTER_COMPLETED_SYNTHESIS")
+            if name != analysis_stage_type:
+                stage_service.skip(run, name, "QUALIFIED_F0_ADAPTER_COMPLETED_SYNTHESIS")
         stage_service.start(run, "validating_local")
         stage_service.complete(
             run, "validating_local",
@@ -848,28 +1049,16 @@ async def _execute_run(run_id: str) -> None:
             )
             db.commit()
             return
-        if resuming_advanced:
-            stage_service.complete(
-                run, "waiting_for_advanced",
-                result_kind="advanced_job",
-                result_manifest={"disposition": response.status},
-            )
-            stage_service.start(run, "analyzing_advanced")
-            stage_service.complete(
-                run, "analyzing_advanced",
-                result_kind="advanced_job",
-                result_manifest={"disposition": response.status},
-            )
-            stage_service.start(run, "validating_advanced")
-            stage_service.complete(
-                run, "validating_advanced",
-                result_manifest={"disposition": response.status},
-            )
-        else:
+        if not resuming_advanced:
             for name in ("waiting_for_advanced", "analyzing_advanced", "validating_advanced"):
                 stage_service.skip(run, name, "ADVANCED_NOT_REQUIRED")
         stage_service.start(run, "finalizing")
-        response = response.model_copy(update={"request_id": run.id})
+        response = response.model_copy(update={
+            "request_id": run.id,
+            "external_analysis_used": (
+                True if resuming_advanced else response.external_analysis_used
+            ),
+        })
         result_hash = AssistantRunService._hash_json(response.model_dump(mode="json"))
         stage_service.complete(
             run, "finalizing", result_kind="final_response",

@@ -37,6 +37,7 @@ class AssistantRunMaterialService:
         required: bool,
         preparation_job_id: str | None,
         artifact: DocumentIntelligenceArtifact | None,
+        visual_ready: bool = False,
     ) -> AssistantRunMaterial:
         existing = self.db.query(AssistantRunMaterial).filter(
             AssistantRunMaterial.assistant_run_id == run_id,
@@ -46,10 +47,11 @@ class AssistantRunMaterialService:
         ).one_or_none()
         readiness = (
             "intelligence_ready" if artifact is not None
+            else "visual_ready" if visual_ready
             else "content_ready" if document.processing_status == "processed"
             else "file_validated"
         )
-        status = "ready" if artifact is not None else "waiting"
+        status = "ready" if artifact is not None or visual_ready else "waiting"
         manifest = validate_bounded_json({
             "document_id": document.id,
             "checksum": document.checksum_sha256,
@@ -57,6 +59,7 @@ class AssistantRunMaterialService:
             "processing_status": document.processing_status,
             "analyzer_generation": artifact.analyzer_generation if artifact else None,
             "artifact_payload_sha256": artifact.payload_sha256 if artifact else None,
+            "visual_ready": visual_ready,
         }, field_name="source_manifest")
         if existing is None:
             existing = AssistantRunMaterial(
