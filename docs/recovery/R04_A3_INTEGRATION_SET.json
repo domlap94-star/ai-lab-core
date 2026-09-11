@@ -1,0 +1,222 @@
+{
+  "schema": "NEXT_STABIL_R04_A3_INTEGRATION_SET_V1",
+  "integration_set_id": "R04-A3-20260911T091750Z-41d2b844",
+  "source_commit": "41d2b844a7b120a79001ad5cfbe6304b30580dfc",
+  "source_parent": "a0a51d67dc606db63f3d6a5f3f1750f27f6c3986",
+  "origin_main": "483f9bf8b1a591ded8a42df5da87663c664ed5d4",
+  "pinned_rescue": "5cd8f86e63e1ab829692ca2601096fd0c0d9d53a",
+  "source_archive": {
+    "role": "CANDIDATE_SOURCE",
+    "status": "STAGED_LOCAL_ONLY",
+    "bytes": 5987064,
+    "sha256": "018F73B669246B03EC0442E01B4E3655D11B15B76B411C6ED6D314751A31D613"
+  },
+  "web_test_only": {
+    "role": "CANDIDATE",
+    "status": "STAGED_TEST_ONLY_NOT_DEPLOYED",
+    "version": "1.0.2+29",
+    "api_base_url": "http://127.0.0.1:18004",
+    "server_started": false,
+    "ui_started": false,
+    "file_count": 40,
+    "uncompressed_bytes": 62867536,
+    "archive_bytes": 20032229,
+    "archive_sha256": "BC1160A8BEDFB1AB6CEE760F9034C5528CC9485CB1867B1E1901E29E9F80F0A9",
+    "file_manifest_sha256": "50F580F554E34F6FF3A6E1C6BE469B18F8E5911D2F33407CB9957C182149D823",
+    "main_dart_js_sha256": "BCC480848980F9AB6C9D6F0902C6EFA256EF349172CA10CD275A236477483EDD",
+    "flutter": "3.44.8",
+    "dart": "3.12.2",
+    "pubspec_lock_sha256": "A6DE957204E958A64D80FDB0CD8575DB48D1532CBA28CD2D7C8B41BC2F5347D6"
+  },
+  "compatibility": {
+    "selected": {
+      "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+      "release_id": "r04-a3-20260911t091750z",
+      "components": {
+        "backend": {
+          "version": "1.0.0",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "api": {
+          "version": "1",
+          "identity_kind": "contract_version",
+          "identity": "1"
+        },
+        "database": {
+          "version": "followup_assistant_chat_history_20260829",
+          "identity_kind": "schema_revision",
+          "identity": "followup_assistant_chat_history_20260829"
+        },
+        "web": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "BC1160A8BEDFB1AB6CEE760F9034C5528CC9485CB1867B1E1901E29E9F80F0A9"
+        },
+        "windows": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "46E8A4CD6D0A9A2B99A6C942990546AE8DC58A5DB8381EE056504EF8322E043D"
+        },
+        "android": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E"
+        },
+        "supervisor": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "gateway": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "analysis_worker": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "vision_worker": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        }
+      }
+    },
+    "staging_observed": {
+      "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+      "release_id": "r04-a3-20260911t091750z",
+      "components": {
+        "backend": {
+          "version": "1.0.0",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "api": {
+          "version": "1",
+          "identity_kind": "contract_version",
+          "identity": "1"
+        },
+        "database": {
+          "version": "followup_assistant_chat_history_20260829",
+          "identity_kind": "schema_revision",
+          "identity": "followup_assistant_chat_history_20260829"
+        },
+        "web": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "BC1160A8BEDFB1AB6CEE760F9034C5528CC9485CB1867B1E1901E29E9F80F0A9"
+        },
+        "supervisor": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "gateway": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "analysis_worker": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        },
+        "vision_worker": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "41d2b844a7b120a79001ad5cfbe6304b30580dfc"
+        }
+      }
+    },
+    "result": {
+      "status": "UNVERIFIED",
+      "mismatches": [],
+      "unverified": [
+        "android",
+        "windows"
+      ]
+    }
+  },
+  "component_evidence": {
+    "backend": {
+      "role": "CANDIDATE",
+      "evidence": "SOURCE_ARCHIVE_AND_TESTS",
+      "status": "SOURCE_TESTED_NOT_DEPLOYED",
+      "requirements_sha256": "803A9321F95DF53F8D98B42EA759E3308F04030664B7EAD978E29DDC1E9EADDC",
+      "dockerfile_sha256": "BC743F144DF11DAD139A75A88E6CFD589BBB90FE6198BC84FAF6CCEBCC8546C6",
+      "image": "NOT_BUILT"
+    },
+    "api": {
+      "role": "CANDIDATE",
+      "evidence": "SOURCE_CONTRACT_TESTS",
+      "status": "SOURCE_TESTED_NOT_OBSERVED_RUNTIME"
+    },
+    "database": {
+      "role": "CANDIDATE_SCHEMA",
+      "evidence": "EXISTING_MIGRATIONS_ON_SYNTHETIC_DATABASE",
+      "status": "SYNTHETIC_HEAD_VERIFIED_NOT_PRODUCTION_OBSERVED"
+    },
+    "web": {
+      "role": "CANDIDATE",
+      "evidence": "LOCAL_TEST_ONLY_BUILD_HASH",
+      "status": "STAGED_NOT_DEPLOYED"
+    },
+    "windows": {
+      "role": "EXISTING_LEGACY",
+      "evidence": "STABLE_MANIFEST_REFERENCE_ONLY",
+      "status": "NOT_BUILT_NOT_OBSERVED"
+    },
+    "android": {
+      "role": "DEFERRED",
+      "evidence": "STABLE_MANIFEST_REFERENCE_ONLY",
+      "status": "DEFERRED_BY_OWNER_NOT_TESTED"
+    },
+    "supervisor": {
+      "role": "CANDIDATE_SOURCE",
+      "evidence": "SOURCE_ARCHIVE",
+      "status": "SOURCE_STAGED_RUNTIME_UNVERIFIED",
+      "representative_sha256": "3C223A6A8F37F9D3F61C6EC1D95B306BEFBA59231A8028A17E9258B02DC3DEC7"
+    },
+    "gateway": {
+      "role": "CANDIDATE_SOURCE",
+      "evidence": "SOURCE_ARCHIVE",
+      "status": "SOURCE_STAGED_RUNTIME_UNVERIFIED",
+      "representative_sha256": "A1EB05B717D9B005ED96D1020B2F93451226981B56AAA31C53B66742045C3B7F"
+    },
+    "analysis_worker": {
+      "role": "CANDIDATE_SOURCE",
+      "evidence": "SOURCE_ARCHIVE",
+      "status": "SOURCE_STAGED_RUNTIME_UNVERIFIED",
+      "representative_sha256": "0E4CEFF6EB0F85930188CD9CEAE78BA78A816FB8E941071A797978982812F54C"
+    },
+    "vision_worker": {
+      "role": "CANDIDATE_SOURCE",
+      "evidence": "SOURCE_ARCHIVE",
+      "status": "SOURCE_STAGED_RUNTIME_UNVERIFIED",
+      "representative_sha256": "553D7787A92FA1A3725BA15E646FB787D8728DED18038CDAE787FB218FA8BF23"
+    }
+  },
+  "safety": {
+    "normal_application_start_authorized": false,
+    "external_execution_authorized": false,
+    "external_export_authorized": false,
+    "privacy_r05": "OPEN_NOT_VERIFIED",
+    "operational_use": "BLOCKED_PENDING_REQUIRED_ACCEPTANCE_AND_OWNER_APPROVAL",
+    "visual_dispatcher_start_present_in_candidate_lifespan": true,
+    "production_changes": 0,
+    "deployment": "NOT_DEPLOYED"
+  },
+  "known_open_items": [
+    "R03_WAITING_APPROVAL_AND_ESCROW_DECISION",
+    "R04_REMAINING_BUILD_RUNTIME_AND_RELEASE_SCOPE",
+    "R05_PIXEL_PRIVACY_GATE",
+    "R06_FULL_ACCEPTANCE",
+    "C-004_CASE_KB_PLUS_SUPPLEMENTAL_VISUAL_CONTEXT",
+    "W-02_VISUAL_EVIDENCE_GAP",
+    "D-15_AND_D-16_AI_ACCEPTANCE_NOT_RUN",
+    "ANDROID_DEFERRED_BY_OWNER_NOT_TESTED"
+  ]
+}
