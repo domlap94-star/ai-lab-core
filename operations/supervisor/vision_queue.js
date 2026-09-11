@@ -12,6 +12,7 @@ const MAX_SOURCES = 4;
 const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
 const RETRY_DELAYS = [0, 5 * 60 * 1000, 30 * 60 * 1000];
 const UPLOAD_HANDOFF_FILE = 'upload_handoff.json';
+const UPLOAD_HANDOFF_SCHEMA = 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V2';
 
 function safeWriteJson(filePath, value) {
   const temporary = `${filePath}.${process.pid}.tmp`;
@@ -99,7 +100,33 @@ class VisionQueue {
     if (!fs.existsSync(markerPath)) return null;
     try {
       const marker = readJson(markerPath);
-      return String(marker.state || 'contact_may_have_started');
+      if (marker.state !== 'upload_confirmed') return 'contact_may_have_started';
+      if (
+        marker.schema_version !== UPLOAD_HANDOFF_SCHEMA
+        || marker.job_id !== jobId
+        || !/^[a-f0-9-]{36}$/i.test(String(marker.attempt_id || ''))
+        || !Array.isArray(marker.sources)
+      ) return 'contact_may_have_started';
+      const manifest = readJson(path.join(this.jobsRoot, jobId, 'manifest.json'));
+      if (!Array.isArray(manifest.sources) || manifest.sources.length !== marker.sources.length) {
+        return 'contact_may_have_started';
+      }
+      for (let index = 0; index < manifest.sources.length; index += 1) {
+        const expected = manifest.sources[index];
+        const actual = marker.sources[index];
+        if (
+          !actual
+          || actual.source_ref !== expected.source_ref
+          || actual.sha256 !== expected.sha256
+          || !Number.isInteger(actual.size)
+          || actual.size < 0
+        ) return 'contact_may_have_started';
+      }
+      const binding = crypto.createHash('sha256').update(Buffer.from(`${JSON.stringify({
+        job_id: jobId,
+        sources: marker.sources,
+      })}\n`, 'utf8')).digest('hex');
+      return marker.binding_sha256 === binding ? 'upload_confirmed' : 'contact_may_have_started';
     } catch (_) {
       return 'contact_may_have_started';
     }
@@ -223,6 +250,15 @@ class VisionQueue {
   _start(jobId) {
     const current = this.get(jobId);
     if (!current || current.state !== 'QUEUED') {
+      this.arbiter.release('vision', jobId);
+      return this.pump();
+    }
+    if (this._uploadHandoffExists(jobId)) {
+      this._set(jobId, {
+        state: 'UPLOAD_UNCERTAIN',
+        error_code: 'UPLOAD_MAY_HAVE_STARTED',
+        next_retry_at: null,
+      });
       this.arbiter.release('vision', jobId);
       return this.pump();
     }

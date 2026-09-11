@@ -21,7 +21,7 @@ const FORMAT_RETRY_ERRORS = new Set([
 let cancelPath = null;
 
 const UPLOAD_HANDOFF_FILE = 'upload_handoff.json';
-const UPLOAD_HANDOFF_SCHEMA = 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V1';
+const UPLOAD_HANDOFF_SCHEMA = 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V2';
 const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
 const MIME_TYPES = new Map([
   ['.bmp', 'image/bmp'],
@@ -140,18 +140,46 @@ function loadVerifiedInputs(jobDir, manifest) {
   });
 }
 
-function uploadHandoff(jobDir, manifest, verifiedInputs, state) {
-  safeWriteJson(path.join(jobDir, UPLOAD_HANDOFF_FILE), {
+function uploadBinding(manifest, verifiedInputs) {
+  return sha256Bytes(Buffer.from(`${JSON.stringify({
+    job_id: manifest.job_id,
+    sources: uploadSources(verifiedInputs),
+  })}\n`, 'utf8'));
+}
+
+function uploadSources(verifiedInputs) {
+  return verifiedInputs.map((input) => ({
+    source_ref: input.source_ref,
+    sha256: input.sha256,
+    size: input.buffer.length,
+  }));
+}
+
+function claimUploadHandoff(jobDir, manifest, verifiedInputs) {
+  const markerPath = path.join(jobDir, UPLOAD_HANDOFF_FILE);
+  const marker = {
     schema_version: UPLOAD_HANDOFF_SCHEMA,
     job_id: manifest.job_id,
-    state,
+    attempt_id: crypto.randomUUID(),
+    binding_sha256: uploadBinding(manifest, verifiedInputs),
+    state: 'contact_may_have_started',
     recorded_at: new Date().toISOString(),
-    sources: verifiedInputs.map((input) => ({
-      source_ref: input.source_ref,
-      sha256: input.sha256,
-      size: input.buffer.length,
-    })),
-  });
+    sources: uploadSources(verifiedInputs),
+  };
+  let descriptor;
+  try {
+    descriptor = fs.openSync(markerPath, 'wx', 0o600);
+  } catch (error) {
+    if (error && error.code === 'EEXIST') throw new Error('UPLOAD_HANDOFF_ALREADY_EXISTS');
+    throw error;
+  }
+  try {
+    fs.writeFileSync(descriptor, `${JSON.stringify(marker, null, 2)}\n`, 'utf8');
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  return marker;
 }
 
 async function uploadVerifiedInputs(
@@ -163,7 +191,10 @@ async function uploadVerifiedInputs(
 ) {
   if (!temporaryChatVerified) throw new Error('TEMPORARY_CHAT_NOT_VERIFIED');
   throwIfCancelled();
-  uploadHandoff(jobDir, manifest, verifiedInputs, 'contact_may_have_started');
+  const handoff = claimUploadHandoff(jobDir, manifest, verifiedInputs);
+  // A cancellation racing with the durable claim leaves conservative evidence
+  // of possible contact but must still stop before the first file handoff.
+  throwIfCancelled();
   await fileInput.setInputFiles(
     verifiedInputs.map((input) => ({
       name: input.name,
@@ -172,10 +203,37 @@ async function uploadVerifiedInputs(
     })),
     { timeout: 60000 },
   );
+  return handoff;
 }
 
-function markUploadConfirmed(jobDir, manifest, verifiedInputs) {
-  uploadHandoff(jobDir, manifest, verifiedInputs, 'upload_confirmed');
+function markUploadConfirmed(jobDir, manifest, verifiedInputs, handoff) {
+  if (!handoff || typeof handoff !== 'object') throw new Error('UPLOAD_HANDOFF_OWNERSHIP');
+  const markerPath = path.join(jobDir, UPLOAD_HANDOFF_FILE);
+  let current;
+  try {
+    current = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+  } catch (_) {
+    throw new Error('UPLOAD_HANDOFF_INVALID');
+  }
+  const binding = uploadBinding(manifest, verifiedInputs);
+  const sources = uploadSources(verifiedInputs);
+  if (
+    current.schema_version !== UPLOAD_HANDOFF_SCHEMA
+    || current.job_id !== manifest.job_id
+    || current.state !== 'contact_may_have_started'
+    || current.attempt_id !== handoff.attempt_id
+    || current.binding_sha256 !== binding
+    || handoff.binding_sha256 !== binding
+    || JSON.stringify(current.sources) !== JSON.stringify(sources)
+    || JSON.stringify(handoff.sources) !== JSON.stringify(sources)
+  ) throw new Error('UPLOAD_HANDOFF_OWNERSHIP');
+  const confirmed = {
+    ...current,
+    state: 'upload_confirmed',
+    confirmed_at: new Date().toISOString(),
+  };
+  safeWriteJson(markerPath, confirmed);
+  return confirmed;
 }
 
 async function waitForMessageCount(page, selector, beforeCount, timeout, errorCode) {
@@ -408,7 +466,7 @@ async function run(jobDir, dependencies = {}) {
     }
     if (await fileInput.count() === 0) throw new Error('UI_CHANGED');
     if (!await temporaryChatIsActive(page, toggle)) throw new Error('UI_CHANGED');
-    await uploadVerifiedInputs(jobDir, manifest, fileInput, inputs, {
+    const uploadHandoff = await uploadVerifiedInputs(jobDir, manifest, fileInput, inputs, {
       temporaryChatVerified: true,
     });
     for (const input of inputs) {
@@ -426,7 +484,7 @@ async function run(jobDir, dependencies = {}) {
       }
     }
     throwIfCancelled();
-    markUploadConfirmed(jobDir, manifest, inputs);
+    markUploadConfirmed(jobDir, manifest, inputs, uploadHandoff);
     event('UPLOAD_COMPLETE', `sources=${inputs.length}`);
     timings.upload_ms = Date.now() - startedAt - timings.browser_startup_ms - timings.temporary_chat_setup_ms;
 

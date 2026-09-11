@@ -126,7 +126,7 @@ async function processBackendCase(caseRoot) {
   const manifest = JSON.parse(fs.readFileSync(path.join(jobDir, 'manifest.json'), 'utf8'));
   const verified = loadVerifiedInputs(jobDir, manifest);
   const received = [];
-  await uploadVerifiedInputs(jobDir, manifest, fakeFileInput(received), verified, {
+  const handoff = await uploadVerifiedInputs(jobDir, manifest, fakeFileInput(received), verified, {
     temporaryChatVerified: true,
   });
   assert.strictEqual(received.length, request.sources.length);
@@ -137,7 +137,7 @@ async function processBackendCase(caseRoot) {
   if (approval.forbidden_original_sha256) {
     assert.ok(received.every((value) => sha256(value.buffer) !== approval.forbidden_original_sha256));
   }
-  markUploadConfirmed(jobDir, manifest, verified);
+  markUploadConfirmed(jobDir, manifest, verified, handoff);
   const marker = JSON.parse(fs.readFileSync(path.join(jobDir, UPLOAD_HANDOFF_FILE), 'utf8'));
   assert.strictEqual(marker.schema_version, UPLOAD_HANDOFF_SCHEMA);
   assert.strictEqual(marker.state, 'upload_confirmed');
@@ -161,7 +161,7 @@ async function main() {
     const verified = loadVerifiedInputs(job.jobDir, job.manifest);
     fs.writeFileSync(job.input, 'synthetic-replacement-bytes');
     const received = [];
-    await uploadVerifiedInputs(job.jobDir, job.manifest, fakeFileInput(received), verified, {
+    const firstHandoff = await uploadVerifiedInputs(job.jobDir, job.manifest, fakeFileInput(received), verified, {
       temporaryChatVerified: true,
     });
     assert.strictEqual(received.length, 1);
@@ -169,6 +169,35 @@ async function main() {
     assert.notStrictEqual(sha256(received[0].buffer), sha256(fs.readFileSync(job.input)));
     assert.strictEqual(received[0].name, 'S1.png');
     assert.strictEqual(received[0].mimeType, 'image/png');
+    assert.throws(
+      () => markUploadConfirmed(job.jobDir, { ...job.manifest, job_id: '93939393-9393-9393-9393-939393939393' }, verified, firstHandoff),
+      /UPLOAD_HANDOFF_OWNERSHIP/,
+    );
+    assert.throws(
+      () => markUploadConfirmed(job.jobDir, job.manifest, [{
+        ...verified[0],
+        sha256: '0'.repeat(64),
+      }], firstHandoff),
+      /UPLOAD_HANDOFF_OWNERSHIP/,
+    );
+    assert.throws(
+      () => markUploadConfirmed(job.jobDir, job.manifest, verified, {
+        ...firstHandoff,
+        attempt_id: crypto.randomUUID(),
+      }),
+      /UPLOAD_HANDOFF_OWNERSHIP/,
+    );
+    const confirmed = markUploadConfirmed(job.jobDir, job.manifest, verified, firstHandoff);
+    assert.strictEqual(confirmed.state, 'upload_confirmed');
+    const confirmedMarkerBytes = fs.readFileSync(path.join(job.jobDir, UPLOAD_HANDOFF_FILE));
+    await assert.rejects(
+      uploadVerifiedInputs(job.jobDir, job.manifest, fakeFileInput(received), verified, {
+        temporaryChatVerified: true,
+      }),
+      /UPLOAD_HANDOFF_ALREADY_EXISTS/,
+    );
+    assert.strictEqual(received.length, 1);
+    assert.deepStrictEqual(fs.readFileSync(path.join(job.jobDir, UPLOAD_HANDOFF_FILE)), confirmedMarkerBytes);
 
     const tampered = createJob(root, '22222222-2222-2222-2222-222222222222', Buffer.from('trusted'));
     fs.writeFileSync(tampered.input, 'changed');
@@ -197,6 +226,103 @@ async function main() {
     const neighbourInputs = loadVerifiedInputs(neighbour.jobDir, neighbour.manifest);
     assert.notStrictEqual(neighbourInputs[0].sha256, verified[0].sha256);
     assert.strictEqual(neighbourInputs[0].source_ref, verified[0].source_ref);
+    const neighbourReceived = [];
+    const neighbourHandoff = await uploadVerifiedInputs(
+      neighbour.jobDir,
+      neighbour.manifest,
+      fakeFileInput(neighbourReceived),
+      neighbourInputs,
+      { temporaryChatVerified: true },
+    );
+    assert.strictEqual(neighbourReceived.length, 1);
+    assert.strictEqual(markUploadConfirmed(
+      neighbour.jobDir,
+      neighbour.manifest,
+      neighbourInputs,
+      neighbourHandoff,
+    ).state, 'upload_confirmed');
+
+    for (const markerCase of [
+      { id: '56565656-5656-5656-5656-565656565656', value: '{' },
+      {
+        id: '57575757-5757-5757-5757-575757575757',
+        value: `${JSON.stringify({
+          schema_version: 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V1',
+          job_id: '57575757-5757-5757-5757-575757575757',
+          state: 'contact_may_have_started',
+        })}\n`,
+      },
+    ]) {
+      const marked = createJob(root, markerCase.id, Buffer.from(`marked-${markerCase.id}`));
+      const markedInputs = loadVerifiedInputs(marked.jobDir, marked.manifest);
+      const markerPath = path.join(marked.jobDir, UPLOAD_HANDOFF_FILE);
+      fs.writeFileSync(markerPath, markerCase.value, 'utf8');
+      const originalMarker = fs.readFileSync(markerPath);
+      const markedReceived = [];
+      await assert.rejects(
+        uploadVerifiedInputs(marked.jobDir, marked.manifest, fakeFileInput(markedReceived), markedInputs, {
+          temporaryChatVerified: true,
+        }),
+        /UPLOAD_HANDOFF_ALREADY_EXISTS/,
+      );
+      assert.strictEqual(markedReceived.length, 0);
+      assert.deepStrictEqual(fs.readFileSync(markerPath), originalMarker);
+    }
+
+    const interrupted = createJob(root, '58585858-5858-5858-5858-585858585858', Buffer.from('interrupted'));
+    const interruptedInputs = loadVerifiedInputs(interrupted.jobDir, interrupted.manifest);
+    let interruptedCalls = 0;
+    await assert.rejects(
+      uploadVerifiedInputs(interrupted.jobDir, interrupted.manifest, {
+        async setInputFiles() {
+          interruptedCalls += 1;
+          throw new Error('SYNTHETIC_CONTACT_INTERRUPTED');
+        },
+      }, interruptedInputs, { temporaryChatVerified: true }),
+      /SYNTHETIC_CONTACT_INTERRUPTED/,
+    );
+    await assert.rejects(
+      uploadVerifiedInputs(interrupted.jobDir, interrupted.manifest, fakeFileInput([]), interruptedInputs, {
+        temporaryChatVerified: true,
+      }),
+      /UPLOAD_HANDOFF_ALREADY_EXISTS/,
+    );
+    assert.strictEqual(interruptedCalls, 1);
+    assert.strictEqual(
+      JSON.parse(fs.readFileSync(path.join(interrupted.jobDir, UPLOAD_HANDOFF_FILE), 'utf8')).state,
+      'contact_may_have_started',
+    );
+
+    const cancelAfterClaim = createJob(root, '59595959-5959-5959-5959-595959595959', Buffer.from('cancel-after-claim'));
+    const cancelAfterClaimInputs = loadVerifiedInputs(cancelAfterClaim.jobDir, cancelAfterClaim.manifest);
+    const cancelAfterClaimPath = path.join(cancelAfterClaim.jobDir, 'cancel.requested');
+    const cancelAfterClaimReceived = [];
+    const originalFsyncSync = fs.fsyncSync;
+    fs.fsyncSync = function cancelAtDurableClaim(descriptor) {
+      originalFsyncSync(descriptor);
+      fs.writeFileSync(cancelAfterClaimPath, '', 'utf8');
+    };
+    setCancelPath(cancelAfterClaimPath);
+    try {
+      await assert.rejects(
+        uploadVerifiedInputs(
+          cancelAfterClaim.jobDir,
+          cancelAfterClaim.manifest,
+          fakeFileInput(cancelAfterClaimReceived),
+          cancelAfterClaimInputs,
+          { temporaryChatVerified: true },
+        ),
+        /CANCELLED/,
+      );
+    } finally {
+      fs.fsyncSync = originalFsyncSync;
+      setCancelPath(null);
+    }
+    assert.strictEqual(cancelAfterClaimReceived.length, 0);
+    assert.strictEqual(
+      JSON.parse(fs.readFileSync(path.join(cancelAfterClaim.jobDir, UPLOAD_HANDOFF_FILE), 'utf8')).state,
+      'contact_may_have_started',
+    );
 
     const cancelled = createJob(root, '66666666-6666-6666-6666-666666666666', Buffer.from('cancelled'));
     const cancelledInputs = loadVerifiedInputs(cancelled.jobDir, cancelled.manifest);
@@ -250,7 +376,7 @@ async function main() {
 
     process.stdout.write(`${JSON.stringify({
       status: 'R05_A2_UPLOAD_BOUNDARY_TESTS_OK',
-      local_cases: 8,
+      local_cases: 17,
       backend_chain_cases: chainResults,
       browser_launches: 0,
       network_calls: 0,

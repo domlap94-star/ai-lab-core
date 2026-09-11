@@ -27,10 +27,22 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'jobs', created.job_
 assert.strictEqual(manifest.job_id, created.job_id);
 assert.strictEqual(manifest.sources[0].sha256, sha256);
 assert.deepStrictEqual(fs.readFileSync(path.join(root, 'jobs', created.job_id, 'input', 'S1.png')), Buffer.from('synthetic'));
-fs.writeFileSync(path.join(root, 'jobs', created.job_id, 'upload_handoff.json'), `${JSON.stringify({
-  schema_version: 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V1',
+const completedSources = manifest.sources.map((source) => ({
+  source_ref: source.source_ref,
+  sha256: source.sha256,
+  size: fs.statSync(path.join(root, 'jobs', created.job_id, source.relative_input_path)).size,
+}));
+const completedBinding = crypto.createHash('sha256').update(Buffer.from(`${JSON.stringify({
   job_id: created.job_id,
+  sources: completedSources,
+})}\n`, 'utf8')).digest('hex');
+fs.writeFileSync(path.join(root, 'jobs', created.job_id, 'upload_handoff.json'), `${JSON.stringify({
+  schema_version: 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V2',
+  job_id: created.job_id,
+  attempt_id: '10101010-1010-1010-1010-101010101010',
+  binding_sha256: completedBinding,
   state: 'upload_confirmed',
+  sources: completedSources,
 })}\n`, 'utf8');
 children[0].visionOutput = 'TEMPORARY_CHAT_VERIFIED\nUPLOAD_COMPLETE\n';
 children[0].emit('close', 0);
@@ -126,13 +138,13 @@ setImmediate(() => {
   });
   assert.strictEqual(recoveredUncertain.get(uncertain.job_id).state, 'UPLOAD_UNCERTAIN');
   assert.strictEqual(recoveredUncertain.health().queued, 0);
+  const uncertainChildCount = uncertainChildren.length;
   uncertainQueue._set(uncertain.job_id, { state: 'QUEUED', attempt_count: 1 });
   uncertainQueue.queue.push(uncertain.job_id);
   uncertainQueue.pump();
-  assert.strictEqual(uncertainQueue.get(uncertain.job_id).state, 'RUNNING');
-  uncertainChildren[1].visionOutput = 'WORKER_STATUS=UI_CHANGED\n';
-  uncertainChildren[1].emit('close', 21);
   assert.strictEqual(uncertainQueue.get(uncertain.job_id).state, 'UPLOAD_UNCERTAIN');
+  assert.strictEqual(uncertainQueue.get(uncertain.job_id).error_code, 'UPLOAD_MAY_HAVE_STARTED');
+  assert.strictEqual(uncertainChildren.length, uncertainChildCount);
   assert.strictEqual(uncertainQueue.health().queued, 0);
 
   const missingMarkerRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vision-queue-no-marker-'));
@@ -162,6 +174,40 @@ setImmediate(() => {
   missingMarkerChildren[0].emit('close', 0);
   assert.strictEqual(missingMarkerQueue.get(missingMarker.job_id).state, 'UPLOAD_UNCERTAIN');
   assert.strictEqual(missingMarkerQueue.get(missingMarker.job_id).error_code, 'UPLOAD_HANDOFF_EVIDENCE_MISSING');
+
+  const legacyMarkerRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vision-queue-legacy-marker-'));
+  const legacyKey = '8'.repeat(64);
+  const legacyIncoming = path.join(legacyMarkerRoot, 'incoming', legacyKey);
+  fs.mkdirSync(legacyIncoming, { recursive: true });
+  fs.writeFileSync(path.join(legacyIncoming, 'S1.png'), 'legacy-marker');
+  const legacyChildren = [];
+  const legacyQueue = new VisionQueue({
+    spoolRoot: legacyMarkerRoot,
+    workerScript: 'unused',
+    workerRoot: 'unused',
+    spawnWorker: () => {
+      const child = new EventEmitter();
+      legacyChildren.push(child);
+      return child;
+    },
+  });
+  const legacy = legacyQueue.create({
+    request_key: legacyKey,
+    sources: [{
+      source_ref: 'S1', document_id: 31, page_number: null, asset_id: null,
+      sha256: crypto.createHash('sha256').update('legacy-marker').digest('hex'),
+      incoming_relative_path: `incoming/${legacyKey}/S1.png`,
+    }],
+  });
+  fs.writeFileSync(path.join(legacyMarkerRoot, 'jobs', legacy.job_id, 'upload_handoff.json'), `${JSON.stringify({
+    schema_version: 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V1',
+    job_id: legacy.job_id,
+    state: 'upload_confirmed',
+  })}\n`, 'utf8');
+  legacyChildren[0].visionOutput = 'TEMPORARY_CHAT_VERIFIED\nUPLOAD_COMPLETE\n';
+  legacyChildren[0].emit('close', 0);
+  assert.strictEqual(legacyQueue.get(legacy.job_id).state, 'UPLOAD_UNCERTAIN');
+  assert.strictEqual(legacyQueue.get(legacy.job_id).error_code, 'UPLOAD_COMPLETION_UNCONFIRMED');
 
   const copyRaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vision-queue-copy-race-'));
   const copyRaceKey = '2'.repeat(64);
@@ -220,6 +266,7 @@ setImmediate(() => {
   fs.rmSync(root, { recursive: true, force: true });
   fs.rmSync(uncertainRoot, { recursive: true, force: true });
   fs.rmSync(missingMarkerRoot, { recursive: true, force: true });
+  fs.rmSync(legacyMarkerRoot, { recursive: true, force: true });
   fs.rmSync(copyRaceRoot, { recursive: true, force: true });
   process.stdout.write('VISION SUPERVISOR QUEUE TESTS: OK\n');
 });
