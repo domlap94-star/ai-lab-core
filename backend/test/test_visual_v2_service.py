@@ -1761,3 +1761,200 @@ def test_r05_a1_scope_change_in_fresh_session_after_claim_blocks_submit(
         service.submit_claimed_export(resolution.analysis_job_id, claimed)
 
     assert supervisor.created == []
+
+
+def test_r05_a1_expiry_after_claim_is_certain_local_denial_and_can_be_reapproved(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=97)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+
+    class _ControlledDateTime(datetime):
+        current = datetime.now(UTC)
+
+        @classmethod
+        def now(cls, tz=None):
+            value = cls.current
+            return value if tz is not None else value.replace(tzinfo=None)
+
+    monkeypatch.setattr(visual_v2_module, "datetime", _ControlledDateTime)
+    candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    service.approve_export(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=_ControlledDateTime.current + timedelta(minutes=1),
+    )
+    original_submit = service.submit_claimed_export
+    expired_once = False
+
+    def expire_after_real_claim(job_id, staged):
+        nonlocal expired_once
+        if not expired_once:
+            _ControlledDateTime.current += timedelta(minutes=2)
+            expired_once = True
+        return original_submit(job_id, staged)
+
+    monkeypatch.setattr(service, "submit_claimed_export", expire_after_real_claim)
+
+    denied = service.advance(resolution.analysis_job_id)
+
+    assert denied.state == "awaiting_auth"
+    assert denied.reason == "VISUAL_V2_EXPORT_APPROVAL_EXPIRED"
+    assert supervisor.created == []
+    fresh = sessionmaker(bind=db.get_bind(), expire_on_commit=False)()
+    try:
+        job = fresh.get(AnalysisJob, resolution.analysis_job_id)
+        assert job.attempt_id is None
+        handoff = job.quality_signals["visual_export_handoff"]
+        assert handoff["state"] == "local_denied"
+        assert handoff["reason"] == "VISUAL_V2_EXPORT_APPROVAL_EXPIRED"
+    finally:
+        fresh.close()
+
+    candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    service.approve_export(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=_ControlledDateTime.current + timedelta(minutes=1),
+    )
+
+    submitted = service.advance(resolution.analysis_job_id)
+
+    assert submitted.state == "queued"
+    assert len(supervisor.created) == 1
+
+
+def test_r05_a1_legacy_v1_maps_precontact_expiry_and_can_be_reapproved(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=98)
+    document.vision_auto_eligible = True
+    document.vision_status = "not_evaluated"
+    db.commit()
+    supervisor = _Supervisor()
+    legacy = VisionProcessingService(db, supervisor=supervisor)
+
+    initial = legacy.advance(document.id, explicit=True, actor_user_id=1)
+    assert initial.worker_status == "AUTH_REQUIRED"
+    job = db.query(AnalysisJob).filter(
+        AnalysisJob.analysis_type == VISUAL_V2_ANALYSIS_TYPE,
+    ).one()
+    gate = VisualV2Service(db, supervisor=supervisor, enabled=True)
+
+    class _ControlledDateTime(datetime):
+        current = datetime.now(UTC)
+
+        @classmethod
+        def now(cls, tz=None):
+            value = cls.current
+            return value if tz is not None else value.replace(tzinfo=None)
+
+    monkeypatch.setattr(visual_v2_module, "datetime", _ControlledDateTime)
+    candidate = gate.approval_candidate(job.id, actor_user_id=1)
+    gate.approve_export(
+        job.id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=_ControlledDateTime.current + timedelta(minutes=1),
+    )
+    original_claim = VisualV2Service.claim_approved_export
+    expired_once = False
+
+    def claim_then_expire(self, job_id):
+        nonlocal expired_once
+        staged = original_claim(self, job_id)
+        if staged is not None and not expired_once:
+            _ControlledDateTime.current += timedelta(minutes=2)
+            expired_once = True
+        return staged
+
+    monkeypatch.setattr(VisualV2Service, "claim_approved_export", claim_then_expire)
+
+    denied = legacy.advance(document.id, explicit=True, actor_user_id=1)
+
+    assert denied.worker_status == "AUTH_REQUIRED"
+    assert denied.status == "pending_auth"
+    assert document.vision_error_code == "VISION_EXPORT_APPROVAL_EXPIRED"
+    assert supervisor.created == []
+    db.expire_all()
+    job = db.get(AnalysisJob, job.id)
+    assert job.attempt_id is None
+    assert job.quality_signals["visual_export_handoff"]["state"] == "local_denied"
+
+    candidate = gate.approval_candidate(job.id, actor_user_id=1)
+    gate.approve_export(
+        job.id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=_ControlledDateTime.current + timedelta(minutes=1),
+    )
+
+    submitted = legacy.advance(document.id, explicit=True, actor_user_id=1)
+
+    assert submitted.worker_status == "QUEUED"
+    assert len(supervisor.created) == 1
+
+
+def test_r05_a1_historical_ambiguous_claim_fails_closed(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=99)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    signals = copy.deepcopy(job.quality_signals)
+    signals.pop("visual_export_handoff", None)
+    job.quality_signals = signals
+    db.commit()
+
+    resumed = VisualV2Service(db, supervisor=supervisor).advance(job.id)
+
+    assert resumed.state == "awaiting_auth"
+    assert resumed.reason == "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_APPROVAL_ALREADY_EXPORTED",
+    ):
+        service.revoke_export_approval(
+            job.id,
+            actor_user_id=1,
+            expected_document_id=document.id,
+        )
+    assert supervisor.created == []

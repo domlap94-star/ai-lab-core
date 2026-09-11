@@ -71,6 +71,12 @@ MAX_PREPARED_BYTES = 12 * 1024 * 1024
 VISUAL_EXPORT_POLICY_VERSION = "visual-export-v1"
 VISUAL_EXPORT_CHANNEL = "temporary_chat_visual"
 VISUAL_EXPORT_APPROVAL_KEY = "visual_export_approval"
+VISUAL_EXPORT_HANDOFF_KEY = "visual_export_handoff"
+VISUAL_EXPORT_HANDOFF_SCHEMA = "VISUAL_EXPORT_HANDOFF_STATE_V1"
+VISUAL_EXPORT_HANDOFF_CLAIMED = "claimed_no_contact"
+VISUAL_EXPORT_HANDOFF_CONTACT = "contact_may_have_started"
+VISUAL_EXPORT_HANDOFF_RECORDED = "external_id_recorded"
+VISUAL_EXPORT_HANDOFF_LOCAL_DENIED = "local_denied"
 VISUAL_EXPORT_BINDING_SCHEMA = "VISUAL_EXPORT_BINDING_V2"
 VISUAL_EXPORT_DOCUMENT_SCOPE_SCHEMA = "VISUAL_EXPORT_DOCUMENT_SCOPE_V1"
 VISUAL_EXPORT_WAIT_CODES = (
@@ -357,7 +363,9 @@ class VisualV2Service:
                 AnalysisJob.analysis_type == VISUAL_V2_ANALYSIS_TYPE,
             ).with_for_update().one_or_none()
             if job is not None and job.status != "cancelled":
-                handoff_uncertain = bool(job.attempt_id and not job.external_job_id)
+                if self._handoff_state(job) == VISUAL_EXPORT_HANDOFF_LOCAL_DENIED:
+                    return self._resolution(job)
+                handoff_uncertain = self._handoff_may_have_started(job)
                 job.status = "awaiting_auth" if handoff_uncertain else "review_required"
                 job.decision = "review_required"
                 job.error_code = (
@@ -384,6 +392,12 @@ class VisualV2Service:
         if job.external_job_id:
             return None
         if job.attempt_id:
+            if self._handoff_state(job) == VISUAL_EXPORT_HANDOFF_CLAIMED:
+                # Another caller owns a claim that durably proves no external
+                # contact has started. Do not submit it concurrently; an
+                # operator can revoke and create a fresh approval if needed.
+                self.db.commit()
+                return None
             job.status = "awaiting_auth"
             job.decision = "review_required"
             job.error_code = "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
@@ -407,6 +421,9 @@ class VisualV2Service:
         if job.external_job_id:
             raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
         if job.attempt_id:
+            if self._handoff_state(job) == VISUAL_EXPORT_HANDOFF_CLAIMED:
+                self.db.commit()
+                return None
             job.status = "awaiting_auth"
             job.decision = "review_required"
             job.error_code = "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
@@ -434,6 +451,7 @@ class VisualV2Service:
         job.attempt_id = _export_attempt_id(staged.request_key)
         job.sanitized_package_hash = staged.package_sha256
         job.sanitized_package_size = staged.package_size
+        self._set_handoff_state(job, VISUAL_EXPORT_HANDOFF_CLAIMED)
         job.status = "advanced_processing"
         job.decision = None
         job.error_code = None
@@ -452,12 +470,18 @@ class VisualV2Service:
             raise VisualV2ContractError("VISUAL_V2_EXTERNAL_JOB_ID_MISSING")
         self.db.expire_all()
         job = self._locked_job(job_id)
+        if (
+            not job.attempt_id
+            or self._handoff_state(job) != VISUAL_EXPORT_HANDOFF_CONTACT
+        ):
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_CLAIM_MISMATCH")
+        job.external_job_id = external_id
+        self._set_handoff_state(job, VISUAL_EXPORT_HANDOFF_RECORDED)
         if job.cancel_requested_at is not None or job.status == "cancelled":
-            self.supervisor.cancel_job(external_id)
             self._cancel_locked(job)
             self.db.commit()
+            self.supervisor.cancel_job(external_id)
             return job
-        job.external_job_id = external_id
         job.status = self._external_status(external)
         job.error_code = self._safe_error(external.get("error_code"))
         job.last_progress_at = datetime.now(UTC)
@@ -473,22 +497,22 @@ class VisualV2Service:
         # The claim is durable, but consent, cancellation and document scope can
         # change before the actual Supervisor call. Refresh and serialize that
         # final transition so a confirmed local decision wins before contact.
-        self.db.expire_all()
-        job = self._locked_job(job_id)
-        if job.cancel_requested_at is not None or job.status == "cancelled":
-            raise VisualV2ContractError("VISUAL_V2_CANCELLED")
-        approval_error = self._approval_error(job, staged.approval_binding)
-        if approval_error is not None:
-            raise VisualV2ContractError(approval_error)
-        if (
-            job is None
-            or job.attempt_id != _export_attempt_id(staged.request_key)
-            or job.sanitized_package_hash != staged.package_sha256
-        ):
-            raise VisualV2ContractError("VISUAL_V2_EXPORT_CLAIM_MISMATCH")
-        if job.external_job_id is not None:
-            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
         try:
+            self.db.expire_all()
+            job = self._locked_job(job_id)
+            if job.cancel_requested_at is not None or job.status == "cancelled":
+                raise VisualV2ContractError("VISUAL_V2_CANCELLED")
+            approval_error = self._approval_error(job, staged.approval_binding)
+            if approval_error is not None:
+                raise VisualV2ContractError(approval_error)
+            if (
+                job.attempt_id != _export_attempt_id(staged.request_key)
+                or job.sanitized_package_hash != staged.package_sha256
+                or self._handoff_state(job) != VISUAL_EXPORT_HANDOFF_CLAIMED
+            ):
+                raise VisualV2ContractError("VISUAL_V2_EXPORT_CLAIM_MISMATCH")
+            if job.external_job_id is not None:
+                raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
             current = self._stage_export(job_id)
             if (
                 current.package_sha256 != staged.package_sha256
@@ -505,27 +529,24 @@ class VisualV2Service:
             OSError,
             UnidentifiedImageError,
             ValueError,
-        ):
+        ) as error:
             # No external call has happened yet, so this claim may be released
             # and reported as a deterministic local validation failure.
             self.db.rollback()
             self.db.expire_all()
             current_job = self._locked_job(job_id)
-            if (
-                current_job.external_job_id is None
-                and current_job.attempt_id == _export_attempt_id(staged.request_key)
-                and current_job.status != "cancelled"
-            ):
-                current_job.attempt_id = None
-                current_job.sanitized_package_hash = None
-                current_job.sanitized_package_size = None
-                self.db.commit()
+            self._release_precontact_claim(
+                current_job,
+                attempt_id=_export_attempt_id(staged.request_key),
+                reason=self._safe_error(str(error)),
+            )
             raise
-        # Only exceptions raised from this final call have an uncertain
-        # external side effect; callers preserve the durable claim in that case.
-        # Keep the row lock until record_external_handoff() commits the same
-        # transaction. If the call outcome is uncertain the durable claim stays
-        # in place and blocks automatic resubmission.
+        # Persist the last locally certain state before contact. A process crash
+        # or uncertain Supervisor result can then never be confused with a
+        # claim that is still safe to revoke and submit again.
+        self._set_handoff_state(job, VISUAL_EXPORT_HANDOFF_CONTACT)
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
         return self.supervisor.create_job(current.request)
 
     def cancel(self, job_id: str) -> bool:
@@ -661,14 +682,14 @@ class VisualV2Service:
         if job.attempt_id:
             # A confirmed local revocation may release a claim only while the
             # durable ledger still proves that no Supervisor contact started.
-            if (
-                job.status != "advanced_processing"
-                or job.error_code == "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
-            ):
+            if self._handoff_state(job) != VISUAL_EXPORT_HANDOFF_CLAIMED:
                 raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+            claimed_attempt = job.attempt_id
             job.attempt_id = None
             job.sanitized_package_hash = None
             job.sanitized_package_size = None
+        else:
+            claimed_attempt = None
         signals = dict(job.quality_signals or {})
         previous = signals.get(VISUAL_EXPORT_APPROVAL_KEY)
         approval = dict(previous) if isinstance(previous, dict) else {}
@@ -680,6 +701,12 @@ class VisualV2Service:
         })
         signals[VISUAL_EXPORT_APPROVAL_KEY] = approval
         job.quality_signals = signals
+        self._set_handoff_state(
+            job,
+            VISUAL_EXPORT_HANDOFF_LOCAL_DENIED,
+            attempt_id=claimed_attempt,
+            reason="VISUAL_V2_EXPORT_APPROVAL_REVOKED",
+        )
         job.status = "awaiting_auth"
         job.decision = "review_required"
         job.error_code = "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
@@ -696,6 +723,102 @@ class VisualV2Service:
         if job is None:
             raise VisualV2ContractError("VISUAL_V2_JOB_NOT_FOUND")
         return job
+
+    @staticmethod
+    def _handoff_record(job: AnalysisJob) -> dict[str, Any] | None:
+        signals = job.quality_signals if isinstance(job.quality_signals, dict) else {}
+        record = signals.get(VISUAL_EXPORT_HANDOFF_KEY)
+        if not isinstance(record, dict):
+            return None
+        if record.get("schema") != VISUAL_EXPORT_HANDOFF_SCHEMA:
+            return None
+        return record
+
+    @classmethod
+    def _handoff_state(cls, job: AnalysisJob) -> str | None:
+        record = cls._handoff_record(job)
+        if record is None:
+            return None
+        state = str(record.get("state") or "")
+        if state in {
+            VISUAL_EXPORT_HANDOFF_CLAIMED,
+            VISUAL_EXPORT_HANDOFF_CONTACT,
+            VISUAL_EXPORT_HANDOFF_RECORDED,
+        } and record.get("attempt_id") != job.attempt_id:
+            return None
+        if state not in {
+            VISUAL_EXPORT_HANDOFF_CLAIMED,
+            VISUAL_EXPORT_HANDOFF_CONTACT,
+            VISUAL_EXPORT_HANDOFF_RECORDED,
+            VISUAL_EXPORT_HANDOFF_LOCAL_DENIED,
+        }:
+            return None
+        return state
+
+    @classmethod
+    def _handoff_may_have_started(cls, job: AnalysisJob) -> bool:
+        if job.external_job_id:
+            # Once the durable external identifier exists, failures belong to
+            # result retrieval/validation rather than the uncertain-contact
+            # window addressed by this marker.
+            return False
+        if not job.attempt_id:
+            return False
+        # Historical attempts without the versioned marker are ambiguous and
+        # remain fail-closed. Only the explicit pre-contact state is releasable.
+        return cls._handoff_state(job) != VISUAL_EXPORT_HANDOFF_CLAIMED
+
+    @staticmethod
+    def _set_handoff_state(
+        job: AnalysisJob,
+        state: str,
+        *,
+        attempt_id: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        signals = dict(job.quality_signals or {})
+        record: dict[str, Any] = {
+            "schema": VISUAL_EXPORT_HANDOFF_SCHEMA,
+            "state": state,
+            "attempt_id": attempt_id if attempt_id is not None else job.attempt_id,
+            "recorded_at": datetime.now(UTC).isoformat(),
+        }
+        if reason:
+            record["reason"] = reason
+        signals[VISUAL_EXPORT_HANDOFF_KEY] = record
+        job.quality_signals = signals
+
+    def _release_precontact_claim(
+        self,
+        job: AnalysisJob,
+        *,
+        attempt_id: str,
+        reason: str,
+    ) -> bool:
+        if (
+            job.status == "cancelled"
+            or job.cancel_requested_at is not None
+            or job.external_job_id is not None
+            or job.attempt_id != attempt_id
+            or self._handoff_state(job) != VISUAL_EXPORT_HANDOFF_CLAIMED
+        ):
+            return False
+        job.attempt_id = None
+        job.sanitized_package_hash = None
+        job.sanitized_package_size = None
+        self._set_handoff_state(
+            job,
+            VISUAL_EXPORT_HANDOFF_LOCAL_DENIED,
+            attempt_id=attempt_id,
+            reason=reason,
+        )
+        job.status = "awaiting_auth"
+        job.decision = "review_required"
+        job.error_code = reason
+        job.finished_at = None
+        job.last_progress_at = datetime.now(UTC)
+        self.db.commit()
+        return True
 
     def _require_export_operator(self, actor_user_id: int) -> None:
         actor = self.db.query(User).join(Role, User.role_id == Role.id).filter(

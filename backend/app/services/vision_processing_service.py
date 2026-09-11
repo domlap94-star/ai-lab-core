@@ -175,11 +175,18 @@ class VisionProcessingService:
             UnidentifiedImageError,
         ) as error:
             if isinstance(error, VisualV2ContractError) and export_job is not None:
+                self.db.rollback()
+                self.db.expire_all()
                 current = self.db.get(AnalysisJob, export_job.id)
                 if current is not None and current.status != "cancelled":
-                    handoff_uncertain = bool(
-                        current.attempt_id and not current.external_job_id
-                    )
+                    if export_gate._handoff_state(current) == "local_denied":
+                        return self._apply_export_wait(
+                            document,
+                            classification,
+                            source_map,
+                            export_gate._resolution(current),
+                        )
+                    handoff_uncertain = export_gate._handoff_may_have_started(current)
                     current.status = (
                         "awaiting_auth" if handoff_uncertain else "review_required"
                     )
@@ -213,8 +220,7 @@ class VisionProcessingService:
             )
             handoff_uncertain = bool(
                 current is not None
-                and current.attempt_id
-                and not current.external_job_id
+                and export_gate._handoff_may_have_started(current)
             )
             if handoff_uncertain:
                 current.status = "awaiting_auth"

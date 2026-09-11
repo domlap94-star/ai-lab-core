@@ -615,7 +615,7 @@ class AssistantVisualBranchTests(unittest.TestCase):
             0,
             len(content),
         )
-        self.assertEqual(git_blob, "99798af2c7449afbe36cd15bae05c03c1a783890")
+        self.assertEqual(git_blob, "eee7bb7775fdb79a4bb5065933da97574368089e")
 
     def test_t14_ingestion_still_cannot_invoke_explicit_vision(self):
         source = Path(preparation_dispatcher.__file__).read_text(encoding="utf-8")

@@ -192,6 +192,7 @@ def postgres_scoped_approval_case():
                 "db": db,
                 "service": service,
                 "supervisor": supervisor,
+                "actor_id": actor.id,
                 "job_id": resolution.analysis_job_id,
                 "document_id": document.id,
                 "target_scope": {
@@ -683,3 +684,76 @@ def test_r05_a1_candidate_first_persists_across_postgres_requests(
             assert request_session_ids[0] != request_session_ids[1]
         finally:
             http.close()
+
+
+def test_r05_a1_post_contact_interruption_cannot_be_revoked_into_second_handoff(
+    postgres_scoped_approval_case,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = postgres_scoped_approval_case
+
+    class _SyntheticProcessInterruption(BaseException):
+        pass
+
+    def interrupt_before_external_id(_job_id, _external):
+        raise _SyntheticProcessInterruption("synthetic interruption after contact")
+
+    monkeypatch.setattr(
+        case["service"],
+        "record_external_handoff",
+        interrupt_before_external_id,
+    )
+    with pytest.raises(_SyntheticProcessInterruption):
+        case["service"].advance(case["job_id"])
+    case["db"].rollback()
+    assert len(case["supervisor"].created) == 1
+
+    fresh = case["Session"]()
+    revoke_blocked = False
+    try:
+        current_service = VisualV2Service(
+            fresh,
+            supervisor=case["supervisor"],
+            enabled=True,
+        )
+        try:
+            current_service.revoke_export_approval(
+                case["job_id"],
+                actor_user_id=case["actor_id"],
+                expected_document_id=case["document_id"],
+            )
+        except VisualV2ContractError as error:
+            fresh.rollback()
+            assert str(error) == "VISUAL_V2_APPROVAL_ALREADY_EXPORTED"
+            revoke_blocked = True
+        if not revoke_blocked:
+            candidate = current_service.approval_candidate(
+                case["job_id"],
+                actor_user_id=case["actor_id"],
+            )
+            current_service.approve_export(
+                case["job_id"],
+                actor_user_id=case["actor_id"],
+                expected_package_sha256=candidate["package_sha256"],
+                expected_source_sha256={
+                    row["source_ref"]: row["final_sha256"]
+                    for row in candidate["sources"]
+                },
+                approval_kind="locally_redacted",
+                expires_at=datetime.now(UTC) + timedelta(hours=1),
+            )
+            current_service.advance(case["job_id"])
+    finally:
+        fresh.close()
+
+    assert len(case["supervisor"].created) == 1
+    assert revoke_blocked
+    verify = case["Session"]()
+    try:
+        job = verify.get(AnalysisJob, case["job_id"])
+        handoff = job.quality_signals["visual_export_handoff"]
+        assert handoff["state"] == "contact_may_have_started"
+        assert job.attempt_id is not None
+        assert job.external_job_id is None
+    finally:
+        verify.close()
