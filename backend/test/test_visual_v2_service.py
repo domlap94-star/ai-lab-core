@@ -1376,7 +1376,11 @@ def test_r05_a1_revoked_and_foreign_scope_approvals_fail_closed(visual_db) -> No
     assert foreign.reason == "VISUAL_V2_EXPORT_APPROVAL_STALE"
     assert supervisor.created == []
 
-    revoked = service.revoke_export_approval(first.analysis_job_id, actor_user_id=1)
+    revoked = service.revoke_export_approval(
+        first.analysis_job_id,
+        actor_user_id=1,
+        expected_document_id=first_document.id,
+    )
     assert revoked.reason == "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
     assert service.advance(first.analysis_job_id).reason == (
         "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
@@ -1566,4 +1570,194 @@ def test_r05_a1_changed_staged_bytes_after_claim_never_reach_supervisor(
     job = db.get(AnalysisJob, resolution.analysis_job_id)
     assert job.attempt_id is None
     assert job.external_job_id is None
+    assert supervisor.created == []
+
+
+def test_r05_a1_valid_claim_remains_exportable_at_submit_boundary(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=91)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+    external = service.submit_claimed_export(resolution.analysis_job_id, claimed)
+
+    assert external["state"] == "QUEUED"
+    assert len(supervisor.created) == 1
+
+
+def test_r05_a1_expiry_after_claim_before_submit_blocks_handoff(
+    visual_db,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=92)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+
+    class _ControlledDateTime(datetime):
+        current = datetime.now(UTC)
+
+        @classmethod
+        def now(cls, tz=None):
+            value = cls.current
+            return value if tz is not None else value.replace(tzinfo=None)
+
+    monkeypatch.setattr(visual_v2_module, "datetime", _ControlledDateTime)
+    candidate = service.approval_candidate(resolution.analysis_job_id, actor_user_id=1)
+    service.approve_export(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        },
+        approval_kind="locally_redacted",
+        expires_at=_ControlledDateTime.current + timedelta(minutes=1),
+    )
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+    _ControlledDateTime.current += timedelta(minutes=2)
+
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_EXPORT_APPROVAL_EXPIRED",
+    ):
+        service.submit_claimed_export(resolution.analysis_job_id, claimed)
+
+    assert supervisor.created == []
+
+
+def test_r05_a1_cancel_in_fresh_session_after_claim_blocks_submit(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=93)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+
+    other = sessionmaker(bind=db.get_bind(), expire_on_commit=False)()
+    try:
+        assert VisualV2Service(
+            other,
+            supervisor=supervisor,
+            enabled=True,
+        ).cancel(resolution.analysis_job_id)
+    finally:
+        other.close()
+
+    with pytest.raises(VisualV2ContractError, match="VISUAL_V2_CANCELLED"):
+        service.submit_claimed_export(resolution.analysis_job_id, claimed)
+
+    assert supervisor.created == []
+
+
+def test_r05_a1_revoke_in_fresh_session_after_claim_blocks_submit(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=96)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+
+    other = sessionmaker(bind=db.get_bind(), expire_on_commit=False)()
+    try:
+        revoked = VisualV2Service(
+            other,
+            supervisor=supervisor,
+            enabled=True,
+        ).revoke_export_approval(
+            resolution.analysis_job_id,
+            actor_user_id=1,
+            expected_document_id=document.id,
+        )
+        assert revoked.reason == "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
+    finally:
+        other.close()
+
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_EXPORT_APPROVAL_REVOKED",
+    ):
+        service.submit_claimed_export(resolution.analysis_job_id, claimed)
+
+    assert supervisor.created == []
+
+
+@pytest.mark.parametrize(
+    ("field_name", "new_value"),
+    [
+        ("client_id", 2),
+        ("project_id", 202),
+        ("inspection_id", 303),
+        ("candidate_id", 404),
+    ],
+)
+def test_r05_a1_scope_change_before_claim_invalidates_approval(
+    visual_db,
+    field_name: str,
+    new_value: int,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=94)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    setattr(document, field_name, new_value)
+    db.commit()
+
+    assert service.claim_approved_export(resolution.analysis_job_id) is None
+    db.expire_all()
+    job = db.get(AnalysisJob, resolution.analysis_job_id)
+    assert job.error_code == "VISUAL_V2_EXPORT_APPROVAL_STALE"
+    assert supervisor.created == []
+
+
+@pytest.mark.parametrize(
+    ("field_name", "new_value"),
+    [
+        ("client_id", 2),
+        ("project_id", 202),
+        ("inspection_id", 303),
+        ("candidate_id", 404),
+    ],
+)
+def test_r05_a1_scope_change_in_fresh_session_after_claim_blocks_submit(
+    visual_db,
+    field_name: str,
+    new_value: int,
+) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=95)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    _approve(service, resolution.analysis_job_id)
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+
+    other = sessionmaker(bind=db.get_bind(), expire_on_commit=False)()
+    try:
+        current = other.get(Document, document.id)
+        setattr(current, field_name, new_value)
+        other.commit()
+    finally:
+        other.close()
+
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_EXPORT_APPROVAL_STALE",
+    ):
+        service.submit_claimed_export(resolution.analysis_job_id, claimed)
+
     assert supervisor.created == []

@@ -206,6 +206,10 @@ def get_vision_export_approval_candidate(
             status_code=409,
             detail={"code": "VISUAL_V2_EXPORT_SCOPE_MISMATCH"},
         )
+    # ensure() deliberately uses a SAVEPOINT so it can reuse the caller's
+    # transaction. The candidate endpoint owns this request transaction and
+    # must commit the newly created job/sources before returning their IDs.
+    db.commit()
     return VisionExportApprovalCandidate.model_validate(candidate)
 
 
@@ -271,15 +275,10 @@ def revoke_vision_export_approval(
         raise HTTPException(status_code=404, detail="Document not found")
     service = VisualV2Service(db, enabled=True)
     try:
-        candidate = service.approval_candidate(
-            analysis_job_id,
-            actor_user_id=actor.id,
-        )
-        if {row["document_id"] for row in candidate["sources"]} != {document.id}:
-            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
         resolution = service.revoke_export_approval(
             analysis_job_id,
             actor_user_id=actor.id,
+            expected_document_id=document.id,
         )
     except VisualV2ContractError as error:
         raise HTTPException(status_code=409, detail={"code": str(error)}) from error

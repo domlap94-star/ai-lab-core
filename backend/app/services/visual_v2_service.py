@@ -71,6 +71,8 @@ MAX_PREPARED_BYTES = 12 * 1024 * 1024
 VISUAL_EXPORT_POLICY_VERSION = "visual-export-v1"
 VISUAL_EXPORT_CHANNEL = "temporary_chat_visual"
 VISUAL_EXPORT_APPROVAL_KEY = "visual_export_approval"
+VISUAL_EXPORT_BINDING_SCHEMA = "VISUAL_EXPORT_BINDING_V2"
+VISUAL_EXPORT_DOCUMENT_SCOPE_SCHEMA = "VISUAL_EXPORT_DOCUMENT_SCOPE_V1"
 VISUAL_EXPORT_WAIT_CODES = (
     "VISUAL_V2_EXPORT_APPROVAL_REQUIRED",
     "VISUAL_V2_EXPORT_APPROVAL_REVOKED",
@@ -215,6 +217,7 @@ class VisualV2Service:
             return VisualV2Resolution("failed", "VISUAL_V2_REQUIRED_PAGE_UNAVAILABLE")
         fingerprint = self._fingerprint(
             document_checksum=checksum,
+            document_scope=self._document_scope(document),
             sources=planned,
         )
         existing = self._current_job(fingerprint)
@@ -230,6 +233,7 @@ class VisualV2Service:
         payload = {
             "contract_generation": VISUAL_V2_CONTRACT_GENERATION,
             "document_checksum": checksum,
+            "document_scope": self._document_scope(document),
             "reason_codes": [reason],
             "required_page": required_page,
             "selected_count": len(planned),
@@ -466,13 +470,24 @@ class VisualV2Service:
         staged: _StagedExport,
     ) -> dict[str, Any]:
         """Re-derive and verify the claimed bytes at the Supervisor boundary."""
-        job = self.db.get(AnalysisJob, job_id)
+        # The claim is durable, but consent, cancellation and document scope can
+        # change before the actual Supervisor call. Refresh and serialize that
+        # final transition so a confirmed local decision wins before contact.
+        self.db.expire_all()
+        job = self._locked_job(job_id)
+        if job.cancel_requested_at is not None or job.status == "cancelled":
+            raise VisualV2ContractError("VISUAL_V2_CANCELLED")
+        approval_error = self._approval_error(job, staged.approval_binding)
+        if approval_error is not None:
+            raise VisualV2ContractError(approval_error)
         if (
             job is None
             or job.attempt_id != _export_attempt_id(staged.request_key)
             or job.sanitized_package_hash != staged.package_sha256
         ):
             raise VisualV2ContractError("VISUAL_V2_EXPORT_CLAIM_MISMATCH")
+        if job.external_job_id is not None:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
         try:
             current = self._stage_export(job_id)
             if (
@@ -481,6 +496,9 @@ class VisualV2Service:
                 or current.request != staged.request
             ):
                 raise VisualV2ContractError("VISUAL_V2_EXPORT_APPROVAL_STALE")
+            approval_error = self._approval_error(job, current.approval_binding)
+            if approval_error is not None:
+                raise VisualV2ContractError(approval_error)
             self._verify_staged_request(current.request)
         except (
             VisualV2ContractError,
@@ -491,10 +509,12 @@ class VisualV2Service:
             # No external call has happened yet, so this claim may be released
             # and reported as a deterministic local validation failure.
             self.db.rollback()
+            self.db.expire_all()
             current_job = self._locked_job(job_id)
             if (
                 current_job.external_job_id is None
                 and current_job.attempt_id == _export_attempt_id(staged.request_key)
+                and current_job.status != "cancelled"
             ):
                 current_job.attempt_id = None
                 current_job.sanitized_package_hash = None
@@ -503,6 +523,9 @@ class VisualV2Service:
             raise
         # Only exceptions raised from this final call have an uncertain
         # external side effect; callers preserve the durable claim in that case.
+        # Keep the row lock until record_external_handoff() commits the same
+        # transaction. If the call outcome is uncertain the durable claim stays
+        # in place and blocks automatic resubmission.
         return self.supervisor.create_job(current.request)
 
     def cancel(self, job_id: str) -> bool:
@@ -621,11 +644,31 @@ class VisualV2Service:
         job_id: str,
         *,
         actor_user_id: int,
+        expected_document_id: int,
     ) -> VisualV2Resolution:
         self._require_export_operator(actor_user_id)
         job = self._locked_job(job_id)
-        if job.external_job_id or job.attempt_id:
+        document_ids = {
+            self._document_for_source(source).id
+            for source in self.db.query(AnalysisJobSource).filter(
+                AnalysisJobSource.analysis_job_id == job.id
+            ).all()
+        }
+        if document_ids != {expected_document_id}:
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
+        if job.external_job_id:
             raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+        if job.attempt_id:
+            # A confirmed local revocation may release a claim only while the
+            # durable ledger still proves that no Supervisor contact started.
+            if (
+                job.status != "advanced_processing"
+                or job.error_code == "VISUAL_V2_EXPORT_HANDOFF_UNCERTAIN"
+            ):
+                raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+            job.attempt_id = None
+            job.sanitized_package_hash = None
+            job.sanitized_package_size = None
         signals = dict(job.quality_signals or {})
         previous = signals.get(VISUAL_EXPORT_APPROVAL_KEY)
         approval = dict(previous) if isinstance(previous, dict) else {}
@@ -789,6 +832,7 @@ class VisualV2Service:
                 "source_entity_type": source.source_entity_type,
                 "source_entity_id": source.source_entity_id,
                 "document_id": document.id,
+                "document_scope": self._document_scope(document),
                 "document_sha256": str(document.checksum_sha256 or "").casefold(),
                 "original_sha256": source.checksum_sha256,
                 "final_sha256": prepared_sha256,
@@ -846,6 +890,7 @@ class VisualV2Service:
         canonical = json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         package_sha256 = hashlib.sha256(canonical).hexdigest()
         binding = {
+            "schema": VISUAL_EXPORT_BINDING_SCHEMA,
             "policy_version": VISUAL_EXPORT_POLICY_VERSION,
             "channel": VISUAL_EXPORT_CHANNEL,
             "package_sha256": package_sha256,
@@ -1418,11 +1463,13 @@ class VisualV2Service:
     def _fingerprint(
         *,
         document_checksum: str,
+        document_scope: dict[str, Any],
         sources: list[_PlannedSource],
     ) -> str:
         canonical = json.dumps({
             "contract": VISUAL_V2_CONTRACT_GENERATION,
             "document_checksum": document_checksum,
+            "document_scope": document_scope,
             "requested_capabilities": [
                 "direct_observations",
                 "visible_text",
@@ -1436,6 +1483,18 @@ class VisualV2Service:
             ],
         }, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _document_scope(document: Document) -> dict[str, Any]:
+        """Return the server-derived, versioned business scope of source bytes."""
+        return {
+            "schema": VISUAL_EXPORT_DOCUMENT_SCOPE_SCHEMA,
+            "document_id": document.id,
+            "client_id": document.client_id,
+            "project_id": document.project_id,
+            "inspection_id": document.inspection_id,
+            "candidate_id": document.candidate_id,
+        }
 
     @staticmethod
     def _hash_json(payload: dict[str, Any]) -> str:
