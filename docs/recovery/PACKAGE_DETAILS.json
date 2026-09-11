@@ -245,7 +245,7 @@
     ],
     "done": "Privacy gate ma dowód zgodności faktycznych bajtów i obustronne testy: blokuje niedopuszczone, przepuszcza dopuszczone. P0 blokuje eksport/promocję Visual, nie każdą lokalną poprawkę.",
     "impact": "Domyślnie bez migracji i zmian danych firmy; ewentualna zmiana kontraktu klasyfikacji wymaga projektu.",
-    "approval": "D-20 zatwierdza wspólną politykę exact-byte dla Vision V1 / Visual V2 i SOURCE/TEST ONLY. A1 na source 3a36d5b3866e277b9186028b1926debfe92209e6 ma wynik HANDOFF_SCOPE_TRANSACTION_FIX_READY_FOR_REVIEW / NOT_DEPLOYED: finalny guard odświeża zgodę, cancel, business scope i exact bytes; candidate-first jest trwały między requestami PostgreSQL; faktyczne V1/V2 dają jeden fake handoff dla ważnej zgody i zero dla wygasłej. Real uploader/UI/export/end-to-end pozostają NOT_VERIFIED; cały R05 nadal IN_PROGRESS.",
+    "approval": "D-20 zatwierdza wspólną politykę exact-byte dla Vision V1 / Visual V2 i SOURCE/TEST ONLY. A1 na source d31e105427acd40733e91c4d4b46f0412b0f95ad ma wynik CLAIM_CERTAINTY_FIX_READY_FOR_REVIEW / NOT_DEPLOYED: trwałe stany odróżniają bezpieczny pre-contact claim, lokalną odmowę, możliwy kontakt i zapisany external ID; lokalne expiry pozwala na nowe jawne dopuszczenie, a przerwanie po fake create_job i historyczny brak markera blokują drugi handoff. Real uploader/UI/export/end-to-end pozostają NOT_VERIFIED; cały R05 nadal IN_PROGRESS.",
     "rollback": "Bezpieczne wyłączenie wyłącznie nowej gałęzi eksportu; nie wracać do niekontrolowanego V1. Wyniki i historia zachowane.",
     "exclude": "Permanentne wyłączenie Visual jako końcowa naprawa, API zamiast Temporary Chat, usuwanie oryginałów, zniesienie restricted.",
     "status": "IN_PROGRESS",

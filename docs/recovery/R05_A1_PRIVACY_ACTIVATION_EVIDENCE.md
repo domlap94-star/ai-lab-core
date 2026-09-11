@@ -2,7 +2,7 @@
 
 ## Wynik
 
-Status podetapu: `HANDOFF_SCOPE_TRANSACTION_FIX_READY_FOR_REVIEW / NOT_DEPLOYED`.
+Status podetapu: `CLAIM_CERTAINTY_FIX_READY_FOR_REVIEW / NOT_DEPLOYED`.
 
 Właściciel rozszerzył D-20 na źródła Vision V1, Visual V2, wspólny handoff
 oraz wskazane testy `SOURCE / TEST ONLY`. Zaakceptowany punkt wejścia to
@@ -223,3 +223,88 @@ Pozostają `NOT_VERIFIED`: rzeczywisty uploader/worker, realny Supervisor i
 Temporary Chat, używalny panel operatora, realny eksport, e2e, build oraz
 deployment. Źródłowa gotowość A1 nie nadaje żadnym plikom klienta zgody i nie
 zamyka R05/R06/R15.
+
+## Domknięcie trwałego rozróżnienia claimu
+
+Przegląd source `3a36d5b3866e277b9186028b1926debfe92209e6` na wejściu
+`0f73eb8d5d9b88df1df33abbbdb77c7c30d876a2` ujawnił dwie pozostałe części
+RV05-01. Zostały odtworzone na rzeczywistych metodach przed zmianą, a następnie
+naprawione w source `d31e105427acd40733e91c4d4b46f0412b0f95ad`.
+
+### Fail-before
+
+| Przypadek | Rzeczywisty wynik przed zmianą | Klasa dowodu | Log SHA-256 |
+|---|---|---|---|
+| expiry po realnym claimie, przed `create_job`, osobno V2 i V1 | `2 failed, 1 passed`, exit `1`; oba wejścia zwróciły `HANDOFF_UNCERTAIN` zamiast pewnej lokalnej odmowy | pełne metody serwisów, kontrolowany zegar, syntetyczny SQLite/storage, fake Supervisor | `8CC35FC74BDA859979D5FFB33DA753F6DA91F430F8E0BABB7B2443B4DDB14CE9` |
+| przerwanie procesu po pierwszym fake `create_job`, przed zapisem external ID, następnie realne revoke/reapprove | `1 failed`, exit `1`; revoke przeszło, a liczba fake `create_job` wyniosła `2` zamiast `1` | pełny `VisualV2Service.advance`, dwie świeże sesje PostgreSQL, kontrolowane `BaseException` po kontakcie | `F5183080B43D40A18ABE15C89F637C4CCB5F33D3EC1ABAC6DD97C646754DE9D3` |
+
+Pierwsze próby recepty bez `--entrypoint python`, z niedozwoloną nazwą bazy,
+z błędnym polem asercji i bez `PYTHONPATH` zachowano lokalnie jako błędy
+konfiguracji testu. Nie są zaliczone jako wady produktu ani wyniki końcowe.
+
+### Minimalna zmiana źródłowa
+
+W istniejącym `AnalysisJob.quality_signals` zapisano wersjonowany rekord
+`VISUAL_EXPORT_HANDOFF_STATE_V1`; nie dodano tabeli ani migracji. Stan ma cztery
+rozłączne wartości:
+
+- `claimed_no_contact` — claim jest trwały, lecz kontakt na pewno się nie zaczął;
+- `contact_may_have_started` — marker jest commitowany bezpośrednio przed
+  `create_job` i blokuje revoke/retry;
+- `external_id_recorded` — identyfikator zewnętrzny został trwale zapisany;
+- `local_denied` — deterministyczna odmowa przed kontaktem zwolniła wyłącznie
+  własny claim i zachowała przyczynę.
+
+`submit_claimed_export()` obejmuje kontrolą lokalnego błędu także świeżą zgodę,
+cancel, claim, scope, pakiet i dokładne bajty. Tylko poprawny
+`claimed_no_contact` może zostać zwolniony. Historyczny attempt bez markera albo
+marker niespójny z attemptem pozostaje niejednoznaczny i fail-closed. V1 używa
+tej samej klasyfikacji: lokalne expiry mapuje na
+`VISION_EXPORT_APPROVAL_EXPIRED`, a możliwy kontakt na
+`VISION_EXPORT_HANDOFF_UNCERTAIN`.
+
+Commit markera `contact_may_have_started` jest konserwatywną granicą. Awaria po
+tym commicie, nawet jeszcze przed fizycznym rozpoczęciem wywołania, wymaga
+review zamiast automatycznego retry. Jest to zamierzone, ponieważ po crashu nie
+ma wystarczającego dowodu, po której stronie granicy nastąpiło przerwanie.
+
+### Pass-after
+
+Przypięty obraz testowy:
+`sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`.
+Źródła były montowane read-only. Testy bez DB miały `--network none`; PostgreSQL
+działał w osobnej sieci `internal`, bez host ports i bez produkcyjnych mountów.
+
+| Zakres / polecenie wewnątrz obrazu | Wynik | Log SHA-256 |
+|---|---:|---|
+| `python -m pytest -q -p no:cacheprovider test/test_visual_v2_service.py -k "claim or handoff or expiry or revoke"` | `20 passed, 54 deselected`, exit `0` | `BB98BEDB336CBEA4546227289F22326BA1184C9C89F5FAFB58B9DBDEF517A541` |
+| pięć testów walidacji wyników po zapisanym external ID | `5 passed`, exit `0` | `374841A72F2D8AB4B8F817807885A9B320780D34C6418AF116C9635E57FC40AC` |
+| nowy PostgreSQL crash → revoke/reapprove | `1 passed`, exit `0`; jeden fake `create_job` | `BB8241340428B17FC820999476F0AE4FB992D435DA00A16272AEDD4F5FA56805` |
+| ten sam zestaw regresji R05/V1/V2/Assistant bez DB co wyżej | `316 passed`, exit `0` | `09801011BC2FDF1FE48394EB192B5A10650AD55A81D795FF371429EDC6B3FE4B` |
+| `test_r05_visual_export_postgres.py` + techniczny AI + containment + archive safety | `59 passed`, exit `0` | `10C92F4EE53351EBCC8E7704D119EFDCB22BF26C7CACFAECC74CDA9D85E517AF` |
+| `python test/test_followup_chunk13_api_auth.py` z jawnym `PYTHONPATH` | `8 × 401`, product lifespan `0`, exit `0` | `47E12F02641D28E0375F6AF49F105500AB9A03EE7D74B18A534C30C8DA0CE63F` |
+| `python -m compileall -q` dla pięciu zmienionych plików | exit `0`; bytecode tylko w tmpfs | `81ADC3EA1A5BA1FE66C8A22A28017E28ED79B7BB4E77C002CD6C45E8048AB9AF` |
+
+Pełne logi pozostają `LOCAL_ONLY` pod
+`C:\ai-lab-core-staging\recovery\R05_A1_CLAIM_CERTAINTY_20260911T191840Z`.
+Nie zawierają danych firmy; syntetycznych haseł nie publikowano w Git.
+
+### Skutki i granice
+
+Test PostgreSQL użył dokładnie nazwanych zasobów run `20260911t192258z`:
+
+- kontener `next-stabil-r05-a1-certainty-20260911t192258z-postgres`, ID
+  `12719842670f1351e0284dd8f8d057ac87f3c3ba049af98c5ef2e2ec1e5714d5`;
+- sieć `next-stabil-r05-a1-certainty-20260911t192258z-network`, ID
+  `a766d3b3d3e4f0e4a6e813e8cc9fa0400537f35eafdf58240f6e193e03c2967e`;
+- named volume `next-stabil-r05-a1-certainty-20260911t192258z-postgres-data`.
+
+Etykiety owner/run i pełne ID sprawdzono przed cleanupem. Po zachowaniu logów
+usunięto wyłącznie te trzy zasoby; kontrola końcowa zwróciła zero pozostałych
+nazw. Syntetyczne rekordy i dwie testowe bazy zniknęły wraz z własnym wolumenem.
+
+Nie uruchomiono aplikacji, dispatcherów, realnego Supervisora, Temporary Chat,
+Qwena, embeddingu, Qdrant, Gmaila, n8n, backupu, restore, escrow ani eksportu.
+Nie wykonano produkcyjnych zapisów, buildów frontendowych ani deploymentu.
+Rzeczywisty uploader/UI/export/end-to-end pozostają `NOT_VERIFIED`; cały R05
+pozostaje `IN_PROGRESS` i wymaga osobnego odbioru właściciela.
