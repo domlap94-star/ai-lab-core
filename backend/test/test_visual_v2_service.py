@@ -4,6 +4,8 @@ import ast
 import copy
 import hashlib
 import json
+import os
+import shutil
 import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1958,3 +1960,114 @@ def test_r05_a1_historical_ambiguous_claim_fails_closed(visual_db) -> None:
             expected_document_id=document.id,
         )
     assert supervisor.created == []
+
+
+def test_r05_a2_real_approved_requests_feed_offline_queue_fixture(
+    visual_db,
+) -> None:
+    """Export real A1 candidate/approve output for the Node queue/worker test.
+
+    The optional output root is a synthetic, caller-owned exchange directory.
+    No request or manifest field is rebuilt by the Node side.
+    """
+    db, root = visual_db
+    configured = os.environ.get("R05_A2_CHAIN_ROOT")
+    chain_root = Path(configured).resolve() if configured else root / "r05-a2-chain"
+    chain_root.mkdir(parents=True, exist_ok=False)
+
+    def produce(
+        *,
+        label: str,
+        document_id: int,
+        approval_kind: str,
+        forbidden_original_sha256: str | None = None,
+    ) -> None:
+        document = _document(db, root, document_id=document_id)
+        if approval_kind == "locally_redacted":
+            image_path = root / document.storage_path
+            with Image.open(image_path) as source:
+                redacted = source.copy()
+            draw = ImageDraw.Draw(redacted)
+            draw.rectangle((10, 10, 360, 80), fill=(0, 0, 0))
+            draw.text((20, 30), "SYNTHETIC REDACTED COPY", fill=(255, 255, 255))
+            redacted.save(image_path, format="JPEG")
+            document.file_size = image_path.stat().st_size
+            document.checksum_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+            db.commit()
+
+        supervisor = _Supervisor()
+        service = VisualV2Service(db, supervisor=supervisor)
+        resolution = service.ensure(document=document, created_by_user_id=2)
+        blocked = service.advance(resolution.analysis_job_id)
+        assert blocked.reason == "VISUAL_V2_EXPORT_APPROVAL_REQUIRED"
+        assert supervisor.created == []
+        candidate = service.approval_candidate(
+            resolution.analysis_job_id,
+            actor_user_id=1,
+        )
+        expected = {
+            row["source_ref"]: row["final_sha256"]
+            for row in candidate["sources"]
+        }
+        service.approve_export(
+            resolution.analysis_job_id,
+            actor_user_id=1,
+            expected_package_sha256=candidate["package_sha256"],
+            expected_source_sha256=expected,
+            approval_kind=approval_kind,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+        submitted = service.advance(resolution.analysis_job_id)
+        assert submitted.waiting
+        assert len(supervisor.created) == 1
+        request = supervisor.created[0]
+        assert {row["source_ref"]: row["sha256"] for row in request["sources"]} == expected
+        serialized = json.dumps(request)
+        assert document.original_filename not in serialized
+        assert document.storage_path not in serialized
+
+        case_root = chain_root / label
+        spool_root = case_root / "spool"
+        incoming_source = service.spool_root / "incoming" / request["request_key"]
+        incoming_target = spool_root / "incoming" / request["request_key"]
+        incoming_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(incoming_source, incoming_target)
+        for row in request["sources"]:
+            final_path = spool_root / row["incoming_relative_path"]
+            with Image.open(final_path) as final_image:
+                assert len(final_image.getexif()) == 0
+        (case_root / "request.json").write_text(
+            json.dumps(request, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        (case_root / "approval.json").write_text(
+            json.dumps({
+                "label": label,
+                "approval_kind": approval_kind,
+                "package_sha256": candidate["package_sha256"],
+                "final_sha256": expected,
+                "forbidden_original_sha256": forbidden_original_sha256,
+            }, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+
+    produce(
+        label="public-safe",
+        document_id=101,
+        approval_kind="public_safe",
+    )
+    private_path = root / "private-fixture" / "unredacted.jpg"
+    private_path.parent.mkdir(parents=True, exist_ok=True)
+    private = Image.new("RGB", (640, 480), color=(80, 20, 20))
+    ImageDraw.Draw(private).text(
+        (20, 20),
+        "SYNTHETIC PERSON, PRIVATE STREET 12",
+        fill=(255, 255, 255),
+    )
+    private.save(private_path, format="JPEG")
+    produce(
+        label="locally-redacted",
+        document_id=102,
+        approval_kind="locally_redacted",
+        forbidden_original_sha256=hashlib.sha256(private_path.read_bytes()).hexdigest(),
+    )

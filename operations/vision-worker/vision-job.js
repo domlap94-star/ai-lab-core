@@ -2,7 +2,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { validateManifest, validateResult, extractEnvelope, sha256File, sha256Json } = require('./vision_contract');
+const crypto = require('crypto');
+const { validateManifest, validateResult, extractEnvelope, sha256Json } = require('./vision_contract');
 
 const ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'C:\\ChatGPT-Vision-Worker';
 const PROFILE = path.join(ROOT, 'edge-profile');
@@ -18,6 +19,18 @@ const FORMAT_RETRY_ERRORS = new Set([
   'SCHEMA_INVALID',
 ]);
 let cancelPath = null;
+
+const UPLOAD_HANDOFF_FILE = 'upload_handoff.json';
+const UPLOAD_HANDOFF_SCHEMA = 'NEXT_STABIL_VISION_UPLOAD_HANDOFF_V1';
+const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
+const MIME_TYPES = new Map([
+  ['.bmp', 'image/bmp'],
+  ['.gif', 'image/gif'],
+  ['.jpeg', 'image/jpeg'],
+  ['.jpg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.webp', 'image/webp'],
+]);
 
 function setCancelPath(value) { cancelPath = value; }
 
@@ -78,6 +91,91 @@ async function temporaryChatIsActive(page, toggle) {
 
 function throwIfCancelled() {
   if (cancelPath && fs.existsSync(cancelPath)) throw new Error('CANCELLED');
+}
+
+function safeWriteJson(filePath, value) {
+  const temporary = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  fs.renameSync(temporary, filePath);
+}
+
+function sha256Bytes(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function loadVerifiedInputs(jobDir, manifest) {
+  validateManifest(manifest);
+  const resolvedJob = fs.realpathSync(jobDir);
+  const inputRootPath = path.join(resolvedJob, 'input');
+  const inputRootStat = fs.lstatSync(inputRootPath);
+  if (!inputRootStat.isDirectory() || inputRootStat.isSymbolicLink()) throw new Error('INPUT_PATH');
+  const inputRoot = fs.realpathSync(inputRootPath);
+  if (path.dirname(inputRoot).toLowerCase() !== resolvedJob.toLowerCase()) throw new Error('INPUT_PATH');
+  return manifest.sources.map((source) => {
+    const input = path.resolve(resolvedJob, source.relative_input_path);
+    let stat;
+    let resolvedInput;
+    try {
+      stat = fs.lstatSync(input);
+      resolvedInput = fs.realpathSync(input);
+    } catch (_) {
+      throw new Error('INPUT_PATH');
+    }
+    if (
+      !stat.isFile()
+      || stat.isSymbolicLink()
+      || path.dirname(resolvedInput).toLowerCase() !== inputRoot.toLowerCase()
+    ) throw new Error('INPUT_PATH');
+    const buffer = fs.readFileSync(resolvedInput);
+    if (buffer.length > MAX_SOURCE_BYTES) throw new Error('INPUT_SIZE');
+    if (sha256Bytes(buffer) !== source.sha256) throw new Error('INPUT_CHECKSUM');
+    const extension = path.extname(resolvedInput).toLowerCase();
+    return {
+      source_ref: source.source_ref,
+      sha256: source.sha256,
+      name: `${source.source_ref}${extension}`,
+      mimeType: MIME_TYPES.get(extension) || 'application/octet-stream',
+      buffer: Buffer.from(buffer),
+    };
+  });
+}
+
+function uploadHandoff(jobDir, manifest, verifiedInputs, state) {
+  safeWriteJson(path.join(jobDir, UPLOAD_HANDOFF_FILE), {
+    schema_version: UPLOAD_HANDOFF_SCHEMA,
+    job_id: manifest.job_id,
+    state,
+    recorded_at: new Date().toISOString(),
+    sources: verifiedInputs.map((input) => ({
+      source_ref: input.source_ref,
+      sha256: input.sha256,
+      size: input.buffer.length,
+    })),
+  });
+}
+
+async function uploadVerifiedInputs(
+  jobDir,
+  manifest,
+  fileInput,
+  verifiedInputs,
+  { temporaryChatVerified = false } = {},
+) {
+  if (!temporaryChatVerified) throw new Error('TEMPORARY_CHAT_NOT_VERIFIED');
+  throwIfCancelled();
+  uploadHandoff(jobDir, manifest, verifiedInputs, 'contact_may_have_started');
+  await fileInput.setInputFiles(
+    verifiedInputs.map((input) => ({
+      name: input.name,
+      mimeType: input.mimeType,
+      buffer: input.buffer,
+    })),
+    { timeout: 60000 },
+  );
+}
+
+function markUploadConfirmed(jobDir, manifest, verifiedInputs) {
+  uploadHandoff(jobDir, manifest, verifiedInputs, 'upload_confirmed');
 }
 
 async function waitForMessageCount(page, selector, beforeCount, timeout, errorCode) {
@@ -270,21 +368,14 @@ async function submitPrompt(page, composer, prompt) {
   event('PROMPT_SUBMITTED');
 }
 
-async function run(jobDir) {
-  const { chromium } = require('playwright');
+async function run(jobDir, dependencies = {}) {
+  const chromium = dependencies.chromium || require('playwright').chromium;
   const startedAt = Date.now();
   const timings = {};
   cancelPath = path.join(jobDir, 'cancel.requested');
   throwIfCancelled();
   const manifest = JSON.parse(fs.readFileSync(path.join(jobDir, 'manifest.json'), 'utf8'));
-  validateManifest(manifest);
-  const inputs = manifest.sources.map((source) => {
-    const input = path.resolve(jobDir, source.relative_input_path);
-    const expectedRoot = `${path.resolve(jobDir, 'input')}${path.sep}`;
-    if (!input.startsWith(expectedRoot) || !fs.statSync(input).isFile()) throw new Error('INPUT_PATH');
-    if (sha256File(input) !== source.sha256) throw new Error('INPUT_CHECKSUM');
-    return input;
-  });
+  const inputs = loadVerifiedInputs(jobDir, manifest);
   let context;
   let page;
   try {
@@ -317,9 +408,11 @@ async function run(jobDir) {
     }
     if (await fileInput.count() === 0) throw new Error('UI_CHANGED');
     if (!await temporaryChatIsActive(page, toggle)) throw new Error('UI_CHANGED');
-    await fileInput.setInputFiles(inputs, { timeout: 60000 });
+    await uploadVerifiedInputs(jobDir, manifest, fileInput, inputs, {
+      temporaryChatVerified: true,
+    });
     for (const input of inputs) {
-      const filename = path.basename(input);
+      const filename = input.name;
       const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       try {
         await page.getByRole('button', {
@@ -333,6 +426,7 @@ async function run(jobDir) {
       }
     }
     throwIfCancelled();
+    markUploadConfirmed(jobDir, manifest, inputs);
     event('UPLOAD_COMPLETE', `sources=${inputs.length}`);
     timings.upload_ms = Date.now() - startedAt - timings.browser_startup_ms - timings.temporary_chat_setup_ms;
 
@@ -400,4 +494,9 @@ module.exports = {
   parseAndValidateResponse,
   responseControlState,
   setCancelPath,
+  loadVerifiedInputs,
+  uploadVerifiedInputs,
+  markUploadConfirmed,
+  UPLOAD_HANDOFF_FILE,
+  UPLOAD_HANDOFF_SCHEMA,
 };

@@ -35,4 +35,5 @@ assert.throws(
 assert.throws(() => validateResult({ ...result, observations: [{ source_ref: 'S99', text: 'x' }] }, manifest), /UNKNOWN_SOURCE/);
 assert.throws(() => validateResult({ ...result, measurements: [{ source_ref: 'S1', value: 3, unit: 'mm' }] }, manifest), /BASIS/);
 assert.throws(() => validateManifest({ ...manifest, sources: [{ ...manifest.sources[0], relative_input_path: '../x.png' }] }), /INPUT_PATH/);
+assert.throws(() => validateManifest({ ...manifest, sources: [{ ...manifest.sources[0], source_ref: 'S2' }] }), /SOURCE_PATH_MISMATCH/);
 process.stdout.write('VISION WORKER CONTRACT TESTS: OK\n');

@@ -29,7 +29,9 @@ function validateManifest(value) {
     if (source.page_number != null && (!Number.isInteger(source.page_number) || source.page_number < 1)) throw new Error('MANIFEST_PAGE_NUMBER');
     if (source.asset_id != null && (!Number.isInteger(source.asset_id) || source.asset_id < 1)) throw new Error('MANIFEST_ASSET_ID');
     if (!/^[a-f0-9]{64}$/i.test(String(source.sha256 || ''))) throw new Error('MANIFEST_SHA256');
-    if (!/^input\/S[1-4]\.[a-z0-9]{1,8}$/i.test(String(source.relative_input_path || '').replace(/\\/g, '/'))) throw new Error('MANIFEST_INPUT_PATH');
+    const inputPath = String(source.relative_input_path || '').replace(/\\/g, '/');
+    if (!/^input\/S[1-4]\.[a-z0-9]{1,8}$/i.test(inputPath)) throw new Error('MANIFEST_INPUT_PATH');
+    if (inputPath.split('/').pop().split('.')[0] !== source.source_ref) throw new Error('MANIFEST_SOURCE_PATH_MISMATCH');
   }
   return refs;
 }

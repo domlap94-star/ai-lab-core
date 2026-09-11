@@ -11,6 +11,7 @@ const MAX_BODY_BYTES = 64 * 1024;
 const MAX_SOURCES = 4;
 const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
 const RETRY_DELAYS = [0, 5 * 60 * 1000, 30 * 60 * 1000];
+const UPLOAD_HANDOFF_FILE = 'upload_handoff.json';
 
 function safeWriteJson(filePath, value) {
   const temporary = `${filePath}.${process.pid}.tmp`;
@@ -52,6 +53,13 @@ class VisionQueue {
       if (!fs.existsSync(statusPath)) continue;
       const status = readJson(statusPath);
       if (['QUEUED', 'RUNNING'].includes(status.state)) {
+        if (this._uploadHandoffExists(entry.name)) {
+          status.state = 'UPLOAD_UNCERTAIN';
+          status.error_code = 'UPLOAD_MAY_HAVE_STARTED';
+          status.next_retry_at = null;
+          safeWriteJson(statusPath, status);
+          continue;
+        }
         status.state = 'QUEUED';
         status.error_code = null;
         safeWriteJson(statusPath, status);
@@ -80,6 +88,21 @@ class VisionQueue {
       if (status.request_key === requestKey) return status;
     }
     return null;
+  }
+
+  _uploadHandoffExists(jobId) {
+    return fs.existsSync(path.join(this.jobsRoot, jobId, UPLOAD_HANDOFF_FILE));
+  }
+
+  _uploadHandoffState(jobId) {
+    const markerPath = path.join(this.jobsRoot, jobId, UPLOAD_HANDOFF_FILE);
+    if (!fs.existsSync(markerPath)) return null;
+    try {
+      const marker = readJson(markerPath);
+      return String(marker.state || 'contact_may_have_started');
+    } catch (_) {
+      return 'contact_may_have_started';
+    }
   }
 
   create(request) {
@@ -117,13 +140,14 @@ class VisionQueue {
       if (!/^incoming\/[a-f0-9]{64}\/S[1-4]\.[a-z0-9]{1,8}$/i.test(relative)) throw new Error('INVALID_SOURCE_PATH');
       const inputPath = path.resolve(this.spoolRoot, ...relative.split('/'));
       if (!fs.existsSync(inputPath) || !fs.lstatSync(inputPath).isFile() || !within(this.spoolRoot, inputPath)) throw new Error('INVALID_SOURCE_PATH');
-      if (fs.statSync(inputPath).size > MAX_SOURCE_BYTES) throw new Error('INVALID_SOURCE_SIZE');
-      const actualHash = crypto.createHash('sha256').update(fs.readFileSync(inputPath)).digest('hex');
+      const inputBytes = fs.readFileSync(inputPath);
+      if (inputBytes.length > MAX_SOURCE_BYTES) throw new Error('INVALID_SOURCE_SIZE');
+      const actualHash = crypto.createHash('sha256').update(inputBytes).digest('hex');
       if (actualHash !== source.sha256) throw new Error('SOURCE_CHECKSUM');
       const extension = path.extname(inputPath).toLowerCase();
       if (!/^\.[a-z0-9]{1,8}$/.test(extension)) throw new Error('INVALID_EXTENSION');
       const targetName = `${ref}${extension}`;
-      fs.copyFileSync(inputPath, path.join(jobDir, 'input', targetName));
+      fs.writeFileSync(path.join(jobDir, 'input', targetName), inputBytes, { flag: 'wx' });
       return {
         source_ref: ref, document_id: source.document_id, page_number: source.page_number ?? null,
         asset_id: source.asset_id ?? null, sha256: actualHash, relative_input_path: `input/${targetName}`,
@@ -216,6 +240,17 @@ class VisionQueue {
       }
       const text = String(child.visionOutput || '');
       if (code === 0) {
+        const handoffState = this._uploadHandoffState(jobId);
+        if (handoffState !== 'upload_confirmed' || !text.includes('UPLOAD_COMPLETE')) {
+          this._set(jobId, {
+            state: 'UPLOAD_UNCERTAIN',
+            error_code: handoffState ? 'UPLOAD_COMPLETION_UNCONFIRMED' : 'UPLOAD_HANDOFF_EVIDENCE_MISSING',
+            next_retry_at: null,
+          });
+          this.arbiter.release('vision', jobId);
+          this.pump();
+          return;
+        }
         let formatRetryUsed = null;
         const resultManifestPath = path.join(this.jobsRoot, jobId, 'output', 'result_manifest.json');
         if (fs.existsSync(resultManifestPath)) {
@@ -228,6 +263,14 @@ class VisionQueue {
           temporary_chat_verified: text.includes('TEMPORARY_CHAT_VERIFIED'),
           upload_success: text.includes('UPLOAD_COMPLETE'),
           format_retry_used: formatRetryUsed,
+        });
+      } else if (this._uploadHandoffExists(jobId)) {
+        // Once the worker durably crossed the local upload boundary, any
+        // non-zero exit is ambiguous. AUTH/UI labels must not make it retryable.
+        this._set(jobId, {
+          state: 'UPLOAD_UNCERTAIN',
+          error_code: 'UPLOAD_MAY_HAVE_STARTED',
+          next_retry_at: null,
         });
       } else if (code === 20 || text.includes('AUTH_REQUIRED')) {
         this.pausedState = 'AUTH_REQUIRED';
