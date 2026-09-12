@@ -157,3 +157,47 @@ Flutter decision tests pass, but `API_CORS_AND_WIDGET_DECISION_TESTS_PASS` is
 not claimed until the real backend test and compile step are executed. Browser
 runtime, real Supervisor/Temporary Chat, remote upload and external end-to-end
 remain `NOT_RUN / NOT_VERIFIED`.
+
+## Backend resume — bounded Engine preflight
+
+The owner accepted documentation checkpoint
+`215432831278c0c417bc950ccc8406718be604a1` only as the record of partial work.
+The four WIP files, patch size `18039 B`, patch SHA-256
+`81E311E7C129FC7ACC8829BC8B2E3FB31CDFEA6F800D56EE46E16E9E58A17914`
+and reverse apply-check remain unchanged. Current file SHA-256 values are:
+
+- router: `F535DFB48E0819B9824651767E558065F25E4898E3A42A5ACED4B57D36BA9AD5`;
+- backend test: `92DA442A61AA6651F2DF031C7CBC1107F3413D58812946492193589BC7A9475C`;
+- Flutter dialog: `5208A68125A3127D0A8A8DCA482FCB9E13C8319DF211B6F92AA256A87E26A375`;
+- Flutter test: `53C1F0C43DBD9C27345C18FBD35B8675F41D230348DAA8A5279480C4C659FECE`.
+
+The preserved Flutter logs were re-hashed and match E014, E018, E016 and E019.
+They are prior executions against the unchanged frontend WIP, not new runs.
+
+One bounded observation sequence used the selected local Docker CLI, no
+`DOCKER_HOST` or `DOCKER_CONTEXT` override, context `desktop-linux` and endpoint
+`npipe:////./pipe/dockerDesktopLinuxEngine`. Local context reads succeeded.
+The server-version request, PID `37684`, returned no stdout or stderr and was
+terminated after `20.235 s`; no exit code was available. That exact CLI process
+is no longer present. This is `TIMEOUT_NO_STDERR`, not access denial.
+
+At `2026-09-12T15:27:15Z`, Windows reported `25.802 GiB` physical total,
+`6.052 GiB` available and commit `35.994 / 70.802 GiB`, leaving `34.808 GiB`.
+The matching `docker-desktop` WSL pool read succeeded: `17.563 GiB` total,
+`14.198 GiB` available, swap `8.0 GiB` with `1.9 MiB` used. These measurements
+pass the numeric reserves but cannot replace a response from Docker Engine.
+
+Because the Engine server did not answer, the exact old container
+`next-stabil-r05-a4-20260912t121418z-regression-final` remains `UNKNOWN`; no
+container or image inspection was attempted. No old resource was stopped and
+no new test container was created. The required backend ASGI/CORS test, small
+API regression and `compileall` therefore remain `NOT_RUN`. No source/test file
+is committed or pushed by this resume.
+
+Current status remains
+`PREVIEW_TRANSPORT_AND_DECISION_SOURCE_PARTIAL / LOCAL_ONLY / NOT_DEPLOYED /
+RESOURCE_OBSERVABILITY_BLOCKED`. A later attempt requires a real change in the
+Engine condition and separate authorization for any infrastructure recovery;
+it must first repeat one bounded server read and account for the old exact-name
+resource. R06, runtime, browser, Supervisor, Temporary Chat and external export
+remain outside scope.
