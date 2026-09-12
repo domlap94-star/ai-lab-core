@@ -103,3 +103,13 @@ remain `LOCAL_ONLY`; their hashes are indexed in
 `WAITING_APPROVAL / WAITING_ESCROW_DECISION`; R04 remains `IN_PROGRESS`;
 Android stays `DEFERRED_BY_OWNER / NOT_TESTED`; D-15/D-16 AI acceptance is
 `NOT_RUN`.
+
+## Owner acceptance and successor boundary
+
+On 2026-09-12 the owner accepted this evidence at
+`1ae3f99edd5cb39b9cb795ba573878e9ded6b30e` as
+`LOCAL_BROWSER_FILE_INPUT_ACCEPTED / TEST_ONLY / NOT_DEPLOYED`. The acceptance
+retains every limitation above: it is not evidence of Temporary Chat mode,
+remote upload, normal worker CLI, operator UI, external end-to-end or deploy.
+R05-A4 subsequently added only source and isolated tests for the operator
+preview/decision flow; it did not repeat or relabel this browser test.
