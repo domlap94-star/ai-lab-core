@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION jako cały pakiet. Właściciel zaakceptował R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`. R04-A1 i wąski wynik R04-A2-UI06 pozostają zaakceptowane jako `NOT_DEPLOYED`; D-19 zachowuje odbiór R04-A3 source `41d2b844a7b120a79001ad5cfbe6304b30580dfc` i evidence `457a4321db835421c0d06847e2132d9623d735ae`. D-20 obejmuje wspólną ochronę Vision V1 / Visual V2. Właściciel zaakceptował R05-A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence `05995ab2c87438c5786a9f874793e95d2bf5b296` jako `SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED / NOT_DEPLOYED`. Pierwszy source R05-A2 `dc075426c233ac204cec144be04cb66e74349702` zachowuje dowód exact-byte; kontynuacja na source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` odtworzyła i zabezpieczyła ponowienie między recover a granicą uploadu jako `UPLOAD_REPLAY_GUARD_READY_FOR_REVIEW / NOT_DEPLOYED`. Offline uzyskano `AT_MOST_ONE_FAKE_UPLOAD`; real export, browser, Supervisor/Temporary Chat/model, panel operatora i external end-to-end pozostają `NOT_VERIFIED` i nieautoryzowane. Android runtime pozostaje `DEFERRED_BY_OWNER / NOT_TESTED`; W-02 nadal `WAITING_OWNER_VISUAL_EVIDENCE`. Cały R04 i R05 pozostają IN_PROGRESS. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION jako cały pakiet. Właściciel zaakceptował R03-A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`. R04-A1, wąski wynik R04-A2-UI06 i R04-A3 source/staging pozostają zaakceptowane jako `NOT_DEPLOYED`. Właściciel zaakceptował R05-A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence `05995ab2c87438c5786a9f874793e95d2bf5b296`, a R05-A2 source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` i evidence `60b1736db9eb18ef5445a2d8407988106ff96407`, oba jako ograniczone source/offline i `NOT_DEPLOYED`. R05-A3 uzyskało `REAL_BROWSER_FILELIST_EXACT_BYTES_PASS` wyłącznie na lokalnej syntetycznej stronie in-memory; Temporary Chat mode, remote upload i external end-to-end pozostają `NOT_VERIFIED`. Android runtime pozostaje `DEFERRED_BY_OWNER / NOT_TESTED`; W-02 nadal `WAITING_OWNER_VISUAL_EVIDENCE`. Cały R04 i R05 pozostają IN_PROGRESS. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -20,23 +20,23 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | R03-A4 pozostaje zaakceptowane na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`; cały R03 nadal `WAITING_APPROVAL / WAITING_ESCROW_DECISION`. R04-A3 pozostaje zaakceptowane jako `SOURCE_INTEGRATION_ACCEPTED / TEST_STAGING_RECORDED / NOT_DEPLOYED`. Właściciel zaakceptował R05-A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence `05995ab2c87438c5786a9f874793e95d2bf5b296` jako `SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED / NOT_DEPLOYED`. R05-A2 kontynuuje review pierwszego source `dc075426c233ac204cec144be04cb66e74349702`; guard replay na source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` jest `UPLOAD_REPLAY_GUARD_READY_FOR_REVIEW / NOT_DEPLOYED`. R04/R05 pozostają `IN_PROGRESS`; R06–R24 nieuruchomione |
-| Checkpoint ID | `R05-20260911T232156Z-A2-UPLOAD-REPLAY` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-11T23:21:56Z` |
-| Aktualny wykonawca / sesja | Codex / R05-A2 replay guard zakończone source/offline test i przekazane do review; bez browsera, normalnego startupu, rzeczywistego Supervisora i realnego eksportu |
-| Aktywny pakiet / podetap | `R05 / A2 upload replay guard` — `UPLOAD_REPLAY_GUARD_READY_FOR_REVIEW / NOT_DEPLOYED`; cały R05 nadal `IN_PROGRESS` |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; wejście kontynuacji local/remote `869bffc4f049889a8e20cda09b7da1552a23ee6d`; pierwszy source A2 `dc075426c233ac204cec144be04cb66e74349702`; przetestowany i opublikowany source guardu `d1b0518ad9aefb5bc05cd89308de923ca54d2809`. Dokumentacja/checkpoint są objęte jawną allowlistą; ich commit wynikowy odczytuje się z Git |
+| Stan rejestracji | R03-A4 pozostaje zaakceptowane na `92cc3aa38f0a81ff40e3798981970bd2e45b6206` dla manifestu `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`; cały R03 nadal `WAITING_APPROVAL / WAITING_ESCROW_DECISION`. R04-A3 pozostaje zaakceptowane jako `SOURCE_INTEGRATION_ACCEPTED / TEST_STAGING_RECORDED / NOT_DEPLOYED`. Właściciel zaakceptował R05-A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence `05995ab2c87438c5786a9f874793e95d2bf5b296`. Właściciel zaakceptował także R05-A2 source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` i evidence `60b1736db9eb18ef5445a2d8407988106ff96407` jako `SOURCE_AND_OFFLINE_BOUNDARY_ACCEPTED / NOT_DEPLOYED`. R05-A3 jest `LOCAL_BROWSER_FILE_INPUT_READY_FOR_REVIEW / TEST_ONLY` z `REAL_BROWSER_FILELIST_EXACT_BYTES_PASS`; R04/R05 pozostają `IN_PROGRESS`, R06–R24 nieuruchomione |
+| Checkpoint ID | `R05-20260912T080832Z-A3-BROWSER-FILEPAYLOAD` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-12T08:17:07Z` |
+| Aktualny wykonawca / sesja | Codex / R05-A3 lokalny FilePayload zakończony i przekazany do review; test only, bez normalnego workera, ChatGPT, Temporary Chat i zewnętrznego uploadu |
+| Aktywny pakiet / podetap | `R05 / A3 local browser FilePayload` — `LOCAL_BROWSER_FILE_INPUT_READY_FOR_REVIEW / TEST_ONLY`; cały R05 nadal `IN_PROGRESS` |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start local/remote `60b1736db9eb18ef5445a2d8407988106ff96407`, tree clean. Code under test: accepted A2 source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` |
 | Gałąź / SHA kodu objętego sprawdzeniem | accepted R04-A3 source `41d2b844a7b120a79001ad5cfbe6304b30580dfc`; accepted R05-A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad`; pierwszy source A2 `dc075426c233ac204cec144be04cb66e74349702`; preimage kontynuacji `869bffc4f049889a8e20cda09b7da1552a23ee6d`; source replay guard `d1b0518ad9aefb5bc05cd89308de923ca54d2809`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Produkcyjny bounded inventory R04-A1 pozostaje historycznym dowodem i nie był ponownie mierzony ani przepinany. R04-A3 utworzyło wyłącznie lokalny zestaw `R04-A3-20260911T091750Z-41d2b844`; runtime `NOT_OBSERVED / NOT_DEPLOYED`, Windows/Android `UNVERIFIED`. Syntetyczna DB osiągnęła istniejący head `followup_assistant_chat_history_20260829`; zachowane zestawy R03/A2 nie były użyte |
-| Ostatnia faktycznie zakończona czynność | Opublikowano source replay guard i zakończono izolowaną regresję. Fail-before odtworzył drugi spawn/upload po markerze powstałym między recover i start oraz dwa uploady przy dwóch wejściach granicy. Pass-after dał zero dodatkowych spawnów, łącznie jeden fake upload i jeden zwycięski claim. Nie uruchomiono Playwright/browsera, worker CLI ani sieci |
-| Potwierdzone testy bieżącego wykonania | Fail-before replay: `R05_A2_UPLOAD_REPLAY_REPRODUCED`, recover `spawns=1/fake_uploads=2`, parallel `fulfilled=2/fake_uploads=2`, log SHA-256 `712A19BE5AB38060D28EAF57101B9564FFA7276E75610048541AFEDE3545E33F`. Pass-after: backend `76 passed`, exit `0`, log `7EA2BD866BAC0F1F36302CA9A7627D8DF5D61075DEEFE88641361863ADA59028`; pięć `node --check` i pięć skryptów Node exit `0`, log `BCA01B5B9412DFA801D77A9A18FDA745EFACC0805EE030350D8AC0A04A2AF12C`; replay `restarted_spawns=0`, parallel `1 fulfilled/1 EEXIST`, każdy z `fake_uploads=1` |
+| Ostatnia faktycznie zakończona czynność | Jedna nieutrwalona sesja Edge na `about:blank` wykonała opt-in macierz A–E. Rzeczywisty Playwright `locator.setInputFiles` wprowadził dokładne zatwierdzone bajty public-safe i locally-redacted do DOM `FileList`; retry i odmowy nie wykonały dodatkowego wyboru. Browser zamknięto |
+| Potwierdzone testy bieżącego wykonania | `REAL_BROWSER_FILELIST_EXACT_BYTES_PASS`, exit `0`: A `2087 B / 3956F8E…DD3206`, B `4688 B / 7A89CB6…1B431C`, po jednym `input/change`; C zachowało zweryfikowany bufor mimo zmiany pliku; D `UPLOAD_HANDOFF_ALREADY_EXISTS` i 0 dodatkowych zdarzeń; E `INPUT_CHECKSUM` / `TEMPORARY_CHAT_NOT_VERIFIED`, puste FileList. Kontekst: 0 publicznych nawigacji/prób sieciowych. `node --check`, opt-in guard, replay regression i boundary regression: wszystkie exit `0` |
 | Niezacommitowana praca / zabezpieczenie | Oryginalny worktree: 6 modified + 197 untracked, staged 0, drift 0; 1 patch + 8 exact copies zachowane `LOCAL_ONLY` pod `C:\ai-lab-core-staging\recovery\R00_20260907T202413Z`; manifest SHA-256 `F3AD6C4CE025D969DDC46923CD3640FCCB370248D4D40677860BA9636770C56C` |
-| Niezakończone procesy i skutki operacyjne | Brak własnych procesów i kontenerów kontynuacji; kontener backendu miał `--rm`, nie utworzono named volumes, sieci ani portów. Pozostawiono chronione syntetyczne dowody `LOCAL_ONLY` w `C:\ai-lab-core-staging\recovery\R05_A2_UPLOAD_REPLAY_20260911T230541Z`; wcześniejsze dowody A2 pozostają bez zmian. Aplikacja, dispatchery, Supervisor HTTP, browser, Temporary Chat, modele i realny eksport: `NOT_RUN` |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260911T232156Z-R05-A2-UPLOAD-REPLAY.md`; poprzedni checkpoint: `docs/recovery/checkpoints/20260911T222308Z-R05-A2-UPLOAD-BOUNDARY.md` |
-| Zakres aktualnej zgody | R05-A1 zaakceptowane wyłącznie jako source/synthetic/not deployed. Kontynuacja R05-A2 SOURCE/OFFLINE TEST obejmuje atomowe lokalne przejęcie markera, ponowną kontrolę kolejki przed spawnem, marker ownership/binding i odpowiadające testy; bez normalnego startupu, browsera, realnego Supervisora/Temporary Chat/modelu, eksportu i deploymentu |
-| Blokada / wymagana decyzja | Replay guard A2 czeka na odbiór właściciela. Real Playwright/browser, uploader, Temporary Chat, external end-to-end, UI dopuszczenia oraz skoordynowany rollout kolejki/workera pozostają `NOT_VERIFIED / NOT_DEPLOYED` i wymagają odrębnej zgody |
-| Jeden następny bezpieczny krok | Właściciel przegląda source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` oraz dowody replay guard i przyjmuje albo odrzuca ten ograniczony wynik; bez automatycznego realnego browser/upload smoke ani R06 |
+| Niezakończone procesy i skutki operacyjne | Własny context/browser zamknięty; liczba procesów Edge 13 przed i 13 po, nowych PID po teście 0. Nie utworzono kontenera, sieci, portu ani wolumenu. Zachowano chroniony syntetyczny root `C:\ai-lab-core-staging\recovery\R05_A3_LOCAL_BROWSER_20260912T080832Z` i screenshot/logi `LOCAL_ONLY`; zastane procesy i zasoby nietknięte |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260912T080832Z-R05-A3-BROWSER-FILEPAYLOAD.md`; poprzedni checkpoint: `docs/recovery/checkpoints/20260911T232156Z-R05-A2-UPLOAD-REPLAY.md` |
+| Zakres aktualnej zgody | R05-A2 odebrane jako source/offline boundary/not deployed. A3 zezwala wyłącznie na opt-in test realnego lokalnego Playwright `setInputFiles` na syntetycznej stronie in-memory i sprawdzenie DOM FileList/arrayBuffer; bez publicznej nawigacji, ChatGPT/Temporary Chat, zewnętrznego uploadu i zmian kodu produkcyjnego |
+| Blokada / wymagana decyzja | A3 czeka na odbiór właściciela. Wynik nie weryfikuje Temporary Chat mode, realnego zdalnego uploadu, UI operatora, profilu runtime ani rollout/deploymentu |
+| Jeden następny bezpieczny krok | Właściciel przegląda ograniczony wynik A3 i akceptuje albo odrzuca `LOCAL_BROWSER_FILE_INPUT_READY_FOR_REVIEW / TEST_ONLY`; bez automatycznego realnego uploadu, R06 lub deploymentu |
 | Warunek STOP | Zatrzymać fragment wymagający nowej migracji, nowego pipeline, niekompatybilnego kontraktu lub zmiany produktu. Bez produkcyjnych DB/storage/sieci/sekretów, modeli, Temporary Chat, external export, deploy/release, R06–R24 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -65,7 +65,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
 | R03 | WAITING_APPROVAL | `R03-20260909T064442Z-A4-ACCEPTANCE` / A4 ACCEPTED | Właściciel zaakceptował A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206`: `DATA_RESTORE_VERIFIED_FOR_MANIFEST_8F20A784`. Cały R03 nadal `WAITING_ESCROW_DECISION`; credentials, recovery key, aplikacja, pełne RTO, cleanup i rollout pozostają niezatwierdzone/niewykonane |
 | R04 | IN_PROGRESS | `R04-20260911T095238Z-A3-HANDOFF` / A3 OWNER ACCEPTED | Właściciel zaakceptował source `41d2b844a7b120a79001ad5cfbe6304b30580dfc` i evidence `457a4321db835421c0d06847e2132d9623d735ae` jako `SOURCE_INTEGRATION_ACCEPTED / TEST_STAGING_RECORDED / NOT_DEPLOYED`. Brak stdout/exit wrappera Web i `test_followup_chunk13_api_auth.py = NOT_RUN` pozostają jawne. Pełne R04, runtime, Windows/Android, W-02 i AI są nieodebrane |
-| R05 | IN_PROGRESS | `R05-20260911T232156Z-A2-UPLOAD-REPLAY` / UPLOAD REPLAY GUARD READY FOR REVIEW | Właściciel zaakceptował A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence `05995ab2c87438c5786a9f874793e95d2bf5b296` jako `SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED / NOT_DEPLOYED`. Pierwszy source A2 `dc075426c233ac204cec144be04cb66e74349702` zachowuje exact-byte evidence; source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` odtworzył i zamknął offline replay między recover a upload boundary. Backend `76 passed`, pięć kontroli składni i pięć skryptów Node exit `0`; at most one fake upload PASS. Real browser/uploader/external end-to-end pozostają `NOT_VERIFIED` |
+| R05 | IN_PROGRESS | `R05-20260912T080832Z-A3-BROWSER-FILEPAYLOAD` / LOCAL BROWSER FILE INPUT READY FOR REVIEW | Właściciel zaakceptował A1 source `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence `05995ab2c87438c5786a9f874793e95d2bf5b296`, a A2 source `d1b0518ad9aefb5bc05cd89308de923ca54d2809` i evidence `60b1736db9eb18ef5445a2d8407988106ff96407`, jako ograniczone source/offline i `NOT_DEPLOYED`. A3 na tej samej bazie uzyskało `REAL_BROWSER_FILELIST_EXACT_BYTES_PASS` w lokalnym nieutrwalonym Edge: macierz A–E, 0 publicznych nawigacji/prób sieciowych. Temporary Chat mode, remote upload i external end-to-end pozostają `NOT_VERIFIED`; cały R05 nadal `IN_PROGRESS` |
 | R06 | PLANNED | — | — |
 | R07 | PLANNED | — | — |
 | R08 | PLANNED | — | — |
@@ -460,7 +460,7 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 - Negatywne: syntetyczny adres/nazwisko w pikselach, niepewny skan i restricted dają 0 uploadów; błędny hash i podmieniony plik są blokowane.
 - Pozytywne: dopuszczony public-safe/sanitized materiał jest pakowany i później przechodzi R15. Samo blokowanie wszystkich obrazów nie zamyka wymagania.
 
-**Bieżący dowód wykonawczy A1/A2:** właściciel zaakceptował A1 source
+**Bieżący dowód wykonawczy A1/A2/A3:** właściciel zaakceptował A1 source
 `d31e105427acd40733e91c4d4b46f0412b0f95ad` i evidence
 `05995ab2c87438c5786a9f874793e95d2bf5b296` jako
 `SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED / NOT_DEPLOYED`. Dowód A1 obejmuje
@@ -470,14 +470,19 @@ trwałe rozróżnienie pewnej odmowy przed kontaktem od możliwego rozpoczęcia
 kontaktu. Historyczne claimy bez nowego markera pozostają fail-closed. A2 source
 `dc075426c233ac204cec144be04cb66e74349702` zachowuje dowód exact-byte do fake
 `setInputFiles`. Kontynuacja na source
-`d1b0518ad9aefb5bc05cd89308de923ca54d2809` jest
-`UPLOAD_REPLAY_GUARD_READY_FOR_REVIEW / NOT_DEPLOYED`: rzeczywiste moduły
+`d1b0518ad9aefb5bc05cd89308de923ca54d2809` został zaakceptowany wraz z
+evidence `60b1736db9eb18ef5445a2d8407988106ff96407` jako
+`SOURCE_AND_OFFLINE_BOUNDARY_ACCEPTED / NOT_DEPLOYED`: rzeczywiste moduły
 odtworzyły fail-before dwóch fake uploadów, a po zmianie wyłączne utworzenie
 markera V2 i recheck kolejki dały co najwyżej jeden fake upload dla tego samego
 job/source binding. Marker przerwany, historyczny albo potwierdzony nie jest
-nadpisywany; potwierdzenie wymaga właściwej próby. Realny browser, uploader, UI,
-eksport i external end-to-end pozostają `NOT_VERIFIED`; nie zmienia to warunku
-zamknięcia całego R05 ani zakresu R06.
+nadpisywany; potwierdzenie wymaga właściwej próby. A3 następnie przekazało
+zaakceptowane syntetyczne bufory przez rzeczywisty lokalny Playwright/Edge
+`setInputFiles` i niezależnie odczytało zgodne nazwy, MIME, rozmiary i SHA-256 z
+DOM `FileList`. Wynik to `REAL_BROWSER_FILELIST_EXACT_BYTES_PASS` oraz
+`LOCAL_BROWSER_FILE_INPUT_READY_FOR_REVIEW / TEST_ONLY`. Temporary Chat mode,
+zdalny uploader, UI operatora, eksport sieciowy i external end-to-end pozostają
+`NOT_VERIFIED`; nie zmienia to warunku zamknięcia całego R05 ani zakresu R06.
 
 **Warunek zamknięcia:** Privacy gate ma dowód zgodności faktycznych bajtów i obustronne testy: blokuje niedopuszczone, przepuszcza dopuszczone. P0 blokuje eksport/promocję Visual, nie każdą lokalną poprawkę.
 
