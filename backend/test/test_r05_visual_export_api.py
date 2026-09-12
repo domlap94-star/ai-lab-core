@@ -210,7 +210,64 @@ def test_r05_a1_export_approval_http_auth_scope_and_background(api_case) -> None
     assert candidate_response.status_code == 200
     candidate = candidate_response.json()
     assert candidate["sources"][0]["document_id"] == 501
+    assert candidate["sources"][0]["document_scope"] == {
+        "schema": "VISUAL_EXPORT_DOCUMENT_SCOPE_V1",
+        "document_id": 501,
+        "client_id": None,
+        "project_id": None,
+        "inspection_id": None,
+        "candidate_id": None,
+    }
+    assert candidate["selected_source_count"] == 1
+    assert candidate["omitted_source_count"] == 0
+    assert candidate["complete_source_coverage"] is True
+    assert candidate["approval_state"] == "not_approved"
+    assert candidate["can_approve"] is True
+    assert candidate["can_revoke"] is False
     assert supervisor.created == []
+
+    source = candidate["sources"][0]
+    preview_path = (
+        f"{PATH}/501/vision/export-approval/{candidate['analysis_job_id']}"
+        f"/sources/{source['source_ref']}/preview"
+    )
+    preview_params = {
+        "package_sha256": candidate["package_sha256"],
+        "binding_sha256": candidate["binding_sha256"],
+        "source_sha256": source["final_sha256"],
+    }
+    assert http.get(preview_path, params=preview_params).status_code == 401
+    assert http.get(
+        preview_path,
+        params=preview_params,
+        headers=_headers("r05-api-user"),
+    ).status_code == 403
+    preview = http.get(
+        preview_path,
+        params=preview_params,
+        headers=_headers("r05-api-admin"),
+    )
+    assert preview.status_code == 200
+    assert preview.headers["cache-control"] == "no-store, max-age=0"
+    assert preview.headers["x-content-sha256"] == source["final_sha256"]
+    assert preview.headers["x-package-sha256"] == candidate["package_sha256"]
+    assert preview.headers["x-source-ref"] == source["source_ref"]
+    assert hashlib.sha256(preview.content).hexdigest() == source["final_sha256"]
+    assert len(preview.content) == source["preview_size"]
+    assert source["final_sha256"] != source["original_sha256"]
+    assert background_calls == [(501, 2)]
+    assert supervisor.created == []
+
+    assert http.get(
+        preview_path,
+        params={**preview_params, "binding_sha256": "f" * 64},
+        headers=_headers("r05-api-admin"),
+    ).status_code == 409
+    assert http.get(
+        preview_path.replace(f"/{source['source_ref']}/", "/S4/"),
+        params=preview_params,
+        headers=_headers("r05-api-admin"),
+    ).status_code == 409
 
     revoke_path = (
         f"{PATH}/501/vision/export-approval/{candidate['analysis_job_id']}"
@@ -224,6 +281,13 @@ def test_r05_a1_export_approval_http_auth_scope_and_background(api_case) -> None
     assert revoked.json()["reason"] == "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
     assert background_calls == [(501, 2)]
     assert supervisor.created == []
+    after_revoke = http.post(
+        candidate_path,
+        headers=_headers("r05-api-admin"),
+    )
+    assert after_revoke.status_code == 200
+    assert after_revoke.json()["approval_state"] == "revoked"
+    assert after_revoke.json()["can_approve"] is True
 
     assert http.post(
         approval_path,
@@ -237,6 +301,7 @@ def test_r05_a1_export_approval_http_auth_scope_and_background(api_case) -> None
         json={
             "analysis_job_id": candidate["analysis_job_id"],
             "package_sha256": "0" * 64,
+            "binding_sha256": candidate["binding_sha256"],
             "source_sha256": {
                 row["source_ref"]: row["final_sha256"]
                 for row in candidate["sources"]
@@ -255,6 +320,7 @@ def test_r05_a1_export_approval_http_auth_scope_and_background(api_case) -> None
         json={
             "analysis_job_id": candidate["analysis_job_id"],
             "package_sha256": candidate["package_sha256"],
+            "binding_sha256": candidate["binding_sha256"],
             "source_sha256": {
                 row["source_ref"]: row["final_sha256"]
                 for row in candidate["sources"]
@@ -270,4 +336,88 @@ def test_r05_a1_export_approval_http_auth_scope_and_background(api_case) -> None
     db.expire_all()
     assert db.query(AnalysisJob).count() == 1
     assert db.get(Document, 501).vision_status == "queued"
+    http.close()
+
+
+def test_r05_a4_preview_rejects_changed_scope_bytes_and_restricted(api_case) -> None:
+    db, supervisor, background_calls = api_case
+    http = TestClient(app)
+    candidate_path = f"{PATH}/501/vision/export-approval/candidate"
+    candidate = http.post(
+        candidate_path,
+        headers=_headers("r05-api-admin"),
+    ).json()
+    source = candidate["sources"][0]
+    preview_path = (
+        f"{PATH}/501/vision/export-approval/{candidate['analysis_job_id']}"
+        f"/sources/{source['source_ref']}/preview"
+    )
+    params = {
+        "package_sha256": candidate["package_sha256"],
+        "binding_sha256": candidate["binding_sha256"],
+        "source_sha256": source["final_sha256"],
+    }
+
+    document = db.get(Document, 501)
+    document.project_id = 77
+    db.commit()
+    changed_scope = http.get(
+        preview_path,
+        params=params,
+        headers=_headers("r05-api-admin"),
+    )
+    assert changed_scope.status_code == 409
+    assert changed_scope.json()["detail"]["code"] == (
+        "VISUAL_V2_EXPORT_SCOPE_MISMATCH"
+    )
+    stale_approval = http.post(
+        f"{PATH}/501/vision/export-approval",
+        headers=_headers("r05-api-admin"),
+        json={
+            "analysis_job_id": candidate["analysis_job_id"],
+            "package_sha256": candidate["package_sha256"],
+            "binding_sha256": candidate["binding_sha256"],
+            "source_sha256": {
+                row["source_ref"]: row["final_sha256"]
+                for row in candidate["sources"]
+            },
+            "approval_kind": "public_safe",
+            "expires_at": (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+        },
+    )
+    assert stale_approval.status_code == 409
+    assert stale_approval.json()["detail"]["code"] == (
+        "VISUAL_V2_EXPORT_SCOPE_MISMATCH"
+    )
+    assert background_calls == []
+    assert supervisor.created == []
+
+    document.project_id = None
+    db.commit()
+    image_path = Path(settings.data_dir) / "documents" / "r05.jpg"
+    changed = bytearray(image_path.read_bytes())
+    changed[-1] ^= 0x01
+    image_path.write_bytes(changed)
+    changed_bytes = http.get(
+        preview_path,
+        params=params,
+        headers=_headers("r05-api-admin"),
+    )
+    assert changed_bytes.status_code == 409
+    assert changed_bytes.json()["detail"]["code"] == (
+        "VISUAL_V2_SOURCE_SHA_MISMATCH"
+    )
+
+    document.metadata_normalized = {"sensitivity": "restricted_never_external"}
+    db.commit()
+    restricted = http.post(
+        candidate_path,
+        headers=_headers("r05-api-admin"),
+    )
+    assert restricted.status_code == 409
+    assert restricted.json()["detail"]["code"] == (
+        "VISUAL_V2_RESTRICTED_NEVER_EXTERNAL"
+    )
+    assert background_calls == []
+    assert supervisor.created == []
     http.close()

@@ -6,6 +6,7 @@ import '../domain/document.dart';
 import '../domain/document_filters.dart';
 import '../domain/document_client_match.dart';
 import '../domain/document_page.dart';
+import '../domain/vision_export_approval.dart';
 
 abstract class DocumentsRepository {
   Future<void> upload({
@@ -75,6 +76,32 @@ abstract class DocumentsRepository {
     required AuthSession session,
     required int documentId,
   }) => throw UnsupportedError('Vision analysis is not implemented.');
+
+  Future<VisionExportApprovalCandidate> fetchVisionExportApprovalCandidate({
+    required AuthSession session,
+    required int documentId,
+  }) => throw UnsupportedError('Visual export approval is not implemented.');
+
+  Future<VisionExportApprovalPreview> fetchVisionExportApprovalPreview({
+    required AuthSession session,
+    required int documentId,
+    required VisionExportApprovalCandidate candidate,
+    required VisionExportApprovalSource source,
+  }) => throw UnsupportedError('Visual export preview is not implemented.');
+
+  Future<VisionExportApprovalResult> approveVisionExport({
+    required AuthSession session,
+    required int documentId,
+    required VisionExportApprovalCandidate candidate,
+    required String approvalKind,
+    required DateTime expiresAt,
+  }) => throw UnsupportedError('Visual export approval is not implemented.');
+
+  Future<VisionExportApprovalResult> revokeVisionExportApproval({
+    required AuthSession session,
+    required int documentId,
+    required String analysisJobId,
+  }) => throw UnsupportedError('Visual export approval is not implemented.');
 
   Future<void> trashDocument({
     required AuthSession session,
@@ -252,6 +279,58 @@ class ApiDocumentsRepository implements DocumentsRepository {
     required int documentId,
   }) => _api.analyzeVision(
     documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<VisionExportApprovalCandidate> fetchVisionExportApprovalCandidate({
+    required AuthSession session,
+    required int documentId,
+  }) => _api.fetchVisionExportApprovalCandidate(
+    documentId: documentId,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<VisionExportApprovalPreview> fetchVisionExportApprovalPreview({
+    required AuthSession session,
+    required int documentId,
+    required VisionExportApprovalCandidate candidate,
+    required VisionExportApprovalSource source,
+  }) => _api.fetchVisionExportApprovalPreview(
+    documentId: documentId,
+    candidate: candidate,
+    source: source,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<VisionExportApprovalResult> approveVisionExport({
+    required AuthSession session,
+    required int documentId,
+    required VisionExportApprovalCandidate candidate,
+    required String approvalKind,
+    required DateTime expiresAt,
+  }) => _api.approveVisionExport(
+    documentId: documentId,
+    candidate: candidate,
+    approvalKind: approvalKind,
+    expiresAt: expiresAt,
+    accessToken: session.accessToken,
+    tokenType: session.tokenType,
+  );
+
+  @override
+  Future<VisionExportApprovalResult> revokeVisionExportApproval({
+    required AuthSession session,
+    required int documentId,
+    required String analysisJobId,
+  }) => _api.revokeVisionExportApproval(
+    documentId: documentId,
+    analysisJobId: analysisJobId,
     accessToken: session.accessToken,
     tokenType: session.tokenType,
   );

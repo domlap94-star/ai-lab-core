@@ -21,6 +21,12 @@ import 'document_presentation.dart';
 import 'document_intake_dialog.dart';
 import 'document_media_preview.dart';
 import 'document_trash_action.dart';
+import 'vision_export_approval_dialog.dart';
+
+bool canOperateVisionExportApproval(String role) {
+  final String normalized = role.trim().toLowerCase();
+  return normalized == 'administrator' || normalized == 'admin';
+}
 
 class DocumentsPage extends ConsumerStatefulWidget {
   const DocumentsPage({super.key});
@@ -748,9 +754,7 @@ class _DocumentDetailsDialog extends ConsumerWidget {
       documentDetailsProvider(documentId),
     );
     final role = ref.watch(authControllerProvider).value?.user?.role ?? '';
-    final isAdmin =
-        role.trim().toLowerCase() == 'administrator' ||
-        role.trim().toLowerCase() == 'admin';
+    final isAdmin = canOperateVisionExportApproval(role);
     return AlertDialog(
       title: const Text('Szczegóły dokumentu'),
       content: SizedBox(
@@ -840,6 +844,28 @@ class _DocumentDetailsDialog extends ConsumerWidget {
             onPressed: () => _trash(context, ref, details.value!),
             icon: const Icon(Icons.delete_outline),
             label: const Text('Przenieś do kosza'),
+          ),
+        if (details.value case final RepositoryDocument document
+            when isAdmin &&
+                documentSupportsVision(
+                  document.contentType,
+                  document.originalFilename,
+                ))
+          TextButton.icon(
+            key: const Key('vision-export-approval-action'),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (BuildContext dialogContext) =>
+                  VisionExportApprovalDialog(
+                    document: document,
+                    repository: ref.read(documentsRepositoryProvider),
+                    session: requireDocumentSessionFromAuth(
+                      ref.read(authControllerProvider),
+                    ),
+                  ),
+            ),
+            icon: const Icon(Icons.privacy_tip_outlined),
+            label: const Text('Dopuść kopię do analizy zewnętrznej'),
           ),
         if (details.value case final RepositoryDocument document
             when documentSupportsVision(

@@ -2071,3 +2071,149 @@ def test_r05_a2_real_approved_requests_feed_offline_queue_fixture(
         approval_kind="locally_redacted",
         forbidden_original_sha256=hashlib.sha256(private_path.read_bytes()).hexdigest(),
     )
+
+
+def test_r05_a4_exact_preview_and_operator_state_machine(visual_db) -> None:
+    db, root = visual_db
+    document = _document(db, root, document_id=904)
+    supervisor = _Supervisor()
+    service = VisualV2Service(db, supervisor=supervisor)
+    resolution = service.ensure(document=document)
+    candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    source = candidate["sources"][0]
+
+    preview = service.approval_source_preview(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_document_id=document.id,
+        source_ref=source["source_ref"],
+        expected_package_sha256=candidate["package_sha256"],
+        expected_binding_sha256=candidate["binding_sha256"],
+        expected_source_sha256=source["final_sha256"],
+    )
+    assert hashlib.sha256(preview.content).hexdigest() == source["final_sha256"]
+    assert preview.content_type == "image/jpeg"
+    assert candidate["approval_state"] == "not_approved"
+    assert candidate["can_approve"] is True
+    assert candidate["can_revoke"] is False
+
+    service.approve_export(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=candidate["package_sha256"],
+        expected_source_sha256={source["source_ref"]: source["final_sha256"]},
+        expected_binding_sha256=candidate["binding_sha256"],
+        approval_kind="public_safe",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    approved = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    assert approved["approval_state"] == "approved"
+    assert approved["can_approve"] is False
+    assert approved["can_revoke"] is True
+
+    claimed = service.claim_approved_export(resolution.analysis_job_id)
+    assert claimed is not None
+    claimed_candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    assert claimed_candidate["can_revoke"] is True
+    revoked = service.revoke_export_approval(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_document_id=document.id,
+    )
+    assert revoked.reason == "VISUAL_V2_EXPORT_APPROVAL_REVOKED"
+    revoked_candidate = service.approval_candidate(
+        resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    assert revoked_candidate["approval_state"] == "revoked"
+    assert revoked_candidate["can_approve"] is True
+
+    contact_document = _document(db, root, document_id=905)
+    contact_resolution = service.ensure(document=contact_document)
+    contact_candidate = service.approval_candidate(
+        contact_resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    contact_source = contact_candidate["sources"][0]
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_EXPORT_SCOPE_MISMATCH",
+    ):
+        service.approval_source_preview(
+            contact_resolution.analysis_job_id,
+            actor_user_id=1,
+            expected_document_id=document.id,
+            source_ref=contact_source["source_ref"],
+            expected_package_sha256=contact_candidate["package_sha256"],
+            expected_binding_sha256=contact_candidate["binding_sha256"],
+            expected_source_sha256=contact_source["final_sha256"],
+        )
+    service.approve_export(
+        contact_resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=contact_candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in contact_candidate["sources"]
+        },
+        expected_binding_sha256=contact_candidate["binding_sha256"],
+        approval_kind="locally_redacted",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    contact_claim = service.claim_approved_export(contact_resolution.analysis_job_id)
+    assert contact_claim is not None
+    service.submit_claimed_export(
+        contact_resolution.analysis_job_id,
+        contact_claim,
+    )
+    with pytest.raises(
+        VisualV2ContractError,
+        match="VISUAL_V2_APPROVAL_ALREADY_EXPORTED",
+    ):
+        service.approval_candidate(
+            contact_resolution.analysis_job_id,
+            actor_user_id=1,
+        )
+    assert len(supervisor.created) == 1
+
+    expired_document = _document(db, root, document_id=906)
+    expired_resolution = service.ensure(document=expired_document)
+    expired_candidate = service.approval_candidate(
+        expired_resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    service.approve_export(
+        expired_resolution.analysis_job_id,
+        actor_user_id=1,
+        expected_package_sha256=expired_candidate["package_sha256"],
+        expected_source_sha256={
+            row["source_ref"]: row["final_sha256"]
+            for row in expired_candidate["sources"]
+        },
+        expected_binding_sha256=expired_candidate["binding_sha256"],
+        approval_kind="public_safe",
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
+    )
+    expired_job = db.get(AnalysisJob, expired_resolution.analysis_job_id)
+    signals = copy.deepcopy(expired_job.quality_signals)
+    signals["visual_export_approval"]["expires_at"] = (
+        datetime.now(UTC) - timedelta(seconds=1)
+    ).isoformat()
+    expired_job.quality_signals = signals
+    db.commit()
+    expired = service.approval_candidate(
+        expired_resolution.analysis_job_id,
+        actor_user_id=1,
+    )
+    assert expired["approval_state"] == "expired"
+    assert expired["can_approve"] is True
+    assert expired["can_revoke"] is False

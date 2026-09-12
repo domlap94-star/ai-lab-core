@@ -11,6 +11,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Vision export approval action is restricted to admin roles', () {
+    expect(canOperateVisionExportApproval('Administrator'), isTrue);
+    expect(canOperateVisionExportApproval('admin'), isTrue);
+    expect(canOperateVisionExportApproval('User'), isFalse);
+    expect(canOperateVisionExportApproval(''), isFalse);
+  });
+
   test('Vision action supports rendered Office documents but not plain text', () {
     expect(
       documentSupportsVision(

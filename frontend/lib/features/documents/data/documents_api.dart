@@ -2,9 +2,11 @@ import 'dart:typed_data';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:crypto/crypto.dart';
 
 import '../domain/document_filters.dart';
 import '../domain/document_client_match.dart';
+import '../domain/vision_export_approval.dart';
 import 'document_content.dart';
 import 'document_page_response.dart';
 import 'document_response.dart';
@@ -137,6 +139,127 @@ class DocumentsApi {
       '$_path/$documentId/analyze',
       options: Options(headers: _headers(accessToken, tokenType)),
     );
+  }
+
+  Future<VisionExportApprovalCandidate> fetchVisionExportApprovalCandidate({
+    required int documentId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final Response<Map<String, dynamic>> response = await _dio.post(
+      '$_path/$documentId/vision/export-approval/candidate',
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+    if (response.data == null) {
+      throw const FormatException(
+        'Endpoint kandydata zwrócił pustą odpowiedź.',
+      );
+    }
+    return VisionExportApprovalCandidate.fromJson(response.data!);
+  }
+
+  Future<VisionExportApprovalPreview> fetchVisionExportApprovalPreview({
+    required int documentId,
+    required VisionExportApprovalCandidate candidate,
+    required VisionExportApprovalSource source,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final Response<List<int>> response = await _dio.get<List<int>>(
+      '$_path/$documentId/vision/export-approval/'
+      '${candidate.analysisJobId}/sources/${source.sourceRef}/preview',
+      queryParameters: <String, dynamic>{
+        'package_sha256': candidate.packageSha256,
+        'binding_sha256': candidate.bindingSha256,
+        'source_sha256': source.finalSha256,
+      },
+      options: Options(
+        headers: <String, Object>{
+          ..._headers(accessToken, tokenType),
+          'Accept': source.previewContentType,
+        },
+        responseType: ResponseType.bytes,
+        receiveTimeout: const Duration(minutes: 2),
+      ),
+    );
+    final List<int>? raw = response.data;
+    if (raw == null || raw.isEmpty) {
+      throw const FormatException('Endpoint podglądu zwrócił pustą odpowiedź.');
+    }
+    final Uint8List bytes = raw is Uint8List ? raw : Uint8List.fromList(raw);
+    final String actual = sha256.convert(bytes).toString();
+    final String? responseSource = response.headers.value('x-source-ref');
+    final String? responseSourceHash = response.headers.value(
+      'x-content-sha256',
+    );
+    final String? responsePackageHash = response.headers.value(
+      'x-package-sha256',
+    );
+    if (responseSource != source.sourceRef ||
+        responseSourceHash != source.finalSha256 ||
+        responsePackageHash != candidate.packageSha256 ||
+        actual != source.finalSha256 ||
+        bytes.length != source.previewSize) {
+      throw const FormatException(
+        'Podgląd nie odpowiada zatwierdzanemu pakietowi Visual.',
+      );
+    }
+    return VisionExportApprovalPreview(
+      sourceRef: source.sourceRef,
+      sourceSha256: actual,
+      packageSha256: candidate.packageSha256,
+      contentType:
+          response.headers.value(Headers.contentTypeHeader) ??
+          source.previewContentType,
+      bytes: bytes,
+    );
+  }
+
+  Future<VisionExportApprovalResult> approveVisionExport({
+    required int documentId,
+    required VisionExportApprovalCandidate candidate,
+    required String approvalKind,
+    required DateTime expiresAt,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final Response<Map<String, dynamic>> response = await _dio.post(
+      '$_path/$documentId/vision/export-approval',
+      data: <String, dynamic>{
+        'analysis_job_id': candidate.analysisJobId,
+        'package_sha256': candidate.packageSha256,
+        'binding_sha256': candidate.bindingSha256,
+        'source_sha256': <String, String>{
+          for (final VisionExportApprovalSource source in candidate.sources)
+            source.sourceRef: source.finalSha256,
+        },
+        'approval_kind': approvalKind,
+        'expires_at': expiresAt.toUtc().toIso8601String(),
+      },
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+    if (response.data == null) {
+      throw const FormatException('Endpoint zgody zwrócił pustą odpowiedź.');
+    }
+    return VisionExportApprovalResult.fromJson(response.data!);
+  }
+
+  Future<VisionExportApprovalResult> revokeVisionExportApproval({
+    required int documentId,
+    required String analysisJobId,
+    required String accessToken,
+    required String tokenType,
+  }) async {
+    final Response<Map<String, dynamic>> response = await _dio.delete(
+      '$_path/$documentId/vision/export-approval/$analysisJobId',
+      options: Options(headers: _headers(accessToken, tokenType)),
+    );
+    if (response.data == null) {
+      throw const FormatException(
+        'Endpoint cofnięcia zwrócił pustą odpowiedź.',
+      );
+    }
+    return VisionExportApprovalResult.fromJson(response.data!);
   }
 
   Future<void> trashDocument({

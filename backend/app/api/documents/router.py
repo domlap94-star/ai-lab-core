@@ -213,6 +213,49 @@ def get_vision_export_approval_candidate(
     return VisionExportApprovalCandidate.model_validate(candidate)
 
 
+@router.get(
+    "/{document_id}/vision/export-approval/{analysis_job_id}/sources/{source_ref}/preview",
+    response_class=Response,
+)
+def get_vision_export_approval_preview(
+    document_id: int,
+    analysis_job_id: str,
+    source_ref: str,
+    package_sha256: str = Query(pattern=r"^[a-f0-9]{64}$"),
+    binding_sha256: str = Query(pattern=r"^[a-f0-9]{64}$"),
+    source_sha256: str = Query(pattern=r"^[a-f0-9]{64}$"),
+    actor: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Return one exact staged raster without approving or scheduling work."""
+    if DocumentService(db).get_document(document_id) is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        preview = VisualV2Service(db, enabled=True).approval_source_preview(
+            analysis_job_id,
+            actor_user_id=actor.id,
+            expected_document_id=document_id,
+            source_ref=source_ref,
+            expected_package_sha256=package_sha256,
+            expected_binding_sha256=binding_sha256,
+            expected_source_sha256=source_sha256,
+        )
+    except VisualV2ContractError as error:
+        raise HTTPException(status_code=409, detail={"code": str(error)}) from error
+    return Response(
+        content=preview.content,
+        media_type=preview.content_type,
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "Content-Disposition": f'inline; filename="{preview.source_ref}.jpg"',
+            "X-Content-SHA256": preview.source_sha256,
+            "X-Package-SHA256": preview.package_sha256,
+            "X-Source-Ref": preview.source_ref,
+        },
+    )
+
+
 @router.post(
     "/{document_id}/vision/export-approval",
     response_model=VisionExportApprovalResult,
@@ -243,6 +286,7 @@ def approve_vision_export(
             expected_source_sha256=request.source_sha256,
             approval_kind=request.approval_kind,
             expires_at=request.expires_at,
+            expected_binding_sha256=request.binding_sha256,
         )
     except VisualV2ContractError as error:
         raise HTTPException(status_code=409, detail={"code": str(error)}) from error

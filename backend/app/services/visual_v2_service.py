@@ -127,6 +127,15 @@ class VisualV2Resolution:
 
 
 @dataclass(frozen=True)
+class VisualExportApprovalPreview:
+    content: bytes
+    content_type: str
+    source_ref: str
+    source_sha256: str
+    package_sha256: str
+
+
+@dataclass(frozen=True)
 class _PlannedSource:
     local_ref: str
     external_ref: str
@@ -583,26 +592,111 @@ class VisualV2Service:
         job = self._locked_job(job_id)
         if job.status == "accepted_advanced":
             raise VisualV2ContractError("VISUAL_V2_ALREADY_ACCEPTED")
-        if job.external_job_id or job.attempt_id:
+        handoff_state = self._handoff_state(job)
+        if job.external_job_id or (
+            job.attempt_id and handoff_state != VISUAL_EXPORT_HANDOFF_CLAIMED
+        ):
             raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
         staged = self._stage_export(job.id)
+        request_sources = {
+            row["source_ref"]: row
+            for row in staged.request.get("sources") or []
+            if isinstance(row, dict) and isinstance(row.get("source_ref"), str)
+        }
+        approval = self._approval_public_state(job)
+        omitted = job.request_payload.get("omitted_count", 0)
+        if not isinstance(omitted, int) or isinstance(omitted, bool) or omitted < 0:
+            raise VisualV2ContractError("VISUAL_V2_COVERAGE_INVALID")
         return {
             "analysis_job_id": job.id,
             "policy_version": VISUAL_EXPORT_POLICY_VERSION,
             "channel": VISUAL_EXPORT_CHANNEL,
             "package_sha256": staged.package_sha256,
+            "binding_sha256": self._hash_json(staged.approval_binding),
+            "selected_source_count": len(staged.approval_binding["sources"]),
+            "omitted_source_count": omitted,
+            "complete_source_coverage": omitted == 0,
+            **approval,
             "sources": [
                 {
                     "source_ref": row["source_ref"],
                     "source_entity_type": row["source_entity_type"],
                     "source_entity_id": row["source_entity_id"],
                     "document_id": row["document_id"],
+                    "document_scope": row["document_scope"],
+                    "sensitivity": row["sensitivity"],
                     "original_sha256": row["original_sha256"],
                     "final_sha256": row["final_sha256"],
+                    "preview_content_type": "image/jpeg",
+                    "preview_size": self._staged_source_path(
+                        request_sources[row["source_ref"]]
+                    ).stat().st_size,
                 }
                 for row in staged.approval_binding["sources"]
             ],
         }
+
+    def approval_source_preview(
+        self,
+        job_id: str,
+        *,
+        actor_user_id: int,
+        expected_document_id: int,
+        source_ref: str,
+        expected_package_sha256: str,
+        expected_binding_sha256: str,
+        expected_source_sha256: str,
+    ) -> VisualExportApprovalPreview:
+        """Read one bounded final raster once after re-deriving its binding."""
+        self._require_export_operator(actor_user_id)
+        job = self._locked_job(job_id)
+        if job.external_job_id or (
+            job.attempt_id
+            and self._handoff_state(job) != VISUAL_EXPORT_HANDOFF_CLAIMED
+        ):
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_ALREADY_EXPORTED")
+        staged = self._stage_export(job.id)
+        if staged.package_sha256 != expected_package_sha256:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_BYTES_MISMATCH")
+        if self._hash_json(staged.approval_binding) != expected_binding_sha256:
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
+        binding = next(
+            (
+                row
+                for row in staged.approval_binding["sources"]
+                if row["source_ref"] == source_ref
+            ),
+            None,
+        )
+        descriptor = next(
+            (
+                row
+                for row in staged.request.get("sources") or []
+                if isinstance(row, dict) and row.get("source_ref") == source_ref
+            ),
+            None,
+        )
+        if binding is None or descriptor is None:
+            raise VisualV2ContractError("VISUAL_V2_SOURCE_BINDING_INVALID")
+        if binding["document_id"] != expected_document_id:
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
+        if binding["final_sha256"] != expected_source_sha256:
+            raise VisualV2ContractError("VISUAL_V2_APPROVAL_BYTES_MISMATCH")
+        target = self._staged_source_path(descriptor)
+        with target.open("rb") as stream:
+            content = stream.read(MAX_PREPARED_BYTES + 1)
+        if len(content) > MAX_PREPARED_BYTES:
+            raise VisualV2ContractError("VISUAL_V2_PREVIEW_TOO_LARGE")
+        actual_sha256 = hashlib.sha256(content).hexdigest()
+        if actual_sha256 != expected_source_sha256:
+            raise VisualV2ContractError("VISUAL_V2_STAGED_SHA_MISMATCH")
+        return VisualExportApprovalPreview(
+            content=content,
+            content_type="image/jpeg",
+            source_ref=source_ref,
+            source_sha256=actual_sha256,
+            package_sha256=staged.package_sha256,
+        )
 
     def approve_export(
         self,
@@ -613,6 +707,7 @@ class VisualV2Service:
         expected_source_sha256: dict[str, str],
         approval_kind: Literal["public_safe", "locally_redacted"],
         expires_at: datetime,
+        expected_binding_sha256: str | None = None,
     ) -> VisualV2Resolution:
         """Persist a bounded administrator decision for exact staged bytes."""
         self._require_export_operator(actor_user_id)
@@ -640,6 +735,11 @@ class VisualV2Service:
             or expected_source_sha256 != actual_sources
         ):
             raise VisualV2ContractError("VISUAL_V2_APPROVAL_BYTES_MISMATCH")
+        if (
+            expected_binding_sha256 is not None
+            and expected_binding_sha256 != self._hash_json(staged.approval_binding)
+        ):
+            raise VisualV2ContractError("VISUAL_V2_EXPORT_SCOPE_MISMATCH")
         signals = dict(job.quality_signals or {})
         signals[VISUAL_EXPORT_APPROVAL_KEY] = {
             "schema": "VISUAL_EXPORT_APPROVAL_V1",
@@ -1058,14 +1158,55 @@ class VisualV2Service:
             return "VISUAL_V2_EXPORT_APPROVAL_STALE"
         return None
 
+    def _approval_public_state(self, job: AnalysisJob) -> dict[str, Any]:
+        signals = job.quality_signals if isinstance(job.quality_signals, dict) else {}
+        approval = signals.get(VISUAL_EXPORT_APPROVAL_KEY)
+        state = "not_approved"
+        approval_kind = None
+        expires_at = None
+        if isinstance(approval, dict):
+            raw_state = approval.get("state")
+            if raw_state == "revoked":
+                state = "revoked"
+            elif raw_state == "approved":
+                approval_kind = approval.get("approval_kind")
+                expires_at = approval.get("expires_at")
+                try:
+                    expiry = datetime.fromisoformat(str(expires_at or ""))
+                    state = (
+                        "approved"
+                        if expiry.tzinfo is not None
+                        and expiry.astimezone(UTC) > datetime.now(UTC)
+                        else "expired"
+                    )
+                except ValueError:
+                    state = "expired"
+        no_contact = not job.attempt_id or (
+            self._handoff_state(job) == VISUAL_EXPORT_HANDOFF_CLAIMED
+        )
+        return {
+            "approval_state": state,
+            "approval_kind": approval_kind,
+            "approval_expires_at": expires_at,
+            "can_approve": not job.attempt_id and state != "approved",
+            "can_revoke": state == "approved" and not job.external_job_id and no_contact,
+        }
+
+    def _staged_source_path(self, descriptor: dict[str, Any]) -> Path:
+        relative = str(descriptor.get("incoming_relative_path") or "")
+        try:
+            target = (self.spool_root / relative).resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise VisualV2ContractError("VISUAL_V2_STAGED_PATH_INVALID") from error
+        if not target.is_relative_to(self.spool_root) or not target.is_file():
+            raise VisualV2ContractError("VISUAL_V2_STAGED_PATH_INVALID")
+        return target
+
     def _verify_staged_request(self, request: dict[str, Any]) -> None:
         for row in request.get("sources") or []:
             if not isinstance(row, dict):
                 raise VisualV2ContractError("VISUAL_V2_SOURCE_MANIFEST_INVALID")
-            relative = str(row.get("incoming_relative_path") or "")
-            target = (self.spool_root / relative).resolve(strict=True)
-            if not target.is_relative_to(self.spool_root):
-                raise VisualV2ContractError("VISUAL_V2_STAGED_PATH_INVALID")
+            target = self._staged_source_path(row)
             if self._sha256(target) != row.get("sha256"):
                 raise VisualV2ContractError("VISUAL_V2_STAGED_SHA_MISMATCH")
 

@@ -72,6 +72,20 @@ class VisionAnalyzeResponse(BaseModel):
     classification: str | None
 
 
+class VisionExportDocumentScope(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    schema_name: Literal["VISUAL_EXPORT_DOCUMENT_SCOPE_V1"] = Field(
+        alias="schema",
+        serialization_alias="schema",
+    )
+    document_id: int
+    client_id: int | None
+    project_id: int | None
+    inspection_id: int | None
+    candidate_id: int | None
+
+
 class VisionExportApprovalSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -79,8 +93,17 @@ class VisionExportApprovalSource(BaseModel):
     source_entity_type: str
     source_entity_id: str
     document_id: int
+    document_scope: VisionExportDocumentScope
+    sensitivity: Literal[
+        "public_reference",
+        "internal_non_sensitive",
+        "customer_sanitizable",
+        "restricted_never_external",
+    ]
     original_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     final_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    preview_content_type: Literal["image/jpeg"]
+    preview_size: int = Field(gt=0, le=12 * 1024 * 1024)
 
 
 class VisionExportApprovalCandidate(BaseModel):
@@ -90,6 +113,15 @@ class VisionExportApprovalCandidate(BaseModel):
     policy_version: str
     channel: str
     package_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    binding_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    selected_source_count: int = Field(ge=1, le=4)
+    omitted_source_count: int = Field(ge=0)
+    complete_source_coverage: bool
+    approval_state: Literal["not_approved", "approved", "revoked", "expired"]
+    approval_kind: Literal["public_safe", "locally_redacted"] | None = None
+    approval_expires_at: datetime | None = None
+    can_approve: bool
+    can_revoke: bool
     sources: list[VisionExportApprovalSource] = Field(min_length=1, max_length=4)
 
 
@@ -98,6 +130,7 @@ class VisionExportApprovalRequest(BaseModel):
 
     analysis_job_id: str
     package_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    binding_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     source_sha256: dict[str, str]
     approval_kind: Literal["public_safe", "locally_redacted"]
     expires_at: datetime
