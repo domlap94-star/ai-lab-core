@@ -107,3 +107,53 @@ R05-A4 is therefore
 Temporary Chat mode, remote upload and external end-to-end remain
 `NOT_RUN / NOT_VERIFIED`. R05, R04 and R03 retain their existing package-level
 states; Android remains deferred and D-15/D-16 AI acceptance was not run.
+
+## Continuation review fix — RV05-A4-01/02
+
+This continuation started from documentation HEAD
+`c7db3550228d50ed37b121eb8596ee6145c90f8a`; it does not rewrite the earlier
+source commit or its historical test evidence. Review found two bounded gaps:
+
+- the preview response carried the three integrity headers, but cross-origin
+  JavaScript was not granted access to them;
+- the dialog reported every approve/revoke exception as a certain refusal and
+  continued to label the pre-mutation candidate state as current.
+
+The local, uncommitted fix adds an endpoint-only expose-header response for
+exactly `X-Source-Ref`, `X-Content-SHA256` and `X-Package-SHA256`. It does not
+change allowed origins, methods, credentials or the global middleware. The
+corresponding real-router test verifies allowed-origin access, same-origin
+behavior, absence of an allow-origin response for a disallowed origin, and no
+preview integrity-header leakage on 401/403/409 responses.
+
+The local Flutter fix treats a received 4xx response as an explicit server
+refusal and all transport/time-out/unreadable-success outcomes as unknown. An
+unknown approve response says that permission and queuing may have occurred;
+an unknown revoke response says revocation may have occurred. Neither path
+automatically retries or renders raw exception data. Confirmed success uses
+the state returned by the mutation and renders it separately from the
+candidate state captured at preview time.
+
+| Scope | Result | Evidence SHA-256 |
+|---|---:|---|
+| focused Flutter fail-before | exit `1`; `6 passed / 4 failed` as expected | `4F2534E0B6388C1AF465BCEF18A0B6546285039322449BA0784F65FF9ED7B29E` |
+| final focused Flutter | `11 passed`, exit `0` | `F41FD3FCF0DCFD1001C773A574DAB0C5AB4B9C6A875BE25851BBF4AC01419A60` |
+| Flutter Documents/Auth regression | `28 passed`, exit `0` | `902B5D88CD8D7396C15E5CE19BEE196239C2D37B899BA03233564756D855E9AD` |
+| `flutter analyze --no-pub` | no issues, exit `0` | `5F3620CF2A1933C2D5490996E2A6E5DDCE7EBE65B1DED4A4793E76D06FF8E3AD` |
+| real backend ASGI/CORS test and Python compile | `NOT_RUN / RESOURCE_OBSERVABILITY_BLOCKED` | no PASS evidence |
+
+The required backend environment could not be safely used: an authorized,
+exact-name Docker observation did not return in the bounded window, and its
+client was terminated without changing Docker/WSL/Windows. No retry loop,
+daemon restart, substitute environment or historical-result reuse was used.
+Consequently the four source/test changes are preserved only as patch
+`81E311E7C129FC7ACC8829BC8B2E3FB31CDFEA6F800D56EE46E16E9E58A17914`
+under the protected continuation evidence root. They are not staged,
+committed, pushed, deployed or described as source-ready.
+
+Continuation status:
+`PREVIEW_TRANSPORT_AND_DECISION_SOURCE_PARTIAL / LOCAL_ONLY / NOT_DEPLOYED`.
+Flutter decision tests pass, but `API_CORS_AND_WIDGET_DECISION_TESTS_PASS` is
+not claimed until the real backend test and compile step are executed. Browser
+runtime, real Supervisor/Temporary Chat, remote upload and external end-to-end
+remain `NOT_RUN / NOT_VERIFIED`.
