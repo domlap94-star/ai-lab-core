@@ -290,3 +290,43 @@ D-21 separately records the owner requirement
 `REQUIRED_AFTER_A4_REVIEW`. It does not authorize a current mount/task change,
 deployment, directory move or cleanup. Sanitized local evidence is indexed as
 E030–E031; detailed logs remain protected outside Git.
+
+## Isolated backend completion with Supervisor intentionally stopped
+
+The owner explicitly authorized leaving the Supervisor
+`INTENTIONALLY_STOPPED` and running one isolated A4 backend campaign. Current
+preflight confirmed Engine `29.8.0`, the pinned R02 image, the unchanged active
+backend mount `/app=C:/ai-lab-core/build/deploy-main-483f9bf8/backend`, no
+recovery/WIP consumer and no previous exact-name A4 container. Resource gates
+passed before and after the campaign.
+
+The new CORS test was run first against the committed router preimage
+`f3cbe58bed0de34cfd39a57d481abb2c61c2f4ac`. It failed as expected with exit
+`1`, `1 failed`, because `access-control-expose-headers` was absent. Against
+the protected WIP, the entire `test_r05_visual_export_api.py` module passed
+`3 passed`, exit `0`; compileall of the changed router and backend test exited
+`0`. The test used the real ASGI router and CORS middleware, synthetic settings
+and SQLite, without product lifespan.
+
+The single container
+`next-stabil-r05-a4-20260914t183454z-backend-final`, full ID
+`9fbb55aab1aa51375e57a62daa1b255af6907bde32368e0d35abf52f3c1a446d`,
+used the pinned image
+`sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`,
+`network=none`, read-only root/source, tmpfs, no ports, privilege, socket or
+production mounts. It was stopped and removed after identity verification.
+No matching container remains.
+
+The four tested source/test files were committed as
+`04ab5e58cf86896ffd946cabffde13367d343f53`. Earlier Flutter fail-before
+`6 passed / 4 failed`, focused `11 passed`, Documents/Auth `28 passed` and
+analyze PASS remain prior evidence for unchanged frontend bytes and were not
+rerun. Current health checks at `2026-09-14T18:37:38Z` returned `200` for the
+Public Gateway, proxied API, Web, backend, n8n and Open WebUI; `/control*`
+returned `404`. Supervisor remained unreachable and was not started.
+
+This establishes
+`PREVIEW_TRANSPORT_AND_DECISION_FIX_READY_FOR_REVIEW / NOT_DEPLOYED` and
+`API_CORS_AND_WIDGET_DECISION_TESTS_PASS`. It is not owner acceptance, a Web
+runtime test, Temporary Chat verification, remote upload or external
+end-to-end proof. Local logs E032–E035 remain protected outside Git.
