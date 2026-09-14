@@ -201,3 +201,54 @@ Engine condition and separate authorization for any infrastructure recovery;
 it must first repeat one bounded server read and account for the old exact-name
 resource. R06, runtime, browser, Supervisor, Temporary Chat and external export
 remain outside scope.
+
+## Docker service operation and partial recovery
+
+The owner first confirmed that the same `desktop-linux` server read timed out
+from an ordinary non-elevated PowerShell session. Docker Desktop was responsive
+only partially and displayed `Data unavailable at this time`. The GUI showed
+the historical backend container prefix `9d9b46c53041`, but its Inspect view
+did not load. Therefore the current mount was explicitly classified `UNKNOWN`;
+the repository Compose declaration was not used as runtime evidence.
+
+After an informed risk statement, the owner authorized exactly one standard
+Docker Desktop restart despite that unknown. Docker Desktop reported
+`Wsl/Service/CreateInstance/0x800705b4` and remained at `Starting the Docker
+Engine`. A bounded post-operation check found no Engine-ready response and all
+five health probes were temporarily unreachable. No second restart,
+`wsl --shutdown`, kill, reset, prune, context change or service recreation was
+performed.
+
+The owner later reported that Docker started after an update performed outside
+Codex. This update was not requested or executed by Codex and its prior version
+is not reconstructed here. Read-only observation through the formally approved
+execution path then confirmed Docker Desktop `4.91.0`, Engine `29.8.0`, and:
+
+- backend full ID
+  `9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a`;
+- backend image ID
+  `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`;
+- `/app=C:/ai-lab-core/build/deploy-main-483f9bf8/backend` and
+  `/data=C:/ai-lab-core/data`, both bind mounts;
+- no recovery or A4 WIP mount in that container;
+- the same production container IDs restarted at approximately `14:41Z`;
+- pinned R02 image
+  `sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`
+  remained available;
+- exact old test container
+  `next-stabil-r05-a4-20260912t121418z-regression-final` returned
+  `no such object`.
+
+At `2026-09-14T14:45:58Z`, backend, n8n and Open WebUI returned HTTP `200`.
+Supervisor `127.0.0.1:8787` and public gateway `127.0.0.1:8789` remained
+unreachable. Because production service recovery was incomplete, the procedure
+stopped before a new resource gate or test container. Backend ASGI/CORS, API
+regression and compileall remain `NOT_RUN / PRODUCTION_PARTIAL_UNHEALTHY`; the
+four WIP paths remain unstaged and are not source-ready.
+
+Sanitized local evidence is under
+`C:\ai-lab-core-staging\recovery\R05_A4_PREVIEW_DECISION_20260912T140056Z\docker-recovery-20260914T143943Z`.
+The current status is
+`ENGINE_RECOVERED / PRODUCTION_PARTIAL_UNHEALTHY / SOURCE_PARTIAL / LOCAL_ONLY /
+NOT_DEPLOYED`. R06, product runtime tests, browser, Supervisor calls, Temporary
+Chat and external export remain outside this execution.
