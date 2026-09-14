@@ -252,3 +252,41 @@ The current status is
 `ENGINE_RECOVERED / PRODUCTION_PARTIAL_UNHEALTHY / SOURCE_PARTIAL / LOCAL_ONLY /
 NOT_DEPLOYED`. R06, product runtime tests, browser, Supervisor calls, Temporary
 Chat and external export remain outside this execution.
+
+## Host-service continuation and Supervisor safety stop
+
+At `2026-09-14T17:09:04Z`, after a current resource gate passed, the existing
+Windows task `\NEXT Stabil - Public Gateway` was started exactly once. PID
+`41784` runs the clean, main-identical
+`C:\ai-lab-core\operations\gateway\public_web_server.cjs` through the existing
+Node binary. It listens on `127.0.0.1:8789`; `/gateway-health`, proxied
+`/health`, `/version` and existing Web returned `200`. The Web root hash
+matched the existing live artifact, and `/control`, `/control/` and
+`/control/health` returned `404`. This is restoration of an existing endpoint,
+not a new frontend or recovery deployment.
+
+The existing Supervisor was deliberately not started. Its task points to
+`C:\ai-lab-core\operations\supervisor\server.js`; the active main/original
+VisionQueue does not contain the accepted but undeployed R05-A2 replay guard.
+The on-disk Vision spool contains one valid `UI_CHANGED` item and the analysis
+root contains three incoming directories. More importantly, a bounded,
+content-free database read with `transaction_read_only=on` found
+`advanced_queued=16`, `document_preparation queued=18`, `assistant waiting=1`
+and `vision not_evaluated=5956`. Effective runtime flags enable Vision
+automation, Advanced analysis, KB processing/vector writes and Assistant
+Pipeline V2. Three backup schedules are enabled/synced, although active
+backup/restore runs are zero.
+
+Those facts fail the prompt's no-unapproved-resume condition. No Supervisor
+task start, queue resume, flag/config/schedule change, spool mutation, model,
+Temporary Chat or export occurred. The current blocker is
+`SUPERVISOR_START_BLOCKED_PENDING_OWNER_DECISION`, not the historical Docker
+Engine timeout. Backend ASGI/CORS/API and compileall remain `NOT_RUN`; no test
+container was created and the four source/test WIP files remain unstaged and
+`LOCAL_ONLY / NOT_DEPLOYED`.
+
+D-21 separately records the owner requirement
+`SINGLE_INSTALL_ROOT=C:\ai-lab-core / SINGLE_START_ENTRYPOINT` as
+`REQUIRED_AFTER_A4_REVIEW`. It does not authorize a current mount/task change,
+deployment, directory move or cleanup. Sanitized local evidence is indexed as
+E030–E031; detailed logs remain protected outside Git.

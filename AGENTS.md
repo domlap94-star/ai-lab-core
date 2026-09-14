@@ -15,6 +15,12 @@
 - Preserve the public/private boundary: public gateway `127.0.0.1:8789` may
   expose Web/API/updates but never `/control`; private gateway
   `127.0.0.1:8788` may proxy `/control` to supervisor `127.0.0.1:8787`.
+- Target one installed NEXT Stabil root at `C:\ai-lab-core` and one ordinary,
+  idempotent user start entrypoint. This is a gated R04 consolidation
+  requirement, not permission to move/delete directories, change mounts/tasks,
+  or deploy current work. Until R05-A4 is reviewed and that R04 operation is
+  separately approved, preserve the existing runtime roots and the four-file
+  A4 WIP exactly; production must never execute recovery, staging, or test WIP.
 
 ## Safety
 

@@ -2775,3 +2775,22 @@ This decision does not permit breaking the shared backend contract, treating a
 client workaround as a backend fix, or marking D-15/D-16/AI as tested. R04 and
 multi-platform R16/K1 remain open; production, models and deployment are not
 authorized by this record.
+
+**OWNER INSTALLATION DECISION — SINGLE ROOT AND SINGLE START ENTRYPOINT —
+2026-09-14.** The target NEXT Stabil installation has one parent root,
+`C:\ai-lab-core`, and one ordinary idempotent user start entrypoint. Backend,
+frontend, Compose, public/private gateways, Supervisor and repository-owned
+workers must have explicit versioned locations below that root; production
+must not execute recovery, staging or test WIP. Tests, builds and active
+development remain separated in a designated subtree until reviewed.
+
+This record authorizes requirements/order only. It does not move or delete any
+directory, change a mount/task/launcher, deploy recovery, or approve R03/R04/
+R05. Existing runtime and unfinished R05-A4 remain an explicit temporary
+exception. After A4 owner review, work returns to the existing R04 for bounded
+inventory, old-to-target mapping, impact and rollback review, separately
+approved cutover/start verification, and only then approved retirement of
+proven-unused copies. Rescue media on approved E:/F: locations and recovery
+key/escrow remain separate by design; Docker/WSL volumes and installed SDKs are
+inventoried but are not silently migrated. Feature work after A4 is blocked
+until this R04 gate is resolved.
