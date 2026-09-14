@@ -339,6 +339,103 @@ def test_r05_a1_export_approval_http_auth_scope_and_background(api_case) -> None
     http.close()
 
 
+def test_r05_a4_preview_exposes_exact_headers_only_to_allowed_origin(api_case) -> None:
+    db, supervisor, background_calls = api_case
+    http = TestClient(app)
+    allowed_origin = settings.cors_origin_list[0]
+    candidate_path = f"{PATH}/501/vision/export-approval/candidate"
+    candidate = http.post(
+        candidate_path,
+        headers=_headers("r05-api-admin"),
+    ).json()
+    source = candidate["sources"][0]
+    preview_path = (
+        f"{PATH}/501/vision/export-approval/{candidate['analysis_job_id']}"
+        f"/sources/{source['source_ref']}/preview"
+    )
+    preview_params = {
+        "package_sha256": candidate["package_sha256"],
+        "binding_sha256": candidate["binding_sha256"],
+        "source_sha256": source["final_sha256"],
+    }
+    cross_origin_headers = {
+        **_headers("r05-api-admin"),
+        "Origin": allowed_origin,
+    }
+
+    preview = http.get(
+        preview_path,
+        params=preview_params,
+        headers=cross_origin_headers,
+    )
+    assert preview.status_code == 200
+    assert preview.headers["access-control-allow-origin"] == allowed_origin
+    assert {
+        value.strip().lower()
+        for value in preview.headers["access-control-expose-headers"].split(",")
+    } == {
+        "x-source-ref",
+        "x-content-sha256",
+        "x-package-sha256",
+    }
+    assert preview.headers["x-source-ref"] == source["source_ref"]
+    assert preview.headers["x-content-sha256"] == source["final_sha256"]
+    assert preview.headers["x-package-sha256"] == candidate["package_sha256"]
+    assert hashlib.sha256(preview.content).hexdigest() == source["final_sha256"]
+
+    same_origin = http.get(
+        preview_path,
+        params=preview_params,
+        headers=_headers("r05-api-admin"),
+    )
+    assert same_origin.status_code == 200
+    assert same_origin.headers["x-content-sha256"] == source["final_sha256"]
+
+    denied_origin = http.get(
+        preview_path,
+        params=preview_params,
+        headers={
+            **_headers("r05-api-admin"),
+            "Origin": "https://not-allowed-r05.invalid",
+        },
+    )
+    assert denied_origin.status_code == 200
+    assert "access-control-allow-origin" not in denied_origin.headers
+
+    unauthenticated = http.get(
+        preview_path,
+        params=preview_params,
+        headers={"Origin": allowed_origin},
+    )
+    assert unauthenticated.status_code == 401
+    assert "x-content-sha256" not in unauthenticated.headers
+    non_admin = http.get(
+        preview_path,
+        params=preview_params,
+        headers={**_headers("r05-api-user"), "Origin": allowed_origin},
+    )
+    assert non_admin.status_code == 403
+    assert "x-content-sha256" not in non_admin.headers
+    stale_binding = http.get(
+        preview_path,
+        params={**preview_params, "binding_sha256": "f" * 64},
+        headers=cross_origin_headers,
+    )
+    assert stale_binding.status_code == 409
+    assert "x-content-sha256" not in stale_binding.headers
+
+    persisted = http.post(
+        candidate_path,
+        headers=_headers("r05-api-admin"),
+    ).json()
+    assert persisted["approval_state"] == "not_approved"
+    assert background_calls == []
+    assert supervisor.created == []
+    db.expire_all()
+    assert db.query(AnalysisJob).count() == 1
+    http.close()
+
+
 def test_r05_a4_preview_rejects_changed_scope_bytes_and_restricted(api_case) -> None:
     db, supervisor, background_calls = api_case
     http = TestClient(app)

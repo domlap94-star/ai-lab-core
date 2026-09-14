@@ -142,6 +142,7 @@ void main() {
       await tester.tap(find.byKey(const Key('vision-export-approve')));
       await tester.pump();
       expect(repository.approvalCalls, 1);
+      expect(repository.approvalEffectApplied, isTrue);
       approve = tester.widget(find.byKey(const Key('vision-export-approve')));
       expect(approve.onPressed, isNull);
       await tester.tap(find.byKey(const Key('vision-export-approve')));
@@ -160,10 +161,70 @@ void main() {
         find.textContaining('Analiza zewnętrzna może zostać zakolejkowana'),
         findsOneWidget,
       );
+      expect(
+        find.text('Stan zgody z chwili podglądu: not_approved'),
+        findsOneWidget,
+      );
+      expect(find.text('Potwierdzony wynik operacji: queued'), findsOneWidget);
       expect(repository.lastApprovalKind, 'public_safe');
       expect(repository.lastCandidate?.bindingSha256, 'b' * 64);
     },
   );
+
+  testWidgets(
+    'approve timeout reports an unknown result and never retries automatically',
+    (WidgetTester tester) async {
+      final _Repository repository = _Repository(
+        approvalErrorAfterEffect: DioException(
+          requestOptions: RequestOptions(path: '/synthetic/approve'),
+          type: DioExceptionType.receiveTimeout,
+        ),
+      );
+      await _pumpDialog(tester, repository);
+      await _prepareApproval(tester);
+      await tester.tap(find.byKey(const Key('vision-export-approve')));
+      await tester.pumpAndSettle();
+
+      expect(repository.approvalCalls, 1);
+      expect(repository.approvalEffectApplied, isTrue);
+      expect(
+        find.textContaining('Nie udało się potwierdzić wyniku operacji'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Zgoda mogła zostać zapisana'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Nie zapisano zgody'), findsNothing);
+      expect(find.textContaining('/synthetic/approve'), findsNothing);
+      final FilledButton approve = tester.widget(
+        find.byKey(const Key('vision-export-approve')),
+      );
+      expect(approve.onPressed, isNull);
+      expect(repository.approvalCalls, 1);
+    },
+  );
+
+  testWidgets('confirmed server rejection is distinct from unknown delivery', (
+    WidgetTester tester,
+  ) async {
+    final _Repository repository = _Repository(
+      approvalErrorBeforeEffect: _serverRejection('/synthetic/approve'),
+    );
+    await _pumpDialog(tester, repository);
+    await _prepareApproval(tester);
+    await tester.tap(find.byKey(const Key('vision-export-approve')));
+    await tester.pumpAndSettle();
+
+    expect(repository.approvalCalls, 1);
+    expect(repository.approvalEffectApplied, isFalse);
+    expect(find.textContaining('Serwer odrzucił zapis zgody'), findsOneWidget);
+    expect(
+      find.textContaining('Nie udało się potwierdzić wyniku operacji'),
+      findsNothing,
+    );
+    expect(find.textContaining('/synthetic/approve'), findsNothing);
+  });
 
   testWidgets('dialog cancel performs no decision', (
     WidgetTester tester,
@@ -235,7 +296,48 @@ void main() {
     expect(repository.revokeCalls, 1);
     expect(repository.approvalCalls, 0);
     expect(find.text('Cofnięto niewykorzystaną zgodę.'), findsOneWidget);
+    expect(find.text('Stan zgody z chwili podglądu: approved'), findsOneWidget);
+    expect(
+      find.text('Potwierdzony wynik operacji: awaiting_auth'),
+      findsOneWidget,
+    );
   });
+
+  testWidgets(
+    'revoke timeout reports an unknown result and never retries automatically',
+    (WidgetTester tester) async {
+      final _Repository repository = _Repository(
+        candidateState: 'approved',
+        canApprove: false,
+        canRevoke: true,
+        revokeErrorAfterEffect: DioException(
+          requestOptions: RequestOptions(path: '/synthetic/revoke'),
+          type: DioExceptionType.receiveTimeout,
+        ),
+      );
+      await _pumpDialog(tester, repository);
+      await tester.tap(find.byKey(const Key('vision-export-revoke')));
+      await tester.pumpAndSettle();
+
+      expect(repository.revokeCalls, 1);
+      expect(repository.revokeEffectApplied, isTrue);
+      expect(
+        find.textContaining('Nie udało się potwierdzić wyniku operacji'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Zgoda mogła zostać cofnięta'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Nie cofnięto zgody'), findsNothing);
+      expect(find.textContaining('/synthetic/revoke'), findsNothing);
+      final TextButton revoke = tester.widget(
+        find.byKey(const Key('vision-export-revoke')),
+      );
+      expect(revoke.onPressed, isNull);
+      expect(repository.revokeCalls, 1);
+    },
+  );
 
   testWidgets('uncertain contact response exposes neither approve nor revoke', (
     WidgetTester tester,
@@ -293,6 +395,36 @@ Future<void> _pumpDialog(
       break;
     }
   }
+}
+
+Future<void> _prepareApproval(WidgetTester tester) async {
+  await tester.ensureVisible(find.byKey(const Key('vision-export-kind')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('vision-export-kind')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('public_safe — kopia bezpieczna publicznie').last);
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(
+    find.byKey(const Key('vision-export-expiry-minutes')),
+  );
+  await tester.enterText(
+    find.byKey(const Key('vision-export-expiry-minutes')),
+    '30',
+  );
+  await tester.pump();
+}
+
+DioException _serverRejection(String path) {
+  final RequestOptions request = RequestOptions(path: path);
+  return DioException(
+    requestOptions: request,
+    response: Response<Object?>(
+      requestOptions: request,
+      statusCode: 409,
+      data: const <String, Object>{'detail': 'synthetic internal detail'},
+    ),
+    type: DioExceptionType.badResponse,
+  );
 }
 
 final RepositoryDocument _document = RepositoryDocument(
@@ -361,6 +493,9 @@ class _Repository extends DocumentsRepository {
     this.canApprove = true,
     this.canRevoke = false,
     this.candidateError,
+    this.approvalErrorBeforeEffect,
+    this.approvalErrorAfterEffect,
+    this.revokeErrorAfterEffect,
   });
 
   final String? previewHashOverride;
@@ -368,9 +503,14 @@ class _Repository extends DocumentsRepository {
   final bool canApprove;
   final bool canRevoke;
   final Object? candidateError;
+  final Object? approvalErrorBeforeEffect;
+  final Object? approvalErrorAfterEffect;
+  final Object? revokeErrorAfterEffect;
   Completer<VisionExportApprovalResult>? approvalCompleter;
   int approvalCalls = 0;
   int revokeCalls = 0;
+  bool approvalEffectApplied = false;
+  bool revokeEffectApplied = false;
   String? lastApprovalKind;
   VisionExportApprovalCandidate? lastCandidate;
 
@@ -412,6 +552,13 @@ class _Repository extends DocumentsRepository {
     approvalCalls += 1;
     lastApprovalKind = approvalKind;
     lastCandidate = candidate;
+    if (approvalErrorBeforeEffect case final Object error) {
+      return Future<VisionExportApprovalResult>.error(error);
+    }
+    approvalEffectApplied = true;
+    if (approvalErrorAfterEffect case final Object error) {
+      return Future<VisionExportApprovalResult>.error(error);
+    }
     return approvalCompleter?.future ??
         Future<VisionExportApprovalResult>.value(
           const VisionExportApprovalResult(
@@ -430,6 +577,8 @@ class _Repository extends DocumentsRepository {
     required String analysisJobId,
   }) async {
     revokeCalls += 1;
+    revokeEffectApplied = true;
+    if (revokeErrorAfterEffect case final Object error) throw error;
     return const VisionExportApprovalResult(
       documentId: 501,
       analysisJobId: 'synthetic-job-a4',

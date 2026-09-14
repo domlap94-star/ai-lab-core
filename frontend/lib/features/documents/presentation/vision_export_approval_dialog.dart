@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../auth/domain/auth_session.dart';
@@ -33,6 +34,7 @@ class _VisionExportApprovalDialogState
   String? _approvalKind;
   String? _loadError;
   String? _operationResult;
+  String? _confirmedOperationState;
   bool _loading = true;
   bool _busy = false;
   bool _started = false;
@@ -158,19 +160,22 @@ class _VisionExportApprovalDialogState
     setState(() {
       _busy = true;
       _operationResult = null;
+      _confirmedOperationState = null;
     });
     try {
-      await widget.repository.approveVisionExport(
-        session: widget.session,
-        documentId: widget.document.id,
-        candidate: candidate,
-        approvalKind: _approvalKind!,
-        expiresAt: DateTime.now().toUtc().add(Duration(minutes: minutes)),
-      );
+      final VisionExportApprovalResult result = await widget.repository
+          .approveVisionExport(
+            session: widget.session,
+            documentId: widget.document.id,
+            candidate: candidate,
+            approvalKind: _approvalKind!,
+            expiresAt: DateTime.now().toUtc().add(Duration(minutes: minutes)),
+          );
       if (!mounted) return;
       setState(() {
         _busy = false;
         _completed = true;
+        _confirmedOperationState = result.state;
         _operationResult =
             'Zapisano zgodę dla tego pakietu. Analiza zewnętrzna może zostać '
             'zakolejkowana przez istniejący proces.';
@@ -180,9 +185,12 @@ class _VisionExportApprovalDialogState
       setState(() {
         _busy = false;
         _completed = true;
-        _operationResult =
-            'Nie zapisano zgody: ${_safeMessage(error)} '
-            'Zamknij okno i pobierz nowy kandydat.';
+        _operationResult = _isConfirmedServerRejection(error)
+            ? 'Serwer odrzucił zapis zgody. Pobierz aktualny stan przed '
+                  'kolejną decyzją.'
+            : 'Nie udało się potwierdzić wyniku operacji. Zgoda mogła zostać '
+                  'zapisana, a analiza mogła zostać zlecona. Sprawdź jej stan '
+                  'przed ponowieniem.';
       });
     }
   }
@@ -195,17 +203,20 @@ class _VisionExportApprovalDialogState
     setState(() {
       _busy = true;
       _operationResult = null;
+      _confirmedOperationState = null;
     });
     try {
-      await widget.repository.revokeVisionExportApproval(
-        session: widget.session,
-        documentId: widget.document.id,
-        analysisJobId: candidate.analysisJobId,
-      );
+      final VisionExportApprovalResult result = await widget.repository
+          .revokeVisionExportApproval(
+            session: widget.session,
+            documentId: widget.document.id,
+            analysisJobId: candidate.analysisJobId,
+          );
       if (!mounted) return;
       setState(() {
         _busy = false;
         _completed = true;
+        _confirmedOperationState = result.state;
         _operationResult = 'Cofnięto niewykorzystaną zgodę.';
       });
     } catch (error) {
@@ -213,9 +224,11 @@ class _VisionExportApprovalDialogState
       setState(() {
         _busy = false;
         _completed = true;
-        _operationResult =
-            'Nie cofnięto zgody: ${_safeMessage(error)} '
-            'Kontakt mógł już się rozpocząć; nie ponawiaj wysyłki.';
+        _operationResult = _isConfirmedServerRejection(error)
+            ? 'Serwer odrzucił cofnięcie zgody. Pobierz aktualny stan przed '
+                  'kolejną decyzją.'
+            : 'Nie udało się potwierdzić wyniku operacji. Zgoda mogła zostać '
+                  'cofnięta. Sprawdź jej stan przed ponowieniem.';
       });
     }
   }
@@ -275,7 +288,12 @@ class _VisionExportApprovalDialogState
           const SizedBox(height: 12),
           _LabelValue('Kanał', candidate.channel),
           _LabelValue('Polityka', candidate.policyVersion),
-          _LabelValue('Stan zgody', candidate.approvalState),
+          _LabelValue('Stan zgody z chwili podglądu', candidate.approvalState),
+          if (_confirmedOperationState != null)
+            _LabelValue(
+              'Potwierdzony wynik operacji',
+              _confirmedOperationState!,
+            ),
           _LabelValue(
             'Pokrycie',
             '${candidate.selectedSourceCount} pokazane, '
@@ -438,4 +456,12 @@ String _safeMessage(Object error) {
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
   return message.length <= 240 ? message : '${message.substring(0, 240)}…';
+}
+
+bool _isConfirmedServerRejection(Object error) {
+  if (error is! DioException || error.type != DioExceptionType.badResponse) {
+    return false;
+  }
+  final int? statusCode = error.response?.statusCode;
+  return statusCode != null && statusCode >= 400 && statusCode < 500;
 }

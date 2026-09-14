@@ -252,6 +252,9 @@ def get_vision_export_approval_preview(
             "X-Content-SHA256": preview.source_sha256,
             "X-Package-SHA256": preview.package_sha256,
             "X-Source-Ref": preview.source_ref,
+            "Access-Control-Expose-Headers": (
+                "X-Source-Ref, X-Content-SHA256, X-Package-SHA256"
+            ),
         },
     )
 
