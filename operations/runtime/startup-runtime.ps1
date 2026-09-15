@@ -20,6 +20,58 @@ function Get-StartupProperty {
     return $matches[0].Value
 }
 
+function Test-StartupProperty {
+    param(
+        [AllowNull()]$InputObject,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    if ($null -eq $InputObject) { return $false }
+    return @($InputObject.PSObject.Properties | Where-Object { $_.Name -ceq $Name }).Count -eq 1
+}
+
+function ConvertTo-StartupUtcTimestamp {
+    param([AllowNull()]$Value)
+
+    if ($null -eq $Value) {
+        return [pscustomobject]@{ valid = $false; value = ''; source_type = 'MISSING' }
+    }
+    try {
+        if ($Value -is [datetime]) {
+            return [pscustomobject]@{ valid = $true; value = ([datetime]$Value).ToUniversalTime().ToString('o'); source_type = 'DATETIME' }
+        }
+        if ($Value -is [datetimeoffset]) {
+            return [pscustomobject]@{ valid = $true; value = ([datetimeoffset]$Value).UtcDateTime.ToString('o'); source_type = 'DATETIMEOFFSET' }
+        }
+        $text = ([string]$Value).Trim()
+        if ($text -match '^\d{14}\.\d{6}[+-]\d{3}$') {
+            $converted = [System.Management.ManagementDateTimeConverter]::ToDateTime($text)
+            return [pscustomobject]@{ valid = $true; value = $converted.ToUniversalTime().ToString('o'); source_type = 'DMTF' }
+        }
+        $parsed = [datetime]::MinValue
+        if ([datetime]::TryParse(
+            $text,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal,
+            [ref]$parsed
+        )) {
+            return [pscustomobject]@{ valid = $true; value = $parsed.ToUniversalTime().ToString('o'); source_type = 'ISO_TEXT' }
+        }
+    }
+    catch {
+    }
+    return [pscustomobject]@{ valid = $false; value = ''; source_type = 'INVALID' }
+}
+
+function Get-StartupRemainingMilliseconds {
+    param(
+        [Parameter(Mandatory = $true)][int64]$Deadline,
+        [Parameter(Mandatory = $true)][int]$MaximumMilliseconds
+    )
+    $remaining = $Deadline - (Get-MonotonicMilliseconds)
+    if ($remaining -le 0) { return 0 }
+    return [int][Math]::Min([int64]$MaximumMilliseconds, $remaining)
+}
+
 function ConvertTo-SafeStartupDiagnostic {
     param(
         [AllowNull()][object]$Value,
@@ -602,6 +654,7 @@ function Test-StartupSetManifest {
     }
     foreach ($serviceName in @($serviceByName.Keys)) {
         $service = $serviceByName[$serviceName]
+        $fileRef = [string](Get-StartupProperty -InputObject $service -Name 'script_ref')
         foreach ($field in @('launch_kind', 'executable', 'working_directory', 'listener_host', 'listener_port')) {
             $value = Get-StartupProperty -InputObject $service -Name $field
             if ($null -eq $value -or [string]::IsNullOrWhiteSpace([string]$value)) {
@@ -635,6 +688,32 @@ function Test-StartupSetManifest {
         }
         $arguments = @(Get-StartupProperty -InputObject $service -Name 'arguments')
         if ($arguments.Count -eq 0) { $errors.Add(('HOST_SERVICE_ARGUMENTS_MISSING:{0}' -f $serviceName)) }
+        if ($null -ne $canonicalRoot -and $seenFileRoles.ContainsKey($fileRef)) {
+            $scriptFile = $seenFileRoles[$fileRef]
+            $scriptRelativePath = [string](Get-StartupProperty -InputObject $scriptFile -Name 'path')
+            try {
+                $expectedScriptPath = Get-CanonicalStartupPath (Join-Path $canonicalRoot $scriptRelativePath)
+                $codeArguments = New-Object System.Collections.Generic.List[string]
+                foreach ($argument in $arguments) {
+                    $argumentText = [string]$argument
+                    if ($argumentText -match '(?i)\.(c?js|mjs|ps1|py)$') {
+                        $candidate = if ([System.IO.Path]::IsPathRooted($argumentText)) {
+                            Get-CanonicalStartupPath $argumentText
+                        }
+                        else {
+                            Get-CanonicalStartupPath (Join-Path ([string](Get-StartupProperty -InputObject $service -Name 'working_directory')) $argumentText)
+                        }
+                        $codeArguments.Add($candidate)
+                    }
+                }
+                if ($codeArguments.Count -ne 1 -or -not $codeArguments[0].Equals($expectedScriptPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $errors.Add(('HOST_SERVICE_SCRIPT_BINDING_MISMATCH:{0}' -f $serviceName))
+                }
+            }
+            catch {
+                $errors.Add(('HOST_SERVICE_SCRIPT_BINDING_INVALID:{0}' -f $serviceName))
+            }
+        }
     }
     if ($serviceByName.ContainsKey('supervisor')) {
         if ((Get-StartupProperty -InputObject $serviceByName['supervisor'] -Name 'policy') -ne 'INTENTIONALLY_STOPPED') {
@@ -722,9 +801,41 @@ function Test-ApprovedContainerIdentity {
     $observedMounts = @((Get-StartupProperty -InputObject $Observed -Name 'mounts') | ForEach-Object { ConvertTo-StartupComparableMount -Mount $_ })
     if (-not (Test-StartupStringSetEqual -Expected $expectedMounts -Observed $observedMounts)) { $errors.Add('CONTAINER_IDENTITY_MISMATCH:mounts') }
     $expectedPorts = @((Get-StartupProperty -InputObject $Expected -Name 'ports') | ForEach-Object { ConvertTo-StartupComparablePort -Port $_ })
-    $observedPorts = @((Get-StartupProperty -InputObject $Observed -Name 'ports') | ForEach-Object { ConvertTo-StartupComparablePort -Port $_ })
-    if (-not (Test-StartupStringSetEqual -Expected $expectedPorts -Observed $observedPorts)) { $errors.Add('CONTAINER_IDENTITY_MISMATCH:ports') }
+    $configuredPortSource = if (Test-StartupProperty -InputObject $Observed -Name 'configured_ports') {
+        Get-StartupProperty -InputObject $Observed -Name 'configured_ports'
+    }
+    else {
+        Get-StartupProperty -InputObject $Observed -Name 'ports'
+    }
+    $configuredPorts = @($configuredPortSource | ForEach-Object { ConvertTo-StartupComparablePort -Port $_ })
+    if (-not (Test-StartupStringSetEqual -Expected $expectedPorts -Observed $configuredPorts)) { $errors.Add('CONTAINER_IDENTITY_MISMATCH:configured_ports') }
+    if ([bool](Get-StartupProperty -InputObject $Observed -Name 'running')) {
+        $activePortSource = if (Test-StartupProperty -InputObject $Observed -Name 'active_ports') {
+            Get-StartupProperty -InputObject $Observed -Name 'active_ports'
+        }
+        else {
+            Get-StartupProperty -InputObject $Observed -Name 'ports'
+        }
+        $activePorts = @($activePortSource | ForEach-Object { ConvertTo-StartupComparablePort -Port $_ })
+        if (-not (Test-StartupStringSetEqual -Expected $expectedPorts -Observed $activePorts)) { $errors.Add('CONTAINER_IDENTITY_MISMATCH:active_ports') }
+    }
     return [pscustomobject]@{ valid = ($errors.Count -eq 0); errors = $errors.ToArray() }
+}
+
+function ConvertTo-StartupHostObservation {
+    param([AllowNull()]$RawObservation)
+
+    $items = @($RawObservation | Where-Object { $null -ne $_ })
+    if ($items.Count -eq 1 -and (Test-StartupProperty -InputObject $items[0] -Name 'observation_status')) {
+        return [pscustomobject]@{
+            status = [string](Get-StartupProperty -InputObject $items[0] -Name 'observation_status')
+            matches = @((Get-StartupProperty -InputObject $items[0] -Name 'matches'))
+            detail = [string](Get-StartupProperty -InputObject $items[0] -Name 'detail')
+        }
+    }
+    if ($items.Count -eq 0) { return [pscustomobject]@{ status = 'ABSENT'; matches = @(); detail = '' } }
+    if ($items.Count -gt 1) { return [pscustomobject]@{ status = 'AMBIGUOUS'; matches = $items; detail = '' } }
+    return [pscustomobject]@{ status = 'PRESENT'; matches = $items; detail = '' }
 }
 
 function Invoke-StartupExistingContainerPhase {

@@ -24,6 +24,11 @@ process launch and `OPEN_AFTER_BASE_READY` client launch remain fail-closed;
 their rollout semantics require a later reviewed set rather than an arbitrary
 executable surface.
 
+The manifest validator also binds each host-service `script_ref` to the one
+code-file argument actually selected by that service action. A task action
+that consistently points at another in-root file (or at recovery/staging)
+cannot make an internally inconsistent manifest valid.
+
 The existing Compose helper exposes `Invoke-ApprovedExistingContainerPhase`
 over the same shared phase used by the launcher. That interface only preserves
 or starts a unique existing container after exact project/service,
@@ -56,15 +61,35 @@ the PID and process start time before terminating only that child. It does not
 kill Docker Desktop, the Engine, tasks or services and cannot infer that a
 timed-out client rolled back a requested operation.
 
+Host observation/start uses a second, closed boundary inside
+`start-host-services.ps1`. It supports only `OBSERVE` and `START` for the exact
+Task Scheduler identity already selected from a validated manifest; JSON never
+supplies executable code. Its deadline includes pipeline setup, result mapping
+and bounded cancellation/settlement. An observation timeout is `UNKNOWN` and
+cannot authorize a start. A timeout after a possible `Start-ScheduledTask`
+handoff is also `UNKNOWN`, is not rollback, and is not retried automatically.
+
+Container identity distinguishes configured `HostConfig.PortBindings` from
+active `NetworkSettings.Ports`: a stopped container must retain the approved
+configuration before its one exact-ID start, and a running container must then
+show the approved active mapping. Host observation examines all listeners on
+the required port independently of process matching, rejects wildcard/foreign
+owners and extra command-line arguments, and treats unavailable CIM/task/TCP
+evidence or an invalid creation time as `UNKNOWN`.
+
 ## P1 verification
 
 Run only from the recovery worktree:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-start-host-services.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-startup-real-adapters.ps1
 ```
 
 The test creates only synthetic files and short `powershell.exe -NoProfile`
-children. Docker, HTTP endpoints, Task Scheduler and product processes are
-represented by deterministic adapters. Live/manual/logon/reboot startup,
-cutover, rollback and cleanup remain `NOT_RUN / REQUIRES_SEPARATE_APPROVAL`.
+children. The first command verifies the complete plan contract. The second
+executes the production adapter mapping against raw, realistic lower-boundary
+fixtures, including bounded in-process host-operation pipelines. Missing a
+single Docker/HTTP/CIM/TCP/Task/start fake refuses adapter construction; there
+is no fallback to the host. Live/manual/logon/reboot startup, cutover, rollback
+and cleanup remain `NOT_RUN / REQUIRES_SEPARATE_APPROVAL`.
