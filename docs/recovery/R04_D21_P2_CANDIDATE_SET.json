@@ -1,0 +1,391 @@
+{
+  "schema": "NEXT_STABIL_STARTUP_SET_V1",
+  "component_identity_schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+  "set_id": "R04-D21-P2-20260915T212340Z-2e69622",
+  "candidate_status": "DRAFT_NOT_APPROVED_FOR_START",
+  "root": "C:\\ai-lab-core",
+  "approval": {
+    "status": "NOT_APPROVED",
+    "set_id": "R04-D21-P2-20260915T212340Z-2e69622",
+    "decision_id": "D-21"
+  },
+  "source": {
+    "commit": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
+    "tree": "4ee8f9ca77cc315dce428b689264d5125f0a23f5",
+    "snapshot_sha256": "318A41F24F5B2949A06A24B38BB5D2B599E300734E67F1E91E0F5C59879CC6C3",
+    "snapshot_file_manifest_sha256": "72A8B6ACA13208F296F513D5DFCC6D9FE6ECD7411DBB895F3776539CE29DE417",
+    "p1_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
+    "p1_evidence": "7687cc15bb31175d19485b10a6e13dfc5945bfc2",
+    "a4_source": "04ab5e58cf86896ffd946cabffde13367d343f53",
+    "a4_evidence": "8620871711321a42e62291e52865b5a668a4955d"
+  },
+  "timeouts": {
+    "native_command_ms": 20000,
+    "engine_stage_ms": 180000,
+    "service_stage_ms": 60000,
+    "poll_ms": 1000,
+    "max_output_chars": 32768
+  },
+  "files": [
+    {
+      "role": "compose_config",
+      "path": "compose.yaml",
+      "sha256": "588CF9161EE6F2B45168EB2B0696135386D629BB612C5A0D19A17DAD392D4591"
+    },
+    {
+      "role": "compose_helper",
+      "path": "operations/windows/start-compose-after-docker.ps1",
+      "sha256": "1250A69C1F518EF1F259D00CDF0C97835E458E866719DB189CB3E21D6C3856BE"
+    },
+    {
+      "role": "host_launcher",
+      "path": "operations/runtime/start-host-services.ps1",
+      "sha256": "78925EE31FB5F55B8DE52F272537E2EE55A575760225324F02C58612FBCB7D8E"
+    },
+    {
+      "role": "host_runtime",
+      "path": "operations/runtime/startup-runtime.ps1",
+      "sha256": "F7CD8592E6A72BBA91392E337B0261079477B54582D3AD5BB65ED832255A3F60"
+    },
+    {
+      "role": "public_gateway_script",
+      "path": "operations/gateway/public_web_server.cjs",
+      "sha256": "A1EB05B717D9B005ED96D1020B2F93451226981B56AAA31C53B66742045C3B7F"
+    },
+    {
+      "role": "private_gateway_script",
+      "path": "operations/gateway/web_server.cjs",
+      "sha256": "864EAAE350A528DC423F8D0972711DB95994A11AF18CE80BA3F16D7A694B789A"
+    },
+    {
+      "role": "supervisor_script",
+      "path": "operations/supervisor/server.js",
+      "sha256": "3C223A6A8F37F9D3F61C6EC1D95B306BEFBA59231A8028A17E9258B02DC3DEC7"
+    },
+    {
+      "role": "analysis_worker_script",
+      "path": "operations/vision-worker/analysis-job.js",
+      "sha256": "0E4CEFF6EB0F85930188CD9CEAE78BA78A816FB8E941071A797978982812F54C"
+    },
+    {
+      "role": "vision_worker_script",
+      "path": "operations/vision-worker/vision-job.js",
+      "sha256": "D61B9BDDB6AC9AA9314B48079BA89B8BE15E98697FF41A6DD030BDE6F0F74C1D"
+    }
+  ],
+  "external_tools": [
+    {
+      "name": "docker_cli",
+      "path": "C:\\Users\\domai\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe",
+      "sha256": "46D8A5BD7523C575FB276A75296AB19ABB9BF277D334169C665E521E46DBC2A4"
+    },
+    {
+      "name": "docker_desktop",
+      "path": "C:\\Users\\domai\\AppData\\Local\\Programs\\DockerDesktop\\Docker Desktop.exe",
+      "sha256": "F508DE4FA1F4A9E2EB8A2DDDE64A10D0CD45414E88CC11E9CD4120247E217799"
+    },
+    {
+      "name": "node",
+      "path": "C:\\Program Files\\nodejs\\node.exe",
+      "sha256": "9A4EB5F1C29C6A2E93852EAD46B999E284A6A5CA8BAB4D4E241D587D025A52DE"
+    }
+  ],
+  "docker": {
+    "context": "desktop-linux",
+    "endpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
+    "process_name": "Docker Desktop",
+    "cli_tool": "docker_cli",
+    "desktop_tool": "docker_desktop"
+  },
+  "containers": [
+    {
+      "service": "postgres",
+      "container_name": "UNRESOLVED_P3",
+      "compose_project": "ai-lab-core",
+      "image_id": "UNKNOWN_P3",
+      "repo_digest": "UNKNOWN_P3",
+      "mounts": [],
+      "ports": [],
+      "selection_status": "REQUIRES_P3_EXACT_OBSERVATION"
+    },
+    {
+      "service": "backend",
+      "container_name": "UNRESOLVED_P3",
+      "compose_project": "ai-lab-core",
+      "image_id": "UNKNOWN_P3",
+      "repo_digest": "UNKNOWN_P3",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\backend",
+          "destination": "/app",
+          "type": "bind",
+          "read_only": true
+        },
+        {
+          "source": "C:\\ai-lab-core\\data",
+          "destination": "/data",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 8000,
+          "container_port": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "selection_status": "REQUIRES_P3_BUILD_OR_EXACT_IMAGE_AND_MOUNT"
+    }
+  ],
+  "host_services": [
+    {
+      "name": "public_gateway",
+      "policy": "REQUIRED",
+      "launch_kind": "TASK",
+      "task_name": "NEXT Stabil - Public Gateway",
+      "task_path": "\\",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "arguments": [
+        "operations/gateway/public_web_server.cjs"
+      ],
+      "working_directory": "C:\\ai-lab-core",
+      "listener_host": "127.0.0.1",
+      "listener_port": 8789,
+      "script_ref": "public_gateway_script",
+      "tool_ref": "node"
+    },
+    {
+      "name": "private_gateway",
+      "policy": "REQUIRED",
+      "launch_kind": "TASK",
+      "task_name": "NEXT Stabil - Private Gateway",
+      "task_path": "\\",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "arguments": [
+        "operations/gateway/web_server.cjs"
+      ],
+      "working_directory": "C:\\ai-lab-core",
+      "listener_host": "127.0.0.1",
+      "listener_port": 8788,
+      "script_ref": "private_gateway_script",
+      "tool_ref": "node"
+    },
+    {
+      "name": "supervisor",
+      "policy": "INTENTIONALLY_STOPPED",
+      "launch_kind": "TASK",
+      "task_name": "NEXT Stabil - Supervisor",
+      "task_path": "\\",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "arguments": [
+        "operations/supervisor/server.js"
+      ],
+      "working_directory": "C:\\ai-lab-core",
+      "listener_host": "127.0.0.1",
+      "listener_port": 8787,
+      "script_ref": "supervisor_script",
+      "tool_ref": "node"
+    }
+  ],
+  "readiness": [
+    {
+      "name": "backend",
+      "uri": "http://127.0.0.1:8000/health",
+      "expected_status": 200
+    },
+    {
+      "name": "web",
+      "uri": "http://127.0.0.1:8789/",
+      "expected_status": 200
+    },
+    {
+      "name": "public_control_boundary",
+      "uri": "http://127.0.0.1:8789/control",
+      "expected_status": 404
+    }
+  ],
+  "client": {
+    "policy": "DISABLED",
+    "opening": "NOT_IMPLEMENTED_P1"
+  },
+  "component_compatibility": {
+    "selected": {
+      "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+      "release_id": "r04-d21-p2-20260915t212340z",
+      "components": {
+        "backend": {
+          "version": "1.0.0",
+          "identity_kind": "git_sha",
+          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+        },
+        "api": {
+          "version": "1",
+          "identity_kind": "contract_version",
+          "identity": "1"
+        },
+        "database": {
+          "version": "followup_assistant_chat_history_20260829",
+          "identity_kind": "schema_revision",
+          "identity": "followup_assistant_chat_history_20260829"
+        },
+        "web": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "A99FB9E30FD66F815509434BD594050D82F4D5D1B6E45A36DB6DDECC085A4C41"
+        },
+        "windows": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865"
+        },
+        "android": {
+          "version": "UNKNOWN",
+          "identity_kind": "sha256",
+          "identity": "UNKNOWN"
+        },
+        "supervisor": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+        },
+        "gateway": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+        },
+        "analysis_worker": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+        },
+        "vision_worker": {
+          "version": "source-v1",
+          "identity_kind": "git_sha",
+          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+        }
+      }
+    },
+    "current_observed": {
+      "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+      "release_id": "live-legacy-20260915",
+      "components": {
+        "backend": {
+          "version": "1.0.0",
+          "identity_kind": "git_sha",
+          "identity": "483f9bf8b1a591ded8a42df5da87663c664ed5d4"
+        },
+        "api": {
+          "version": "1",
+          "identity_kind": "contract_version",
+          "identity": "1"
+        },
+        "database": {
+          "version": "UNKNOWN",
+          "identity_kind": "schema_revision",
+          "identity": "NOT_OBSERVED"
+        },
+        "web": {
+          "version": "1.0.2+41",
+          "identity_kind": "sha256",
+          "identity": "3951EBEB2053F60AC9FD2295B2EBCFA73126777A098102FF4F3B62DE4787F5D9"
+        },
+        "windows": {
+          "version": "1.0.2+29",
+          "identity_kind": "sha256",
+          "identity": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865"
+        },
+        "android": {
+          "version": "UNKNOWN",
+          "identity_kind": "sha256",
+          "identity": "NOT_OBSERVED"
+        },
+        "supervisor": {
+          "version": "UNKNOWN",
+          "identity_kind": "git_sha",
+          "identity": "NOT_OBSERVED"
+        },
+        "gateway": {
+          "version": "UNKNOWN",
+          "identity_kind": "git_sha",
+          "identity": "NOT_OBSERVED"
+        },
+        "analysis_worker": {
+          "version": "UNKNOWN",
+          "identity_kind": "git_sha",
+          "identity": "NOT_OBSERVED"
+        },
+        "vision_worker": {
+          "version": "UNKNOWN",
+          "identity_kind": "git_sha",
+          "identity": "NOT_OBSERVED"
+        }
+      }
+    },
+    "result": {
+      "status": "MISMATCH_AND_UNVERIFIED",
+      "mismatches": [
+        "release_id",
+        "backend.identity",
+        "web.version",
+        "web.identity"
+      ],
+      "unverified": [
+        "database",
+        "android",
+        "supervisor",
+        "gateway",
+        "analysis_worker",
+        "vision_worker"
+      ]
+    }
+  },
+  "web_test_only": {
+    "status": "BUILT_NOT_DEPLOYED",
+    "source_commit": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
+    "version": "1.0.2+29",
+    "api_base_url": "http://127.0.0.1:18004",
+    "archive_sha256": "A99FB9E30FD66F815509434BD594050D82F4D5D1B6E45A36DB6DDECC085A4C41",
+    "file_manifest_sha256": "A5BA823B0F41A3288CF20F2B7C6A898105994652AF4CF25814C85D762D713B44",
+    "main_dart_js_sha256": "77201F480D899224E50AE6355D20C34B58933AABD6AFB09ED0BF6C413DE83B4F",
+    "server_started": false,
+    "ui_started": false
+  },
+  "startup_policy": {
+    "vision_v1": "DISABLED_BY_DEFAULT_VISION_AUTOMATION_ENABLED_FALSE",
+    "visual_v2": "DISABLED_BY_DEFAULT_VISUAL_V2_ENABLED_FALSE",
+    "advanced_analysis": "DISABLED_BY_DEFAULT_ADVANCED_ANALYSIS_ENABLED_FALSE",
+    "knowledge_base_processing": "DISABLED_BY_DEFAULT_KNOWLEDGE_BASE_PROCESSING_ENABLED_FALSE",
+    "knowledge_base_vector_writes": "DISABLED_BY_DEFAULT_KNOWLEDGE_BASE_VECTOR_WRITES_ENABLED_FALSE",
+    "document_preparation": "DISABLED_BY_DEFAULT_DOCUMENT_PREPARATION_ENABLED_FALSE",
+    "assistant_pipeline_v2": "DISABLED_BY_DEFAULT_ASSISTANT_PIPELINE_V2_ENABLED_FALSE",
+    "backup_plan_reconciler": "UNCONDITIONAL_LIFESPAN_START_REQUIRES_P3_CONTROL",
+    "database_initialization": "UNCONDITIONAL_LIFESPAN_CALL_REQUIRES_P3_SCHEMA_AND_EFFECT_REVIEW",
+    "supervisor": "INTENTIONALLY_STOPPED"
+  },
+  "current_runtime_observation": {
+    "observed_utc": "2026-09-15T21:43:27.3024961Z",
+    "backend_container_id": "9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a",
+    "backend_image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
+    "backend_source_mount": "C:/ai-lab-core/build/deploy-main-483f9bf8/backend",
+    "backend_data_mount": "C:/ai-lab-core/data",
+    "canonical_data_path_kind": "JUNCTION",
+    "canonical_data_path_target": "D:/ai-lab-data",
+    "recovery_or_p2_mount_present": false,
+    "candidate_loaded": false
+  },
+  "remaining_gates": [
+    "OWNER_REVIEW_AND_ACCEPT_P2",
+    "P3_SEPARATE_OPERATIONAL_APPROVAL",
+    "CURRENT_DATA_RECOVERY_AND_R03_ESCROW_DECISION",
+    "RESOLVE_D_AI_LAB_DATA_JUNCTION_WITHOUT_HIDDEN_DEPENDENCY",
+    "EXACT_CONTAINER_AND_IMAGE_IDENTITIES",
+    "CONTROL_BACKUP_PLAN_RECONCILER_AND_INIT_DATABASE_SIDE_EFFECTS",
+    "CONFIRM_ALL_AI_PROCESSING_FLAGS_FALSE_IN_EFFECTIVE_P3_CONFIG",
+    "REVIEW_EXTERNAL_VISION_WORKER_SOURCE_AND_PROFILE_STATE",
+    "PRODUCTION_ENDPOINT_WEB_BUILD_AND_RUNTIME_ACCEPTANCE",
+    "TASK_INSTALL_AND_SINGLE_ENTRYPOINT_ACCEPTANCE",
+    "ROLLBACK_REHEARSAL_AND_OWNER_WINDOW"
+  ]
+}

@@ -1,6 +1,6 @@
 # R04 / D-21 — plan jednego katalogu instalacji i jednego startu
 
-Status dokumentu: `P1_SOURCE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`
+Status dokumentu: `P1_SOURCE_AND_OFFLINE_TESTS_ACCEPTED / P2_PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -141,9 +141,12 @@ Każde polecenie operacyjne w tej sekcji ma status
 
 ### D21-P1 — źródło launchera i testy offline (pierwszy minimalny pakiet)
 
-Stan 2026-09-15: `SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY / NOT_DEPLOYED`
-na source `1bfb377a224499eda2366a7cc52814e55ab267fa`. Parser PowerShell
-5.1 i przykład JSON przeszły, a focused test wykonał 53 asercje z exit 0.
+Stan 2026-09-15: właściciel zaakceptował P1 wyłącznie jako
+`SOURCE_AND_OFFLINE_TESTS_ACCEPTED / NOT_DEPLOYED` na source
+`2e69622bc6a0b4888427f8ae5be119377aed26d9` i evidence
+`7687cc15bb31175d19485b10a6e13dfc5945bfc2`. Parser PowerShell 5.1 i przykład
+JSON przeszły; focused test wykonał 53 asercje, a test rzeczywistych adapterów
+z dolnymi atrapami 48 asercji, oba exit 0.
 Szczegóły: `docs/recovery/R04_D21_P1_STARTUP_SOURCE_EVIDENCE.md`.
 
 Ścieżki:
@@ -163,23 +166,34 @@ Verification: parser PowerShell 5.1, testy focused, negatywne identity/mount,
 `git diff --check`, brak zmiany Task Scheduler.
 Rollback: revert jednego source commita.
 Uprawnienie: zgoda D21-P1 SOURCE/OFFLINE TEST została wykorzystana wyłącznie do
-source i atrapionych testów; bez zgody operacyjnej.
+source i atrapionych testów; odbiór nie jest zgodą operacyjną.
 
 ### D21-P2 — zabezpieczenie unikalnej pracy i candidate manifest
 
-Precondition: 203/203 ponownie zgodne, 13 commitów + 5 zmian Visual zachowane,
-recovery remote potwierdzone, aktualny backup/rollback oceniony.
-Efekt: owner-approved preservation dla dirty work, wybór dokładnego source set
-(proponowany produktowy punkt odniesienia to zaakceptowany source
-`04ab5e58cf86896ffd946cabffde13367d343f53`, z dokumentacyjnym evidence
-`8620871711321a42e62291e52865b5a668a4955d`), manifest backend/API/schema/Web/
-gateway/Supervisor/workers. Nie jest to jeszcze deployment.
-Verification: full file hashes, source provenance, compatibility i brak runtime
-consumer recovery.
-Rollback: zachowane oryginalne drzewo, aktywny deploy `483f9bf8...` i zewnętrzne
-state roots.
-Uprawnienie: osobna zgoda na preservation/candidate; sekretne lub biznesowe
-payloads pozostają poza Git.
+Stan 2026-09-15: `PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NOT_DEPLOYED`.
+Wybrany jest jeden pełny source set
+`2e69622bc6a0b4888427f8ae5be119377aed26d9`, który zawiera niezmienione bajty
+aplikacyjne zaakceptowanego A4 oraz odebrany launcher P1. Snapshot, manifest
+1,198 plików i roundtrip hashy są zapisane w jednym nieaktywnym rootcie P2.
+
+Precondition spełnione w zakresie nieoperacyjnym: original 203/203 bez driftu;
+audit HEAD i 5 lokalnych zmian zachowane przez zweryfikowany bundle, exact bytes
+i binary patch; siedem jawnie dozwolonych plików zewnętrznego workera
+zabezpieczono bez profilu/sesji. Recovery remote wymaga końcowego readbacku tego
+handoffu. Aktualny rollback kodu to nadal aktywny deploy `483f9bf8...`; recovery
+dzisiejszych danych pozostaje oddzielną otwartą decyzją R03.
+
+Efekt: jeden inertny snapshot, jeden Web build `TEST_ONLY`, jawna macierz
+source→artifact→target i draft `NOT_APPROVED_FOR_START` dla backend/API/schema/
+Web/gateway/Supervisor/workers. Nie jest to deployment ani `CUTOVER_READY`.
+Verification: pełne hashe, provenance, 1,198/1,198 roundtrip, Web build exit 0,
+oraz oczekiwana odmowa draftu przez walidator P1 w PowerShell 5.1 z
+`START_NOT_APPROVED` i bez adapterów.
+Rollback: zachowane oryginalne drzewo, audit, aktywny deploy `483f9bf8...`,
+override D21-016 i zewnętrzne state roots.
+Uprawnienie: osobna zgoda P2 obejmuje preservation/candidate wyłącznie lokalnie;
+sekretne lub biznesowe payloads pozostają poza Git. Szczegóły:
+`R04_D21_P2_CANDIDATE_EVIDENCE.md`.
 
 ### D21-P3 — kontrolowany cutover jednego zestawu
 
@@ -224,7 +238,7 @@ Uprawnienie: osobna exact-name cleanup approval.
 
 ## 5. Otwarte bramki i niewiadome
 
-- `R03 WAITING_APPROVAL / WAITING_ESCROW_DECISION`: nie blokuje mapy ani P1,
+- `R03 WAITING_APPROVAL / WAITING_ESCROW_DECISION`: nie blokuje mapy ani P1/P2,
   ale blokuje deklarację pełnej recovery readiness. Przed ryzykownym P3 trzeba
   osobno rozstrzygnąć aktualność rollback point i świadomie zaakceptować ryzyko.
 - `R05 IN_PROGRESS`: operator Web runtime, real Temporary Chat, upload i external
@@ -236,27 +250,36 @@ Uprawnienie: osobna exact-name cleanup approval.
   biznesowej DB; same taski i ich wrappery zostały zidentyfikowane.
 - `C:\Ollama-Vision-Pilot` nie ma potwierdzonego konsumenta ani potwierdzenia
   zbędności.
-- Zewnętrzny profil i legacy worker files wymagają osobnego porównania/migracji
-  bez odczytu cookies i bez utraty sesji.
+- Siedem nazwanych plików zewnętrznego workera zachowano w P2, lecz 0 jest
+  identycznych z kandydatem, 3 są różne, a 4 nieobecne; ich adopcja oraz profil
+  nadal wymagają osobnego review/migracji bez odczytu cookies i utraty sesji.
 - `C:\ai-lab-core-staging` jest mieszanką evidence/cache/deployment declarations;
   tylko aktywny override został zidentyfikowany jako bieżący konsument.
+- Kandydat wywołuje bezwarunkowo `init_database()` i uruchamia backup plan
+  reconciler w lifespan; P3 musi osobno kontrolować ich skutki i efektywną
+  konfigurację wszystkich bramek AI.
+- `C:\ai-lab-core\data` jest obecnie junctionem do `D:\ai-lab-data`; P3 musi
+  jawnie rozstrzygnąć tę zależność, punkt cofnięcia i sposób zgodny z D-21.
+  Nie wolno przedstawiać junctionu jako dowodu pełnego single-root.
+- Draft P2 jest celowo `NOT_APPROVED_FOR_START`; brak dokładnych przyszłych
+  ID/image/digest/mountów i aktualnej decyzji rollback danych blokuje P3.
 
 Te braki blokują odpowiednie relokacje lub cleanup, lecz nie unieważniają
 gotowości mapy i planu do właścicielskiego review.
 
 ## 6. Skutki tej sesji
 
-Utworzono wyłącznie zanonimizowaną mapę, ten plan, checkpoint i aktualizacje
-rejestrów. Lokalny katalog surowych dowodów znajduje się pod istniejącym
-chronionym stagingiem R04/D-21. Nie wykonano cutoveru, relokacji, cleanupu,
-startup implementation, task/shortcut/mount/config change, restartu, testów
-aplikacji, Fluttera, Web A/B, CORS, browsera, modeli, backupu ani restore.
+P1 jest odebrane wyłącznie jako source/offline tests i pozostaje NOT_DEPLOYED.
+P2 utworzyło jeden chroniony root z lokalnymi archiwami preservation, inertnym
+snapshotem, katalogami walidacyjnymi, logami oraz jednym buildem Web TEST_ONLY.
+Do Git trafiają tylko zanonimizowane indeksy, draft i dokumentacja. Nie wykonano
+cutoveru, relokacji, cleanupu, task/shortcut/mount/config/flag change, restartu,
+startu aplikacji/launchera/Supervisora/workera, UI, modeli, backupu ani restore.
 
-Aktualizacja P1 nie zmieniła historycznego inventory ani żadnego runtime.
-Launcher, helper, kontrakt `EXAMPLE_ONLY`, test i recepta istnieją wyłącznie w
-recovery. Nie zainstalowano plików, manifestu produkcyjnego, taska ani skrótu;
-nie wykonano Docker/HTTP/Task Scheduler/usług. Klient i bezpośredni start procesu
-pozostają fail-closed w P1. P2–P5 pozostają `NOT_RUN / NOT_AUTHORIZED`.
+Launcher P1 pozostaje wyłącznie w recovery. Draft P2 nie został zainstalowany i
+produkcyjny walidator odrzuca go przez `START_NOT_APPROVED`; adapterów nie
+wywołano. Klient i bezpośredni start procesu pozostają fail-closed. P3–P5 są
+`NOT_RUN / NOT_AUTHORIZED`.
 
-Następny krok: owner review source/evidence P1, a następnie osobna decyzja o
-`D21-P2`. Nie jest to zgoda na P2–P5 ani operacyjny start.
+Następny krok: owner review preservation/source set/draft P2. Ewentualne
+`D21-P3` wymaga osobnej zgody operacyjnej; ten plan jej nie udziela.

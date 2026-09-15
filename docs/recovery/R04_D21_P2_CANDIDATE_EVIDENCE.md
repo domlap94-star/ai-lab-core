@@ -1,0 +1,243 @@
+# R04 / D-21 / P2 — preservation and pinned candidate evidence
+
+Status: `PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NOT_DEPLOYED`
+
+## Zakres i tożsamość
+
+- Parent/evidence HEAD wejścia: `7687cc15bb31175d19485b10a6e13dfc5945bfc2`.
+- Odebrany source P1: `2e69622bc6a0b4888427f8ae5be119377aed26d9` jako
+  `SOURCE_AND_OFFLINE_TESTS_ACCEPTED / NOT_DEPLOYED`.
+- Odebrany source A4: `04ab5e58cf86896ffd946cabffde13367d343f53`;
+  evidence `8620871711321a42e62291e52865b5a668a4955d`.
+- Wybrany source set P2: pełne drzewo commita
+  `2e69622bc6a0b4888427f8ae5be119377aed26d9`, tree
+  `4ee8f9ca77cc315dce428b689264d5125f0a23f5`.
+- Jeden chroniony root P2:
+  `C:\ai-lab-core-staging\recovery\R04_D21_SINGLE_ROOT_20260915T033112Z\p2-20260915T212340Z`.
+- Kandydat jest `NOT_DEPLOYED / NOT_APPROVED_FOR_START`. P2 nie zmieniło
+  produkcyjnych ścieżek, tasków, mountów, flag, kolejek ani danych.
+
+Preflight potwierdził właściwy branch i tracking ref, czyste recovery, brak
+drugiego autora, brak konsumenta dokładnego rootu P2, 572.34 GiB wolnego miejsca
+na C: oraz odziedziczone ograniczone ACL. Nie zmieniano ACL. Nazwę rootu
+ustalono przed pierwszym zapisem i nie tworzono drugiego środowiska P2.
+
+## Wybór jednego kandydata
+
+Porównanie A4 source → P1 source nie wykazało zmian w `backend/app`,
+`frontend/lib`, `backend/alembic`, `frontend/pubspec.yaml` ani
+`frontend/pubspec.lock` (`git diff --quiet`, exit `0`). Oznacza to, że zaakceptowane
+bajty aplikacyjne A4 przetrwały, a dalsze różnice P1 dotyczą kontrolowanego
+launchera/operations i dokumentacji. Kandydat jest pełnym drzewem jednego
+commita, nie ręcznie złożoną mieszaniną katalogów.
+
+Snapshot Git ma 1,198 plików / 13,886,448 B. Archiwum ma 6,207,605 B i
+SHA-256 `318A41F24F5B2949A06A24B38BB5D2B599E300734E67F1E91E0F5C59879CC6C3`.
+Manifest plików ma SHA-256
+`72A8B6ACA13208F296F513D5DFCC6D9FE6ECD7411DBB895F3776539CE29DE417`.
+Bezpieczna ekstrakcja do własnego katalogu walidacyjnego oraz pełne porównanie
+1,198 hashy dały mismatch `0`. Z odtworzonego drzewa nie uruchamiano produktu.
+
+Szczegółowy wybór komponentów, targetów i bramek znajduje się w
+`R04_D21_P2_SOURCE_SELECTION.csv`. Źródła, artefakty i runtime pozostają trzema
+odrębnymi klasami dowodu.
+
+## Preservation unikalnej pracy
+
+### Oryginalny worktree
+
+Ponownie użyto istniejącego, kompletnego preservation R00 zamiast tworzyć
+drugą kopię. Aktualny odczyt potwierdził:
+
+- HEAD `72950657ac79b50d0afe72753632ba4cde810b95`;
+- 203/203 pozycje obecne, mismatch hash `0`, mismatch rozmiaru `0`;
+- 6 tracked modified + 197 untracked, staged `0`;
+- `R00_WORKTREE_MANIFEST.csv` SHA-256
+  `994A17D7BCD7BA8120F73BC462AC6A2313A47F04D91F6639D2863A98A3FD6999`;
+- `R00_SOURCE_PRESERVATION_MANIFEST.csv` SHA-256
+  `0442A171B031A30A7FC835CF39E1D864BCA0BFBAA987E82FE761D8A6B75A9A50`;
+- binary-capable tracked patch SHA-256
+  `0CA24C4255CE43F7753E53F322324A9D042707319D17F7BED30B537910A1DF63`.
+
+Nie zmieniono brancha, HEAD, indeksu ani plików oryginalnego worktree.
+
+### Visual V2 audit
+
+Audit worktree pozostaje na
+`c2e931c8b72a55f4260b546e9eba84d67040e1f4`, merge base z main
+`4cc7446f9ad311c63c72727a969a55f319258669`, 13 commitów w jego historii ponad
+bazą i 5 wpisów stanu lokalnego. Porównanie patch identity z wybranym kandydatem
+dało 4 commity równoważne patchowo i 9 commitów unikalnych do dalszego review.
+Nie wykonano ich adopcji.
+
+- bundle: 506,522,548 B, SHA-256
+  `6010890462798DD24C59F2158E7662C1691FF4F7B657F5C0B98BFAC837C8ECD8`;
+- `git bundle verify`: PASS; fetch do osobnego bare validation repo odtworzył
+  dokładnie HEAD audytu;
+- dirty binary patch: 94,134 B, SHA-256
+  `6242BD7B22D95EA8CFEBF105509BD130913A606218E7EC110FFAF929E1C3CFF2`;
+- reverse-apply check: PASS;
+- dirty manifest: 5 pozycji, cztery exact-byte copies zgodne i jedno usunięcie
+  zapisane jawnie.
+
+Pierwsza próba wygenerowania patcha przez pipeline PowerShell zmieniła
+kodowanie/newline i była nieważna. Zachowano ją lokalnie jako
+`visual-v2-audit-dirty.invalid-pipeline-encoding.patch` z etykietą INVALID;
+nie jest dowodem odtwarzalności i nie zastępuje poprawnego patcha.
+
+### Zewnętrzny worker
+
+Z `C:\ChatGPT-Vision-Worker\worker` skopiowano jako opaque bytes wyłącznie siedem
+jawnie dozwolonych plików źródłowych. 7/7 kopii ma zgodne rozmiary i SHA-256.
+Względem kandydata: 0 identycznych, 3 różne, 4 nieobecne. Zewnętrzny
+`vision-job.js` ma SHA-256
+`54CCA6E992BD00F2A239288E18199B7D4CAE097AE7B49773639B094851434BEE`, a
+kandydat
+`D61B9BDDB6AC9AA9314B48079BA89B8BE15E98697FF41A6DD030BDE6F0F74C1D`.
+Klasyfikacja pozostaje `HOLD / REVIEW`; niczego nie zaimportowano.
+
+Nie czytano ani nie kopiowano profilu przeglądarki, cookies, sesji, kluczy,
+inputs, outputs, logów lub runtime state. Clean promotion worktrees z mapy D-21
+nie zostały ponownie zarchiwizowane: ich czystość i ancestry/ref są wystarczającym
+dowodem P2. Nierozstrzygnięte katalogi pozostają `HOLD/UNKNOWN`.
+
+## Web TEST_ONLY
+
+Starszy build A3 pochodził z innego źródła i nie został przemianowany na
+aktualny. Po bramce zasobów wykonano dokładnie jeden lokalny build Web z kopii
+frontendu kandydata:
+
+```text
+C:\FlutterSDK-New\flutter\bin\flutter.bat build web --debug --no-pub
+  --no-web-resources-cdn
+  --dart-define=API_BASE_URL=http://127.0.0.1:18004
+  --dart-define=SUPERVISOR_BASE_URL=http://127.0.0.1:18006
+```
+
+Wcześniej `flutter pub get --offline` zakończył się exit `0`; lockfile pozostał
+niezmieniony. Flutter Git HEAD
+`058e0af2c2b57e369d905a03ac9748b0ebf543c6` (3.44.8), Dart 3.12.2.
+Build trwał od `2026-09-15T21:39:10.8417243Z` do
+`2026-09-15T21:40:00.7895372Z`, exit `0`; pełne stdout/stderr zachowano od
+początku. Błąd pierwszej recepty pakowania (`Compress-Archive -LiteralPath` z
+wildcardem) poprawiono bez ponownego builda.
+
+- ZIP: 20,044,226 B; SHA-256
+  `A99FB9E30FD66F815509434BD594050D82F4D5D1B6E45A36DB6DDECC085A4C41`;
+- zawartość: 40 plików / 62,936,454 B; manifest SHA-256
+  `A5BA823B0F41A3288CF20F2B7C6A898105994652AF4CF25814C85D762D713B44`;
+- `main.dart.js`: 18,159,271 B; SHA-256
+  `77201F480D899224E50AE6355D20C34B58933AABD6AFB09ED0BF6C413DE83B4F`;
+- skan zawartości potwierdził testowy API `127.0.0.1:18004`; nie wykrył
+  produkcyjnych 8789/8788; Supervisor URL nie występuje w wygenerowanych
+  bajtach, bo nie jest używany przez klienta;
+- serwer, przeglądarka i UI: `NOT_RUN`; publikacja: `NOT_RUN`.
+
+Bramki przed/po buildzie przeszły. Przed buildem Windows available 7.887 GiB,
+commit reserve 37.983 GiB, właściwa pula WSL/Docker available 15.032 GiB, swap
+used 0. Po buildzie odpowiednio 7.692 / 37.913 / 15.028 GiB, swap used 0.
+
+## Draft manifest i celowa odmowa
+
+`R04_D21_P2_CANDIDATE_SET.json` korzysta z kontraktu P1
+`NEXT_STABIL_STARTUP_SET_V1` i pozostaje `DRAFT_NOT_APPROVED_FOR_START` z
+`approval.status=NOT_APPROVED`. Nie został skopiowany do rootu kanonicznego.
+
+Statyczna walidacja przez Windows PowerShell `5.1.26100.8894` zakończyła się
+exit `0` dla oczekiwanego testu odmowy: `valid=false`, błąd
+`START_NOT_APPROVED` obecny, adaptery wywołane `0`. Pozostałe błędy opisują
+faktyczny brak instalacji plików kandydata pod `C:\ai-lab-core` oraz
+nierozstrzygnięte ID/image/digest P3. Nie podstawiono expected jako observed i
+nie osłabiono walidatora.
+
+Pierwszy wrapper uruchomił PowerShell 7.6.5; jego zgodny wynik odmowy zachowano,
+ale nie użyto jako wymaganego dowodu PS 5.1. Następnie poprawiono wyłącznie
+receptę uruchomienia i zapisano właściwy wynik 5.1.
+
+## Startup policy i skutki późniejszego P3
+
+Statyczny odczyt kandydata potwierdził domyślne `false` dla: Vision V1,
+Visual V2, Advanced, KB processing, KB vector writes, Document Preparation i
+Assistant pipeline V2. Odpowiadające dispatchery są bramkowane tymi flagami.
+Nie oznacza to jeszcze bezpiecznego startupu całego backendu:
+
+- `init_database()` jest wywoływane bezwarunkowo w lifespan;
+- `start_backup_plan_reconciler()` bezwarunkowo uruchamia pętlę, która może
+  wywołać `reconcile_pending()`;
+- efektywna konfiguracja P3 nie została zainstalowana ani odczytana z sekretów;
+- Supervisor pozostaje `INTENTIONALLY_STOPPED` i launcher nie może go uruchomić.
+
+Przed P3 wymagane są więc: zatwierdzona allowlista efektywnych flag,
+kontrola side effects `init_database` i backup reconciler, dokładne ID
+kontenerów/image/mountów, decyzja schema, przegląd zewnętrznego workera/profile,
+jawna decyzja o `D:\ai-lab-data` i usunięciu ukrytej zależności z przyszłego
+układu, okno operacyjne, aktualny rollback oraz osobna zgoda właściciela. P2 nie
+zmienia flag i nie uruchamia lifespan.
+
+## Current observed vs candidate vs target
+
+Ograniczony read-only odczyt Engine z `2026-09-15T21:43:27.3024961Z`
+potwierdził, że aktualny backend nadal działa z:
+
+- container ID
+  `9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a`;
+- image ID
+  `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`;
+- `/app` z `C:/ai-lab-core/build/deploy-main-483f9bf8/backend`;
+- `/data` z `C:/ai-lab-core/data`;
+- restart policy `unless-stopped`.
+
+Odrębny odczyt metadanych ścieżki wykazał, że
+`C:\ai-lab-core\data` jest junctionem do `D:\ai-lab-data`. Backend source root
+nie jest reparse pointem. P2 nie zmienia tego układu, lecz P3 musi jawnie
+rozstrzygnąć zależność danych; nie wolno jej ukryć pod junctionem jako rzekomo
+pełnego single-root.
+
+Nie ma mountu recovery ani P2, a kandydat nie jest załadowany. Aktywny deploy
+repo pozostaje clean na `483f9bf8b1a591ded8a42df5da87663c664ed5d4`, a dokładny override D21-016 ma
+SHA-256 `36355C9392BA1A9A060B036D7B64B42E0CBD4EF65579335BB7C95DDA807436E8`.
+To rollback kodu/konfiguracji, nie dowód odzyskania aktualnych danych firmy.
+
+Docker Desktop po aktualizacji znajduje się pod profilem użytkownika; pierwsza
+recepta odczytu wskazywała nieistniejącą starą ścieżkę i nie uruchomiła CLI.
+Po ustaleniu faktycznej ścieżki wykonano jedną ograniczoną obserwację
+read-only. Nie startowano, nie zatrzymywano i nie restartowano kontenerów.
+
+## R03 i rollback danych
+
+Istniejący punkt R03 pozostaje historycznym dowodem odtworzenia wskazanego
+manifestu, nie kopią dzisiejszego stanu. R03 nadal ma status
+`WAITING_APPROVAL / WAITING_ESCROW_DECISION`. P2 nie wykonało nowego backupu,
+snapshotu, restore ani rehashu wielkich artefaktów. Brak aktualnej bramki
+operacyjnej blokuje P3, ale nie unieważnia preservation źródeł P2.
+
+## Rzeczywiste skutki i ograniczenia
+
+Rzeczywiste zapisy tej sesji to jeden root P2, kopie/archiwa źródeł objętych
+zgodą, rozpakowane katalogi walidacyjne, jeden build Web TEST_ONLY, jego cache i
+logi oraz dokumentacja Git. Nie było produkcyjnych zapisów danych, migracji,
+startu aplikacji/launchera/Supervisora/workera/modeli, zmiany tasków, mountów,
+flag, kolejek, harmonogramów, backupu, restore, escrow, deploymentu, release ani
+cleanup. Wszystkie oryginalne roots i profile pozostają na miejscu.
+
+P2 nie dowodzi działania aplikacji, Web runtime, zgodności Windows/Android,
+realnego eksportu, aktualności danych recovery ani poprawnego cutoveru.
+`PRODUCTION_START_MANIFEST_NOT_APPROVED`; P3–P5 są `NOT_RUN`.
+
+## Odtworzenie i rollback
+
+1. Źródła kandydata odtwarza się wyłącznie z archiwum i sprawdza względem
+   `source-file-manifest.csv`; nie uruchamia się ich z P2 stagingu.
+2. Audit Git odtwarza się z bundle do nowego repo i dopiero potem stosuje
+   poprawny dirty patch/exact bytes; invalid patch jest wykluczony.
+3. Zewnętrzne źródła workera pozostają osobnym HOLD; profil/state pozostają in
+   place i nie są rekonstruowane z repo.
+4. Aktywny rollback kodu pozostaje przy main `483f9bf8...`, jego obrazie,
+   mountach i D21-016. Żadne przełączenie nie zostało wykonane.
+5. Powrót danych wymaga osobnej decyzji R03/escrow i aktualności punktu; P2 nie
+   zastępuje backupu.
+
+Następny krok: właściciel przegląda P2, szczególnie wybór source set,
+unikalne 9 commitów audit, różnice zewnętrznego workera, draft manifestu i
+bramki startup side effects. P3 wymaga nowej, operacyjnej zgody; nie jest
+uruchamiany automatycznie.

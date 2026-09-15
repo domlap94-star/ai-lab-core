@@ -1,6 +1,6 @@
 # R04 / D-21 / P1 — startup source evidence
 
-Status: `HOST_COEXISTENCE_AND_ABSENCE_SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY / NOT_DEPLOYED`
+Status: `SOURCE_AND_OFFLINE_TESTS_ACCEPTED / NOT_DEPLOYED`
 
 ## Scope and identity
 
@@ -137,8 +137,9 @@ the launcher `DefinitionOnly` flag; a distinct helper parameter fixed it. A
 later PS5.1 run exposed deserialized-property and JSON-array behavior in mount
 parsing; the final safe property reader and explicit array iteration fixed it.
 Neither failure contacted a product boundary. The final 53- and 48-assertion
-runs are the current review evidence; earlier failed runs are not counted as
-passes and P1 has not been accepted by the owner.
+runs are the evidence later accepted by the owner for source/offline scope;
+earlier failed runs are not counted as passes. The acceptance remains
+`NOT_DEPLOYED` and does not cover live startup or installation.
 
 ## RV03 positive-path continuation
 
@@ -236,7 +237,12 @@ cutover, relocation and cleanup are `NOT_RUN / NOT_AUTHORIZED`. Supervisor is
 `INTENTIONALLY_STOPPED`; `BASE_READY_LIMITED` cannot mean AI/export readiness.
 No backend/frontend/API/runtime data changed and no application test was run.
 
-Next step: owner review of source `2e69622bc6a0b4888427f8ae5be119377aed26d9`
-and the updated P1 evidence. P2 needs a separate decision and
-must select and preserve a concrete installation candidate; it cannot infer an
-approved set from the example manifest or current runtime names.
+Owner acceptance recorded on 2026-09-15 covers source
+`2e69622bc6a0b4888427f8ae5be119377aed26d9` and evidence
+`7687cc15bb31175d19485b10a6e13dfc5945bfc2` only as
+`SOURCE_AND_OFFLINE_TESTS_ACCEPTED / NOT_DEPLOYED`. It does not approve a live
+launcher, manifest, install, task, cutover or complete R04.
+
+The separately authorized P2 selected and preserved one concrete candidate;
+see `R04_D21_P2_CANDIDATE_EVIDENCE.md`. P2 remains ready for owner review and
+does not retroactively turn the example manifest into an approved set.
