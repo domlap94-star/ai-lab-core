@@ -1,0 +1,59 @@
+{
+  "schema": "NEXT_STABIL_STARTUP_SET_V1",
+  "component_identity_schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+  "set_id": "EXAMPLE_ONLY_D21_P1",
+  "root": "C:\\ai-lab-core",
+  "approval": {
+    "status": "NOT_APPROVED",
+    "set_id": "EXAMPLE_ONLY_D21_P1",
+    "decision_id": "EXAMPLE_ONLY"
+  },
+  "timeouts": {
+    "native_command_ms": 20000,
+    "engine_stage_ms": 180000,
+    "service_stage_ms": 60000,
+    "poll_ms": 1000,
+    "max_output_chars": 32768
+  },
+  "files": [
+    { "role": "compose_config", "path": "compose.yaml", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "role": "compose_helper", "path": "operations/windows/start-compose-after-docker.ps1", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "role": "public_gateway_script", "path": "operations/gateway/public_web_server.cjs", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "role": "private_gateway_script", "path": "operations/gateway/web_server.cjs", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "role": "supervisor_script", "path": "operations/supervisor/server.js", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" }
+  ],
+  "external_tools": [
+    { "name": "docker_cli", "path": "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "name": "docker_desktop", "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "name": "node", "path": "C:\\Program Files\\nodejs\\node.exe", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" }
+  ],
+  "docker": {
+    "context": "desktop-linux",
+    "endpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
+    "process_name": "Docker Desktop",
+    "cli_tool": "docker_cli",
+    "desktop_tool": "docker_desktop"
+  },
+  "containers": [
+    {
+      "service": "backend",
+      "container_name": "EXAMPLE_ONLY",
+      "compose_project": "EXAMPLE_ONLY",
+      "image_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "repo_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "mounts": [{ "source": "C:\\ai-lab-core\\backend", "destination": "/app", "type": "bind", "read_only": true }],
+      "ports": [{ "host_ip": "127.0.0.1", "host_port": 8000, "container_port": 8000, "protocol": "tcp" }]
+    }
+  ],
+  "host_services": [
+    { "name": "public_gateway", "policy": "REQUIRED", "launch_kind": "TASK", "task_name": "EXAMPLE_ONLY_PUBLIC", "task_path": "\\", "executable": "C:\\Program Files\\nodejs\\node.exe", "arguments": ["operations/gateway/public_web_server.cjs"], "working_directory": "C:\\ai-lab-core", "listener_host": "127.0.0.1", "listener_port": 8789, "script_ref": "public_gateway_script", "tool_ref": "node" },
+    { "name": "private_gateway", "policy": "REQUIRED", "launch_kind": "TASK", "task_name": "EXAMPLE_ONLY_PRIVATE", "task_path": "\\", "executable": "C:\\Program Files\\nodejs\\node.exe", "arguments": ["operations/gateway/web_server.cjs"], "working_directory": "C:\\ai-lab-core", "listener_host": "127.0.0.1", "listener_port": 8788, "script_ref": "private_gateway_script", "tool_ref": "node" },
+    { "name": "supervisor", "policy": "INTENTIONALLY_STOPPED", "launch_kind": "TASK", "task_name": "EXAMPLE_ONLY_SUPERVISOR", "task_path": "\\", "executable": "C:\\Program Files\\nodejs\\node.exe", "arguments": ["operations/supervisor/server.js"], "working_directory": "C:\\ai-lab-core", "listener_host": "127.0.0.1", "listener_port": 8787, "script_ref": "supervisor_script", "tool_ref": "node" }
+  ],
+  "readiness": [
+    { "name": "backend", "uri": "http://127.0.0.1:8000/health", "expected_status": 200 },
+    { "name": "web", "uri": "http://127.0.0.1:8789/", "expected_status": 200 },
+    { "name": "public_control_boundary", "uri": "http://127.0.0.1:8789/control", "expected_status": 404 }
+  ],
+  "client": { "policy": "DISABLED" }
+}
