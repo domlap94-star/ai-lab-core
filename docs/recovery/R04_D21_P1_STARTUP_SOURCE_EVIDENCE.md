@@ -1,12 +1,13 @@
 # R04 / D-21 / P1 — startup source evidence
 
-Status: `REAL_ADAPTERS_SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY / NOT_DEPLOYED`
+Status: `HOST_COEXISTENCE_AND_ABSENCE_SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY / NOT_DEPLOYED`
 
 ## Scope and identity
 
 - accepted D-21 map/plan parent: `b6cb4c38d8c739ceda87feb2e0c18cf98117ed02`;
 - original P1 source reviewed: `1bfb377a224499eda2366a7cc52814e55ab267fa`;
-- corrected and tested source commit: `2e97b9f72bf2150cc395c19aa433174c0b2e933a`;
+- prior corrected P1 source: `2e97b9f72bf2150cc395c19aa433174c0b2e933a`;
+- host-coexistence/absence source: `2e69622bc6a0b4888427f8ae5be119377aed26d9`;
 - target root after a later approved installation: `C:\ai-lab-core`;
 - source location in this step: `C:\ai-lab-core-recovery` only;
 - no production startup manifest was created or approved.
@@ -87,7 +88,7 @@ Final results on the exact source commit bytes:
 | PowerShell parser: five relevant `.ps1` files | `PASS` |
 | `startup-set.example.json` parse | `PASS` |
 | focused startup contract | `PASS`, 53 assertions, exit 0 |
-| raw production-adapter mapping with complete lower-boundary fakes | `PASS`, 23 assertions, exit 0 |
+| raw production-adapter mapping with complete lower-boundary fakes | `PASS`, 48 assertions, exit 0 |
 | recovery ordinary entrypoint | `RUNTIME_SOURCE_REFUSED`, no adapters |
 | direct legacy helper | `START_REFUSED`, no Docker/Compose call |
 | missing one required lower-boundary fake | `PASS`, adapter construction refused without host fallback |
@@ -135,9 +136,61 @@ During test development, one run exposed PowerShell dynamic-scope clobbering of
 the launcher `DefinitionOnly` flag; a distinct helper parameter fixed it. A
 later PS5.1 run exposed deserialized-property and JSON-array behavior in mount
 parsing; the final safe property reader and explicit array iteration fixed it.
-Neither failure contacted a product boundary. The final 53- and 23-assertion
+Neither failure contacted a product boundary. The final 53- and 48-assertion
 runs are the current review evidence; earlier failed runs are not counted as
 passes and P1 has not been accepted by the owner.
+
+## RV03 positive-path continuation
+
+The review preimage for `RV03-POSITIVE-01/02` was
+`2e97b9f72bf2150cc395c19aa433174c0b2e933a`; its six selected files were
+archived before edits as a 163,840 B tar with SHA-256
+`C40DEB1DD96B0B88DCBC21D2132B0A59CCD9E29D2189ACD7766161207DBE53F8`.
+The one-off fail-before harness invoked the real preimage adapter/planner and
+the exact bounded worker body with deterministic lower boundaries. It exited 0
+as a reproduction harness, not a protection pass.
+
+| Review item | Fail-before on `2e97b9f...` | Pass-after on `2e69622bc6a0b4888427f8ae5be119377aed26d9` |
+|---|---|---|
+| `RV03-POSITIVE-01` — shared `node.exe` | `REPRODUCED`: the common public/private/other Node process set produced `SUPERVISOR_POLICY_CONFLICT`; a missing public gateway was also blocked and had zero starts | `PASS`: exact parsed argv and code path identify the examined service; unrelated scripts are ignored unless they own the port. Public/private remain ready with zero starts. Missing public reaches one fake `START_TASK`, readiness, then a second plan performs zero additional starts |
+| `RV03-POSITIVE-02` — confirmed absence | `REPRODUCED`: structured `Get-Process` no-match became `UNKNOWN`; structured listener no-match left the bounded worker in an error result | `PASS`: only exact structural no-match contracts become empty observations. Confirmed Desktop absence permits one fake start and Engine recheck; confirmed service/listener absence permits one exact-task fake start; Supervisor remains `INTENTIONALLY_STOPPED` with zero starts |
+
+The same pass-after suite proves that the approved script with suffix or prefix
+arguments is still a conflict, two exact processes are ambiguous, and an exact
+process without a listener is `PRESENT` but not ready and is never duplicated.
+Missing task returns `CONTROLLED_DEPLOY_REQUIRED`. Task/CIM/TCP access denial,
+missing CIM command, provider failure, incomplete process identity and unknown
+errors remain `UNKNOWN` and authorize zero starts. The complete command-level
+fixture is accepted only in process by the trusted test harness; omitting any
+task/process/listener/start boundary returns `REFUSED` before a system cmdlet
+can be selected. No fixture is accepted from JSON or ordinary launcher input.
+
+The raw test executes the worker's real task/process/listener collection and
+normalization branches and records their lower-boundary calls. It does not
+replace the entire host operation with a ready-made observation. The normal
+positive start/readiness path remains tested, so the correction does not pass
+by blocking every action.
+
+The first attempt to persist final pass-after logs used `Start-Process` and was
+invalid before the tested code because that child environment could not load
+`Get-FileHash`. Those two exit-1 logs are retained as wrapper failures and are
+not test failures or passes. One corrected direct PowerShell 5.1 capture, using
+the already proven command path and unchanged bytes, produced the final 53/53
+and 48/48 exit-0 logs.
+
+LOCAL_ONLY continuation evidence directory:
+`C:\ai-lab-core-staging\recovery\R04_D21_SINGLE_ROOT_20260915T033112Z\p1-coexistence-20260915T193058Z`.
+
+| File | Bytes | SHA-256 | Meaning |
+|---|---:|---|---|
+| `fail-before-final.stdout.txt` | 519 | `40FE01A4CDDF7A977DD553D4464036AF5AA74AB2EF6894035AE844FB47CD2123` | valid reproduction summary |
+| `pass-after-plan.stderr.txt` | 693 | `7501484C553E23E4FDE9E9B5749FCB82864A6B6E24E887A7E6CB681299C76845` | invalid `Start-Process` wrapper attempt |
+| `pass-after-real-adapters.stderr.txt` | 695 | `4D6110E3FB5D5ECC3E9C91B6DFF21C92DFECD541492B61280B8C4D2BD4F2AFC2` | invalid `Start-Process` wrapper attempt |
+| `pass-after-final-plan.stdout.txt` | 32 | `6B15018D1A1C7EFA831F7B3C6A6DCDBFFE2D4922A0C97B36925134DBAE55DD15` | 53 assertions, exit 0 |
+| `pass-after-final-real-adapters.stdout.txt` | 44 | `6112F31AFB76A2D7F192C0DFB8149226CD06D45C22038E7ADDB67C9F53A8881D` | 48 assertions, exit 0 |
+
+All corresponding final stderr files and valid fail-before stderr are empty
+(0 B, SHA-256 `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855`).
 
 LOCAL_ONLY raw evidence:
 
@@ -167,12 +220,12 @@ process boundaries were complete synthetic adapters.
 
 | Path | Git blob | Bytes |
 |---|---|---:|
-| `operations/runtime/README.md` | `800e4a7adbd62b79a0b3e05a394d5d65dc0b736a` | 4,969 |
-| `operations/runtime/start-host-services.ps1` | `9c92353a122b3c056754547cd840b612bd93af85` | 47,407 |
+| `operations/runtime/README.md` | `9c927b16ca83dea81f4e8748be5b7253ff0d0aff` | 5,770 |
+| `operations/runtime/start-host-services.ps1` | `d8f9e65ea0a57b80bca75ba568743ffd1089b7ba` | 62,651 |
 | `operations/runtime/startup-runtime.ps1` | `b321ecb9c0eb975d0be6ab75bbe869fadc9d21b7` | 45,024 |
 | `operations/runtime/startup-set.example.json` | `0a6127e2181214fbb29316cbc4be751090cfb662` | 4,148 |
 | `operations/runtime/test-start-host-services.ps1` | `394c3574227c20b1c8b51d7d57de90cfddfad315` | 28,378 |
-| `operations/runtime/test-startup-real-adapters.ps1` | `18eaabe1556b95e93389f912cc13bb9b8a0ef631` | 21,770 |
+| `operations/runtime/test-startup-real-adapters.ps1` | `c23be62c535e9eef3879315c8e87d2f5b27cb055` | 43,125 |
 | `operations/windows/start-compose-after-docker.ps1` | `4ce9ef7dc27c2b417d57c3281e95dedd7c968458` | 880 |
 
 ## Boundaries and next decision
@@ -183,6 +236,7 @@ cutover, relocation and cleanup are `NOT_RUN / NOT_AUTHORIZED`. Supervisor is
 `INTENTIONALLY_STOPPED`; `BASE_READY_LIMITED` cannot mean AI/export readiness.
 No backend/frontend/API/runtime data changed and no application test was run.
 
-Next step: owner review of corrected P1 source/evidence. P2 needs a separate decision and
+Next step: owner review of source `2e69622bc6a0b4888427f8ae5be119377aed26d9`
+and the updated P1 evidence. P2 needs a separate decision and
 must select and preserve a concrete installation candidate; it cannot infer an
 approved set from the example manifest or current runtime names.
