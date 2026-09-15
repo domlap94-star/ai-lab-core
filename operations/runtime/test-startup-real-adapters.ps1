@@ -130,6 +130,145 @@ function New-HostPayload {
     return [pscustomobject]@{ status = 'SUCCESS'; task = $task; processes = @($process); listeners = $listeners }
 }
 
+function New-SharedProcessRecord {
+    param($Service, [int]$ProcessId, [string[]]$AdditionalArguments)
+    $arguments = @([string]$Service.executable) + @($Service.arguments | ForEach-Object { [string]$_ }) + @($AdditionalArguments)
+    return [pscustomobject]@{
+        ProcessId = $ProcessId
+        ExecutablePath = [string]$Service.executable
+        CommandLine = Join-WindowsNativeArguments -ArgumentList $arguments
+        CreationDate = [datetime]'2026-09-15T12:34:56Z'
+    }
+}
+
+function New-SharedListenerRecord {
+    param($Service, [int]$ProcessId, [string]$Address = '127.0.0.1')
+    return [pscustomobject]@{
+        LocalAddress = $Address
+        LocalPort = [int]$Service.listener_port
+        OwningProcess = $ProcessId
+    }
+}
+
+function New-HostCommandBoundary {
+    param([hashtable]$State)
+
+    $getTask = {
+        param($Expected, $BoundaryState)
+        $mode = if ($BoundaryState.task_modes.ContainsKey([string]$Expected.name)) { [string]$BoundaryState.task_modes[[string]$Expected.name] } else { 'READY' }
+        if ($mode -eq 'MISSING') { return $null }
+        if ($mode -eq 'MISSING_ERROR') {
+            $exception = New-Object System.Management.Automation.ItemNotFoundException 'synthetic task query found no match'
+            $record = New-Object System.Management.Automation.ErrorRecord(
+                $exception,
+                'CmdletizationQuery_NotFound_TaskName,Get-ScheduledTask',
+                [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                ([string]$Expected.task_name)
+            )
+            throw $record
+        }
+        if ($mode -eq 'ACCESS_DENIED') { throw [System.UnauthorizedAccessException]::new('synthetic task access denied') }
+        return [pscustomobject]@{ Actions = @([pscustomobject]@{
+            Execute = [string]$Expected.executable
+            Arguments = [string]$Expected.argument_string
+            WorkingDirectory = [string]$Expected.working_directory
+        }) }
+    }
+    $getProcesses = {
+        param($Expected, $BoundaryState)
+        if ([string]$BoundaryState.process_mode -eq 'ACCESS_DENIED') { throw [System.UnauthorizedAccessException]::new('synthetic CIM access denied') }
+        if ([string]$BoundaryState.process_mode -eq 'MISSING_MODULE') { throw [System.Management.Automation.CommandNotFoundException]::new('synthetic CIM command unavailable') }
+        return @($BoundaryState.shared_processes)
+    }
+    $getListeners = {
+        param($Expected, $BoundaryState)
+        $mode = if ($BoundaryState.listener_modes.ContainsKey([string]$Expected.name)) { [string]$BoundaryState.listener_modes[[string]$Expected.name] } else { 'RETURN' }
+        if ($mode -eq 'NOT_FOUND') {
+            $exception = New-Object System.Management.Automation.ItemNotFoundException 'synthetic listener query found no match'
+            $record = New-Object System.Management.Automation.ErrorRecord(
+                $exception,
+                'CmdletizationQuery_NotFound_LocalPort,Get-NetTCPConnection',
+                [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+                ([int]$Expected.listener_port)
+            )
+            throw $record
+        }
+        if ($mode -eq 'ACCESS_DENIED') { throw [System.UnauthorizedAccessException]::new('synthetic TCP access denied') }
+        if ($mode -eq 'PROVIDER_ERROR') { throw [System.InvalidOperationException]::new('synthetic TCP provider error') }
+        $matches = New-Object System.Collections.Generic.List[object]
+        foreach ($listener in @($BoundaryState.shared_listeners)) {
+            if ([int]$listener.LocalPort -eq [int]$Expected.listener_port) { $matches.Add($listener) }
+        }
+        return $matches.ToArray()
+    }
+    $startTask = {
+        param($Expected, $BoundaryState)
+        if ([string]$BoundaryState.start_mode -eq 'ERROR') { throw [System.InvalidOperationException]::new('synthetic start failure') }
+        return [pscustomobject]@{ accepted = $true }
+    }
+    return [pscustomobject]@{
+        State = $State
+        GetTask = $getTask
+        GetProcesses = $getProcesses
+        GetListeners = $getListeners
+        StartTask = $startTask
+    }
+}
+
+function New-CommandPipelineState {
+    param($Manifest)
+    $base = New-RawAdapterState $Manifest
+    $base.shared_processes = @()
+    $base.shared_listeners = @()
+    $base.task_modes = @{}
+    $base.listener_modes = @{}
+    $base.process_mode = 'RETURN'
+    $base.start_mode = 'SUCCESS'
+    $base.lower_boundary_calls = New-Object System.Collections.Generic.List[string]
+    $base.next_process_id = 5100
+    return $base
+}
+
+function New-CommandPipelineSystemBoundary {
+    param([hashtable]$State)
+
+    $boundary = New-RawSystemBoundary $State
+    $hostOperation = {
+        param($Operation, $Expected, $Timeout, $MaximumOutput)
+        $name = [string]$Expected.name
+        $State.calls.Add(('command-host:{0}:{1}' -f $Operation, $name))
+        $operationResult = Invoke-BoundedStartupHostOperation `
+            -Operation $Operation `
+            -Expected $Expected `
+            -TimeoutMilliseconds $Timeout `
+            -MaximumOutputCharacters $MaximumOutput `
+            -SyntheticCommandBoundary (New-HostCommandBoundary $State)
+        $State.calls.Add(('command-result:{0}:{1}:{2}' -f $Operation, $name, [string]$operationResult.status))
+        if ($operationResult.status -eq 'SUCCESS' -and $null -ne $operationResult.result) {
+            foreach ($call in @($operationResult.result.lower_boundary_calls)) { $State.lower_boundary_calls.Add(('{0}:{1}:{2}' -f $Operation, $name, $call)) }
+        }
+        if ($Operation -eq 'START' -and $operationResult.status -eq 'SUCCESS' -and [string]$operationResult.result.status -eq 'SUCCESS') {
+            if (-not $State.host_start_count.ContainsKey($name)) { $State.host_start_count[$name] = 0 }
+            $State.host_start_count[$name]++
+            $State.next_process_id++
+            $newProcessId = [int]$State.next_process_id
+            $State.shared_processes += New-SharedProcessRecord -Service $Expected -ProcessId $newProcessId -AdditionalArguments @()
+            $State.shared_listeners += New-SharedListenerRecord -Service $Expected -ProcessId $newProcessId
+            $State.listener_modes[$name] = 'RETURN'
+        }
+        return $operationResult
+    }.GetNewClosure()
+    $boundary.InvokeHostOperation = $hostOperation
+    return $boundary
+}
+
+function Invoke-CommandPipelinePlan {
+    param($Manifest, [hashtable]$State)
+    Save-AdapterManifest $Manifest
+    $adapters = New-RealStartupAdapters -Manifest $Manifest -SystemBoundary (New-CommandPipelineSystemBoundary $State)
+    return Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters $adapters -AllowSyntheticRoot
+}
+
 function New-RawSystemBoundary {
     param([hashtable]$State)
     $invokeNative = {
@@ -265,6 +404,195 @@ try {
     $state.host_modes.public_gateway = 'ABSENT'
     $result = Invoke-RawPlan $manifest $state
     Assert-Adapter ($result.code -eq 'BASE_READY_LIMITED' -and $state.host_start_count.public_gateway -eq 1) 'RV03 true absence plus free port allows one synthetic exact-task start'
+
+    $commandManifest = Copy-AdapterFixture $manifest
+    $commandManifest.timeouts.native_command_ms = 1000
+    $commandManifest.timeouts.engine_stage_ms = 1000
+    $commandManifest.timeouts.service_stage_ms = 2500
+    $public = @($commandManifest.host_services | Where-Object { $_.name -eq 'public_gateway' })[0]
+    $private = @($commandManifest.host_services | Where-Object { $_.name -eq 'private_gateway' })[0]
+    $supervisor = @($commandManifest.host_services | Where-Object { $_.name -eq 'supervisor' })[0]
+    $otherService = [pscustomobject]@{
+        executable = [string]$public.executable
+        arguments = @('operations/other/unrelated-tool.js')
+        working_directory = $testRoot
+    }
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @(
+        (New-SharedProcessRecord -Service $public -ProcessId 4101 -AdditionalArguments @()),
+        (New-SharedProcessRecord -Service $private -ProcessId 4102 -AdditionalArguments @()),
+        (New-SharedProcessRecord -Service $otherService -ProcessId 4103 -AdditionalArguments @())
+    )
+    $state.shared_listeners = @(
+        (New-SharedListenerRecord -Service $public -ProcessId 4101),
+        (New-SharedListenerRecord -Service $private -ProcessId 4102)
+    )
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'BASE_READY_LIMITED' -and $result.supervisor_status -eq 'INTENTIONALLY_STOPPED') ('RV03-POSITIVE-01 shared node process image is classified by exact script and port ownership; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress) + '; calls=' + (@($state.calls) -join ',') + '; lower=' + (@($state.lower_boundary_calls) -join ','))
+    Assert-Adapter ($state.host_start_count.Count -eq 0) 'RV03-POSITIVE-01 public/private coexistence preserves both services and starts nothing'
+    Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -match '^OBSERVE:(public_gateway|private_gateway|supervisor):GET_PROCESSES$' }).Count -eq 3) 'RV03-POSITIVE-01 every service observes the same untrimmed global process set through the worker branch'
+    Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -eq 'OBSERVE:supervisor:GET_LISTENERS' }).Count -eq 1) 'RV03-POSITIVE-02 structured no-listener result executes and normalizes in the worker branch'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @(
+        (New-SharedProcessRecord -Service $private -ProcessId 4202 -AdditionalArguments @()),
+        (New-SharedProcessRecord -Service $otherService -ProcessId 4203 -AdditionalArguments @())
+    )
+    $state.shared_listeners = @((New-SharedListenerRecord -Service $private -ProcessId 4202))
+    $state.listener_modes.public_gateway = 'NOT_FOUND'
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $firstMissingPublic = Invoke-CommandPipelinePlan $commandManifest $state
+    $secondMissingPublic = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($firstMissingPublic.code -eq 'BASE_READY_LIMITED' -and $secondMissingPublic.code -eq 'BASE_READY_LIMITED') 'RV03-POSITIVE-01 missing public gateway reaches START_ONCE/readiness and remains ready on the next plan'
+    Assert-Adapter ($state.host_start_count.public_gateway -eq 1 -and $state.host_start_count.Count -eq 1) 'RV03-POSITIVE-01 exactly one fake public task start occurs across two plans'
+    Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -eq 'START:public_gateway:START_TASK' }).Count -eq 1) 'RV03-POSITIVE-01 the one start passes through the real internal START command branch'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @((New-SharedProcessRecord -Service $public -ProcessId 4301 -AdditionalArguments @('--foreign')))
+    $state.shared_listeners = @()
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'HOST_SERVICE_IDENTITY_MISMATCH' -and $state.host_start_count.Count -eq 0) 'RV03 same approved script with additional argument remains a conflict'
+
+    $state = New-CommandPipelineState $commandManifest
+    $prefixedProcess = New-SharedProcessRecord -Service $public -ProcessId 4302 -AdditionalArguments @()
+    $prefixedProcess.CommandLine = Join-WindowsNativeArguments -ArgumentList @([string]$public.executable, '--foreign', [string]$public.arguments[0])
+    $state.shared_processes = @($prefixedProcess)
+    $state.shared_listeners = @()
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'HOST_SERVICE_IDENTITY_MISMATCH' -and $state.host_start_count.Count -eq 0) 'RV03 same approved script with an unapproved prefix argument remains a conflict'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @(
+        (New-SharedProcessRecord -Service $public -ProcessId 4401 -AdditionalArguments @()),
+        (New-SharedProcessRecord -Service $public -ProcessId 4402 -AdditionalArguments @())
+    )
+    $state.shared_listeners = @((New-SharedListenerRecord -Service $public -ProcessId 4401))
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'HOST_SERVICE_AMBIGUOUS' -and $state.host_start_count.Count -eq 0) 'RV03 duplicate exact processes remain ambiguous and cannot be started'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @((New-SharedProcessRecord -Service $public -ProcessId 4501 -AdditionalArguments @()))
+    $state.shared_listeners = @()
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $state.listener_modes.public_gateway = 'NOT_FOUND'
+    $presentWithoutListenerAdapters = New-RealStartupAdapters -Manifest $commandManifest -SystemBoundary (New-CommandPipelineSystemBoundary $state)
+    $presentWithoutListener = ConvertTo-StartupHostObservation (& $presentWithoutListenerAdapters.ObserveHostService $public 1000)
+    Assert-Adapter ($presentWithoutListener.status -eq 'PRESENT' -and -not $presentWithoutListener.matches[0].listener_ready) 'RV03-POSITIVE-02 exact process with confirmed absent listener remains PRESENT/not-ready'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -in @('HOST_SERVICE_NOT_READY', 'HOST_SERVICE_OBSERVATION_UNKNOWN') -and $state.host_start_count.Count -eq 0) ('RV03-POSITIVE-02 bounded wait for an existing not-ready process never starts a duplicate; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress))
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.task_modes.supervisor = 'MISSING'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'CONTROLLED_DEPLOY_REQUIRED' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 missing approved task requires controlled install and starts nothing'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.task_modes.supervisor = 'MISSING_ERROR'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'CONTROLLED_DEPLOY_REQUIRED' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 structural scheduled-task no-match requires controlled install and starts nothing'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.listener_modes.supervisor = 'ACCESS_DENIED'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 listener access denial remains UNKNOWN and starts nothing'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.task_modes.supervisor = 'ACCESS_DENIED'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 task access denial remains UNKNOWN and starts nothing'
+
+    foreach ($processFailure in @('ACCESS_DENIED', 'MISSING_MODULE')) {
+        $state = New-CommandPipelineState $commandManifest
+        $state.process_mode = $processFailure
+        $result = Invoke-CommandPipelinePlan $commandManifest $state
+        Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) ('RV03-POSITIVE-02 process collection failure remains UNKNOWN: ' + $processFailure)
+    }
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.listener_modes.supervisor = 'PROVIDER_ERROR'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 listener provider error remains UNKNOWN and starts nothing'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @([pscustomobject]@{ ProcessId = 4601; ExecutablePath = ''; CommandLine = ''; CreationDate = [datetime]'2026-09-15T12:34:56Z' })
+    $state.listener_modes.supervisor = 'NOT_FOUND'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 incomplete process identity remains UNKNOWN and starts nothing'
+
+    $desktopNoMatch = {
+        param($Name)
+        $exception = New-Object System.Management.Automation.ItemNotFoundException 'synthetic process query found no match'
+        $record = New-Object System.Management.Automation.ErrorRecord(
+            $exception,
+            'NoProcessFoundForGivenName,Microsoft.PowerShell.Commands.GetProcessCommand',
+            [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+            $Name
+        )
+        throw $record
+    }
+    $desktopAbsent = @(Invoke-StartupDesktopProcessObservation -ProcessName 'Docker Desktop Synthetic' -ExpectedPath 'C:\synthetic\Docker Desktop.exe' -GetProcessBoundary $desktopNoMatch)
+    Assert-Adapter ($desktopAbsent.Count -eq 0) 'RV03-POSITIVE-02 exact Get-Process no-match is normalized to confirmed absence'
+
+    $state = New-RawAdapterState $commandManifest
+    $desktopBoundary = New-RawSystemBoundary $state
+    $baseNative = $desktopBoundary.InvokeNative
+    $script:DesktopEngineObservations = 0
+    $script:DesktopStarts = 0
+    $desktopBoundary.InvokeNative = {
+        param($FilePath, $Arguments, $Timeout, $MaximumOutput)
+        if ((@($Arguments) -join ' ') -like '--context desktop-linux-test version*') {
+            $script:DesktopEngineObservations++
+            if ($script:DesktopEngineObservations -eq 1) { return [pscustomobject]@{ status = 'NONZERO_EXIT'; stdout = ''; stderr = ''; process_left_running = $false } }
+        }
+        return & $baseNative $FilePath $Arguments $Timeout $MaximumOutput
+    }.GetNewClosure()
+    $desktopBoundary.ObserveDesktop = {
+        param($ProcessName, $ExpectedPath)
+        return @(Invoke-StartupDesktopProcessObservation -ProcessName $ProcessName -ExpectedPath $ExpectedPath -GetProcessBoundary $desktopNoMatch)
+    }.GetNewClosure()
+    $desktopBoundary.StartDesktop = {
+        param($ExpectedPath)
+        $script:DesktopStarts++
+        return [pscustomobject]@{ status = 'ACCEPTED'; pid = 9991 }
+    }
+    Save-AdapterManifest $commandManifest
+    $desktopAdapters = New-RealStartupAdapters -Manifest $commandManifest -SystemBoundary $desktopBoundary
+    $desktopStartResult = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters $desktopAdapters -AllowSyntheticRoot
+    Assert-Adapter ($desktopStartResult.code -eq 'BASE_READY_LIMITED' -and $script:DesktopStarts -eq 1) 'RV03-POSITIVE-02 confirmed desktop absence permits one fake desktop start and bounded engine recheck'
+
+    $desktopUnknownBoundary = { param($Name) throw [System.UnauthorizedAccessException]::new('synthetic process access denied') }
+    $desktopUnknown = $false
+    try { [void](Invoke-StartupDesktopProcessObservation -ProcessName 'Docker Desktop Synthetic' -ExpectedPath 'C:\synthetic\Docker Desktop.exe' -GetProcessBoundary $desktopUnknownBoundary) } catch { $desktopUnknown = $true }
+    Assert-Adapter $desktopUnknown 'RV03-POSITIVE-02 process access denial is not normalized to absence'
+
+    $state = New-RawAdapterState $commandManifest
+    $desktopUnknownSystemBoundary = New-RawSystemBoundary $state
+    $unknownBaseNative = $desktopUnknownSystemBoundary.InvokeNative
+    $script:DesktopUnknownStarts = 0
+    $desktopUnknownSystemBoundary.InvokeNative = {
+        param($FilePath, $Arguments, $Timeout, $MaximumOutput)
+        if ((@($Arguments) -join ' ') -like '--context desktop-linux-test version*') { return [pscustomobject]@{ status = 'NONZERO_EXIT'; stdout = ''; stderr = ''; process_left_running = $false } }
+        return & $unknownBaseNative $FilePath $Arguments $Timeout $MaximumOutput
+    }.GetNewClosure()
+    $desktopUnknownSystemBoundary.ObserveDesktop = {
+        param($ProcessName, $ExpectedPath)
+        return @(Invoke-StartupDesktopProcessObservation -ProcessName $ProcessName -ExpectedPath $ExpectedPath -GetProcessBoundary $desktopUnknownBoundary)
+    }.GetNewClosure()
+    $desktopUnknownSystemBoundary.StartDesktop = { param($ExpectedPath) $script:DesktopUnknownStarts++; return [pscustomobject]@{ status = 'ACCEPTED' } }
+    Save-AdapterManifest $commandManifest
+    $desktopUnknownAdapters = New-RealStartupAdapters -Manifest $commandManifest -SystemBoundary $desktopUnknownSystemBoundary
+    $desktopUnknownResult = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters $desktopUnknownAdapters -AllowSyntheticRoot
+    Assert-Adapter ($desktopUnknownResult.code -eq 'DOCKER_DESKTOP_STATE_UNKNOWN' -and $script:DesktopUnknownStarts -eq 0) 'RV03-POSITIVE-02 desktop access denial remains UNKNOWN and never starts Desktop'
+
+    $incompleteCommandBoundary = New-HostCommandBoundary (New-CommandPipelineState $commandManifest)
+    $incompleteCommandBoundary.PSObject.Properties.Remove('GetListeners')
+    $incompleteCommandResult = Invoke-BoundedStartupHostOperation -Operation OBSERVE -Expected $public -TimeoutMilliseconds 100 -MaximumOutputCharacters 4096 -SyntheticCommandBoundary $incompleteCommandBoundary
+    Assert-Adapter ($incompleteCommandResult.status -eq 'REFUSED') 'incomplete command-level fixture refuses before any real command fallback'
 
     $wrongScript = Copy-AdapterFixture $manifest
     $wrongScript.host_services[0].arguments = @('operations/gateway/web_server.cjs')

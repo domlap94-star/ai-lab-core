@@ -68,14 +68,25 @@ supplies executable code. Its deadline includes pipeline setup, result mapping
 and bounded cancellation/settlement. An observation timeout is `UNKNOWN` and
 cannot authorize a start. A timeout after a possible `Start-ScheduledTask`
 handoff is also `UNKNOWN`, is not rollback, and is not retried automatically.
+The command-level seam used by the offline regression is accepted only as a
+complete, in-process harness object; it is not read from the manifest or the
+ordinary launcher command line. Missing any task/CIM/TCP/start fake refuses the
+operation before a system cmdlet can be selected.
 
 Container identity distinguishes configured `HostConfig.PortBindings` from
 active `NetworkSettings.Ports`: a stopped container must retain the approved
 configuration before its one exact-ID start, and a running container must then
 show the approved active mapping. Host observation examines all listeners on
 the required port independently of process matching, rejects wildcard/foreign
-owners and extra command-line arguments, and treats unavailable CIM/task/TCP
-evidence or an invalid creation time as `UNKNOWN`.
+owners and extra command-line arguments for the approved script. Multiple
+services may share one interpreter such as `node.exe`: an unambiguously
+different script that does not own the required port is not a conflict, while
+the approved script with changed arguments, duplicate matching processes, or a
+foreign port owner remains blocking. Only the documented structural no-match
+results for `Get-Process` and the listener query become confirmed absence;
+access denial, unavailable modules/providers, incomplete evidence and unknown
+errors remain `UNKNOWN`. An exact process without its listener is present but
+not ready and is never duplicated.
 
 ## P1 verification
 
