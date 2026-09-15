@@ -1,6 +1,6 @@
 # R04 / D-21 — plan jednego katalogu instalacji i jednego startu
 
-Status dokumentu: `REVIEWED_DOCUMENTATION / NO_OPERATIONAL_CHANGES`
+Status dokumentu: `P1_SOURCE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -141,10 +141,17 @@ Każde polecenie operacyjne w tej sekcji ma status
 
 ### D21-P1 — źródło launchera i testy offline (pierwszy minimalny pakiet)
 
+Stan 2026-09-15: `SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY / NOT_DEPLOYED`
+na source `1bfb377a224499eda2366a7cc52814e55ab267fa`. Parser PowerShell
+5.1 i przykład JSON przeszły, a focused test wykonał 53 asercje z exit 0.
+Szczegóły: `docs/recovery/R04_D21_P1_STARTUP_SOURCE_EVIDENCE.md`.
+
 Ścieżki:
 
 - `operations/runtime/start-host-services.ps1` — nowy, brakujący cel istniejącego wrappera;
-- `operations/windows/start-compose-after-docker.ps1` — tylko per-command timeout i bezpieczny interfejs wewnętrzny;
+- `operations/windows/start-compose-after-docker.ps1` — bezpieczny interfejs
+  istniejących zasobów; bezpośrednie wykonanie odmawia i nie zawiera już
+  fallbacku `docker compose up`;
 - jeden mały test kontraktowy pod `operations/runtime/`;
 - aktualizacja recepty/manifestu tożsamości startu.
 
@@ -155,7 +162,8 @@ Supervisor `INTENTIONALLY_STOPPED` oraz timeout.
 Verification: parser PowerShell 5.1, testy focused, negatywne identity/mount,
 `git diff --check`, brak zmiany Task Scheduler.
 Rollback: revert jednego source commita.
-Uprawnienie: osobna zgoda D21-P1; bez zgody operacyjnej.
+Uprawnienie: zgoda D21-P1 SOURCE/OFFLINE TEST została wykorzystana wyłącznie do
+source i atrapionych testów; bez zgody operacyjnej.
 
 ### D21-P2 — zabezpieczenie unikalnej pracy i candidate manifest
 
@@ -244,6 +252,11 @@ chronionym stagingiem R04/D-21. Nie wykonano cutoveru, relokacji, cleanupu,
 startup implementation, task/shortcut/mount/config change, restartu, testów
 aplikacji, Fluttera, Web A/B, CORS, browsera, modeli, backupu ani restore.
 
-Następny krok: owner review mapy i osobna zgoda na `D21-P1`, tj. mały pakiet
-źródłowy launchera i testów offline z wyżej wymienionymi ścieżkami. Nie jest to
-zgoda na P2–P5.
+Aktualizacja P1 nie zmieniła historycznego inventory ani żadnego runtime.
+Launcher, helper, kontrakt `EXAMPLE_ONLY`, test i recepta istnieją wyłącznie w
+recovery. Nie zainstalowano plików, manifestu produkcyjnego, taska ani skrótu;
+nie wykonano Docker/HTTP/Task Scheduler/usług. Klient i bezpośredni start procesu
+pozostają fail-closed w P1. P2–P5 pozostają `NOT_RUN / NOT_AUTHORIZED`.
+
+Następny krok: owner review source/evidence P1, a następnie osobna decyzja o
+`D21-P2`. Nie jest to zgoda na P2–P5 ani operacyjny start.
