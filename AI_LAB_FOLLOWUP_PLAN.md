@@ -2786,11 +2786,11 @@ development remain separated in a designated subtree until reviewed.
 
 This record authorizes requirements/order only. It does not move or delete any
 directory, change a mount/task/launcher, deploy recovery, or approve R03/R04/
-R05. Existing runtime and unfinished R05-A4 remain an explicit temporary
-exception. After A4 owner review, work returns to the existing R04 for bounded
-inventory, old-to-target mapping, impact and rollback review, separately
-approved cutover/start verification, and only then approved retirement of
-proven-unused copies. Rescue media on approved E:/F: locations and recovery
-key/escrow remain separate by design; Docker/WSL volumes and installed SDKs are
-inventoried but are not silently migrated. Feature work after A4 is blocked
-until this R04 gate is resolved.
+R05. R05-A4 source/API/widget tests were subsequently owner-accepted as
+`NOT_DEPLOYED`. The existing R04 now contains an authorized read-only inventory,
+old-to-target map, impact and rollback review; cutover/start verification and
+retirement of proven-unused copies still require separate approvals. Rescue
+media on approved E:/F: locations and recovery key/escrow remain separate by
+design; Docker/WSL volumes and installed SDKs are inventoried but are not
+silently migrated. Feature work after A4 remains blocked until the R04 single
+root/start gate is accepted and its operational parts are separately approved.

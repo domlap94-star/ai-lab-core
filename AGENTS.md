@@ -18,9 +18,11 @@
 - Target one installed NEXT Stabil root at `C:\ai-lab-core` and one ordinary,
   idempotent user start entrypoint. This is a gated R04 consolidation
   requirement, not permission to move/delete directories, change mounts/tasks,
-  or deploy current work. Until R05-A4 is reviewed and that R04 operation is
-  separately approved, preserve the existing runtime roots and the four-file
-  A4 WIP exactly; production must never execute recovery, staging, or test WIP.
+  or deploy current work. R05-A4 source/API/widget tests are owner-accepted and
+  committed; D-21 currently authorizes only read-only inventory and reviewed
+  planning. Preserve existing runtime roots and historical A4 evidence until a
+  later exact cutover/cleanup approval; production must never execute recovery,
+  staging, or test WIP.
 
 ## Safety
 

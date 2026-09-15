@@ -1,0 +1,249 @@
+# R04 / D-21 — plan jednego katalogu instalacji i jednego startu
+
+Status dokumentu: `REVIEWED_DOCUMENTATION / NO_OPERATIONAL_CHANGES`
+Źródło statusu wykonawczego: §0 i §0.2
+`NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
+wykonawczym D-21, a nie drugą roadmapą.
+
+## 1. Wynik inventory
+
+Ograniczony odczyt wykonano 2026-09-15, bez uruchamiania launcherów, usług,
+kontenerów, modeli, kolejek, backupu ani restore. Mapa 33 elementów znajduje
+się w `docs/recovery/R04_SINGLE_ROOT_STARTUP_MAP.csv`.
+
+Najważniejsze ustalenia:
+
+1. Aktywny backend nie korzysta z `C:\ai-lab-core\backend`. Kontener
+   `9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a`
+   ma rzeczywisty mount
+   `C:/ai-lab-core/build/deploy-main-483f9bf8/backend -> /app`, obraz
+   `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`
+   i clean source `483f9bf8b1a591ded8a42df5da87663c664ed5d4`.
+2. `C:\ai-lab-core\backend` jest częścią chronionego dirty worktree. W
+   porównaniu bajtów z aktywnym deploymentem, po pominięciu generowanych
+   cache, ma 90 równych plików, 479 różnych plików o tej samej ścieżce, 259
+   plików tylko po swojej stronie i 9 tylko w aktywnym deploymencie. Sama
+   nazwa katalogu nie dowodzi tożsamości runtime.
+3. Wszystkie 203 wpisy preservation manifestu oryginalnego worktree istnieją i
+   mają zgodne SHA-256 (`203/203`, brak mismatch, staged `0`). Recovery jest
+   clean na `8620871711321a42e62291e52865b5a668a4955d` i ma 64 commity ponad
+   `origin/main`; nie jest konsumentem produkcyjnym.
+4. Pięć clean promotion worktrees nie ma unikalnych commitów względem
+   `origin/main`. Właścicielska ścieżka `doc04-main-promotion` jest nieobecna;
+   osobno istnieje `doc04a-main-promotion`. Worktree Visual V2 ma 13 unikalnych
+   commitów i 5 lokalnych zmian, więc nie jest kandydatem do usunięcia.
+5. Aktualny start jest rozproszony. Task Scheduler ma osobne zadania logowania
+   dla Docker Desktop, Compose, Public Gateway, Private Gateway i Supervisora.
+   Public Gateway działa jako PID `41784` z
+   `C:\ai-lab-core\operations\gateway\public_web_server.cjs`; ograniczony
+   odczyt zwrócił `/gateway-health=200` i `/control=404`. Supervisor pozostaje
+   `INTENTIONALLY_STOPPED` i nie został uruchomiony.
+6. Użytkownik ma dodatkowy autostart
+   `...\Startup\NEXT-Stabil-Host.cmd`, SHA-256
+   `C843C05CB023CE187D7C6829DB904E2FDB58B893C8072CBC33E476D7307C06D4`.
+   Wrapper wskazuje nieistniejący
+   `C:\ai-lab-core\operations\runtime\start-host-services.ps1`; jest więc
+   zerwany, a nie kanoniczny. Desktop shortcut uruchamia tylko zainstalowany
+   klient `1.0.2+29`, nie cały stos.
+7. `start-compose-after-docker.ps1` jest rzeczywiście konsumowany przez zadanie
+   `NEXT Stabil - Docker Compose`. Ogranicza liczbę iteracji, lecz pojedyncze
+   zawieszone wywołanie `docker.exe info` nie ma własnego deadline. To ustalenie
+   do przyszłej poprawki source, nie wykonana zmiana.
+8. Web jest serwowany z `C:\ai-lab-core\frontend\build\web`: 40 plików,
+   47,848,874 B, file-manifest SHA-256
+   `3951EBEB2053F60AC9FD2295B2EBCFA73126777A098102FF4F3B62DE4787F5D9`,
+   deklarowana wersja `1.0.2+41`. Aktualny Windows client ma 22 pliki,
+   file-manifest SHA-256
+   `B8FA2AC194BD4B002FE7654ABC8F109E20956D111735F22A210BBD8E536BFEBB`;
+   `frontend.exe` ma SHA-256
+   `5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865`
+   i nie ma podpisu Authenticode.
+9. `C:\ChatGPT-Vision-Worker` zawiera chroniony profil/stany i zewnętrzne
+   worker files. Jego `vision-job.js` różni się zarówno od original/main, jak i
+   recovery. Supervisor jest zadeklarowanym konsumentem tej ścieżki, lecz jest
+   zatrzymany; żadnego workera nie zaobserwowano. Profile/cookies nie były
+   odczytywane.
+10. `C:\Ollama-Vision-Pilot` istnieje, ale w ograniczonych task/process/repo
+    references nie znaleziono bieżącego konsumenta. Pozostaje `HOLD / UNKNOWN`,
+    nie `UNUSED`. `C:\ai-lab-repair` jest niegitowym obszarem naprawczym SDK;
+    także nie uzyskał zgody na cleanup.
+
+## 2. Preferowany układ docelowy
+
+Docelowym rodzicem instalacji jest wyłącznie `C:\ai-lab-core`. Poniższy układ
+jest propozycją do odbioru; nie został utworzony ani zasilony w tej sesji.
+
+| Rola | Preferowana ścieżka | Zasada |
+|---|---|---|
+| Backend runtime source | `C:\ai-lab-core\backend` | Tylko bajty z osobno zaakceptowanego, hashowanego source/build set; nie dzisiejszy dirty katalog. |
+| Web | `C:\ai-lab-core\frontend\build\web` | Jeden manifest bajtów na build; zmiana dopiero z kompatybilnym backendem. |
+| Dane usług | `C:\ai-lab-core\data` | Bez relokacji w D-21; osobne dane od kodu. |
+| Gateway/Supervisor | `C:\ai-lab-core\operations\gateway` i `...\supervisor` | Wersja z tego samego zaakceptowanego source set. |
+| Workery repozytoryjne | `C:\ai-lab-core\operations\vision-worker` | Kod z Git; bez zewnętrznej kopii jako nieweryfikowanego źródła. |
+| Stan/profile workerów | `C:\ai-lab-core\data\vision-worker` | Chroniony state oddzielony od kodu; migracja sesji dopiero po osobnym teście i zgodzie. |
+| Release channel | `C:\ai-lab-core\release-channel` | Normalny start nie publikuje ani nie zmienia stable/minimum. |
+| Windows client | `C:\ai-lab-core\client\windows` | Dopiero po build/signature/runtime acceptance; obecny klient pozostaje bez zmian. |
+| Staging nieprodukcyjny | `C:\ai-lab-core\staging` | Tylko przyszłe, jawnie oznaczone build/test payloads; nigdy aktywny fallback runtime. |
+| Jeden launcher | `C:\ai-lab-core\operations\runtime\start-host-services.ps1` | Naprawia istniejący, obecnie zerwany łańcuch; jeden kod dla startu ręcznego i logon. |
+
+Jawne wyjątki pozostają poza rootem: backupy E:/F: i decyzje R03, recovery
+key/escrow, zainstalowany Docker/WSL/SDK/Node/Flutter oraz standardowe
+Docker volumes/VHD. Bieżące `C:\ai-lab-core-backups` pozostaje chronione do
+osobnej decyzji o docelowym zewnętrznym backup root. Nie planuje się junctionów
+ani symlinków maskujących zależność poza rootem.
+
+## 3. Specyfikacja jednego startu
+
+Jedynym kodem startowym ma być przyszły, śledzony w Git
+`operations/runtime/start-host-services.ps1`, naprawiający cel już istniejącego
+wrappera Startup. Zarówno pojedyncze zadanie logowania `NEXT Stabil - Host`, jak
+i ręczny shortcut mają wywoływać ten sam plik. `start-compose-after-docker.ps1`
+może pozostać jego wewnętrznym etapem tylko po dodaniu ograniczonych deadline
+dla każdej natywnej komendy. Osobne taski startowe mają być wycofywane dopiero
+po odbiorze wspólnego wejścia.
+
+Kolejność przyszłego launchera:
+
+1. Rozwiąż własną ścieżkę niezależnie od bieżącego CWD i wczytaj wyłącznie
+   zatwierdzony manifest zestawu.
+2. Potwierdź, że Docker Engine odpowiada, nie tylko że działa GUI. Jeżeli
+   Engine nie działa, uruchom dokładnie jedną istniejącą, zatwierdzoną instancję
+   Docker Desktop (bez restartu, aktualizacji lub zmiany contextu), a następnie
+   czekaj w ograniczonym oknie na odpowiedź serwera. Każde wywołanie CLI ma
+   własny deadline, PID i kontrolowany błąd.
+3. Odczytaj istniejące kontenery, pełne ID, obrazy, mounty i Compose project.
+   Przy innym source/image/mouncie: `STOP / CONTROLLED_DEPLOY_REQUIRED` bez
+   `pull`, `build`, `recreate` i bez fallbacku do recovery/staging.
+4. Uruchom albo zachowaj wyłącznie bazowy zestaw CRM/API/Web według jednego
+   przypiętego Compose/config set. Drugi start rozpoznaje te same zasoby i nie
+   dubluje instancji.
+5. Uruchom/zweryfikuj publiczny i prywatny gateway z niezmienną granicą:
+   publiczny `8789` nie udostępnia `/control`, prywatny `8788` może kierować do
+   `8787` wyłącznie lokalnie.
+6. Supervisor/export jest osobną polityką. Przy obecnym stanie launcher pokazuje
+   `INTENTIONALLY_STOPPED` i nie wznawia kolejek. Dopiero osobna decyzja i
+   bramki R05 pozwalają zmienić ten etap.
+7. Potwierdź gotowość komponentowo: Engine, DB, API, Web, gateways, a następnie
+   jawnie oznacz wyłączone/niezweryfikowane AI/export. Exit `0` launchera nie
+   oznacza automatycznie gotowości wszystkich usług.
+8. Opcjonalne otwarcie zaakceptowanego klienta następuje dopiero po gotowości
+   bazowej; konflikt portu, mountu lub wersji kończy się czytelną odmową.
+
+Przyszła macierz odbioru obejmuje: zwykły start, drugi start bez duplikatów,
+Engine już gotowy, Engine niegotowy, usługę celowo wyłączoną, konflikt portu,
+błędny mount/wersję, zachowanie `/control*`, reboot hosta w osobnym oknie oraz
+rollback. Wszystkie te scenariusze są obecnie `NOT_RUN`.
+
+## 4. Pakiety przyszłego wykonania
+
+Każde polecenie operacyjne w tej sekcji ma status
+`NOT_EXECUTED / REQUIRES_SEPARATE_APPROVAL`.
+
+### D21-P1 — źródło launchera i testy offline (pierwszy minimalny pakiet)
+
+Ścieżki:
+
+- `operations/runtime/start-host-services.ps1` — nowy, brakujący cel istniejącego wrappera;
+- `operations/windows/start-compose-after-docker.ps1` — tylko per-command timeout i bezpieczny interfejs wewnętrzny;
+- jeden mały test kontraktowy pod `operations/runtime/`;
+- aktualizacja recepty/manifestu tożsamości startu.
+
+Precondition: owner review tej mapy i jawna zgoda source/test.
+Efekt: kod nie wykonuje się na produkcji; testy atrapiają Docker/tasks/processy i
+sprawdzają idempotencję, brak pull/build/recreate, błędny mount, konflikt portu,
+Supervisor `INTENTIONALLY_STOPPED` oraz timeout.
+Verification: parser PowerShell 5.1, testy focused, negatywne identity/mount,
+`git diff --check`, brak zmiany Task Scheduler.
+Rollback: revert jednego source commita.
+Uprawnienie: osobna zgoda D21-P1; bez zgody operacyjnej.
+
+### D21-P2 — zabezpieczenie unikalnej pracy i candidate manifest
+
+Precondition: 203/203 ponownie zgodne, 13 commitów + 5 zmian Visual zachowane,
+recovery remote potwierdzone, aktualny backup/rollback oceniony.
+Efekt: owner-approved preservation dla dirty work, wybór dokładnego source set
+(proponowany produktowy punkt odniesienia to zaakceptowany source
+`04ab5e58cf86896ffd946cabffde13367d343f53`, z dokumentacyjnym evidence
+`8620871711321a42e62291e52865b5a668a4955d`), manifest backend/API/schema/Web/
+gateway/Supervisor/workers. Nie jest to jeszcze deployment.
+Verification: full file hashes, source provenance, compatibility i brak runtime
+consumer recovery.
+Rollback: zachowane oryginalne drzewo, aktywny deploy `483f9bf8...` i zewnętrzne
+state roots.
+Uprawnienie: osobna zgoda na preservation/candidate; sekretne lub biznesowe
+payloads pozostają poza Git.
+
+### D21-P3 — kontrolowany cutover jednego zestawu
+
+Precondition: P1/P2 accepted, aktualny rollback point i okno operacyjne,
+brak aktywnego backup/import/restore/export, dokładny source/build manifest oraz
+osobna zgoda na przerwę. R03 nadal nie pozwala deklarować pełnej recovery
+readiness; właściciel musi osobno zaakceptować aktualność punktu cofnięcia i
+ryzyko.
+Efekt: zatrzymanie tylko wskazanych usług, przełączenie backendu na zatwierdzone
+`C:\ai-lab-core\backend`, in-root reviewed Compose override, gateway/worker
+source z tego samego set. To jest zarazem relokacja i zmiana wersji.
+Verification: mount/image/full hashes, DB revision bez migracji nieobjętych
+zgodą, API/Web/gateway boundaries, kolejki bez wznowienia, brak recovery/staging
+mount.
+Rollback: dokładny aktywny override `36355C...436E8`, deploy
+`483f9bf8...`, obraz `6342b36f...63702`, bieżący Web manifest i task definitions.
+Uprawnienie: osobna zgoda deployment/cutover; żadna komenda nie została wykonana.
+
+### D21-P4 — jeden start i rollback acceptance
+
+Precondition: P3 stabilny, backup/rollback nadal dostępny, owner w oknie testu.
+Efekt: utworzenie jednego taska `NEXT Stabil - Host`, przepięcie manualnego
+shortcutu do tego samego entrypointu oraz wyłączenie dopiero zastąpionych
+indywidualnych tasków startowych. Backup i Trash Purge pozostają oddzielnymi
+harmonogramami.
+Verification: pełna macierz §3 wraz z rebootem i rollbackiem. Supervisor nadal
+jest `INTENTIONALLY_STOPPED`, dopóki R05 nie uzyska osobnego runtime approval.
+Rollback: przywrócenie exact wcześniejszych tasków, wrappera i shortcutu.
+Uprawnienie: osobna zgoda na Task Scheduler/shortcut/reboot test.
+
+### D21-P5 — archiwizacja i wycofanie
+
+Precondition: P3/P4 accepted, co najmniej jeden stabilny okres pracy, brak
+konsumentów i pełna ochrona unikalnej pracy.
+Efekt: tylko exact-path retirement clean promotion worktrees i później
+udowodnionych kopii. Recovery, Visual audit, staging, external worker/profile,
+backupy i modele nie kwalifikują się obecnie do automatycznego cleanupu.
+Verification: aktualny consumer audit, hashes, Git common-dir/ref i post-check.
+Rollback: zachowany ref/archive; dla danych bez odwracalności cleanup nie jest
+wykonywany bez jawnej decyzji.
+Uprawnienie: osobna exact-name cleanup approval.
+
+## 5. Otwarte bramki i niewiadome
+
+- `R03 WAITING_APPROVAL / WAITING_ESCROW_DECISION`: nie blokuje mapy ani P1,
+  ale blokuje deklarację pełnej recovery readiness. Przed ryzykownym P3 trzeba
+  osobno rozstrzygnąć aktualność rollback point i świadomie zaakceptować ryzyko.
+- `R05 IN_PROGRESS`: operator Web runtime, real Temporary Chat, upload i external
+  end-to-end pozostają niezweryfikowane. Dlatego P3/P4 nie może automatycznie
+  uruchomić Supervisora/exportu.
+- `R04 IN_PROGRESS`: source/test acceptance nie jest runtime acceptance;
+  Windows/Android i pełna compatibility matrix pozostają otwarte.
+- Aktualny backup destination trzech schedule runners nie został odczytany z
+  biznesowej DB; same taski i ich wrappery zostały zidentyfikowane.
+- `C:\Ollama-Vision-Pilot` nie ma potwierdzonego konsumenta ani potwierdzenia
+  zbędności.
+- Zewnętrzny profil i legacy worker files wymagają osobnego porównania/migracji
+  bez odczytu cookies i bez utraty sesji.
+- `C:\ai-lab-core-staging` jest mieszanką evidence/cache/deployment declarations;
+  tylko aktywny override został zidentyfikowany jako bieżący konsument.
+
+Te braki blokują odpowiednie relokacje lub cleanup, lecz nie unieważniają
+gotowości mapy i planu do właścicielskiego review.
+
+## 6. Skutki tej sesji
+
+Utworzono wyłącznie zanonimizowaną mapę, ten plan, checkpoint i aktualizacje
+rejestrów. Lokalny katalog surowych dowodów znajduje się pod istniejącym
+chronionym stagingiem R04/D-21. Nie wykonano cutoveru, relokacji, cleanupu,
+startup implementation, task/shortcut/mount/config change, restartu, testów
+aplikacji, Fluttera, Web A/B, CORS, browsera, modeli, backupu ani restore.
+
+Następny krok: owner review mapy i osobna zgoda na `D21-P1`, tj. mały pakiet
+źródłowy launchera i testów offline z wyżej wymienionymi ścieżkami. Nie jest to
+zgoda na P2–P5.

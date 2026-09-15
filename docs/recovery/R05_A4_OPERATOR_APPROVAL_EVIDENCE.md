@@ -330,3 +330,25 @@ This establishes
 `API_CORS_AND_WIDGET_DECISION_TESTS_PASS`. It is not owner acceptance, a Web
 runtime test, Temporary Chat verification, remote upload or external
 end-to-end proof. Local logs E032–E035 remain protected outside Git.
+
+## Owner acceptance and transition back to R04 / D-21
+
+On 2026-09-15 the owner accepted R05-A4 for the implementation rooted in
+`f3cbe58bed0de34cfd39a57d481abb2c61c2f4ac`, the final four-file source
+`04ab5e58cf86896ffd946cabffde13367d343f53`, and evidence HEAD
+`8620871711321a42e62291e52865b5a668a4955d` as
+`SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`.
+
+The accepted scope is the preview of final bytes, the additive exposure of
+exactly `X-Source-Ref`, `X-Content-SHA256` and `X-Package-SHA256`, and the
+correct distinction between confirmed and unknown approve/revoke results. The
+ASGI/CORS result remains a protocol-response test, not a browser execution of
+the operator dialog. Earlier Flutter results remain earlier executions against
+the same unchanged files; they were not rerun for this acceptance record.
+
+Operator Web runtime, real Temporary Chat, remote upload, external end-to-end,
+the production of `locally_redacted` material, deployment and the whole R05
+remain unaccepted/unverified. Supervisor remains `INTENTIONALLY_STOPPED`.
+D-21 now authorizes only read-only inventory and reviewed documentation for
+the single-root/single-start map; it does not authorize cutover, relocation,
+cleanup or startup implementation.
