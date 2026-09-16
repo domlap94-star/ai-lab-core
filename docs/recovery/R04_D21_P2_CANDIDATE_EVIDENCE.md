@@ -1,7 +1,7 @@
 # R04 / D-21 / P2 — preservation and pinned candidate evidence
 
 Status: `PRESERVATION_AND_CANDIDATE_ACCEPTED / NOT_DEPLOYED` oraz
-`ACTIVE_DATA_D_JUNCTION_SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY`
+`ACTIVE_DATA_DESTINATION_GUARD_READY_FOR_REVIEW / OFFLINE_TEST_ONLY`
 
 ## Zakres i tożsamość
 
@@ -17,6 +17,10 @@ Status: `PRESERVATION_AND_CANDIDATE_ACCEPTED / NOT_DEPLOYED` oraz
   `e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd`, tree
   `873d199ed43c5d6719a34f2158b0537f7e07a73b`. Backend/frontend z P2 nie
   zmieniły bajtów; zmiana obejmuje walidator, przykład, README i test junctionu.
+- Domknięcie celu mountu `RV-D21-DATA-01`: commit
+  `cb6e22506a0fecc440400566293524536847b9b0`, tree
+  `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`. Zmiana obejmuje wyłącznie
+  walidator, jego test junctionu i README; bajty aplikacji i Web nie zmieniły się.
 - Jeden chroniony root P2:
   `C:\ai-lab-core-staging\recovery\R04_D21_SINGLE_ROOT_20260915T033112Z\p2-20260915T212340Z`.
 - Kandydat jest `NOT_DEPLOYED / NOT_APPROVED_FOR_START`. P2 nie zmieniło
@@ -167,6 +171,41 @@ Test utworzył i usunął tylko własny, dokładnie nazwany syntetyczny junction
 target. Wszystkie granice Docker/HTTP/CIM/TCP/Task Scheduler/startu pozostały
 atrapami. Nie zmieniono rzeczywistego junctionu, D:, backupów ani runtime.
 
+### RV-D21-DATA-01 — dokładny kontrakt celu mountu
+
+Wynik: `REPRODUCED`. Na rzeczywistym walidatorze z preimage
+`e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd` dwa wewnętrznie spójne, lecz
+nieuprawnione manifesty doszły do planu:
+
+- `backend / APPLICATION_DATA / /app/app` powtórzone w `data_topology.bindings`
+  i `containers[].mounts` — fail-before exit `1`;
+- `postgres / N8N_DATA / /home/node/.n8n` powtórzone w obu sekcjach —
+  fail-before exit `1`.
+
+Nie był to Docker ani incydent runtime. Test użył wyłącznie własnego junctionu,
+pełnych atrap adapterów i kodu preimage. Source
+`cb6e22506a0fecc440400566293524536847b9b0` wiąże teraz dokładną, czułą na
+wielkość liter trójkę `service + role + destination` z pięcioma istniejącymi
+wariantami: backend `/data`, PostgreSQL `/var/lib/postgresql/data`, n8n
+`/home/node/.n8n`, Open WebUI `/app/backend/data` i Ollama `/root/.ollama`.
+Nieznane role i zgodne wewnętrznie, ale obce pary są odrzucane przed adapterami.
+
+Końcowa kampania Windows PowerShell `5.1.26100.8894`:
+
+- data junction/destination guard: `44/44`, exit `0`, log 43 B, SHA-256
+  `F70CD54EBC0229CACDBA371CD41A5EF61BBCC729CF57F210C46A74E6C56D6EE0`;
+- host plan regression: `53/53`, exit `0`, log 32 B, SHA-256
+  `6B15018D1A1C7EFA831F7B3C6A6DCDBFFE2D4922A0C97B36925134DBAE55DD15`;
+- real-adapter mapping: `48/48`, exit `0`, log 44 B, SHA-256
+  `6112F31AFB76A2D7F192C0DFB8149226CD06D45C22038E7ADDB67C9F53A8881D`;
+- parser pięciu `.ps1` i JSON przykładu: błędy `0`, exit `0`, log 35 B,
+  SHA-256 `90A343C8D862E69FE28B8BB6E90AA24B5CA3D553D57A2DF56C21519A9D63AB7A`.
+
+Hash wynikowego `operations/runtime/startup-runtime.ps1`:
+`DC4E5EB638B93470BFF252D23864BBB1FC2F75D001B2D1E9FC20C0B849C0A103`.
+Surowe dowody pozostają LOCAL_ONLY w
+`C:\ai-lab-core-staging\recovery\R04_D21_P2_20260915T212340Z\active-data-junction-20260916T055951Z\destination-guard-20260916T082046Z`.
+
 ## Draft manifest i celowa odmowa
 
 `R04_D21_P2_CANDIDATE_SET.json` korzysta z kontraktu P1
@@ -186,8 +225,8 @@ receptę uruchomienia i zapisano właściwy wynik 5.1.
 
 Po aktualizacji kandydata wykonano osobną kontrolę spójności danych: JSON PASS,
 `approval=NOT_APPROVED`, dokładny logical/target/type/purpose, pięć jawnych
-bindingów, source/tree `e4f298a.../873d199...`, host-runtime SHA-256
-`8137B3D365DDD5D8AA698EBBA9FF075A48048E3FC12771E980E3ADB64194BA46` oraz
+bindingów, source/tree `cb6e225.../c349a1d...`, host-runtime SHA-256
+`DC4E5EB638B93470BFF252D23864BBB1FC2F75D001B2D1E9FC20C0B849C0A103` oraz
 niezmienione pochodzenie Web z `2e69622...`. Negatywny przypadek planu
 `START_NOT_APPROVED` i zero adapterów jest częścią bieżącego testu junctionu;
 samego kandydata nie uruchamiano.
@@ -302,7 +341,7 @@ realnego eksportu, aktualności danych recovery ani poprawnego cutoveru.
 5. Powrót danych wymaga osobnej decyzji R03/escrow i aktualności punktu; P2 nie
    zastępuje backupu.
 
-Następny krok: review poprawki DATA_ONLY oraz zamknięta lista zmian P3: `KEEP`
+Następny krok: review poprawki celu mountu DATA_ONLY oraz zamknięta lista zmian P3: `KEEP`
 dla potwierdzonych bindów na D:, rozstrzygnięcie Qdrant/VHD/tablespaces/logów/
 profile, dokładne ID/image/mounty/flag i osobne przełączenie wersji backendu.
 P3 wymaga nowej, operacyjnej zgody; nie jest uruchamiany automatycznie.

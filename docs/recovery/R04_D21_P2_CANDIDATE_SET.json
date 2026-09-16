@@ -1,17 +1,17 @@
 {
   "schema": "NEXT_STABIL_STARTUP_SET_V1",
   "component_identity_schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
-  "set_id": "R04-D21-P2-20260916T061143Z-e4f298a",
+  "set_id": "R04-D21-P2-20260916T083044Z-cb6e225",
   "candidate_status": "DRAFT_NOT_APPROVED_FOR_START",
   "root": "C:\\ai-lab-core",
   "approval": {
     "status": "NOT_APPROVED",
-    "set_id": "R04-D21-P2-20260916T061143Z-e4f298a",
+    "set_id": "R04-D21-P2-20260916T083044Z-cb6e225",
     "decision_id": "D-21"
   },
   "source": {
-    "commit": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd",
-    "tree": "873d199ed43c5d6719a34f2158b0537f7e07a73b",
+    "commit": "cb6e22506a0fecc440400566293524536847b9b0",
+    "tree": "c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc",
     "preserved_pre_data_junction_snapshot": {
       "commit": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
       "tree": "4ee8f9ca77cc315dce428b689264d5125f0a23f5",
@@ -50,7 +50,7 @@
     {
       "role": "host_runtime",
       "path": "operations/runtime/startup-runtime.ps1",
-      "sha256": "8137B3D365DDD5D8AA698EBBA9FF075A48048E3FC12771E980E3ADB64194BA46"
+      "sha256": "DC4E5EB638B93470BFF252D23864BBB1FC2F75D001B2D1E9FC20C0B849C0A103"
     },
     {
       "role": "public_gateway_script",
@@ -332,12 +332,12 @@
   "component_compatibility": {
     "selected": {
       "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
-      "release_id": "r04-d21-p2-20260916t061143z",
+      "release_id": "r04-d21-p2-20260916t083044z",
       "components": {
         "backend": {
           "version": "1.0.0",
           "identity_kind": "git_sha",
-          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
+          "identity": "cb6e22506a0fecc440400566293524536847b9b0"
         },
         "api": {
           "version": "1",
@@ -367,22 +367,22 @@
         "supervisor": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
+          "identity": "cb6e22506a0fecc440400566293524536847b9b0"
         },
         "gateway": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
+          "identity": "cb6e22506a0fecc440400566293524536847b9b0"
         },
         "analysis_worker": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
+          "identity": "cb6e22506a0fecc440400566293524536847b9b0"
         },
         "vision_worker": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
+          "identity": "cb6e22506a0fecc440400566293524536847b9b0"
         }
       }
     },
@@ -496,7 +496,7 @@
     "candidate_loaded": false
   },
   "remaining_gates": [
-    "OWNER_REVIEW_ACTIVE_DATA_JUNCTION_SOURCE",
+    "OWNER_REVIEW_ACTIVE_DATA_DESTINATION_GUARD_SOURCE",
     "P3_SEPARATE_OPERATIONAL_APPROVAL",
     "CURRENT_DATA_RECOVERY_AND_R03_ESCROW_DECISION",
     "VERIFY_ACTIVE_DATA_BINDINGS_AND_PHYSICAL_WRITE_LOCATIONS_IN_P3",
