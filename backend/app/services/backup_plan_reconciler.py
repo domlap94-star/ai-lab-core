@@ -38,7 +38,13 @@ async def _run() -> None:
         _wake_event.clear()
 
 
-def start_backup_plan_reconciler() -> asyncio.Task:
+def start_backup_plan_reconciler(
+    *,
+    enabled: bool = True,
+) -> asyncio.Task | None:
+    if not enabled:
+        logger.info("Backup plan reconciler disabled by configuration.")
+        return None
     return asyncio.create_task(_run(), name="backup-plan-reconciler")
 
 

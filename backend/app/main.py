@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import OperationalError
 
 from app.api.router import api_router
-from app.database.init_db import init_database
+from app.database.init_db import init_database, verify_database_ready_read_only
 from app.core.config import settings
 from app.services.vision_dispatcher import start_vision_dispatcher
 from app.services.knowledge_base_dispatcher import start_knowledge_base_dispatcher
@@ -30,7 +30,13 @@ async def lifespan(app: FastAPI):
 
     for attempt in range(1, MAX_DB_RETRIES + 1):
         try:
-            init_database()
+            if settings.database_startup_seed_enabled:
+                init_database()
+            else:
+                verify_database_ready_read_only(
+                    expected_schema_revision=settings.database_schema_revision,
+                    expected_admin_username=settings.admin_username,
+                )
             logger.info(
                 "Database initialized successfully."
             )
@@ -57,7 +63,9 @@ async def lifespan(app: FastAPI):
 
     vision_task = start_vision_dispatcher()
     knowledge_base_task = start_knowledge_base_dispatcher()
-    backup_plan_task = start_backup_plan_reconciler()
+    backup_plan_task = start_backup_plan_reconciler(
+        enabled=settings.backup_plan_reconciler_enabled,
+    )
     document_preparation_task = start_document_preparation_dispatcher()
     assistant_run_task = start_assistant_run_dispatcher()
     visual_v2_task = start_visual_v2_dispatcher()
@@ -75,11 +83,12 @@ async def lifespan(app: FastAPI):
             await knowledge_base_task
         except asyncio.CancelledError:
             pass
-    backup_plan_task.cancel()
-    try:
-        await backup_plan_task
-    except asyncio.CancelledError:
-        pass
+    if backup_plan_task is not None:
+        backup_plan_task.cancel()
+        try:
+            await backup_plan_task
+        except asyncio.CancelledError:
+            pass
     if assistant_run_task is not None:
         assistant_run_task.cancel()
         try:

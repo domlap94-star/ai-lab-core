@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     source_revision: str | None = None
     backend_image_digest: str | None = None
     database_schema_revision: str | None = None
+    database_startup_seed_enabled: bool = True
+    backup_plan_reconciler_enabled: bool = True
 
     environment: str = "development"
     debug: bool = False
