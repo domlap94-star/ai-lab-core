@@ -1,21 +1,26 @@
 {
   "schema": "NEXT_STABIL_STARTUP_SET_V1",
   "component_identity_schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
-  "set_id": "R04-D21-P2-20260915T212340Z-2e69622",
+  "set_id": "R04-D21-P2-20260916T061143Z-e4f298a",
   "candidate_status": "DRAFT_NOT_APPROVED_FOR_START",
   "root": "C:\\ai-lab-core",
   "approval": {
     "status": "NOT_APPROVED",
-    "set_id": "R04-D21-P2-20260915T212340Z-2e69622",
+    "set_id": "R04-D21-P2-20260916T061143Z-e4f298a",
     "decision_id": "D-21"
   },
   "source": {
-    "commit": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
-    "tree": "4ee8f9ca77cc315dce428b689264d5125f0a23f5",
-    "snapshot_sha256": "318A41F24F5B2949A06A24B38BB5D2B599E300734E67F1E91E0F5C59879CC6C3",
-    "snapshot_file_manifest_sha256": "72A8B6ACA13208F296F513D5DFCC6D9FE6ECD7411DBB895F3776539CE29DE417",
+    "commit": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd",
+    "tree": "873d199ed43c5d6719a34f2158b0537f7e07a73b",
+    "preserved_pre_data_junction_snapshot": {
+      "commit": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
+      "tree": "4ee8f9ca77cc315dce428b689264d5125f0a23f5",
+      "snapshot_sha256": "318A41F24F5B2949A06A24B38BB5D2B599E300734E67F1E91E0F5C59879CC6C3",
+      "snapshot_file_manifest_sha256": "72A8B6ACA13208F296F513D5DFCC6D9FE6ECD7411DBB895F3776539CE29DE417"
+    },
     "p1_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
     "p1_evidence": "7687cc15bb31175d19485b10a6e13dfc5945bfc2",
+    "p2_acceptance_evidence": "f872cf9e548a7ec196289e0c1987b654b1017505",
     "a4_source": "04ab5e58cf86896ffd946cabffde13367d343f53",
     "a4_evidence": "8620871711321a42e62291e52865b5a668a4955d"
   },
@@ -45,7 +50,7 @@
     {
       "role": "host_runtime",
       "path": "operations/runtime/startup-runtime.ps1",
-      "sha256": "F7CD8592E6A72BBA91392E337B0261079477B54582D3AD5BB65ED832255A3F60"
+      "sha256": "8137B3D365DDD5D8AA698EBBA9FF075A48048E3FC12771E980E3ADB64194BA46"
     },
     {
       "role": "public_gateway_script",
@@ -90,6 +95,45 @@
       "sha256": "9A4EB5F1C29C6A2E93852EAD46B999E284A6A5CA8BAB4D4E241D587D025A52DE"
     }
   ],
+  "data_topology": {
+    "schema": "NEXT_STABIL_DATA_TOPOLOGY_V1",
+    "logical_path": "C:\\ai-lab-core\\data",
+    "target": "D:\\ai-lab-data",
+    "link_type": "DIRECTORY_JUNCTION",
+    "purpose": "ACTIVE_DATA_ONLY",
+    "bindings": [
+      {
+        "service": "postgres",
+        "role": "POSTGRESQL_DATA",
+        "source": "C:\\ai-lab-core\\data\\postgres",
+        "destination": "/var/lib/postgresql/data"
+      },
+      {
+        "service": "backend",
+        "role": "APPLICATION_DATA",
+        "source": "C:\\ai-lab-core\\data",
+        "destination": "/data"
+      },
+      {
+        "service": "n8n",
+        "role": "N8N_DATA",
+        "source": "C:\\ai-lab-core\\data\\n8n",
+        "destination": "/home/node/.n8n"
+      },
+      {
+        "service": "open-webui",
+        "role": "OPENWEBUI_DATA",
+        "source": "C:\\ai-lab-core\\data\\openwebui",
+        "destination": "/app/backend/data"
+      },
+      {
+        "service": "ollama",
+        "role": "OLLAMA_DATA",
+        "source": "C:\\ai-lab-core\\data\\ollama",
+        "destination": "/root/.ollama"
+      }
+    ]
+  },
   "docker": {
     "context": "desktop-linux",
     "endpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
@@ -104,7 +148,14 @@
       "compose_project": "ai-lab-core",
       "image_id": "UNKNOWN_P3",
       "repo_digest": "UNKNOWN_P3",
-      "mounts": [],
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\postgres",
+          "destination": "/var/lib/postgresql/data",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
       "ports": [],
       "selection_status": "REQUIRES_P3_EXACT_OBSERVATION"
     },
@@ -137,6 +188,74 @@
         }
       ],
       "selection_status": "REQUIRES_P3_BUILD_OR_EXACT_IMAGE_AND_MOUNT"
+    },
+    {
+      "service": "qdrant",
+      "container_name": "UNRESOLVED_P3",
+      "compose_project": "ai-lab-core",
+      "image_id": "UNKNOWN_P3",
+      "repo_digest": "UNKNOWN_P3",
+      "mounts": [
+        {
+          "source": "qdrant_storage",
+          "destination": "/qdrant/storage",
+          "type": "volume",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "selection_status": "REQUIRES_P3_VOLUME_BACKING_AND_EXACT_OBSERVATION"
+    },
+    {
+      "service": "n8n",
+      "container_name": "UNRESOLVED_P3",
+      "compose_project": "ai-lab-core",
+      "image_id": "UNKNOWN_P3",
+      "repo_digest": "UNKNOWN_P3",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\n8n",
+          "destination": "/home/node/.n8n",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "selection_status": "REQUIRES_P3_EXACT_OBSERVATION"
+    },
+    {
+      "service": "open-webui",
+      "container_name": "UNRESOLVED_P3",
+      "compose_project": "ai-lab-core",
+      "image_id": "UNKNOWN_P3",
+      "repo_digest": "UNKNOWN_P3",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\openwebui",
+          "destination": "/app/backend/data",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "selection_status": "REQUIRES_P3_EXACT_OBSERVATION"
+    },
+    {
+      "service": "ollama",
+      "container_name": "UNRESOLVED_P3",
+      "compose_project": "ai-lab-core",
+      "image_id": "UNKNOWN_P3",
+      "repo_digest": "UNKNOWN_P3",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\ollama",
+          "destination": "/root/.ollama",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [],
+      "selection_status": "REQUIRES_P3_EXACT_OBSERVATION"
     }
   ],
   "host_services": [
@@ -213,12 +332,12 @@
   "component_compatibility": {
     "selected": {
       "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
-      "release_id": "r04-d21-p2-20260915t212340z",
+      "release_id": "r04-d21-p2-20260916t061143z",
       "components": {
         "backend": {
           "version": "1.0.0",
           "identity_kind": "git_sha",
-          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
         },
         "api": {
           "version": "1",
@@ -248,22 +367,22 @@
         "supervisor": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
         },
         "gateway": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
         },
         "analysis_worker": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
         },
         "vision_worker": {
           "version": "source-v1",
           "identity_kind": "git_sha",
-          "identity": "2e69622bc6a0b4888427f8ae5be119377aed26d9"
+          "identity": "e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd"
         }
       }
     },
@@ -366,6 +485,7 @@
   },
   "current_runtime_observation": {
     "observed_utc": "2026-09-15T21:43:27.3024961Z",
+    "evidence_class": "HISTORICAL_RUNTIME_NOT_REOBSERVED_IN_DATA_ONLY_SESSION",
     "backend_container_id": "9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a",
     "backend_image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
     "backend_source_mount": "C:/ai-lab-core/build/deploy-main-483f9bf8/backend",
@@ -376,10 +496,11 @@
     "candidate_loaded": false
   },
   "remaining_gates": [
-    "OWNER_REVIEW_AND_ACCEPT_P2",
+    "OWNER_REVIEW_ACTIVE_DATA_JUNCTION_SOURCE",
     "P3_SEPARATE_OPERATIONAL_APPROVAL",
     "CURRENT_DATA_RECOVERY_AND_R03_ESCROW_DECISION",
-    "RESOLVE_D_AI_LAB_DATA_JUNCTION_WITHOUT_HIDDEN_DEPENDENCY",
+    "VERIFY_ACTIVE_DATA_BINDINGS_AND_PHYSICAL_WRITE_LOCATIONS_IN_P3",
+    "RESOLVE_QDRANT_VOLUME_AND_DOCKER_WSL_VHD_PHYSICAL_LOCATION",
     "EXACT_CONTAINER_AND_IMAGE_IDENTITIES",
     "CONTROL_BACKUP_PLAN_RECONCILER_AND_INIT_DATABASE_SIDE_EFFECTS",
     "CONFIRM_ALL_AI_PROCESSING_FLAGS_FALSE_IN_EFFECTIVE_P3_CONFIG",

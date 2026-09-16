@@ -1,6 +1,6 @@
 # R04 / D-21 — plan jednego katalogu instalacji i jednego startu
 
-Status dokumentu: `P1_SOURCE_AND_OFFLINE_TESTS_ACCEPTED / P2_PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`
+Status dokumentu: `P1_SOURCE_AND_OFFLINE_TESTS_ACCEPTED / P2_PRESERVATION_AND_CANDIDATE_ACCEPTED / ACTIVE_DATA_D_JUNCTION_SOURCE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -77,7 +77,7 @@ jest propozycją do odbioru; nie został utworzony ani zasilony w tej sesji.
 |---|---|---|
 | Backend runtime source | `C:\ai-lab-core\backend` | Tylko bajty z osobno zaakceptowanego, hashowanego source/build set; nie dzisiejszy dirty katalog. |
 | Web | `C:\ai-lab-core\frontend\build\web` | Jeden manifest bajtów na build; zmiana dopiero z kompatybilnym backendem. |
-| Dane usług | `C:\ai-lab-core\data` | Bez relokacji w D-21; osobne dane od kodu. |
+| Dane usług | logicznie `C:\ai-lab-core\data`, fizycznie `D:\ai-lab-data` | Zachowany directory junction `ACTIVE_DATA_ONLY`; ciężkie, trwałe dane rosną na aktywnym dysku D:, a kod nigdy nie wykonuje się z tego targetu. |
 | Gateway/Supervisor | `C:\ai-lab-core\operations\gateway` i `...\supervisor` | Wersja z tego samego zaakceptowanego source set. |
 | Workery repozytoryjne | `C:\ai-lab-core\operations\vision-worker` | Kod z Git; bez zewnętrznej kopii jako nieweryfikowanego źródła. |
 | Stan/profile workerów | `C:\ai-lab-core\data\vision-worker` | Chroniony state oddzielony od kodu; migracja sesji dopiero po osobnym teście i zgodzie. |
@@ -86,11 +86,13 @@ jest propozycją do odbioru; nie został utworzony ani zasilony w tej sesji.
 | Staging nieprodukcyjny | `C:\ai-lab-core\staging` | Tylko przyszłe, jawnie oznaczone build/test payloads; nigdy aktywny fallback runtime. |
 | Jeden launcher | `C:\ai-lab-core\operations\runtime\start-host-services.ps1` | Naprawia istniejący, obecnie zerwany łańcuch; jeden kod dla startu ręcznego i logon. |
 
-Jawne wyjątki pozostają poza rootem: backupy E:/F: i decyzje R03, recovery
-key/escrow, zainstalowany Docker/WSL/SDK/Node/Flutter oraz standardowe
-Docker volumes/VHD. Bieżące `C:\ai-lab-core-backups` pozostaje chronione do
-osobnej decyzji o docelowym zewnętrznym backup root. Nie planuje się junctionów
-ani symlinków maskujących zależność poza rootem.
+Jawne wyjątki pozostają poza rootem: aktywny dysk danych
+`D:\ai-lab-data` dostępny przez dokładny junction
+`C:\ai-lab-core\data`, backupy E:/F: i decyzje R03, recovery key/escrow,
+zainstalowany Docker/WSL/SDK/Node/Flutter oraz standardowe Docker volumes/VHD.
+Bieżące `C:\ai-lab-core-backups` pozostaje chronione do osobnej decyzji o
+docelowym zewnętrznym backup root. Inne junctiony/symlinki nie uzyskują zgody;
+wyjątek `ACTIVE_DATA_ONLY` nie obejmuje kodu, skryptów, executable ani CWD.
 
 ## 3. Specyfikacja jednego startu
 
@@ -170,7 +172,10 @@ source i atrapionych testów; odbiór nie jest zgodą operacyjną.
 
 ### D21-P2 — zabezpieczenie unikalnej pracy i candidate manifest
 
-Stan 2026-09-15: `PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NOT_DEPLOYED`.
+Stan po decyzji właściciela: `PRESERVATION_AND_CANDIDATE_ACCEPTED /
+NOT_DEPLOYED`. Wyjątek `ACTIVE_DATA_ONLY` jest
+`SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY` na commicie
+`e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd`; nie jest wdrożony.
 Wybrany jest jeden pełny source set
 `2e69622bc6a0b4888427f8ae5be119377aed26d9`, który zawiera niezmienione bajty
 aplikacyjne zaakceptowanego A4 oraz odebrany launcher P1. Snapshot, manifest
@@ -183,9 +188,12 @@ zabezpieczono bez profilu/sesji. Recovery remote wymaga końcowego readbacku teg
 handoffu. Aktualny rollback kodu to nadal aktywny deploy `483f9bf8...`; recovery
 dzisiejszych danych pozostaje oddzielną otwartą decyzją R03.
 
-Efekt: jeden inertny snapshot, jeden Web build `TEST_ONLY`, jawna macierz
+Efekt: jeden inertny snapshot źródła sprzed poprawki DATA_ONLY, jeden Web build `TEST_ONLY`, jawna macierz
 source→artifact→target i draft `NOT_APPROVED_FOR_START` dla backend/API/schema/
 Web/gateway/Supervisor/workers. Nie jest to deployment ani `CUTOVER_READY`.
+Snapshot `318A41...CC6C3` pozostaje przypięty do `2e69622...`; aktualne źródło
+walidatora jest identyfikowane przez Git commit/tree, bez przepisywania starego
+archiwum na nowe pochodzenie.
 Verification: pełne hashe, provenance, 1,198/1,198 roundtrip, Web build exit 0,
 oraz oczekiwana odmowa draftu przez walidator P1 w PowerShell 5.1 z
 `START_NOT_APPROVED` i bez adapterów.
@@ -197,14 +205,18 @@ sekretne lub biznesowe payloads pozostają poza Git. Szczegóły:
 
 ### D21-P3 — kontrolowany cutover jednego zestawu
 
-Precondition: P1/P2 accepted, aktualny rollback point i okno operacyjne,
+Precondition: P1/P2 accepted, owner review poprawki `ACTIVE_DATA_ONLY`, aktualny
+rollback point i okno operacyjne,
 brak aktywnego backup/import/restore/export, dokładny source/build manifest oraz
 osobna zgoda na przerwę. R03 nadal nie pozwala deklarować pełnej recovery
 readiness; właściciel musi osobno zaakceptować aktualność punktu cofnięcia i
 ryzyko.
 Efekt: zatrzymanie tylko wskazanych usług, przełączenie backendu na zatwierdzone
 `C:\ai-lab-core\backend`, in-root reviewed Compose override, gateway/worker
-source z tego samego set. To jest zarazem relokacja i zmiana wersji.
+source z tego samego set. Dane już poprawnie pracujące przez
+`C:\ai-lab-core\data -> D:\ai-lab-data` otrzymują `KEEP`; nie są kopiowane na C:
+ani migrowane między aliasem i targetem. Przełączenie backendu jest zmianą
+wersji niezależną od relokacji pozostałych zapisów.
 Verification: mount/image/full hashes, DB revision bez migracji nieobjętych
 zgodą, API/Web/gateway boundaries, kolejki bez wznowienia, brak recovery/staging
 mount.
@@ -258,9 +270,14 @@ Uprawnienie: osobna exact-name cleanup approval.
 - Kandydat wywołuje bezwarunkowo `init_database()` i uruchamia backup plan
   reconciler w lifespan; P3 musi osobno kontrolować ich skutki i efektywną
   konfigurację wszystkich bramek AI.
-- `C:\ai-lab-core\data` jest obecnie junctionem do `D:\ai-lab-data`; P3 musi
-  jawnie rozstrzygnąć tę zależność, punkt cofnięcia i sposób zgodny z D-21.
-  Nie wolno przedstawiać junctionu jako dowodu pełnego single-root.
+- `C:\ai-lab-core\data -> D:\ai-lab-data` jest zatwierdzonym wyjątkiem
+  `ACTIVE_DATA_ONLY` i pozostaje. P3 nie wybiera ponownie C: kontra D:; ma
+  potwierdzić każdą usługę/mount/volume, brak ukrytych zapisów ciężkich danych na
+  C: oraz rollback. Syntetyczny test junctionu nie jest dowodem wszystkich
+  bieżących zapisów runtime.
+- Qdrant managed volume, Docker/WSL VHD i warstwy zapisu, zewnętrzne
+  tablespaces/WAL, container logs/cache oraz profil/state zewnętrznego workera
+  nadal nie mają pełnego dowodu fizycznej lokalizacji.
 - Draft P2 jest celowo `NOT_APPROVED_FOR_START`; brak dokładnych przyszłych
   ID/image/digest/mountów i aktualnej decyzji rollback danych blokuje P3.
 
@@ -270,7 +287,7 @@ gotowości mapy i planu do właścicielskiego review.
 ## 6. Skutki tej sesji
 
 P1 jest odebrane wyłącznie jako source/offline tests i pozostaje NOT_DEPLOYED.
-P2 utworzyło jeden chroniony root z lokalnymi archiwami preservation, inertnym
+P2 preservation/candidate jest odebrane jako NOT_DEPLOYED. P2 utworzyło jeden chroniony root z lokalnymi archiwami preservation, inertnym
 snapshotem, katalogami walidacyjnymi, logami oraz jednym buildem Web TEST_ONLY.
 Do Git trafiają tylko zanonimizowane indeksy, draft i dokumentacja. Nie wykonano
 cutoveru, relokacji, cleanupu, task/shortcut/mount/config/flag change, restartu,
@@ -281,5 +298,8 @@ produkcyjny walidator odrzuca go przez `START_NOT_APPROVED`; adapterów nie
 wywołano. Klient i bezpośredni start procesu pozostają fail-closed. P3–P5 są
 `NOT_RUN / NOT_AUTHORIZED`.
 
-Następny krok: owner review preservation/source set/draft P2. Ewentualne
-`D21-P3` wymaga osobnej zgody operacyjnej; ten plan jej nie udziela.
+Następny krok: owner review źródłowej poprawki `ACTIVE_DATA_ONLY` i konkretnej
+listy P3: `KEEP` dla potwierdzonych bindów na D:, rozstrzygnięcie Qdrant/VHD/
+tablespaces/logów/profile, przygotowanie dokładnych mountów/flag oraz osobne
+przełączenie wersji backendu. `D21-P3` wymaga osobnej zgody operacyjnej; ten plan
+jej nie udziela.

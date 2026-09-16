@@ -20,8 +20,11 @@
   requirement, not permission to move/delete directories, change mounts/tasks,
   or deploy current work. R05-A4 source/API/widget tests are owner-accepted and
   committed. D-21/P1 authorizes launcher source and complete offline adapters
-  only in recovery; installation, a production manifest, task/shortcut changes,
-  live start, cutover and P2-P5 still require separate approval. Preserve
+  only in recovery. P2 preservation/candidate is owner-accepted as NOT_DEPLOYED;
+  the exact directory junction `C:\ai-lab-core\data -> D:\ai-lab-data` is the
+  owner-approved `ACTIVE_DATA_ONLY` topology and may be validated offline.
+  Installation, a production manifest, task/shortcut changes, live start,
+  cutover and P3-P5 still require separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
   cutover/cleanup approval; production must never execute recovery, staging, or
   test WIP.

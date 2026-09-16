@@ -1,6 +1,7 @@
 # R04 / D-21 / P2 — preservation and pinned candidate evidence
 
-Status: `PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NOT_DEPLOYED`
+Status: `PRESERVATION_AND_CANDIDATE_ACCEPTED / NOT_DEPLOYED` oraz
+`ACTIVE_DATA_D_JUNCTION_SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY`
 
 ## Zakres i tożsamość
 
@@ -12,6 +13,10 @@ Status: `PRESERVATION_AND_CANDIDATE_READY_FOR_REVIEW / NOT_DEPLOYED`
 - Wybrany source set P2: pełne drzewo commita
   `2e69622bc6a0b4888427f8ae5be119377aed26d9`, tree
   `4ee8f9ca77cc315dce428b689264d5125f0a23f5`.
+- Poprawka źródłowa DATA_ONLY: commit
+  `e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd`, tree
+  `873d199ed43c5d6719a34f2158b0537f7e07a73b`. Backend/frontend z P2 nie
+  zmieniły bajtów; zmiana obejmuje walidator, przykład, README i test junctionu.
 - Jeden chroniony root P2:
   `C:\ai-lab-core-staging\recovery\R04_D21_SINGLE_ROOT_20260915T033112Z\p2-20260915T212340Z`.
 - Kandydat jest `NOT_DEPLOYED / NOT_APPROVED_FOR_START`. P2 nie zmieniło
@@ -137,6 +142,31 @@ Bramki przed/po buildzie przeszły. Przed buildem Windows available 7.887 GiB,
 commit reserve 37.983 GiB, właściwa pula WSL/Docker available 15.032 GiB, swap
 used 0. Po buildzie odpowiednio 7.692 / 37.913 / 15.028 GiB, swap used 0.
 
+## DATA_ONLY — zmiana polityki i testy offline
+
+Preimage zaakceptowanego P1 odrzucił poprawny syntetyczny junction przez
+`CONTAINER_BIND_REPARSE_POINT:backend` (exit `1`). Jest to oczekiwany
+fail-before dla nowej decyzji właściciela, nie wada wcześniej odebranego P1.
+Źródło `e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd` dodaje wersjonowany kontrakt
+`NEXT_STABIL_DATA_TOPOLOGY_V1` i pozwala wyłącznie na dokładny directory
+junction danych z powiązaniem service/role/source/destination. Kod, manifest,
+script_ref, executable, CWD, `/app`, obcy/nested reparse, data2 i traversal
+pozostają fail-closed.
+
+Windows PowerShell `5.1.26100.8894`:
+
+- data junction: `20/20`, exit `0`, stdout SHA-256
+  `D59D16D3B5EF1F46E4C896B875B411706DC8366E2B38F0D7B255469F16346A91`;
+- host plan regression: `53/53`, exit `0`, stdout SHA-256
+  `6B15018D1A1C7EFA831F7B3C6A6DCDBFFE2D4922A0C97B36925134DBAE55DD15`;
+- real-adapter mapping regression: `48/48`, exit `0`, stdout SHA-256
+  `6112F31AFB76A2D7F192C0DFB8149226CD06D45C22038E7ADDB67C9F53A8881D`;
+- parser pięciu właściwych `.ps1`: błędy `0`; JSON przykładu: PASS.
+
+Test utworzył i usunął tylko własny, dokładnie nazwany syntetyczny junction i
+target. Wszystkie granice Docker/HTTP/CIM/TCP/Task Scheduler/startu pozostały
+atrapami. Nie zmieniono rzeczywistego junctionu, D:, backupów ani runtime.
+
 ## Draft manifest i celowa odmowa
 
 `R04_D21_P2_CANDIDATE_SET.json` korzysta z kontraktu P1
@@ -154,6 +184,14 @@ Pierwszy wrapper uruchomił PowerShell 7.6.5; jego zgodny wynik odmowy zachowano
 ale nie użyto jako wymaganego dowodu PS 5.1. Następnie poprawiono wyłącznie
 receptę uruchomienia i zapisano właściwy wynik 5.1.
 
+Po aktualizacji kandydata wykonano osobną kontrolę spójności danych: JSON PASS,
+`approval=NOT_APPROVED`, dokładny logical/target/type/purpose, pięć jawnych
+bindingów, source/tree `e4f298a.../873d199...`, host-runtime SHA-256
+`8137B3D365DDD5D8AA698EBBA9FF075A48048E3FC12771E980E3ADB64194BA46` oraz
+niezmienione pochodzenie Web z `2e69622...`. Negatywny przypadek planu
+`START_NOT_APPROVED` i zero adapterów jest częścią bieżącego testu junctionu;
+samego kandydata nie uruchamiano.
+
 ## Startup policy i skutki późniejszego P3
 
 Statyczny odczyt kandydata potwierdził domyślne `false` dla: Vision V1,
@@ -170,9 +208,11 @@ Nie oznacza to jeszcze bezpiecznego startupu całego backendu:
 Przed P3 wymagane są więc: zatwierdzona allowlista efektywnych flag,
 kontrola side effects `init_database` i backup reconciler, dokładne ID
 kontenerów/image/mountów, decyzja schema, przegląd zewnętrznego workera/profile,
-jawna decyzja o `D:\ai-lab-data` i usunięciu ukrytej zależności z przyszłego
-układu, okno operacyjne, aktualny rollback oraz osobna zgoda właściciela. P2 nie
-zmienia flag i nie uruchamia lifespan.
+potwierdzenie fizycznych miejsc zapisów nieobjętych dowodem D:, okno operacyjne,
+aktualny rollback oraz osobna zgoda właściciela. Wybór
+`C:\ai-lab-core\data -> D:\ai-lab-data` jest już rozstrzygnięty i ma status
+`OWNER_APPROVED_ACTIVE_DATA_JUNCTION`; P2 nie zmienia flag i nie uruchamia
+lifespan.
 
 ## Current observed vs candidate vs target
 
@@ -189,9 +229,34 @@ potwierdził, że aktualny backend nadal działa z:
 
 Odrębny odczyt metadanych ścieżki wykazał, że
 `C:\ai-lab-core\data` jest junctionem do `D:\ai-lab-data`. Backend source root
-nie jest reparse pointem. P2 nie zmienia tego układu, lecz P3 musi jawnie
-rozstrzygnąć zależność danych; nie wolno jej ukryć pod junctionem jako rzekomo
-pełnego single-root.
+nie jest reparse pointem. Właściciel zatwierdził ten dokładny junction jako
+`ACTIVE_DATA_ONLY`: jeden root instalacji oznacza jedno źródło kodu/startu, a
+nie jeden fizyczny dysk kodu i danych. Link i dane nie zostały zmienione.
+
+## Fizyczne miejsca zapisów
+
+Poniższa tabela rozdziela deklaracje źródłowe od historycznej obserwacji runtime
+z `2026-09-15T21:43:27.3024961Z`. `CONFIRMED_D` oznacza potwierdzony łańcuch
+mount → logiczne `C:\ai-lab-core\data` → junction D:, a nie bieżący test
+end-to-end każdego zapisu aplikacji.
+
+| Kategoria / zapisujący | Ścieżka usługi → host | Dowód | Stan | Brakujące P3 |
+|---|---|---|---|---|
+| PostgreSQL: cluster, indeksy i WAL wewnątrz PGDATA | `/var/lib/postgresql/data` → `C:\ai-lab-core\data\postgres` → `D:\ai-lab-data\postgres` | Compose + historyczny live bind + metadata junction | `CONFIRMED_D` | Odczyt-only: wykluczyć zewnętrzne tablespaces/WAL. |
+| PostgreSQL: zewnętrzne tablespaces/WAL | nieustalone | brak odczytu konfiguracji DB | `UNKNOWN` | Rozliczyć konkretne lokalizacje bez SQL zapisu/migracji. |
+| Backend: dokumenty, poczta/CRM attachments, KB originals/extracted/chunks, OCR/rendery, analysis/vision spool | `/data/...` → `C:\ai-lab-core\data\...` → D: | `settings.data_dir=/data`, mapy ścieżek w kodzie, historyczny live `/data` bind i junction | `CONFIRMED_D` | Potwierdzić efektywne flagi i wszystkie dodatkowe cache/tmp/log paths. |
+| Qdrant: kolekcje/indeksy | `/qdrant/storage` → managed volume `qdrant_storage` | deklaracja Compose; brak backing metadata | `UNKNOWN` | Ustalić fizyczny backing/VHD; managed volume nie dowodzi D:. |
+| n8n | `/home/node/.n8n` → `C:\ai-lab-core\data\n8n` → D: | Compose + historyczny live bind + junction | `CONFIRMED_D` | `KEEP`; tylko potwierdzić exact mount w oknie P3. |
+| Ollama models/state | `/root/.ollama` → `C:\ai-lab-core\data\ollama` → D: | Compose + historyczny live bind + junction | `CONFIRMED_D` | `KEEP`; nie pobierać/przenosić modeli w P3. |
+| Open WebUI state | `/app/backend/data` → `C:\ai-lab-core\data\openwebui` → D: | Compose + historyczny live bind + junction | `CONFIRMED_D` | `KEEP`; potwierdzić exact mount. |
+| Worker/AI spool i wyniki repozytoryjne | `/data/analysis-spool`, `/data/vision-spool` → D: | kod + backend live bind | `CONFIRMED_D` | Potwierdzić wyłącznie efektywne consumers/flags. |
+| Zewnętrzny Vision profile/session/state | `C:\ChatGPT-Vision-Worker` | mapa D-21; brak relokacji/odczytu profilu | `CURRENT_C_REQUIRES_RELOCATION` | Osobna zgoda i session-safe plan; bez cookies/secrets. |
+| Docker/WSL VHD, image layers, writable layers i container logs | instalacja zarządzana przez Docker/WSL | fizyczne położenie nieodczytane | `UNKNOWN` | Odczyt-only backing metadata i wpływ; bez move/restart. |
+| Duże cache/tmp/logi poza `/data` | zależne od procesu | częściowe deklaracje, brak kompletnego runtime proof | `UNKNOWN` | Zamknąć allowlistę trwałych ścieżek; małe logi kontrolne pozostają wyjątkiem. |
+| Backup schedules | oddzielne taski/wrappers i dotychczasowe cele | D21-031 + istniejące dowody R03 | `NOT_APPLICABLE` dla zwykłego startu | Zachować mechanizm, harmonogram, retencję i cele bez zmian; nie uruchamiać backupu. |
+
+Nie wykonano nowego odczytu Engine, SQL, `docker exec`, skanu danych ani zapisu
+kontrolnego do firmy. Wniosek nie ma statusu `ALL_LIVE_WRITES_ON_D_PASS`.
 
 Nie ma mountu recovery ani P2, a kandydat nie jest załadowany. Aktywny deploy
 repo pozostaje clean na `483f9bf8b1a591ded8a42df5da87663c664ed5d4`, a dokładny override D21-016 ma
@@ -220,7 +285,7 @@ startu aplikacji/launchera/Supervisora/workera/modeli, zmiany tasków, mountów,
 flag, kolejek, harmonogramów, backupu, restore, escrow, deploymentu, release ani
 cleanup. Wszystkie oryginalne roots i profile pozostają na miejscu.
 
-P2 nie dowodzi działania aplikacji, Web runtime, zgodności Windows/Android,
+P2 ani poprawka DATA_ONLY nie dowodzą działania aplikacji, Web runtime, zgodności Windows/Android,
 realnego eksportu, aktualności danych recovery ani poprawnego cutoveru.
 `PRODUCTION_START_MANIFEST_NOT_APPROVED`; P3–P5 są `NOT_RUN`.
 
@@ -237,7 +302,7 @@ realnego eksportu, aktualności danych recovery ani poprawnego cutoveru.
 5. Powrót danych wymaga osobnej decyzji R03/escrow i aktualności punktu; P2 nie
    zastępuje backupu.
 
-Następny krok: właściciel przegląda P2, szczególnie wybór source set,
-unikalne 9 commitów audit, różnice zewnętrznego workera, draft manifestu i
-bramki startup side effects. P3 wymaga nowej, operacyjnej zgody; nie jest
-uruchamiany automatycznie.
+Następny krok: review poprawki DATA_ONLY oraz zamknięta lista zmian P3: `KEEP`
+dla potwierdzonych bindów na D:, rozstrzygnięcie Qdrant/VHD/tablespaces/logów/
+profile, dokładne ID/image/mounty/flag i osobne przełączenie wersji backendu.
+P3 wymaga nowej, operacyjnej zgody; nie jest uruchamiany automatycznie.

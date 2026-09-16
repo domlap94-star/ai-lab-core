@@ -2794,3 +2794,16 @@ media on approved E:/F: locations and recovery key/escrow remain separate by
 design; Docker/WSL volumes and installed SDKs are inventoried but are not
 silently migrated. Feature work after A4 remains blocked until the R04 single
 root/start gate is accepted and its operational parts are separately approved.
+
+**OWNER DATA-TOPOLOGY DECISION — ACTIVE DATA DISK D — 2026-09-16.** The exact
+logical path `C:\ai-lab-core\data` remains a Windows directory junction to the
+physical active-data target `D:\ai-lab-data`. This is an explicit
+`ACTIVE_DATA_ONLY` exception to the single-root reparse prohibition: code,
+launch scripts, executables and working directories remain under the canonical
+install root, while PostgreSQL, KB, attachments, processing payloads, models
+and service state are intended to grow on D:. It is not an archive/export-only
+path and there is no planned copy-first-to-C: design. Existing backup schedules
+remain separate from ordinary startup and are not replaced or changed by this
+decision. Source validation and offline tests are authorized in recovery;
+junction/mount/data changes, production start, P3 cutover and cleanup remain
+separately gated.
