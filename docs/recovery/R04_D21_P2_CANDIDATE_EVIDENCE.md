@@ -1,7 +1,8 @@
 # R04 / D-21 / P2 — preservation and pinned candidate evidence
 
 Status: `PRESERVATION_AND_CANDIDATE_ACCEPTED / NOT_DEPLOYED` oraz
-`ACTIVE_DATA_DESTINATION_GUARD_READY_FOR_REVIEW / OFFLINE_TEST_ONLY`
+`ACTIVE_DATA_TOPOLOGY_AND_DESTINATION_SOURCE_ACCEPTED / OFFLINE_TEST_ONLY /
+NOT_DEPLOYED`; P3: `PREPARATION_PARTIAL / NO_CUTOVER`
 
 ## Zakres i tożsamość
 
@@ -294,8 +295,10 @@ end-to-end każdego zapisu aplikacji.
 | Duże cache/tmp/logi poza `/data` | zależne od procesu | częściowe deklaracje, brak kompletnego runtime proof | `UNKNOWN` | Zamknąć allowlistę trwałych ścieżek; małe logi kontrolne pozostają wyjątkiem. |
 | Backup schedules | oddzielne taski/wrappers i dotychczasowe cele | D21-031 + istniejące dowody R03 | `NOT_APPLICABLE` dla zwykłego startu | Zachować mechanizm, harmonogram, retencję i cele bez zmian; nie uruchamiać backupu. |
 
-Nie wykonano nowego odczytu Engine, SQL, `docker exec`, skanu danych ani zapisu
-kontrolnego do firmy. Wniosek nie ma statusu `ALL_LIVE_WRITES_ON_D_PASS`.
+W sesji źródłowej DATA_ONLY nie wykonano nowego odczytu Engine, SQL,
+`docker exec`, skanu danych ani zapisu kontrolnego do firmy. Późniejszy,
+ograniczony odczyt P3 preparation jest opisany oddzielnie poniżej. Wniosek nie
+ma statusu `ALL_LIVE_WRITES_ON_D_PASS`.
 
 Nie ma mountu recovery ani P2, a kandydat nie jest załadowany. Aktywny deploy
 repo pozostaje clean na `483f9bf8b1a591ded8a42df5da87663c664ed5d4`, a dokładny override D21-016 ma
@@ -326,7 +329,7 @@ cleanup. Wszystkie oryginalne roots i profile pozostają na miejscu.
 
 P2 ani poprawka DATA_ONLY nie dowodzą działania aplikacji, Web runtime, zgodności Windows/Android,
 realnego eksportu, aktualności danych recovery ani poprawnego cutoveru.
-`PRODUCTION_START_MANIFEST_NOT_APPROVED`; P3–P5 są `NOT_RUN`.
+`PRODUCTION_START_MANIFEST_NOT_APPROVED`; operacyjne P3–P5 są `NOT_RUN`.
 
 ## Odtworzenie i rollback
 
@@ -341,7 +344,42 @@ realnego eksportu, aktualności danych recovery ani poprawnego cutoveru.
 5. Powrót danych wymaga osobnej decyzji R03/escrow i aktualności punktu; P2 nie
    zastępuje backupu.
 
-Następny krok: review poprawki celu mountu DATA_ONLY oraz zamknięta lista zmian P3: `KEEP`
-dla potwierdzonych bindów na D:, rozstrzygnięcie Qdrant/VHD/tablespaces/logów/
-profile, dokładne ID/image/mounty/flag i osobne przełączenie wersji backendu.
-P3 wymaga nowej, operacyjnej zgody; nie jest uruchamiany automatycznie.
+## P3 preparation — bieżący odczyt i wynik
+
+Właściciel odebrał destination guard na source `cb6e225...` i evidence
+`e9c17933...`. Dnia 2026-09-16 wykonano dopuszczoną serię read-only:
+
+- dokładny junction `C:\ai-lab-core\data -> D:\ai-lab-data` potwierdzono
+  bieżąco; D: jest NTFS i target istnieje;
+- Public Gateway działa na `127.0.0.1:8789`; `/gateway-health=200`, a
+  publiczne `/control=404`;
+- Engine odpowiedział na version/info, lecz bounded `docker ps -a` i potem
+  jeden celowany inspect sześciu znanych nazw przekroczyły po 20 s. Własne
+  CLI zakończono; bieżące container/image/mount/volume/log facts pozostają
+  `CURRENT_UNKNOWN` zamiast kopiowania obserwacji historycznej;
+- current Docker data VHD znajduje się na C: i ma 46,937,407,488 B;
+- host nie ma `psql`, więc po utracie obserwowalności Engine nie wykonano
+  dozwolonej sesji SQL ani `docker exec`; schema/WAL/tablespaces i zagregowane
+  stany DB pozostają `UNKNOWN`;
+- Task Scheduler potwierdził niezmienione taski. Backup 2 i 3 mają ostatni
+  result `1`, a najnowszy znaleziony lokalny manifest pochodzi z 2026-08-29;
+- profil/state `C:\ChatGPT-Vision-Worker` ma 7,328 plików / 890,094,670 B na
+  C:. Nie odczytywano cookies, tokenów ani zawartości profilu.
+
+Source review wykazał też, że `init_database()` bezwarunkowo wykonuje
+`seed_admin()`, a backup plan reconciler jest uruchamiany bezwarunkowo i może
+zapisywać sync events oraz kontaktować Supervisor. Jednocześnie bieżące pliki
+Compose deklarują kilka producerów jako `true`; historyczny override wyłącza
+tylko document preparation. Effective env nie został odczytany z kontenera.
+
+Pełna tabela i plan znajdują się w
+`R04_D21_P3_PREPARATION.md` i `R04_D21_P3_CHANGESET.csv`. Wynik to
+`PREPARATION_PARTIAL`: blokują go bieżąca obserwowalność Engine, brak SQL,
+brak bezpiecznego guardu reconcilera dla pierwszego base-only startu oraz
+nierozstrzygnięta aktualność rollbacku danych. Kandydat nadal ma
+`approval.status=NOT_APPROVED`; P3 nie został wykonany.
+
+Następny krok: po rzeczywistej zmianie stanu Engine dokończyć jedną bounded
+projekcję container/image/mount/volume i jedną READ ONLY sesję SQL, a następnie
+przedstawić właścicielowi osobną decyzję dla nazwanego
+`P3 CORE BACKEND SOURCE SWITCH`. Bez automatycznego cutoveru.

@@ -21,6 +21,7 @@
     "p1_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
     "p1_evidence": "7687cc15bb31175d19485b10a6e13dfc5945bfc2",
     "p2_acceptance_evidence": "f872cf9e548a7ec196289e0c1987b654b1017505",
+    "data_topology_acceptance_evidence": "e9c17933b9f6a7f9ee6c825d371661a3769da0c9",
     "a4_source": "04ab5e58cf86896ffd946cabffde13367d343f53",
     "a4_evidence": "8620871711321a42e62291e52865b5a668a4955d"
   },
@@ -495,14 +496,78 @@
     "recovery_or_p2_mount_present": false,
     "candidate_loaded": false
   },
+  "p3_preparation_observation": {
+    "observed_utc": "2026-09-16T13:43:51Z",
+    "status": "PREPARATION_PARTIAL",
+    "scope": "READ_ONLY_METADATA_NO_CUTOVER",
+    "accepted_data_topology_source": "cb6e22506a0fecc440400566293524536847b9b0",
+    "junction": {
+      "path": "C:\\ai-lab-core\\data",
+      "link_type": "Junction",
+      "target": "D:\\ai-lab-data",
+      "evidence": "CURRENT_OBSERVED_ON_D"
+    },
+    "public_gateway": {
+      "listener": "127.0.0.1:8789",
+      "process_id": 41784,
+      "script": "C:\\ai-lab-core\\operations\\gateway\\public_web_server.cjs",
+      "health_status": 200,
+      "public_control_status": 404,
+      "evidence": "CURRENT_OBSERVED"
+    },
+    "docker_engine": {
+      "server_version_and_info_responded": true,
+      "container_projection": "CURRENT_UNKNOWN",
+      "failure": "BOUNDED_DOCKER_PS_AND_TARGETED_INSPECT_TIMEOUT",
+      "timed_out_cli_processes_terminated": true
+    },
+    "docker_storage": {
+      "vhd_path": "C:\\Users\\domai\\AppData\\Local\\Docker\\wsl\\disk\\docker_data.vhdx",
+      "vhd_size_bytes": 46937407488,
+      "physical_drive": "C:",
+      "status": "CURRENT_C_RELOCATION_REQUIRED"
+    },
+    "database": {
+      "sql_metadata": "NOT_OBSERVED",
+      "reason": "DOCKER_ENGINE_OBSERVABILITY_BLOCKED_AND_HOST_PSQL_ABSENT"
+    },
+    "backup": {
+      "latest_local_manifest": "20260829T191529Z",
+      "latest_local_manifest_evidence": "HISTORICAL_BACKUP_METADATA",
+      "schedule_2_last_result": 1,
+      "schedule_3_last_result": 1,
+      "schedules_changed": false
+    },
+    "vision_worker_state": {
+      "path": "C:\\ChatGPT-Vision-Worker",
+      "file_count": 7328,
+      "size_bytes": 890094670,
+      "status": "CURRENT_C_RELOCATION_REQUIRED",
+      "content_read": false
+    },
+    "startup_effects": {
+      "database_initialization": "UNCONDITIONAL_SEED_ADMIN_READ_OR_WRITE_IF_MISSING",
+      "backup_plan_reconciler": "UNCONDITIONAL_AND_MAY_WRITE_SYNC_STATE_OR_CALL_SUPERVISOR",
+      "effective_container_environment": "NOT_OBSERVED",
+      "required_first_start_policy": "BASE_READY_ONLY_ALL_PRODUCER_FLAGS_FALSE_AND_RECONCILER_GUARDED"
+    },
+    "blockers": [
+      "DOCKER_ENGINE_OBSERVABILITY_BLOCKED",
+      "DATABASE_METADATA_NOT_OBSERVED",
+      "BASE_START_SIDE_EFFECT_GUARD_MISSING",
+      "ROLLBACK_DATA_FRESHNESS_UNRESOLVED"
+    ]
+  },
   "remaining_gates": [
-    "OWNER_REVIEW_ACTIVE_DATA_DESTINATION_GUARD_SOURCE",
     "P3_SEPARATE_OPERATIONAL_APPROVAL",
+    "RESTORE_DOCKER_ENGINE_OBSERVABILITY_WITHOUT_AUTOMATIC_RESTART",
+    "CURRENT_CONTAINER_IMAGE_MOUNT_VOLUME_LOG_AND_RESTART_OBSERVATION",
+    "CURRENT_READ_ONLY_DATABASE_SCHEMA_WAL_TABLESPACE_QUEUE_AND_BACKUP_METADATA",
     "CURRENT_DATA_RECOVERY_AND_R03_ESCROW_DECISION",
-    "VERIFY_ACTIVE_DATA_BINDINGS_AND_PHYSICAL_WRITE_LOCATIONS_IN_P3",
-    "RESOLVE_QDRANT_VOLUME_AND_DOCKER_WSL_VHD_PHYSICAL_LOCATION",
-    "EXACT_CONTAINER_AND_IMAGE_IDENTITIES",
-    "CONTROL_BACKUP_PLAN_RECONCILER_AND_INIT_DATABASE_SIDE_EFFECTS",
+    "VERIFY_ACTIVE_DATA_BINDINGS_AND_PHYSICAL_WRITE_LOCATIONS_BEFORE_CUTOVER",
+    "RESOLVE_QDRANT_VOLUME_RELATION_AND_RELOCATE_DOCKER_WSL_VHD_TO_D_IN_SEPARATE_OPERATION",
+    "EXACT_CONTAINER_AND_IMAGE_IDENTITIES_BEFORE_CUTOVER",
+    "ADD_OR_APPROVE_BACKUP_PLAN_RECONCILER_GUARD_AND_VERIFY_INIT_DATABASE_PRECONDITIONS",
     "CONFIRM_ALL_AI_PROCESSING_FLAGS_FALSE_IN_EFFECTIVE_P3_CONFIG",
     "REVIEW_EXTERNAL_VISION_WORKER_SOURCE_AND_PROFILE_STATE",
     "PRODUCTION_ENDPOINT_WEB_BUILD_AND_RUNTIME_ACCEPTANCE",

@@ -73,6 +73,10 @@
   new roadmap, change scope/criteria, or replace 9B/KB/Temporary Chat. "Continue"
   does not consume operational approvals or authorize the next package.
   `WAITING_APPROVAL` requires the applicable decision.
+- D-21 `P3 PREPARATION ONLY` permits bounded read-only Docker/WSL/host/SQL
+  metadata and reviewed planning documentation. It does not permit installation,
+  cutover, runtime/config/data/mount/task changes, service start/restart, backup,
+  restore, escrow, or automatic continuation into operational P3/P4/P5.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

@@ -2806,4 +2806,12 @@ path and there is no planned copy-first-to-C: design. Existing backup schedules
 remain separate from ordinary startup and are not replaced or changed by this
 decision. Source validation and offline tests are authorized in recovery;
 junction/mount/data changes, production start, P3 cutover and cleanup remain
-separately gated.
+separately gated. The source guard at
+`cb6e22506a0fecc440400566293524536847b9b0` with evidence
+`e9c17933b9f6a7f9ee6c825d371661a3769da0c9` is owner-accepted as
+`OFFLINE_TEST_ONLY / NOT_DEPLOYED`. D-21 now permits only P3 preparation:
+bounded read-only Docker/WSL/host/SQL metadata and a concrete changeset. This
+does not approve installation, a production manifest, service changes,
+cutover, relocation, task installation, live startup or cleanup. The first
+runtime mutation still requires a separate owner decision on the completed
+changeset.

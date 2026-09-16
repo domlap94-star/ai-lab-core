@@ -1,6 +1,9 @@
 # R04 / D-21 — plan jednego katalogu instalacji i jednego startu
 
-Status dokumentu: `P1_SOURCE_AND_OFFLINE_TESTS_ACCEPTED / P2_PRESERVATION_AND_CANDIDATE_ACCEPTED / ACTIVE_DATA_D_JUNCTION_SOURCE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`
+Status dokumentu: `P1_SOURCE_AND_OFFLINE_TESTS_ACCEPTED /
+P2_PRESERVATION_AND_CANDIDATE_ACCEPTED /
+ACTIVE_DATA_TOPOLOGY_AND_DESTINATION_SOURCE_ACCEPTED /
+P3_PREPARATION_PARTIAL / NO_OPERATIONAL_CHANGES`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -174,8 +177,9 @@ source i atrapionych testów; odbiór nie jest zgodą operacyjną.
 
 Stan po decyzji właściciela: `PRESERVATION_AND_CANDIDATE_ACCEPTED /
 NOT_DEPLOYED`. Wyjątek `ACTIVE_DATA_ONLY` jest
-`SOURCE_READY_FOR_REVIEW / OFFLINE_TEST_ONLY` na commicie
-`e4f298a46efa2ad29921fcf7cce0ca6a04f3d0fd`; nie jest wdrożony.
+`SOURCE_ACCEPTED / OFFLINE_TEST_ONLY / NOT_DEPLOYED` na commicie
+`cb6e22506a0fecc440400566293524536847b9b0` i evidence
+`e9c17933b9f6a7f9ee6c825d371661a3769da0c9`; nie jest wdrożony.
 Wybrany jest jeden pełny source set
 `2e69622bc6a0b4888427f8ae5be119377aed26d9`, który zawiera niezmienione bajty
 aplikacyjne zaakceptowanego A4 oraz odebrany launcher P1. Snapshot, manifest
@@ -205,7 +209,18 @@ sekretne lub biznesowe payloads pozostają poza Git. Szczegóły:
 
 ### D21-P3 — kontrolowany cutover jednego zestawu
 
-Precondition: P1/P2 accepted, owner review poprawki `ACTIVE_DATA_ONLY`, aktualny
+Stan preparation 2026-09-16: `PARTIAL / READ_ONLY / NO_CUTOVER`. Junction D:
+i Public Gateway potwierdzono bieżąco, lecz Engine nie zwrócił bounded
+`docker ps` ani celowanego inspectu. SQL nie wykonano bez zweryfikowanego
+kontenera/hostowego psql. Docker data VHD jest bieżąco na C:, backup taski 2/3
+mają last result `1`, a backup reconciler w source startuje bezwarunkowo i może
+zapisywać sync state. Dokładny changeset znajduje się w
+`R04_D21_P3_CHANGESET.csv`, a dowody i sekwencja w
+`R04_D21_P3_PREPARATION.md`.
+
+Precondition: P1/P2 i DATA_ONLY source accepted, bieżące exact
+container/image/mount/volume/log metadata, READ ONLY schema/WAL/tablespaces/
+queue/backup state, odebrany base-only guard reconcilera, aktualny
 rollback point i okno operacyjne,
 brak aktywnego backup/import/restore/export, dokładny source/build manifest oraz
 osobna zgoda na przerwę. R03 nadal nie pozwala deklarować pełnej recovery
@@ -223,6 +238,14 @@ mount.
 Rollback: dokładny aktywny override `36355C...436E8`, deploy
 `483f9bf8...`, obraz `6342b36f...63702`, bieżący Web manifest i task definitions.
 Uprawnienie: osobna zgoda deployment/cutover; żadna komenda nie została wykonana.
+
+Najmniejszy proponowany pierwszy pakiet to `P3 CORE BACKEND SOURCE SWITCH`:
+zachowanie obecnego Web/gateway i danych, instalacja exact backend source,
+jedna kontrolowana rekreacja wyłącznie backendu bez build/pull, wszystkie
+producery wyłączone oraz Supervisor nadal zatrzymany. Pakiet nie jest jeszcze
+gotowy do zgody operacyjnej, dopóki cztery blockery preparation nie zostaną
+zamknięte. Relokacja Docker VHD/Qdrant i profilu workera jest osobnym późniejszym
+krokiem P3, nie częścią pierwszego switchu.
 
 ### D21-P4 — jeden start i rollback acceptance
 
@@ -278,8 +301,9 @@ Uprawnienie: osobna exact-name cleanup approval.
 - Qdrant managed volume, Docker/WSL VHD i warstwy zapisu, zewnętrzne
   tablespaces/WAL, container logs/cache oraz profil/state zewnętrznego workera
   nadal nie mają pełnego dowodu fizycznej lokalizacji.
-- Draft P2 jest celowo `NOT_APPROVED_FOR_START`; brak dokładnych przyszłych
-  ID/image/digest/mountów i aktualnej decyzji rollback danych blokuje P3.
+- Draft P2 jest celowo `NOT_APPROVED_FOR_START`; brak bieżących
+  ID/image/digest/mountów po timeoutach Engine, brak SQL, guardu reconcilera i
+  aktualnej decyzji rollback danych blokuje P3.
 
 Te braki blokują odpowiednie relokacje lub cleanup, lecz nie unieważniają
 gotowości mapy i planu do właścicielskiego review.
@@ -298,8 +322,7 @@ produkcyjny walidator odrzuca go przez `START_NOT_APPROVED`; adapterów nie
 wywołano. Klient i bezpośredni start procesu pozostają fail-closed. P3–P5 są
 `NOT_RUN / NOT_AUTHORIZED`.
 
-Następny krok: owner review źródłowej poprawki `ACTIVE_DATA_ONLY` i konkretnej
-listy P3: `KEEP` dla potwierdzonych bindów na D:, rozstrzygnięcie Qdrant/VHD/
-tablespaces/logów/profile, przygotowanie dokładnych mountów/flag oraz osobne
-przełączenie wersji backendu. `D21-P3` wymaga osobnej zgody operacyjnej; ten plan
-jej nie udziela.
+Następny krok: owner review scalonego P3 changesetu. Po rzeczywistej zmianie
+stanu Engine należy dokończyć jedną bounded projekcję exact container/image/
+mount/volume/log i jedną READ ONLY sesję SQL. Dopiero potem osobna zgoda może
+objąć `P3 CORE BACKEND SOURCE SWITCH`; ten plan jej nie udziela.
