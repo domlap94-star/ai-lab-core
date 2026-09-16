@@ -34,9 +34,16 @@ cannot make an internally inconsistent manifest valid.
 `C:\ai-lab-core\data -> D:\ai-lab-data` solely for declared `ACTIVE_DATA_ONLY`
 container bindings. The validator reads the junction type and target, checks
 the logical and physical path chains, and binds every allowed source to an
-explicit service, role and destination. It never authorizes `/app`, code,
-`script_ref`, an executable or a host-service working directory through the
-data path. Missing or unreadable metadata, another target/type, a nested
+exact, case-sensitive container contract: `backend/APPLICATION_DATA=/data`,
+`postgres/POSTGRESQL_DATA=/var/lib/postgresql/data`,
+`n8n/N8N_DATA=/home/node/.n8n`,
+`open-webui/OPENWEBUI_DATA=/app/backend/data`, or
+`ollama/OLLAMA_DATA=/root/.ollama`. Matching declarations in two manifest
+sections do not authorize another service, role or destination. In particular,
+the Open WebUI path under `/app` does not authorize backend data under `/app`.
+The exception never authorizes code, `script_ref`, an executable or a
+host-service working directory through the data path. Missing or unreadable
+metadata, another target/type, an unknown contract, a nested
 reparse point or a path-boundary trick refuses startup before adapters. The
 launcher never creates the junction, target, a replacement directory, a
 volume, or an empty database.

@@ -94,6 +94,36 @@ function Save-DataJunctionManifest {
     Write-TestText -Path $manifestPath -Text ($Manifest | ConvertTo-Json -Depth 30)
 }
 
+function Set-DataJunctionBindingVariant {
+    param(
+        $Manifest,
+        [string]$Service,
+        [string]$Role,
+        [string]$RelativeSource,
+        [string]$Destination
+    )
+    $source = Join-Path $dataLink $RelativeSource
+    $target = Join-Path $targetRoot $RelativeSource
+    [void](New-Item -ItemType Directory -Path $target -Force)
+    $Manifest.data_topology.bindings[0].service = $Service
+    $Manifest.data_topology.bindings[0].role = $Role
+    $Manifest.data_topology.bindings[0].source = $source
+    $Manifest.data_topology.bindings[0].destination = $Destination
+    $Manifest.containers[0].service = $Service
+    $Manifest.containers[0].mounts[1].source = $source
+    $Manifest.containers[0].mounts[1].destination = $Destination
+    return $Manifest
+}
+
+function Assert-DataManifestRefusedBeforeAdapters {
+    param($Manifest, [string]$ExpectedError, [string]$Name)
+    Save-DataJunctionManifest $Manifest
+    $blockedState = New-DataJunctionState $Manifest
+    $blocked = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-DataJunctionAdapters $blockedState) -AllowSyntheticRoot
+    $detail = @($blocked.details) -join ';'
+    Assert-DataJunction ($blocked.code -eq 'MANIFEST_REFUSED' -and $detail -match $ExpectedError -and $blockedState.calls.Count -eq 0) ($Name + '; actual=' + ($blocked | ConvertTo-Json -Depth 8 -Compress))
+}
+
 function New-DataJunctionState {
     param($Manifest)
     $container = Copy-TestObject $Manifest.containers[0]
@@ -140,6 +170,23 @@ try {
     $callCount = $state.calls.Count
     $repeat = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-DataJunctionAdapters $state) -AllowSyntheticRoot
     Assert-DataJunction ($repeat.code -eq 'BASE_READY_LIMITED' -and $state.starts -eq 0 -and $state.calls.Count -gt $callCount) 'second run re-observes without duplicating resources'
+
+    $approvedVariants = @(
+        [pscustomobject]@{ service = 'backend'; role = 'APPLICATION_DATA'; source = 'application'; destination = '/data' },
+        [pscustomobject]@{ service = 'postgres'; role = 'POSTGRESQL_DATA'; source = 'postgres'; destination = '/var/lib/postgresql/data' },
+        [pscustomobject]@{ service = 'n8n'; role = 'N8N_DATA'; source = 'n8n'; destination = '/home/node/.n8n' },
+        [pscustomobject]@{ service = 'open-webui'; role = 'OPENWEBUI_DATA'; source = 'openwebui'; destination = '/app/backend/data' },
+        [pscustomobject]@{ service = 'ollama'; role = 'OLLAMA_DATA'; source = 'ollama'; destination = '/root/.ollama' }
+    )
+    foreach ($variant in $approvedVariants) {
+        $positive = Set-DataJunctionBindingVariant -Manifest (Copy-TestObject $manifest) -Service $variant.service -Role $variant.role -RelativeSource $variant.source -Destination $variant.destination
+        Save-DataJunctionManifest $positive
+        $positiveState = New-DataJunctionState $positive
+        $positiveResult = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-DataJunctionAdapters $positiveState) -AllowSyntheticRoot
+        Assert-DataJunction ($positiveResult.code -eq 'BASE_READY_LIMITED' -and $positiveState.calls.Count -gt 0 -and $positiveState.starts -eq 0) ('approved data binding reaches the synthetic plan: ' + $variant.service)
+        $positiveRepeat = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-DataJunctionAdapters $positiveState) -AllowSyntheticRoot
+        Assert-DataJunction ($positiveRepeat.code -eq 'BASE_READY_LIMITED' -and $positiveState.starts -eq 0) ('approved data binding remains idempotent: ' + $variant.service)
+    }
 
     $sentinelTarget = Join-Path $targetRoot 'application\sentinel.txt'
     $sentinelLink = Join-Path $dataLink 'application\sentinel.txt'
@@ -228,6 +275,33 @@ try {
     $blocked = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-DataJunctionAdapters $blockedState) -AllowSyntheticRoot
     Assert-DataJunction ($blocked.code -eq 'MANIFEST_REFUSED' -and (@($blocked.details) -join ';') -match 'DATA_BINDING_SOURCE_OUTSIDE_DATA' -and $blockedState.calls.Count -eq 0) 'data traversal cannot escape the approved data root'
 
+    $wrongContractPairs = @(
+        [pscustomobject]@{ service = 'postgres'; role = 'N8N_DATA'; source = 'postgres'; destination = '/home/node/.n8n' },
+        [pscustomobject]@{ service = 'backend'; role = 'OPENWEBUI_DATA'; source = 'application'; destination = '/app/backend/data' },
+        [pscustomobject]@{ service = 'unknown-service'; role = 'APPLICATION_DATA'; source = 'application'; destination = '/data' },
+        [pscustomobject]@{ service = 'backend'; role = 'UNKNOWN_DATA'; source = 'application'; destination = '/data' }
+    )
+    foreach ($pair in $wrongContractPairs) {
+        $wrongPair = Set-DataJunctionBindingVariant -Manifest (Copy-TestObject $manifest) -Service $pair.service -Role $pair.role -RelativeSource $pair.source -Destination $pair.destination
+        Assert-DataManifestRefusedBeforeAdapters -Manifest $wrongPair -ExpectedError 'DATA_BINDING_(CONTRACT_MISMATCH|ROLE_INVALID)' -Name ('service role destination contract is fixed: ' + $pair.service + '/' + $pair.role)
+    }
+
+    foreach ($destination in @('/app', '/app/app', '/app/.', '/app/', '/app/../app', '/app/backend/data', '/unapproved', '/Data')) {
+        $wrongDestination = Copy-TestObject $manifest
+        $wrongDestination.data_topology.bindings[0].destination = $destination
+        $wrongDestination.containers[0].mounts[1].destination = $destination
+        Assert-DataManifestRefusedBeforeAdapters -Manifest $wrongDestination -ExpectedError 'DATA_BINDING_CONTRACT_MISMATCH' -Name ('backend application data refuses unapproved destination ' + $destination)
+    }
+
+    $emptyDestination = Copy-TestObject $manifest
+    $emptyDestination.data_topology.bindings[0].destination = ''
+    $emptyDestination.containers[0].mounts[1].destination = ''
+    Assert-DataManifestRefusedBeforeAdapters -Manifest $emptyDestination -ExpectedError 'DATA_BINDING_DESTINATION_INVALID' -Name 'empty destination is refused before adapters'
+
+    $additionalDataMount = Copy-TestObject $manifest
+    $additionalDataMount.containers[0].mounts += [pscustomobject]@{ source = (Join-Path $dataLink 'application'); destination = '/extra'; type = 'bind'; read_only = $false }
+    Assert-DataManifestRefusedBeforeAdapters -Manifest $additionalDataMount -ExpectedError 'CONTAINER_BIND_REPARSE_POINT' -Name 'additional unapproved mount through the junction is refused'
+
     $appThroughData = Copy-TestObject $manifest
     $appThroughData.data_topology.bindings[0].destination = '/app'
     $appThroughData.containers[0].mounts = @($appThroughData.containers[0].mounts[1])
@@ -235,7 +309,7 @@ try {
     Save-DataJunctionManifest $appThroughData
     $blockedState = New-DataJunctionState $appThroughData
     $blocked = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-DataJunctionAdapters $blockedState) -AllowSyntheticRoot
-    Assert-DataJunction ($blocked.code -eq 'MANIFEST_REFUSED' -and (@($blocked.details) -join ';') -match 'DATA_BINDING_DESTINATION_INVALID' -and $blockedState.calls.Count -eq 0) '/app cannot use the data-only exception'
+    Assert-DataJunction ($blocked.code -eq 'MANIFEST_REFUSED' -and (@($blocked.details) -join ';') -match 'DATA_BINDING_CONTRACT_MISMATCH' -and $blockedState.calls.Count -eq 0) '/app cannot use the data-only exception'
 
     $directTarget = Copy-TestObject $manifest
     $directTarget.containers[0].mounts[1].source = Join-Path $targetRoot 'application'

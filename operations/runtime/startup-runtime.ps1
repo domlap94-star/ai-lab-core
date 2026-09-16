@@ -510,7 +510,7 @@ function Test-StartupDataTopology {
     )
 
     $errors = New-Object System.Collections.Generic.List[string]
-    $approvedBindings = @{}
+    $approvedBindings = [System.Collections.Generic.Dictionary[string,object]]::new([System.StringComparer]::Ordinal)
     if ($null -eq $Topology) { return [pscustomobject]@{ valid = $true; errors = @(); logical_path = ''; target = ''; approved_bindings = $approvedBindings } }
     if ((Get-StartupProperty -InputObject $Topology -Name 'schema') -ne $script:NextStabilDataTopologySchema) { $errors.Add('DATA_TOPOLOGY_SCHEMA_UNSUPPORTED') }
     if ((Get-StartupProperty -InputObject $Topology -Name 'purpose') -ne 'ACTIVE_DATA_ONLY') { $errors.Add('DATA_TOPOLOGY_PURPOSE_INVALID') }
@@ -545,7 +545,14 @@ function Test-StartupDataTopology {
         }
     }
 
-    $allowedRoles = @('APPLICATION_DATA', 'POSTGRESQL_DATA', 'QDRANT_DATA', 'N8N_DATA', 'OPENWEBUI_DATA', 'OLLAMA_DATA', 'VISION_WORKER_STATE', 'PROCESSING_DATA')
+    $bindingContracts = @(
+        [pscustomobject]@{ service = 'backend'; role = 'APPLICATION_DATA'; destination = '/data' },
+        [pscustomobject]@{ service = 'postgres'; role = 'POSTGRESQL_DATA'; destination = '/var/lib/postgresql/data' },
+        [pscustomobject]@{ service = 'n8n'; role = 'N8N_DATA'; destination = '/home/node/.n8n' },
+        [pscustomobject]@{ service = 'open-webui'; role = 'OPENWEBUI_DATA'; destination = '/app/backend/data' },
+        [pscustomobject]@{ service = 'ollama'; role = 'OLLAMA_DATA'; destination = '/root/.ollama' }
+    )
+    $allowedRoles = @($bindingContracts | ForEach-Object { $_.role })
     $bindings = @(Get-StartupProperty -InputObject $Topology -Name 'bindings')
     if ($bindings.Count -eq 0) { $errors.Add('DATA_TOPOLOGY_BINDINGS_MISSING') }
     foreach ($binding in $bindings) {
@@ -556,7 +563,13 @@ function Test-StartupDataTopology {
         try { $source = Get-CanonicalStartupPath -Path $sourceText } catch { $source = ''; $errors.Add("DATA_BINDING_SOURCE_INVALID:$service") }
         if ([string]::IsNullOrWhiteSpace($service)) { $errors.Add('DATA_BINDING_SERVICE_INVALID') }
         if ($role -notin $allowedRoles) { $errors.Add("DATA_BINDING_ROLE_INVALID:$service") }
-        if ([string]::IsNullOrWhiteSpace($destination) -or -not $destination.StartsWith('/') -or $destination -eq '/app') { $errors.Add("DATA_BINDING_DESTINATION_INVALID:$service") }
+        if ([string]::IsNullOrWhiteSpace($destination) -or -not $destination.StartsWith('/')) { $errors.Add("DATA_BINDING_DESTINATION_INVALID:$service") }
+        $matchingContracts = @($bindingContracts | Where-Object {
+            $_.service.Equals($service, [System.StringComparison]::Ordinal) -and
+            $_.role.Equals($role, [System.StringComparison]::Ordinal) -and
+            $_.destination.Equals($destination, [System.StringComparison]::Ordinal)
+        })
+        if ($matchingContracts.Count -ne 1) { $errors.Add("DATA_BINDING_CONTRACT_MISMATCH:$service") }
         if (-not [string]::IsNullOrWhiteSpace($source) -and -not [string]::IsNullOrWhiteSpace($logicalPath)) {
             if (-not (Test-StartupPathWithinRoot -Root $logicalPath -Candidate $source)) { $errors.Add("DATA_BINDING_SOURCE_OUTSIDE_DATA:$service") }
             else {
@@ -571,7 +584,7 @@ function Test-StartupDataTopology {
                 }
             }
         }
-        $key = ('{0}|{1}|{2}' -f $service.ToLowerInvariant(), $source.ToLowerInvariant(), $destination.ToLowerInvariant())
+        $key = ('{0}|{1}|{2}' -f $service.ToLowerInvariant(), $source.ToLowerInvariant(), $destination)
         if ($approvedBindings.ContainsKey($key)) { $errors.Add("DATA_BINDING_DUPLICATE:$service") } else { $approvedBindings[$key] = $binding }
     }
     return [pscustomobject]@{ valid = ($errors.Count -eq 0); errors = $errors.ToArray(); logical_path = $logicalPath; target = $targetPath; approved_bindings = $approvedBindings }
@@ -792,7 +805,7 @@ function Test-StartupSetManifest {
                 if ($null -eq $canonicalRoot -or -not (Test-StartupPathWithinRoot -Root $canonicalRoot -Candidate $mountSource)) { $errors.Add("CONTAINER_BIND_OUTSIDE_ROOT:$service") }
                 elseif (Test-StartupPathHasReparsePoint -Root $canonicalRoot -Candidate $mountSource) {
                     try { $canonicalMountSource = Get-CanonicalStartupPath -Path $mountSource } catch { $canonicalMountSource = '' }
-                    $bindingKey = ('{0}|{1}|{2}' -f $service.ToLowerInvariant(), $canonicalMountSource.ToLowerInvariant(), $mountDestination.ToLowerInvariant())
+                    $bindingKey = ('{0}|{1}|{2}' -f $service.ToLowerInvariant(), $canonicalMountSource.ToLowerInvariant(), $mountDestination)
                     if (-not $dataTopology.valid -or -not $dataTopology.approved_bindings.ContainsKey($bindingKey)) {
                         $errors.Add("CONTAINER_BIND_REPARSE_POINT:$service")
                     }
