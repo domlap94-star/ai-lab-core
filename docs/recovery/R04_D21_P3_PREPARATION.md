@@ -1,13 +1,14 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `PREPARATION_PARTIAL / BASE_START_GUARD_SOURCE_READY_FOR_REVIEW / NO_CUTOVER`
+Status: `PREPARATION_PARTIAL / BASE_START_GUARD_ACCEPTED / CURRENT_DB_METADATA_OBSERVED / ROLLBACK_EVIDENCE_REVIEW_READY / NO_CUTOVER`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
-Guard source do review: `0ee0ea50943578e6e552aae23ce1688595ddc262`
+Zaakceptowany guard source: `0ee0ea50943578e6e552aae23ce1688595ddc262`
 Guard tree: `4ccbc8922051401da1422be0d08f271476c3bab6`
-Okna obserwacji: `2026-09-16T13:38:16Z–13:43:51Z` oraz
-`2026-09-16T18:29:26Z–18:34:45Z`
+Okna obserwacji: `2026-09-16T13:38:16Z–13:43:51Z`,
+`2026-09-16T18:29:26Z–18:34:45Z` oraz
+`2026-09-16T19:59:54Z–20:05:34Z`
 
 Ten dokument jest załącznikiem wykonawczym D-21. Nie jest nową roadmapą,
 zatwierdzonym manifestem startowym ani zgodą na wykonanie opisanych operacji.
@@ -21,6 +22,13 @@ Właściciel odebrał source `cb6e225...` i evidence `e9c17933...` jako
 NOT_DEPLOYED`. P1 oraz preservation/candidate P2 zachowują swoje wcześniejsze
 odbiory. Kandydat pozostaje `DRAFT_NOT_APPROVED_FOR_START`, a jego
 `approval.status` pozostaje `NOT_APPROVED`.
+
+Właściciel odebrał też guard source
+`0ee0ea50943578e6e552aae23ce1688595ddc262` z evidence
+`c52f453513dc96bd750dd9e6c0a0a836f134d7e6` jako
+`BASE_START_GUARD_SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED / NOT_DEPLOYED` i
+zezwolił na jedną bieżącą kampanię odczytową PostgreSQL/rollback. Odbiór nie
+jest PostgreSQL integration, zatwierdzeniem manifestu ani zgodą na cutover.
 
 Utrzymana topologia:
 
@@ -45,13 +53,13 @@ wolumenu, taska, flagi, kolejki, danych, backupu, restore ani escrow.
 | Backend runtime | full ID `9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a`, running, image `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`, restart `unless-stopped`; `/app=C:/ai-lab-core/build/deploy-main-483f9bf8/backend`, `/data=C:/ai-lab-core/data`, oba RW | `CURRENT_OBSERVED`; Compose labels są zgodne, lecz mounty pochodzą z faktycznego inspectu. Brak mountu recovery/WIP |
 | Obraz testowy | pinned R02 image `sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`, Linux/amd64, 1,314,265,170 B | `CURRENT_LOCAL_IMAGE_OBSERVED`; bez pull/build |
 | Docker/WSL data disk | istnieje `C:\Users\domai\AppData\Local\Docker\wsl\disk\docker_data.vhdx`, 46,937,407,488 B, last write `2026-09-16T13:40:12Z` | `CURRENT_C_RELOCATION_REQUIRED`; `docker-desktop` był `Running`, ale `df -T /var/lib/docker` zwrócił brak mount point, więc relacja Linux path→VHD nie jest pełnym runtime proof |
-| PostgreSQL | host `psql.exe` nie istnieje; `docker exec` nie został wykonany po utracie obserwowalności Engine | `CURRENT_UNKNOWN`: schema, `data_directory`, WAL, tablespaces, log paths, kolejki i backup metadata w DB nieodczytane |
+| PostgreSQL | exact ID `240343ebff4fb299b239db2817efea1910ab59c29ed3ec9df3a8abde04e81226`, image `sha256:a426e44b...d8508d`, running, project/service `ai-lab-core/postgres`, restart `unless-stopped`, host port tylko `127.0.0.1:5432`; bind `C:\ai-lab-core\data\postgres -> /var/lib/postgresql/data`; backend host/DB/user zgodne z nazwą lub aliasem tego kontenera na jednej wspólnej sieci | `CURRENT_OBSERVED` `2026-09-16T19:59:54Z–20:05:34Z`; bez utrwalenia wartości config/sekretów |
 | Public Gateway | listener `127.0.0.1:8789`, PID `41784`, Node, skrypt `C:\ai-lab-core\operations\gateway\public_web_server.cjs`; `/gateway-health=200`, publiczne `/control=404` | `CURRENT_OBSERVED` o `2026-09-16T13:40:09Z`; tylko bezpieczne GET |
 | Private Gateway / Supervisor | zapytanie TCP zwróciło strukturalne `CmdletizationQuery_NotFound`; brak listenera nie został przepisany na fałszywe PRESENT | `CURRENT_ABSENCE_INDICATION`; Supervisor nadal politycznie `INTENTIONALLY_STOPPED` |
 | Task Scheduler | odczytano wyłącznie taski `NEXT Stabil`; Public Gateway `Running`, pozostałe startowe `Ready` | `CURRENT_OBSERVED`; niczego nie uruchomiono |
 | Backup task 1 | last `2026-09-13T01:00:00Z`, result `267014` | `CURRENT_TASK_METADATA / SCHED_S_TASK_TERMINATED`; nie RUNNING/sukces, aktor i przyczyna unknown |
 | Backup task 2 / 3 | last odpowiednio `2026-09-15T23:00:01Z` i `23:30:01Z`, result `1` | `CURRENT_TASK_METADATA / NONZERO`; brak zachowanego końcowego logu i brak zgody na ponowienie |
-| Manifesty backupu | lokalny root: ostatnio widziany `20260829T191529Z`; odebrany R03 point `E:\ai-lab-backup\20260908T210559Z`, manifest `8F20A784...` | `HISTORICAL_BACKUP_METADATA`; R03 point jest nowszy i ma osobny accepted restore drill, ale nie dowodzi dzisiejszej świeżości |
+| Manifesty backupu | accepted full `E:\ai-lab-backup\20260908T210559Z` `8F20A784...`, 9/9 artefaktów obecnych i zgodnych rozmiarem; latest DB `F:\ai-lab-system-backup\20260911T230006Z` `769583D1...`, 1/1; latest n8n `F:\ai-lab-system-backup\20260911T233006Z` `F8005856...`, 3/3 | `CURRENT_FILE_METADATA_PLUS_HISTORICAL_RESTORE_EVIDENCE`; nie haszowano dużych artefaktów, a taski `267014/1/1` nie potwierdzają świeżej kopii po tych punktach |
 | Vision Worker state | `C:\ChatGPT-Vision-Worker`: 7,328 plików, 890,094,670 B; tylko metadane, bez cookies/tokenów | `CURRENT_C_RELOCATION_REQUIRED`; odczyt rozmiaru ukończony w limicie 15 s |
 
 Surowe wyjście nie zawierało `Config.Env`, pełnego inspectu, pełnych command
@@ -121,11 +129,56 @@ zwrócił `No such container`. Nie uruchomiono serwera produktu, dispatchera,
 Supervisora, modelu, SQL produkcji ani restartu Engine. Lokalny indeks dowodów:
 `docs/recovery/R04_D21_P3_DIAGNOSTIC_INDEX.csv`.
 
+### 2.3. Bieżąca baza i rollback — odczyt ograniczony
+
+W oknie `2026-09-16T19:59:54Z–20:05:34Z` wykonano jeden odczyt metadanych
+bieżącego backendu i PostgreSQL. Sesja `psql` użyła `-X`,
+`ON_ERROR_STOP=1`, połączenia z `default_transaction_read_only=on`, następnie
+`BEGIN READ ONLY`, `statement_timeout=5s`, `lock_timeout=1s`, ograniczonego
+`idle_in_transaction_session_timeout` i jawnego `ROLLBACK`. Całość trwała
+1424 ms i zakończyła się kodem `0`; nie wykonano retry ani drugiej sesji SQL.
+
+Odczyt potwierdził PostgreSQL `17.10`, bazę/użytkownika `ai_lab`, revision
+`followup_assistant_chat_history_20260829`, dokładnie jedną rolę
+`Administrator` i dokładnie jedno skonfigurowane aktywne, nieusunięte konto
+administratora. `transaction_read_only=on`. `PGDATA` to
+`/var/lib/postgresql/data`, host bind to `C:\ai-lab-core\data\postgres`,
+`pg_wal` i `pg_tblspc` są zwykłymi katalogami pod PGDATA, brak zewnętrznych
+tablespaces, `log_directory=log`, a baza zajmuje 743 765 683 B. Junction
+`C:\ai-lab-core\data -> D:\ai-lab-data` pozostał bez zmian.
+
+Odczytano wyłącznie małe agregaty stanu: zero aktywnych backupów, zero rekordów
+restore/import, 18 document-preparation `queued/queued`, 16 analysis
+`advanced_queued`, jeden Assistant `waiting/analyzing_local`, zero aktywnych KB
+i zero pending backup sync. Nie odczytywano treści dokumentów, poczty, zapytań
+innych sesji, haseł, adresów e-mail ani danych użytkowników. Żądane zapisy
+danych biznesowych: brak. To nie jest deklaracja braku technicznego I/O hosta.
+
+Rollback pozostaje `REVIEW_READY / DATA_FRESHNESS_OWNER_DECISION_REQUIRED`:
+
+- odebrany full point `E:\ai-lab-backup\20260908T210559Z`, manifest
+  `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`,
+  ma 9/9 artefaktów obecnych i zgodnych rozmiarem oraz historyczny odbiór R03-A4
+  dla dokładnego manifestu;
+- najnowszy znaleziony DB point `F:\ai-lab-system-backup\20260911T230006Z`,
+  manifest `769583D1CD2CCDDA3C83786AC05B4C9E53015870C5AA23C0A0B84DEEECEB2382`,
+  ma 1/1 artefakt obecny i zgodny rozmiarem, bez bieżącego restore proof;
+- najnowszy n8n point `F:\ai-lab-system-backup\20260911T233006Z`, manifest
+  `F8005856EF68F1AF88B5CD70DC19452B4DA8FDCE689371E397131081F71539AA`,
+  ma 3/3 artefakty obecne i zgodne rozmiarem;
+- bieżące wyniki tasków `267014/1/1` nie dowodzą świeżej kopii po tych punktach.
+
+Nie haszowano ponownie dużych artefaktów. Zanonimizowany stdout SQL jest
+`LOCAL_ONLY`, 10 219 B, SHA-256
+`EA575FADD1537B2BFDAC813F23766E838536CA366DB361869A5DA818FA9B704E`;
+sanitowane podsumowanie ma 2 936 B i SHA-256
+`F9E9F3B5D1F5CDC71683328D46AB72E88B32356AAF29ADB401E8B65669BADE07`.
+
 ## 3. Miejsca fizycznego zapisu
 
 | Kategoria | Łańcuch | Ocena | Decyzja P3 |
 |---|---|---|---|
-| PostgreSQL PGDATA | deklarowane `/var/lib/postgresql/data` → `C:\ai-lab-core\data\postgres` → junction D:; katalog D: istnieje | `HISTORICAL_ON_D`; current PostgreSQL inspect i SQL nadal `UNKNOWN` | `KEEP` dopiero po bieżącym inspect i SQL; osobno wykluczyć zewnętrzne WAL/tablespaces |
+| PostgreSQL PGDATA | `/var/lib/postgresql/data` → `C:\ai-lab-core\data\postgres` → junction `D:\ai-lab-data`; `pg_wal` i `pg_tblspc` pod PGDATA | `CURRENT_OBSERVED_ON_D`; exact inspect + READ ONLY SQL, brak zewnętrznych tablespaces/WAL | `KEEP`; nie migrować tych samych plików, zachować dokładny bind i junction |
 | Backend application data | current `/data` → `C:\ai-lab-core\data` → junction D: | `CURRENT_BIND_OBSERVED`; junction current | `KEEP`; nadal zinwentaryzować dodatkowe cache/tmp/log paths |
 | n8n | deklarowane `/home/node/.n8n` → `D:\ai-lab-data\n8n` | `HISTORICAL_ON_D`; target current | `KEEP` po exact mount readback |
 | Open WebUI | deklarowane `/app/backend/data` → `D:\ai-lab-data\openwebui` | `HISTORICAL_ON_D`; target current | `KEEP` po exact mount readback |
@@ -145,38 +198,41 @@ pozostaje `followup_assistant_chat_history_20260829`. To uzasadnia możliwość
 użycia zgodnego istniejącego obrazu zależności, ale nie zastępuje bieżącego
 image ID/digest ani SQL na docelowej bazie.
 
-Start guard source `0ee0ea5...` nie jest skutkiem neutralnym:
+Preimage guarda `ddec6ea...` nie był skutkiem neutralnym:
 
 1. `init_database()` jest bezwarunkowe i wykonuje `seed_admin()`. Przy obecnej
    roli/użytkowniku tylko odczytuje, ale przy braku może zapisać role/admina.
 2. `start_backup_plan_reconciler()` jest bezwarunkowe. Reconciler tworzy lub
    aktualizuje durable sync events, wykonuje commity i może wywołać Supervisor.
    Przy zatrzymanym Supervisorze może zapisać status `failed/error`.
-3. Pozostałe dispatchery mają flagi, lecz live Compose deklaruje obecnie
+3. Pozostałe dispatchery mają flagi, lecz deklarowany live Compose ma
    `VISION_AUTOMATION_ENABLED=true`, `KNOWLEDGE_BASE_PROCESSING_ENABLED=true`,
    `KNOWLEDGE_BASE_VECTOR_WRITES_ENABLED=true`,
    `ADVANCED_ANALYSIS_ENABLED=true`, `DOCUMENT_PREPARATION_ENABLED=true` i
-   `ASSISTANT_PIPELINE_V2_ENABLED=true`; aktywny historyczny override ustawia
-   tylko `DOCUMENT_PREPARATION_ENABLED=false`. Bieżących effective env z
-   kontenera nie odczytano.
+    `ASSISTANT_PIPELINE_V2_ENABLED=true`; aktywny historyczny override ustawia
+    tylko `DOCUMENT_PREPARATION_ENABLED=false`. Bieżących effective env z
+    kontenera nie odczytano i deklaracja nie jest dowodem procesu.
 4. `VISUAL_V2_ENABLED` nie jest zadeklarowane w pliku `.env` i source default
    to `false`; nie jest to jednak obserwacja uruchomionego procesu.
 
-Minimalny kandydat P3 musi więc przed cutoverem:
+Zaakceptowany źródłowo guard `0ee0ea5...` rozwiązuje pierwsze dwa skutki:
+wyłączony seed wykonuje wyłącznie fail-closed readiness w transakcji READ ONLY,
+a wyłączony reconciler nie tworzy tasku, sesji ani wywołania zewnętrznego.
+Bieżący SQL potwierdził wymagany revision, rolę i konto administratora. Minimalny
+kandydat P3 musi jednak przed cutoverem:
 
-- mieć jawny, odebrany guard wyłączający backup reconciler dla pierwszego
-  base-only startu albo osobno autoryzować jego skutki;
 - wymusić w zatwierdzonym override wszystkie dispatch/producer flags na
   `false` i potwierdzić effective env projekcją bez sekretów;
-- potwierdzić w READ ONLY SQL istniejącą rolę/admina, current schema, brak
-  aktywnego backup/import/restore/export i stan eventów/kolejek;
+- zachować zastany pending work: 18 document-preparation, 16 analysis i jeden
+  Assistant; nie wykonywać ich ani nie zgubić podczas okna;
+- rozstrzygnąć świeżość punktu rollbacku;
 - zachować Supervisor `INTENTIONALLY_STOPPED`.
 
-Guard realizuje pierwszy punkt źródłowo, lecz bez owner review, current SQL,
-jawnych flag w zatwierdzonym manifeście i odbioru operacyjnego source
-`0ee0ea5...` nadal nie jest bezpiecznym `BASE_READY_ONLY` manifestem produkcji.
+Guard jest odebrany jako source/test i nie jest wdrożony. Bez jawnych flag w
+zatwierdzonym manifeście, decyzji o świeżości rollbacku i odbioru operacyjnego
+nie istnieje zatwierdzony `BASE_READY_ONLY` manifest produkcji.
 
-### 4.1. Guard pierwszego startu — source gotowy do review
+### 4.1. Guard pierwszego startu — source zaakceptowany, niewdrożony
 
 W source `0ee0ea50943578e6e552aae23ce1688595ddc262` zapisano pięć
 przetestowanych ścieżek:
@@ -203,9 +259,10 @@ contract fake; nie jest to PostgreSQL integration. Wyniki:
 - compileall czterech modułów i testu: exit `0`.
 
 Python miał wersję `3.12.13`, pytest `8.3.5`. Testy nie uruchomiły produkcyjnego
-PostgreSQL, migracji, modelu, dispatchera ani zewnętrznej sieci. Status guarda
-to `SOURCE_READY_FOR_REVIEW / SYNTHETIC_TESTS_PASS / NOT_DEPLOYED`, nie
-`ACCEPTED`. Historyczne zabezpieczenie WIP pozostaje dowodem pre-commit:
+PostgreSQL, migracji, modelu, dispatchera ani zewnętrznej sieci. Właściciel
+odebrał guard jako `BASE_START_GUARD_SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED /
+NOT_DEPLOYED`; nie jest to akceptacja PostgreSQL integration ani manifestu.
+Historyczne zabezpieczenie WIP pozostaje dowodem pre-commit:
 
 - `startup-guard-tracked-wip.patch`, SHA-256
   `E043325F662D7A443534CC884C23B95EEA340348EA0823E348DEAB27F64EC0E3`;
@@ -275,22 +332,26 @@ Powrót danych nie jest zawarty w tym rollbacku i pozostaje zależnością R03.
 
 ## 6. Blockery i wynik
 
-`PREPARATION_PARTIAL` wynika z dwóch operacyjnych blockerów oraz jednego
-oczekującego odbioru źródeł:
+`PREPARATION_PARTIAL` pozostaje z powodu dwóch operacyjnych bramek i potrzeby
+ochrony zastanego pending work:
 
-1. `DATABASE_METADATA_NOT_OBSERVED`: schema/WAL/tablespaces/queue/backup state
-   są unknown; contract fake guarda nie zastępuje read-only PostgreSQL.
-2. `ROLLBACK_DATA_FRESHNESS_UNRESOLVED`: task 1 ma
+1. `ROLLBACK_DATA_FRESHNESS_OWNER_DECISION_REQUIRED`: task 1 ma
    `SCHED_S_TASK_TERMINATED`, taski 2/3 wynik `1`, brak zachowanych końcowych
-   logów; odebrany punkt R03 z 2026-09-08 jest historyczny, nie current.
-3. `BASE_START_GUARD_OWNER_REVIEW_PENDING`: source przeszedł wymaganą kampanię,
-   ale nie został jeszcze zaakceptowany ani wdrożony.
+   logów; odebrany punkt full z 2026-09-08 i punkty DB/n8n z 2026-09-11 nie
+   obejmują jawnie zmian do bieżącej obserwacji 2026-09-16.
+2. `PRODUCTION_START_MANIFEST_NOT_APPROVED`: draft ma wymagane flagi `false`,
+   lecz nie został zainstalowany, odczytany jako effective ani zatwierdzony.
+3. `PENDING_WORK_MUST_BE_PRESERVED`: 18 document-preparation, 16 analysis i
+   jeden Assistant pozostają zastanym stanem, którego P3 nie może uruchomić,
+   zdublować ani zgubić.
 
 Dokładne akcje komponentowe znajdują się w
-`docs/recovery/R04_D21_P3_CHANGESET.csv`. Nie wykonano Fluttera, Web builda,
-migracji, PostgreSQL integration ani runtime smoke kandydata. Wykonane były
-wyłącznie wskazane testy backendowe w odizolowanym kontenerze.
+`docs/recovery/R04_D21_P3_CHANGESET.csv`. W tej kontynuacji testy aplikacji,
+Flutter, Web build, migracje i runtime smoke kandydata były `NOT_RUN`. Wykonano
+wyłącznie bieżący metadata read i jedną transakcję PostgreSQL READ ONLY.
 
-Następny krok: owner review source/evidence guarda. Po jego odbiorze potrzebna
-jest osobna zgoda na ograniczone rozstrzygnięcie current SQL i świeżości
-rollbacku przed jakimkolwiek cutoverem; bez automatycznego P4/P5 lub R06.
+Jedyna następna decyzja właściciela: czy przyszły P3 może użyć odebranego full
+pointu z 2026-09-08 razem z DB/n8n z 2026-09-11 mimo nieobjętych zmian do
+2026-09-16 i niezerowych wyników ostatnich tasków, czy przed cutoverem wymagany
+jest nowy, zweryfikowany punkt rollbacku. Bez tej decyzji nie ma zgody na
+cutover, P4/P5 ani R06.
