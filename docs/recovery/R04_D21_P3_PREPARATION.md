@@ -45,9 +45,9 @@ wolumenu, taska, flagi, kolejki, danych, backupu, restore ani escrow.
 | Public Gateway | listener `127.0.0.1:8789`, PID `41784`, Node, skrypt `C:\ai-lab-core\operations\gateway\public_web_server.cjs`; `/gateway-health=200`, publiczne `/control=404` | `CURRENT_OBSERVED` o `2026-09-16T13:40:09Z`; tylko bezpieczne GET |
 | Private Gateway / Supervisor | zapytanie TCP zwróciło strukturalne `CmdletizationQuery_NotFound`; brak listenera nie został przepisany na fałszywe PRESENT | `CURRENT_ABSENCE_INDICATION`; Supervisor nadal politycznie `INTENTIONALLY_STOPPED` |
 | Task Scheduler | odczytano wyłącznie taski `NEXT Stabil`; Public Gateway `Running`, pozostałe startowe `Ready` | `CURRENT_OBSERVED`; niczego nie uruchomiono |
-| Backup task 1 | last `2026-09-13T01:00:00Z`, result `267014` | `CURRENT_TASK_METADATA`; rezultat wymaga interpretacji przed cutoverem |
-| Backup task 2 / 3 | last odpowiednio `2026-09-15T23:00:01Z` i `23:30:01Z`, result `1` | `CURRENT_TASK_METADATA / FAILED_OR_NONZERO`; brak zgody na ponowienie |
-| Lokalny backup manifest | najnowszy znaleziony `20260829T191529Z`, manifest last write `2026-08-29T19:16:23Z`, release `1.0.2+29`, DB revision `followup_assistant_pipeline_v2_20260826` | `HISTORICAL_BACKUP_METADATA`; nie jest dzisiejszym restore proof |
+| Backup task 1 | last `2026-09-13T01:00:00Z`, result `267014` | `CURRENT_TASK_METADATA / SCHED_S_TASK_TERMINATED`; nie RUNNING/sukces, aktor i przyczyna unknown |
+| Backup task 2 / 3 | last odpowiednio `2026-09-15T23:00:01Z` i `23:30:01Z`, result `1` | `CURRENT_TASK_METADATA / NONZERO`; brak zachowanego końcowego logu i brak zgody na ponowienie |
+| Manifesty backupu | lokalny root: ostatnio widziany `20260829T191529Z`; odebrany R03 point `E:\ai-lab-backup\20260908T210559Z`, manifest `8F20A784...` | `HISTORICAL_BACKUP_METADATA`; R03 point jest nowszy i ma osobny accepted restore drill, ale nie dowodzi dzisiejszej świeżości |
 | Vision Worker state | `C:\ChatGPT-Vision-Worker`: 7,328 plików, 890,094,670 B; tylko metadane, bez cookies/tokenów | `CURRENT_C_RELOCATION_REQUIRED`; odczyt rozmiaru ukończony w limicie 15 s |
 
 Surowe wyjście nie zawierało `Config.Env`, pełnego inspectu, pełnych command
@@ -58,6 +58,42 @@ Zanonimizowane lokalne podsumowanie obserwacji pozostaje `LOCAL_ONLY` pod
 istniejącym chronionym rootem P2 jako `p3-preparation-20260916T133633Z/
 observations-summary.md`, SHA-256
 `7B70A85AC45E7470A80C13EBE33C7E24855584FB7F9BB2397E2044F865865674`.
+
+### 2.1. Kontynuacja diagnozy Engine i backupów
+
+Ograniczona diagnoza odczytała zachowany log
+`%LOCALAPPDATA%\Docker\log\host\com.docker.backend.exe.log.20260916-162308.200`
+dla okna `2026-09-16T13:38:16Z–13:43:51Z`. Log pokazuje działające
+odpowiedzi IPC `/time` oraz powtarzające się anulowanie strumieni zdarzeń przez
+klienta z `EOF`, ale nie zawiera pasującego `containers/json` ani exact backend
+`inspect`. Nie rozstrzyga więc, czy timeout powstał w runnerze, proxy czy Engine
+i nie potwierdza odzyskania resource reads. Log VM `init.log` dla tego okna
+został już zrotowany; ograniczone odczyty `Application`/`System` nie miały
+pasujących zdarzeń Docker/WSL. Warunkowego inspectu, SQL oraz testowego
+kontenera nie uruchomiono.
+
+Zadania backupu wskazują istniejący
+`operations/hardening/run-backup-schedule.ps1` dla schedule ID 1/2/3. Runner
+nie przekierowuje stdout/stderr do trwałego pliku, a Task Scheduler Operational
+nie zachował pasujących zdarzeń z ostatniego okna tasków 2/3. Dlatego:
+
+- `267014 = 0x41306 / SCHED_S_TASK_TERMINATED`; nie jest to `RUNNING` ani
+  potwierdzony sukces i nie przypisano aktora lub przyczyny zakończenia;
+- wyniki tasków 2/3 `1` pozostają bez zachowanego końcowego logu i bez ustalonego
+  etapu awarii;
+- manifest `C:\ai-lab-core-backups\20260829T191529Z` jest tylko ostatnim
+  widzianym manifestem w tym lokalnym rootcie, nie najnowszą kopią systemu;
+- odebrany punkt R03 `E:\ai-lab-backup\20260908T210559Z`, manifest SHA-256
+  `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`,
+  ma historyczny `capture_status=COMPLETE`, `scope_status=COMPLETE` i
+  `restore_status=NOT_RUN_WAITING_APPROVAL`; odbiór R03-A4 jest odrębnym
+  dowodem restore drill dla dokładnie tego manifestu;
+- ostatni udany harmonogram, kompletność dzisiejszych danych i faktyczna
+  świeżość rollbacku pozostają `UNKNOWN / UNRESOLVED`.
+
+Sanitowane podsumowanie kontynuacji jest `LOCAL_ONLY` w podkatalogu
+`startup-guard-20260916T161200Z/diagnosis-summary.md`, SHA-256
+`275D637CCD09F1CE4D59E24E2E8714AC1E1C49EC60EE690EE3032EB35DC3399B`.
 
 ## 3. Miejsca fizycznego zapisu
 
@@ -112,6 +148,34 @@ Minimalny kandydat P3 musi więc przed cutoverem:
 
 Bez pierwszego punktu source `cb6e225...` nie jest jeszcze bezpiecznym
 `BASE_READY_ONLY` produkcyjnym manifestem.
+
+### 4.1. Lokalny guard pierwszego startu — nieprzetestowany WIP
+
+W recovery przygotowano pięć ścieżek WIP:
+
+- `backend/app/core/config.py`: kompatybilne domyślne `true` dla
+  `database_startup_seed_enabled` i `backup_plan_reconciler_enabled`;
+- `backend/app/database/init_db.py`: przy wyłączonym seed jawna transakcja
+  PostgreSQL `READ ONLY`, statement timeout, sprawdzenie expected Alembic
+  revision, roli `Administrator` i aktywnego administratora, zawsze rollback;
+- `backend/app/services/backup_plan_reconciler.py`: `enabled=false` zwraca
+  `None` przed utworzeniem tasku i sesji;
+- `backend/app/main.py`: wybór seed/readiness oraz bezpieczny shutdown `None`;
+- `backend/test/test_d21_p3_startup_guard.py`: focused macierz default/invalid,
+  read-only/no-write, fail-closed, reconciler off/on i lifespan all-off.
+
+WIP jest `SOURCE_PARTIAL / LOCAL_ONLY / TESTS_NOT_RUN`, ponieważ zgodnie z
+bramką §5 brak dowodu odzyskania odczytów zasobów Engine. Nie użyto hostowego
+Pythona ani testu na produkcji. `git diff --check` przeszedł, lecz nie zastępuje
+pytest/compileall/auth/API. Zabezpieczenie WIP:
+
+- `startup-guard-tracked-wip.patch`, SHA-256
+  `E043325F662D7A443534CC884C23B95EEA340348EA0823E348DEAB27F64EC0E3`;
+- `startup-guard-test-wip.patch`, SHA-256
+  `78A8394E1B5E4B80AAEED3E3B7FAFFC773112DAD33BECD62E3C2ED6EB013A4DA`.
+
+Źródłem kandydata nadal jest odebrany `cb6e225...`; niesprawdzony WIP nie jest
+przypisany do starego ZIP-a/Web ani do produkcyjnego manifestu.
 
 ## 5. Wybrany najmniejszy pakiet operacyjny
 
@@ -174,24 +238,25 @@ Powrót danych nie jest zawarty w tym rollbacku i pozostaje zależnością R03.
 
 `PREPARATION_PARTIAL` wynika z czterech konkretnych blockerów:
 
-1. `DOCKER_ENGINE_OBSERVABILITY_BLOCKED`: dwa różne, bounded read-only odczyty
-   zasobów nie odpowiedziały; brak bieżących ID/image/mount/log/restart facts.
+1. `DOCKER_ENGINE_RESOURCE_OBSERVABILITY_BLOCKED`: zachowane logi nie ustaliły
+   przyczyny timeoutu ani nie potwierdziły odzyskania resource reads; brak
+   bieżących ID/image/mount/log/restart facts.
 2. `DATABASE_METADATA_NOT_OBSERVED`: brak bezpiecznej ścieżki SQL po utracie
    Engine; schema/WAL/tablespaces/queue/backup state są unknown.
-3. `BASE_START_SIDE_EFFECT_GUARD_MISSING`: backup reconciler jest
-   bezwarunkowy, a efektywna obecna konfiguracja producerów nie jest odczytana.
-4. `ROLLBACK_DATA_FRESHNESS_UNRESOLVED`: taski backup 2/3 mają bieżący wynik
-   `1`, najnowszy znaleziony manifest jest z 2026-08-29, a R03 nadal czeka na
-   escrow/aktualną decyzję ryzyka.
+3. `BASE_START_GUARD_SOURCE_PARTIAL_TESTS_NOT_RUN`: guard seed/reconcilera jest
+   lokalnym WIP, bez wymaganej kampanii R02 i bez source commit/review.
+4. `ROLLBACK_DATA_FRESHNESS_UNRESOLVED`: task 1 ma
+   `SCHED_S_TASK_TERMINATED`, taski 2/3 wynik `1`, brak zachowanych końcowych
+   logów; odebrany punkt R03 z 2026-09-08 jest historyczny, nie current.
 
 Dokładne akcje komponentowe znajdują się w
 `docs/recovery/R04_D21_P3_CHANGESET.csv`. Nie wykonano testów aplikacji, P1,
-Fluttera, Web builda, migracji ani runtime smoke, ponieważ źródła są
-niezmienione, a P3 jest wyłącznie przygotowaniem.
+Fluttera, Web builda, migracji ani runtime smoke. Odebrany source pozostaje
+niezmieniony; lokalny WIP guarda nie został przetestowany, ponieważ bramka
+odczytu zasobów Engine nie przeszła.
 
-Następny krok po review: usunąć blocker obserwowalności Engine w osobno
-kontrolowanym stanie hosta, dokończyć dokładnie jeden read-only inspect/SQL
-preflight i dopiero wtedy przedstawić właścicielowi pakiet
-`P3 CORE BACKEND SOURCE SWITCH` z rozstrzygniętym image identity, guardem
-reconcilera, aktualnym rollbackiem i oknem. Nie przechodzić automatycznie do
-cutoveru.
+Następny krok: po niezależnie potwierdzonej zmianie stanu resource reads
+wykonać dozwolony exact backend inspect z limitem 20 s, a dopiero po
+potwierdzeniu obrazu i bramek jedną izolowaną kampanię guarda. Następnie guard
+może otrzymać własny source/evidence review; bez automatycznego SQL/cutoveru,
+P4/P5 lub R06.
