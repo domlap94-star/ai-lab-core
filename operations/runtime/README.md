@@ -29,6 +29,18 @@ code-file argument actually selected by that service action. A task action
 that consistently points at another in-root file (or at recovery/staging)
 cannot make an internally inconsistent manifest valid.
 
+`data_topology` is the only reparse-point exception. Version
+`NEXT_STABIL_DATA_TOPOLOGY_V1` permits the exact directory junction
+`C:\ai-lab-core\data -> D:\ai-lab-data` solely for declared `ACTIVE_DATA_ONLY`
+container bindings. The validator reads the junction type and target, checks
+the logical and physical path chains, and binds every allowed source to an
+explicit service, role and destination. It never authorizes `/app`, code,
+`script_ref`, an executable or a host-service working directory through the
+data path. Missing or unreadable metadata, another target/type, a nested
+reparse point or a path-boundary trick refuses startup before adapters. The
+launcher never creates the junction, target, a replacement directory, a
+volume, or an empty database.
+
 The existing Compose helper exposes `Invoke-ApprovedExistingContainerPhase`
 over the same shared phase used by the launcher. That interface only preserves
 or starts a unique existing container after exact project/service,

@@ -2,7 +2,10 @@ Set-StrictMode -Version 2.0
 
 $script:NextStabilStartupSchema = "NEXT_STABIL_STARTUP_SET_V1"
 $script:NextStabilComponentIdentitySchema = "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1"
+$script:NextStabilDataTopologySchema = "NEXT_STABIL_DATA_TOPOLOGY_V1"
 $script:NextStabilCanonicalRoot = "C:\ai-lab-core"
+$script:NextStabilCanonicalDataPath = "C:\ai-lab-core\data"
+$script:NextStabilCanonicalDataTarget = "D:\ai-lab-data"
 
 function Get-StartupProperty {
     param(
@@ -372,7 +375,10 @@ function Get-MonotonicMilliseconds {
 function Get-CanonicalStartupPath {
     param([Parameter(Mandatory = $true)][string]$Path)
 
-    return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $pathRoot = [System.IO.Path]::GetPathRoot($fullPath)
+    if ($fullPath.Equals($pathRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $pathRoot }
+    return $fullPath.TrimEnd('\', '/')
 }
 
 function Test-StartupPathWithinRoot {
@@ -391,7 +397,12 @@ function Test-StartupPathWithinRoot {
     if ($canonicalCandidate.Equals($canonicalRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         return $true
     }
-    $prefix = $canonicalRoot + [System.IO.Path]::DirectorySeparatorChar
+    $prefix = if ($canonicalRoot.EndsWith([string][System.IO.Path]::DirectorySeparatorChar)) {
+        $canonicalRoot
+    }
+    else {
+        $canonicalRoot + [System.IO.Path]::DirectorySeparatorChar
+    }
     return $canonicalCandidate.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
@@ -424,6 +435,146 @@ function Test-StartupPathHasReparsePoint {
         $current = $parent
     }
     return $false
+}
+
+function ConvertTo-StartupLocalLinkTarget {
+    param([AllowNull()]$Value)
+
+    $targets = @($Value | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) })
+    if ($targets.Count -ne 1) { return $null }
+    $text = ([string]$targets[0]).Trim().Replace('/', '\')
+    if ($text.StartsWith('\??\UNC\', [System.StringComparison]::OrdinalIgnoreCase) -or
+        $text.StartsWith('\\?\UNC\', [System.StringComparison]::OrdinalIgnoreCase) -or
+        $text.StartsWith('\\')) { return $null }
+    if ($text.StartsWith('\??\', [System.StringComparison]::OrdinalIgnoreCase) -or
+        $text.StartsWith('\\?\', [System.StringComparison]::OrdinalIgnoreCase)) { $text = $text.Substring(4) }
+    if (-not [System.IO.Path]::IsPathRooted($text)) { return $null }
+    try { return Get-CanonicalStartupPath -Path $text } catch { return $null }
+}
+
+function Get-StartupDirectoryLinkMetadata {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    try {
+        if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return [pscustomobject]@{ status = 'MISSING'; link_type = ''; target = '' } }
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0) { return [pscustomobject]@{ status = 'PRESENT'; link_type = 'DIRECTORY'; target = '' } }
+        $linkTypeProperty = @($item.PSObject.Properties | Where-Object { $_.Name -ceq 'LinkType' })
+        $targetProperty = @($item.PSObject.Properties | Where-Object { $_.Name -ceq 'Target' })
+        if ($linkTypeProperty.Count -ne 1 -or $targetProperty.Count -ne 1) { return [pscustomobject]@{ status = 'UNKNOWN'; link_type = ''; target = '' } }
+        $normalizedTarget = ConvertTo-StartupLocalLinkTarget -Value $targetProperty[0].Value
+        if ($null -eq $normalizedTarget) { return [pscustomobject]@{ status = 'UNKNOWN'; link_type = [string]$linkTypeProperty[0].Value; target = '' } }
+        return [pscustomobject]@{ status = 'PRESENT'; link_type = ([string]$linkTypeProperty[0].Value).ToUpperInvariant(); target = $normalizedTarget }
+    }
+    catch { return [pscustomobject]@{ status = 'UNKNOWN'; link_type = ''; target = '' } }
+}
+
+function Test-StartupPathReparseChain {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Candidate,
+        [AllowEmptyString()][string]$AllowedReparsePath = ''
+    )
+
+    try {
+        $canonicalRoot = Get-CanonicalStartupPath -Path $Root
+        $canonicalCandidate = Get-CanonicalStartupPath -Path $Candidate
+        $canonicalAllowed = if ([string]::IsNullOrWhiteSpace($AllowedReparsePath)) { '' } else { Get-CanonicalStartupPath -Path $AllowedReparsePath }
+    }
+    catch { return [pscustomobject]@{ valid = $false; code = 'PATH_INVALID'; path = $Candidate } }
+    if (-not (Test-StartupPathWithinRoot -Root $canonicalRoot -Candidate $canonicalCandidate)) { return [pscustomobject]@{ valid = $false; code = 'PATH_OUTSIDE_ROOT'; path = $canonicalCandidate } }
+    $current = $canonicalCandidate
+    while (Test-StartupPathWithinRoot -Root $canonicalRoot -Candidate $current) {
+        try {
+            if (-not (Test-Path -LiteralPath $current)) { return [pscustomobject]@{ valid = $false; code = 'PATH_MISSING'; path = $current } }
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -and
+                ([string]::IsNullOrWhiteSpace($canonicalAllowed) -or -not $current.Equals($canonicalAllowed, [System.StringComparison]::OrdinalIgnoreCase))) {
+                return [pscustomobject]@{ valid = $false; code = 'UNEXPECTED_REPARSE_POINT'; path = $current }
+            }
+        }
+        catch { return [pscustomobject]@{ valid = $false; code = 'PATH_METADATA_UNKNOWN'; path = $current } }
+        if ($current.Equals($canonicalRoot, [System.StringComparison]::OrdinalIgnoreCase)) { break }
+        $parent = Split-Path -Parent $current
+        if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $current) { return [pscustomobject]@{ valid = $false; code = 'PATH_PARENT_INVALID'; path = $current } }
+        $current = $parent
+    }
+    return [pscustomobject]@{ valid = $true; code = 'OK'; path = $canonicalCandidate }
+}
+
+function Test-StartupDataTopology {
+    param(
+        [AllowNull()]$Topology,
+        [Parameter(Mandatory = $true)][string]$CanonicalRoot,
+        [switch]$AllowSyntheticRoot
+    )
+
+    $errors = New-Object System.Collections.Generic.List[string]
+    $approvedBindings = @{}
+    if ($null -eq $Topology) { return [pscustomobject]@{ valid = $true; errors = @(); logical_path = ''; target = ''; approved_bindings = $approvedBindings } }
+    if ((Get-StartupProperty -InputObject $Topology -Name 'schema') -ne $script:NextStabilDataTopologySchema) { $errors.Add('DATA_TOPOLOGY_SCHEMA_UNSUPPORTED') }
+    if ((Get-StartupProperty -InputObject $Topology -Name 'purpose') -ne 'ACTIVE_DATA_ONLY') { $errors.Add('DATA_TOPOLOGY_PURPOSE_INVALID') }
+    if ((Get-StartupProperty -InputObject $Topology -Name 'link_type') -ne 'DIRECTORY_JUNCTION') { $errors.Add('DATA_TOPOLOGY_LINK_TYPE_INVALID') }
+
+    $logicalText = [string](Get-StartupProperty -InputObject $Topology -Name 'logical_path')
+    $targetText = [string](Get-StartupProperty -InputObject $Topology -Name 'target')
+    if ([string]::IsNullOrWhiteSpace($logicalText)) { $logicalPath = ''; $errors.Add('DATA_TOPOLOGY_LOGICAL_PATH_INVALID') }
+    else { try { $logicalPath = Get-CanonicalStartupPath -Path $logicalText } catch { $logicalPath = ''; $errors.Add('DATA_TOPOLOGY_LOGICAL_PATH_INVALID') } }
+    if ([string]::IsNullOrWhiteSpace($targetText)) { $targetPath = ''; $errors.Add('DATA_TOPOLOGY_TARGET_INVALID') }
+    else { try { $targetPath = Get-CanonicalStartupPath -Path $targetText } catch { $targetPath = ''; $errors.Add('DATA_TOPOLOGY_TARGET_INVALID') } }
+    $expectedLogicalPath = Get-CanonicalStartupPath -Path (Join-Path $CanonicalRoot 'data')
+    if (-not [string]::IsNullOrWhiteSpace($logicalPath) -and -not $logicalPath.Equals($expectedLogicalPath, [System.StringComparison]::OrdinalIgnoreCase)) { $errors.Add('DATA_TOPOLOGY_LOGICAL_PATH_MISMATCH') }
+    if (-not $AllowSyntheticRoot) {
+        if (-not $logicalPath.Equals($script:NextStabilCanonicalDataPath, [System.StringComparison]::OrdinalIgnoreCase)) { $errors.Add('DATA_TOPOLOGY_CANONICAL_PATH_MISMATCH') }
+        if (-not $targetPath.Equals($script:NextStabilCanonicalDataTarget, [System.StringComparison]::OrdinalIgnoreCase)) { $errors.Add('DATA_TOPOLOGY_CANONICAL_TARGET_MISMATCH') }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($targetPath) -and ($targetPath.StartsWith('\\') -or -not [System.IO.Path]::IsPathRooted($targetPath))) { $errors.Add('DATA_TOPOLOGY_TARGET_NOT_LOCAL') }
+
+    if (-not [string]::IsNullOrWhiteSpace($logicalPath) -and -not [string]::IsNullOrWhiteSpace($targetPath)) {
+        $logicalChain = Test-StartupPathReparseChain -Root $CanonicalRoot -Candidate $logicalPath -AllowedReparsePath $logicalPath
+        if (-not $logicalChain.valid) { $errors.Add(('DATA_TOPOLOGY_LOGICAL_CHAIN_{0}' -f $logicalChain.code)) }
+        $link = Get-StartupDirectoryLinkMetadata -Path $logicalPath
+        if ($link.status -ne 'PRESENT') { $errors.Add(('DATA_TOPOLOGY_LINK_{0}' -f $link.status)) }
+        elseif ($link.link_type -ne 'JUNCTION') { $errors.Add('DATA_TOPOLOGY_NOT_DIRECTORY_JUNCTION') }
+        elseif (-not ([string]$link.target).Equals($targetPath, [System.StringComparison]::OrdinalIgnoreCase)) { $errors.Add('DATA_TOPOLOGY_JUNCTION_TARGET_MISMATCH') }
+        $targetRoot = [System.IO.Path]::GetPathRoot($targetPath)
+        if ([string]::IsNullOrWhiteSpace($targetRoot)) { $errors.Add('DATA_TOPOLOGY_TARGET_ROOT_INVALID') }
+        else {
+            $targetChain = Test-StartupPathReparseChain -Root $targetRoot -Candidate $targetPath
+            if (-not $targetChain.valid) { $errors.Add(('DATA_TOPOLOGY_TARGET_CHAIN_{0}' -f $targetChain.code)) }
+        }
+    }
+
+    $allowedRoles = @('APPLICATION_DATA', 'POSTGRESQL_DATA', 'QDRANT_DATA', 'N8N_DATA', 'OPENWEBUI_DATA', 'OLLAMA_DATA', 'VISION_WORKER_STATE', 'PROCESSING_DATA')
+    $bindings = @(Get-StartupProperty -InputObject $Topology -Name 'bindings')
+    if ($bindings.Count -eq 0) { $errors.Add('DATA_TOPOLOGY_BINDINGS_MISSING') }
+    foreach ($binding in $bindings) {
+        $service = [string](Get-StartupProperty -InputObject $binding -Name 'service')
+        $role = [string](Get-StartupProperty -InputObject $binding -Name 'role')
+        $sourceText = [string](Get-StartupProperty -InputObject $binding -Name 'source')
+        $destination = [string](Get-StartupProperty -InputObject $binding -Name 'destination')
+        try { $source = Get-CanonicalStartupPath -Path $sourceText } catch { $source = ''; $errors.Add("DATA_BINDING_SOURCE_INVALID:$service") }
+        if ([string]::IsNullOrWhiteSpace($service)) { $errors.Add('DATA_BINDING_SERVICE_INVALID') }
+        if ($role -notin $allowedRoles) { $errors.Add("DATA_BINDING_ROLE_INVALID:$service") }
+        if ([string]::IsNullOrWhiteSpace($destination) -or -not $destination.StartsWith('/') -or $destination -eq '/app') { $errors.Add("DATA_BINDING_DESTINATION_INVALID:$service") }
+        if (-not [string]::IsNullOrWhiteSpace($source) -and -not [string]::IsNullOrWhiteSpace($logicalPath)) {
+            if (-not (Test-StartupPathWithinRoot -Root $logicalPath -Candidate $source)) { $errors.Add("DATA_BINDING_SOURCE_OUTSIDE_DATA:$service") }
+            else {
+                $sourceChain = Test-StartupPathReparseChain -Root $CanonicalRoot -Candidate $source -AllowedReparsePath $logicalPath
+                if (-not $sourceChain.valid) { $errors.Add(('DATA_BINDING_LOGICAL_CHAIN_{0}:{1}' -f $sourceChain.code, $service)) }
+                $relative = if ($source.Equals($logicalPath, [System.StringComparison]::OrdinalIgnoreCase)) { '' } else { $source.Substring($logicalPath.Length).TrimStart('\') }
+                $mappedTarget = if ([string]::IsNullOrWhiteSpace($relative)) { $targetPath } else { Join-Path $targetPath $relative }
+                if (-not [string]::IsNullOrWhiteSpace($targetPath)) {
+                    $targetRoot = [System.IO.Path]::GetPathRoot($targetPath)
+                    $mappedChain = Test-StartupPathReparseChain -Root $targetRoot -Candidate $mappedTarget
+                    if (-not $mappedChain.valid) { $errors.Add(('DATA_BINDING_TARGET_CHAIN_{0}:{1}' -f $mappedChain.code, $service)) }
+                }
+            }
+        }
+        $key = ('{0}|{1}|{2}' -f $service.ToLowerInvariant(), $source.ToLowerInvariant(), $destination.ToLowerInvariant())
+        if ($approvedBindings.ContainsKey($key)) { $errors.Add("DATA_BINDING_DUPLICATE:$service") } else { $approvedBindings[$key] = $binding }
+    }
+    return [pscustomobject]@{ valid = ($errors.Count -eq 0); errors = $errors.ToArray(); logical_path = $logicalPath; target = $targetPath; approved_bindings = $approvedBindings }
 }
 
 function Get-StartupSha256 {
@@ -498,6 +649,14 @@ function Test-StartupSetManifest {
             $errors.Add('MANIFEST_REPARSE_POINT')
         }
     }
+
+    $dataTopology = if ($null -eq $canonicalRoot) {
+        [pscustomobject]@{ valid = $false; errors = @('DATA_TOPOLOGY_ROOT_UNAVAILABLE'); logical_path = ''; target = ''; approved_bindings = @{} }
+    }
+    else {
+        Test-StartupDataTopology -Topology (Get-StartupProperty -InputObject $Manifest -Name 'data_topology') -CanonicalRoot $canonicalRoot -AllowSyntheticRoot:$AllowSyntheticRoot
+    }
+    foreach ($dataError in @($dataTopology.errors)) { $errors.Add([string]$dataError) }
 
     $approvalStatus = Get-StartupProperty -InputObject $approval -Name 'status'
     $approvalSetId = Get-StartupProperty -InputObject $approval -Name 'set_id'
@@ -583,6 +742,12 @@ function Test-StartupSetManifest {
         if ((Get-StartupSha256 -Path $path) -ne ([string]$hash).ToUpperInvariant()) {
             $errors.Add("TOOL_HASH_MISMATCH:$name")
         }
+        if (-not [string]::IsNullOrWhiteSpace([string]$dataTopology.logical_path) -and
+            -not [string]::IsNullOrWhiteSpace([string]$dataTopology.target) -and
+            ((Test-StartupPathWithinRoot -Root ([string]$dataTopology.logical_path) -Candidate $path) -or
+             (Test-StartupPathWithinRoot -Root ([string]$dataTopology.target) -Candidate $path))) {
+            $errors.Add("TOOL_PATH_USES_ACTIVE_DATA:$name")
+        }
     }
     foreach ($requiredTool in @('docker_cli', 'docker_desktop', 'node')) {
         if (-not $seenTools.ContainsKey($requiredTool)) { $errors.Add("TOOL_MISSING:$requiredTool") }
@@ -598,6 +763,7 @@ function Test-StartupSetManifest {
 
     $containers = @(Get-StartupProperty -InputObject $Manifest -Name 'containers')
     $containerNames = @{}
+    $matchedDataBindings = @{}
     if ($containers.Count -eq 0) { $errors.Add('CONTAINERS_MISSING') }
     foreach ($container in $containers) {
         if ($null -eq $container) { continue }
@@ -624,12 +790,24 @@ function Test-StartupSetManifest {
             if ($mountType -notin @('bind', 'volume') -or [string]::IsNullOrWhiteSpace($mountSource) -or [string]::IsNullOrWhiteSpace($mountDestination)) { $errors.Add("CONTAINER_MOUNT_INVALID:$service"); continue }
             if ($mountType -eq 'bind') {
                 if ($null -eq $canonicalRoot -or -not (Test-StartupPathWithinRoot -Root $canonicalRoot -Candidate $mountSource)) { $errors.Add("CONTAINER_BIND_OUTSIDE_ROOT:$service") }
-                elseif (Test-StartupPathHasReparsePoint -Root $canonicalRoot -Candidate $mountSource) { $errors.Add("CONTAINER_BIND_REPARSE_POINT:$service") }
+                elseif (Test-StartupPathHasReparsePoint -Root $canonicalRoot -Candidate $mountSource) {
+                    try { $canonicalMountSource = Get-CanonicalStartupPath -Path $mountSource } catch { $canonicalMountSource = '' }
+                    $bindingKey = ('{0}|{1}|{2}' -f $service.ToLowerInvariant(), $canonicalMountSource.ToLowerInvariant(), $mountDestination.ToLowerInvariant())
+                    if (-not $dataTopology.valid -or -not $dataTopology.approved_bindings.ContainsKey($bindingKey)) {
+                        $errors.Add("CONTAINER_BIND_REPARSE_POINT:$service")
+                    }
+                    else {
+                        $matchedDataBindings[$bindingKey] = $true
+                    }
+                }
             }
         }
         foreach ($port in @(Get-StartupProperty -InputObject $container -Name 'ports')) {
             if ((Get-StartupProperty -InputObject $port -Name 'host_ip') -ne '127.0.0.1') { $errors.Add("CONTAINER_PORT_NOT_LOOPBACK:$service") }
         }
+    }
+    foreach ($bindingKey in @($dataTopology.approved_bindings.Keys)) {
+        if (-not $matchedDataBindings.ContainsKey($bindingKey)) { $errors.Add(('DATA_BINDING_CONTAINER_MOUNT_MISSING:{0}' -f $bindingKey)) }
     }
 
     $services = @(Get-StartupProperty -InputObject $Manifest -Name 'host_services')

@@ -27,6 +27,16 @@
     { "name": "docker_desktop", "path": "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" },
     { "name": "node", "path": "C:\\Program Files\\nodejs\\node.exe", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" }
   ],
+  "data_topology": {
+    "schema": "NEXT_STABIL_DATA_TOPOLOGY_V1",
+    "logical_path": "C:\\ai-lab-core\\data",
+    "target": "D:\\ai-lab-data",
+    "link_type": "DIRECTORY_JUNCTION",
+    "purpose": "ACTIVE_DATA_ONLY",
+    "bindings": [
+      { "service": "backend", "role": "APPLICATION_DATA", "source": "C:\\ai-lab-core\\data", "destination": "/data" }
+    ]
+  },
   "docker": {
     "context": "desktop-linux",
     "endpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
@@ -41,7 +51,10 @@
       "compose_project": "EXAMPLE_ONLY",
       "image_id": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
       "repo_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-      "mounts": [{ "source": "C:\\ai-lab-core\\backend", "destination": "/app", "type": "bind", "read_only": true }],
+      "mounts": [
+        { "source": "C:\\ai-lab-core\\backend", "destination": "/app", "type": "bind", "read_only": true },
+        { "source": "C:\\ai-lab-core\\data", "destination": "/data", "type": "bind", "read_only": false }
+      ],
       "ports": [{ "host_ip": "127.0.0.1", "host_port": 8000, "container_port": 8000, "protocol": "tcp" }]
     }
   ],
