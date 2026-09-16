@@ -1,10 +1,13 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `PREPARATION_PARTIAL / READ_ONLY_INVENTORY / NO_CUTOVER`
+Status: `PREPARATION_PARTIAL / BASE_START_GUARD_SOURCE_READY_FOR_REVIEW / NO_CUTOVER`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
-Okno obserwacji: `2026-09-16T13:38:16Z–2026-09-16T13:43:51Z`
+Guard source do review: `0ee0ea50943578e6e552aae23ce1688595ddc262`
+Guard tree: `4ccbc8922051401da1422be0d08f271476c3bab6`
+Okna obserwacji: `2026-09-16T13:38:16Z–13:43:51Z` oraz
+`2026-09-16T18:29:26Z–18:34:45Z`
 
 Ten dokument jest załącznikiem wykonawczym D-21. Nie jest nową roadmapą,
 zatwierdzonym manifestem startowym ani zgodą na wykonanie opisanych operacji.
@@ -38,8 +41,9 @@ wolumenu, taska, flagi, kolejki, danych, backupu, restore ani escrow.
 | Git | local/tracking/remote `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`; recovery clean | `CURRENT_OBSERVED`; bez pull/rebase/reset |
 | Junction | `C:\ai-lab-core\data`, `Directory, ReparsePoint`, `LinkType=Junction`, target `D:\ai-lab-data` | `CURRENT_OBSERVED_ON_D` o `2026-09-16T13:40:09Z`; nie jest testem zapisu aplikacji |
 | D: | NTFS, `Healthy`, 1,000,187,359,232 B, wolne 917,945,978,880 B | `CURRENT_OBSERVED`; nie jest oceną wszystkich plików |
-| Engine | odczyt wersji/informacji serwera przeszedł, ale `docker ps -a` i następnie pojedynczy celowany `docker inspect` sześciu nazw przekroczyły po 20 s | `CURRENT_OBSERVABILITY_BLOCKED`; CLI PID `72400` i `66564` były własne i zostały zakończone; żadnego zasobu Docker nie zmieniono |
-| Kontenery/images/mounty | bieżące pełne ID, obrazy, repo digests, Mounts, LogPath i restart policy nie zostały odczytane | `CURRENT_UNKNOWN`; wartości z 2026-09-15 pozostają `HISTORICAL`, nie current |
+| Engine | dokładny odczyt jednego backendu zakończył się `exit 0` po 281 ms; lokalny helper diagnostyczny nie został uruchomiony, bo odczyt wystarczył | `CURRENT_OBSERVED` o `2026-09-16T18:29:26Z`; przyczyna wcześniejszych timeoutów pozostaje `UNKNOWN` |
+| Backend runtime | full ID `9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a`, running, image `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`, restart `unless-stopped`; `/app=C:/ai-lab-core/build/deploy-main-483f9bf8/backend`, `/data=C:/ai-lab-core/data`, oba RW | `CURRENT_OBSERVED`; Compose labels są zgodne, lecz mounty pochodzą z faktycznego inspectu. Brak mountu recovery/WIP |
+| Obraz testowy | pinned R02 image `sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651`, Linux/amd64, 1,314,265,170 B | `CURRENT_LOCAL_IMAGE_OBSERVED`; bez pull/build |
 | Docker/WSL data disk | istnieje `C:\Users\domai\AppData\Local\Docker\wsl\disk\docker_data.vhdx`, 46,937,407,488 B, last write `2026-09-16T13:40:12Z` | `CURRENT_C_RELOCATION_REQUIRED`; `docker-desktop` był `Running`, ale `df -T /var/lib/docker` zwrócił brak mount point, więc relacja Linux path→VHD nie jest pełnym runtime proof |
 | PostgreSQL | host `psql.exe` nie istnieje; `docker exec` nie został wykonany po utracie obserwowalności Engine | `CURRENT_UNKNOWN`: schema, `data_directory`, WAL, tablespaces, log paths, kolejki i backup metadata w DB nieodczytane |
 | Public Gateway | listener `127.0.0.1:8789`, PID `41784`, Node, skrypt `C:\ai-lab-core\operations\gateway\public_web_server.cjs`; `/gateway-health=200`, publiczne `/control=404` | `CURRENT_OBSERVED` o `2026-09-16T13:40:09Z`; tylko bezpieczne GET |
@@ -95,12 +99,34 @@ Sanitowane podsumowanie kontynuacji jest `LOCAL_ONLY` w podkatalogu
 `startup-guard-20260916T161200Z/diagnosis-summary.md`, SHA-256
 `275D637CCD09F1CE4D59E24E2E8714AC1E1C49EC60EE690EE3032EB35DC3399B`.
 
+### 2.2. Aktywna diagnoza i odzyskany odczyt zasobu
+
+Jedna dozwolona sesja diagnostyczna potwierdziła właściwy context
+`desktop-linux`, endpoint `npipe:////./pipe/dockerDesktopLinuxEngine` oraz brak
+override `DOCKER_HOST`/`DOCKER_CONTEXT`. Exact inspect wskazanego backendu
+zakończył się bez timeoutu. Hostowy i VM proxy log mają skorelowane żądanie i
+odpowiedź `GET /v1.56/containers/<full-id>/json` o tym samym czasie. Nie ma
+dowodu, co usunęło poprzedni timeout; przyczyna pozostaje `UNKNOWN`.
+
+Przed testem Windows miał 7.484 GiB dostępnego fizycznego RAM oraz 37.608 GiB
+zapasu commit; pula `docker-desktop` raportowała 15.011 GiB available i 0 z
+8 GiB użytego swapu. Backend i Public Gateway health zwróciły `200`, publiczne
+`/control` zwróciło `404`, a port Supervisora `8787` nie miał listenera.
+
+Jedyny efemeryczny kontener testowy miał full ID
+`e9a43bf24c8e3c2979537c6813d1a806b2dfebda8e85a6cd50c551432b52c62c`,
+obraz R02, `network=none`, read-only root/source, tmpfs, bez portów, Docker
+socketa, privileged i host PID. Po kampanii został usunięty; exact inspect
+zwrócił `No such container`. Nie uruchomiono serwera produktu, dispatchera,
+Supervisora, modelu, SQL produkcji ani restartu Engine. Lokalny indeks dowodów:
+`docs/recovery/R04_D21_P3_DIAGNOSTIC_INDEX.csv`.
+
 ## 3. Miejsca fizycznego zapisu
 
 | Kategoria | Łańcuch | Ocena | Decyzja P3 |
 |---|---|---|---|
-| PostgreSQL PGDATA | deklarowane `/var/lib/postgresql/data` → `C:\ai-lab-core\data\postgres` → junction D:; katalog D: istnieje | `HISTORICAL_ON_D`, bieżący mount i SQL `UNKNOWN` | `KEEP` dopiero po bieżącym inspect i SQL; osobno wykluczyć zewnętrzne WAL/tablespaces |
-| Backend application data | deklarowane `/data` → logical data root → D: | `HISTORICAL_ON_D`; junction current | `KEEP`; potwierdzić exact mount i dodatkowe cache/tmp/log paths |
+| PostgreSQL PGDATA | deklarowane `/var/lib/postgresql/data` → `C:\ai-lab-core\data\postgres` → junction D:; katalog D: istnieje | `HISTORICAL_ON_D`; current PostgreSQL inspect i SQL nadal `UNKNOWN` | `KEEP` dopiero po bieżącym inspect i SQL; osobno wykluczyć zewnętrzne WAL/tablespaces |
+| Backend application data | current `/data` → `C:\ai-lab-core\data` → junction D: | `CURRENT_BIND_OBSERVED`; junction current | `KEEP`; nadal zinwentaryzować dodatkowe cache/tmp/log paths |
 | n8n | deklarowane `/home/node/.n8n` → `D:\ai-lab-data\n8n` | `HISTORICAL_ON_D`; target current | `KEEP` po exact mount readback |
 | Open WebUI | deklarowane `/app/backend/data` → `D:\ai-lab-data\openwebui` | `HISTORICAL_ON_D`; target current | `KEEP` po exact mount readback |
 | Ollama | deklarowane `/root/.ollama` → `D:\ai-lab-data\ollama` | `HISTORICAL_ON_D`; target current | `KEEP`; bez pobierania/przenoszenia modeli |
@@ -113,13 +139,13 @@ Nie nadano `ALL_LIVE_WRITES_ON_D_PASS`.
 
 ## 4. Wybrany source i skutki startupu
 
-Między main `483f9bf8...` i source `cb6e225...` nie ma zmian w
+Między main `483f9bf8...` i guard source `0ee0ea5...` nie ma zmian w
 `backend/Dockerfile`, requirements ani migracjach Alembic. Source head Alembic
 pozostaje `followup_assistant_chat_history_20260829`. To uzasadnia możliwość
 użycia zgodnego istniejącego obrazu zależności, ale nie zastępuje bieżącego
-image ID/digest ani testu kandydata.
+image ID/digest ani SQL na docelowej bazie.
 
-Start source `cb6e225...` nie jest skutkiem neutralnym:
+Start guard source `0ee0ea5...` nie jest skutkiem neutralnym:
 
 1. `init_database()` jest bezwarunkowe i wykonuje `seed_admin()`. Przy obecnej
    roli/użytkowniku tylko odczytuje, ale przy braku może zapisać role/admina.
@@ -146,12 +172,14 @@ Minimalny kandydat P3 musi więc przed cutoverem:
   aktywnego backup/import/restore/export i stan eventów/kolejek;
 - zachować Supervisor `INTENTIONALLY_STOPPED`.
 
-Bez pierwszego punktu source `cb6e225...` nie jest jeszcze bezpiecznym
-`BASE_READY_ONLY` produkcyjnym manifestem.
+Guard realizuje pierwszy punkt źródłowo, lecz bez owner review, current SQL,
+jawnych flag w zatwierdzonym manifeście i odbioru operacyjnego source
+`0ee0ea5...` nadal nie jest bezpiecznym `BASE_READY_ONLY` manifestem produkcji.
 
-### 4.1. Lokalny guard pierwszego startu — nieprzetestowany WIP
+### 4.1. Guard pierwszego startu — source gotowy do review
 
-W recovery przygotowano pięć ścieżek WIP:
+W source `0ee0ea50943578e6e552aae23ce1688595ddc262` zapisano pięć
+przetestowanych ścieżek:
 
 - `backend/app/core/config.py`: kompatybilne domyślne `true` dla
   `database_startup_seed_enabled` i `backup_plan_reconciler_enabled`;
@@ -164,18 +192,29 @@ W recovery przygotowano pięć ścieżek WIP:
 - `backend/test/test_d21_p3_startup_guard.py`: focused macierz default/invalid,
   read-only/no-write, fail-closed, reconciler off/on i lifespan all-off.
 
-WIP jest `SOURCE_PARTIAL / LOCAL_ONLY / TESTS_NOT_RUN`, ponieważ zgodnie z
-bramką §5 brak dowodu odzyskania odczytów zasobów Engine. Nie użyto hostowego
-Pythona ani testu na produkcji. `git diff --check` przeszedł, lecz nie zastępuje
-pytest/compileall/auth/API. Zabezpieczenie WIP:
+Kampania w przypiętym obrazie R02 użyła wyłącznie syntetycznych ustawień i DB
+contract fake; nie jest to PostgreSQL integration. Wyniki:
+
+- preimage `ddec6ea...`: `2 passed / 9 failed`, oczekiwany exit `1`, przyczyna
+  dotyczyła brakujących flag/readiness/reconciler controls;
+- focused guard: `11 passed`, exit `0`;
+- auth: osiem odpowiedzi `401`, zero uruchomień product lifespan, exit `0`;
+- `/version` i R05-A4 API: `26 passed`, exit `0`;
+- compileall czterech modułów i testu: exit `0`.
+
+Python miał wersję `3.12.13`, pytest `8.3.5`. Testy nie uruchomiły produkcyjnego
+PostgreSQL, migracji, modelu, dispatchera ani zewnętrznej sieci. Status guarda
+to `SOURCE_READY_FOR_REVIEW / SYNTHETIC_TESTS_PASS / NOT_DEPLOYED`, nie
+`ACCEPTED`. Historyczne zabezpieczenie WIP pozostaje dowodem pre-commit:
 
 - `startup-guard-tracked-wip.patch`, SHA-256
   `E043325F662D7A443534CC884C23B95EEA340348EA0823E348DEAB27F64EC0E3`;
 - `startup-guard-test-wip.patch`, SHA-256
   `78A8394E1B5E4B80AAEED3E3B7FAFFC773112DAD33BECD62E3C2ED6EB013A4DA`.
 
-Źródłem kandydata nadal jest odebrany `cb6e225...`; niesprawdzony WIP nie jest
-przypisany do starego ZIP-a/Web ani do produkcyjnego manifestu.
+Draft P3 wiąże backend source z `0ee0ea5...`; zaakceptowany source DATA_ONLY
+`cb6e225...`, stary ZIP i Web zachowują własne pochodzenie. Produkcyjny manifest
+pozostaje `NOT_APPROVED_FOR_START`.
 
 ## 5. Wybrany najmniejszy pakiet operacyjny
 
@@ -187,7 +226,7 @@ Zakres planowany:
 
 1. `KEEP` wszystkich potwierdzonych bindów danych D: oraz live Web
    `1.0.2+41`; obecny Web TEST_ONLY z API `18004` nie jest wdrażany.
-2. Z Git utworzyć inertny payload dokładnie z `cb6e225...:backend` w istniejącym
+2. Z Git utworzyć inertny payload dokładnie z `0ee0ea5...:backend` w istniejącym
    chronionym stagingu P2 i zweryfikować file manifest. Produkcja nie wykonuje
    recovery.
 3. Ponownie potwierdzić P2 preservation wszystkich kolidujących plików
@@ -236,27 +275,22 @@ Powrót danych nie jest zawarty w tym rollbacku i pozostaje zależnością R03.
 
 ## 6. Blockery i wynik
 
-`PREPARATION_PARTIAL` wynika z czterech konkretnych blockerów:
+`PREPARATION_PARTIAL` wynika z dwóch operacyjnych blockerów oraz jednego
+oczekującego odbioru źródeł:
 
-1. `DOCKER_ENGINE_RESOURCE_OBSERVABILITY_BLOCKED`: zachowane logi nie ustaliły
-   przyczyny timeoutu ani nie potwierdziły odzyskania resource reads; brak
-   bieżących ID/image/mount/log/restart facts.
-2. `DATABASE_METADATA_NOT_OBSERVED`: brak bezpiecznej ścieżki SQL po utracie
-   Engine; schema/WAL/tablespaces/queue/backup state są unknown.
-3. `BASE_START_GUARD_SOURCE_PARTIAL_TESTS_NOT_RUN`: guard seed/reconcilera jest
-   lokalnym WIP, bez wymaganej kampanii R02 i bez source commit/review.
-4. `ROLLBACK_DATA_FRESHNESS_UNRESOLVED`: task 1 ma
+1. `DATABASE_METADATA_NOT_OBSERVED`: schema/WAL/tablespaces/queue/backup state
+   są unknown; contract fake guarda nie zastępuje read-only PostgreSQL.
+2. `ROLLBACK_DATA_FRESHNESS_UNRESOLVED`: task 1 ma
    `SCHED_S_TASK_TERMINATED`, taski 2/3 wynik `1`, brak zachowanych końcowych
    logów; odebrany punkt R03 z 2026-09-08 jest historyczny, nie current.
+3. `BASE_START_GUARD_OWNER_REVIEW_PENDING`: source przeszedł wymaganą kampanię,
+   ale nie został jeszcze zaakceptowany ani wdrożony.
 
 Dokładne akcje komponentowe znajdują się w
-`docs/recovery/R04_D21_P3_CHANGESET.csv`. Nie wykonano testów aplikacji, P1,
-Fluttera, Web builda, migracji ani runtime smoke. Odebrany source pozostaje
-niezmieniony; lokalny WIP guarda nie został przetestowany, ponieważ bramka
-odczytu zasobów Engine nie przeszła.
+`docs/recovery/R04_D21_P3_CHANGESET.csv`. Nie wykonano Fluttera, Web builda,
+migracji, PostgreSQL integration ani runtime smoke kandydata. Wykonane były
+wyłącznie wskazane testy backendowe w odizolowanym kontenerze.
 
-Następny krok: po niezależnie potwierdzonej zmianie stanu resource reads
-wykonać dozwolony exact backend inspect z limitem 20 s, a dopiero po
-potwierdzeniu obrazu i bramek jedną izolowaną kampanię guarda. Następnie guard
-może otrzymać własny source/evidence review; bez automatycznego SQL/cutoveru,
-P4/P5 lub R06.
+Następny krok: owner review source/evidence guarda. Po jego odbiorze potrzebna
+jest osobna zgoda na ograniczone rozstrzygnięcie current SQL i świeżości
+rollbacku przed jakimkolwiek cutoverem; bez automatycznego P4/P5 lub R06.

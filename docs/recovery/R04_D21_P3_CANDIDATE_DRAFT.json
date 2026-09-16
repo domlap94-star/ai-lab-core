@@ -1,0 +1,66 @@
+{
+  "schema": "NEXT_STABIL_D21_P3_CANDIDATE_DRAFT_V1",
+  "integration_set_id": "R04-D21-P3-20260916T183445Z-0ee0ea5",
+  "candidate_status": "DRAFT_NOT_APPROVED_FOR_START",
+  "approval": {
+    "status": "NOT_APPROVED",
+    "decision_id": "D-21",
+    "operational_cutover_authorized": false
+  },
+  "base_candidate": {
+    "set_id": "R04-D21-P2-20260916T083044Z-cb6e225",
+    "accepted_data_only_source": "cb6e22506a0fecc440400566293524536847b9b0",
+    "accepted_data_only_tree": "c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc"
+  },
+  "source": {
+    "commit": "0ee0ea50943578e6e552aae23ce1688595ddc262",
+    "tree": "4ccbc8922051401da1422be0d08f271476c3bab6",
+    "parent": "ddec6ea20e2d755354e742e324d0d9cea5e5802f",
+    "status": "SOURCE_READY_FOR_REVIEW_NOT_DEPLOYED",
+    "files": [
+      {"path": "backend/app/core/config.py", "sha256": "F07A13EF54F3E24FF9D6CAE7FBC235659DAE954CEC54E62ACE4FCD16DADFC52C"},
+      {"path": "backend/app/database/init_db.py", "sha256": "2072F3657A115ABB67F56E82B498FFC2CDC32765135BF2315C813D17A8284BDE"},
+      {"path": "backend/app/main.py", "sha256": "5C6C039934639856F384EF67346A80311738C2B824FD9375393B145E3506A404"},
+      {"path": "backend/app/services/backup_plan_reconciler.py", "sha256": "743B5D1EC337A606BD8EE11CA09548B7A0F5CB1EB9086694C40D0ED9EF86A372"},
+      {"path": "backend/test/test_d21_p3_startup_guard.py", "sha256": "1D07A38E35BFC32E7726FD4FC8EA1A3E8B171C2518CEA7EBFCA11573B9F01362"}
+    ]
+  },
+  "startup_guard": {
+    "database_startup_seed_enabled_default": true,
+    "backup_plan_reconciler_enabled_default": true,
+    "desired_first_start_database_startup_seed_enabled": false,
+    "desired_first_start_backup_plan_reconciler_enabled": false,
+    "disabled_seed_behavior": "FAIL_CLOSED_READ_ONLY_READINESS",
+    "disabled_reconciler_behavior": "NO_TASK_NO_SESSION_NO_EXTERNAL_CALL"
+  },
+  "test_evidence": {
+    "image": "sha256:4b12cf0e2501981eff4d7ce6cfd5eb55fcc83ae41bf5561b565e7aa8aed37651",
+    "python": "3.12.13",
+    "pytest": "8.3.5",
+    "preimage": "2 passed / 9 failed; expected exit 1",
+    "guard": "11 passed; exit 0",
+    "auth": "8 responses 401; product lifespan starts 0; exit 0",
+    "version_and_a4_api": "26 passed; exit 0",
+    "compileall": "exit 0",
+    "database_evidence": "CONTRACT_FAKE_NOT_POSTGRESQL_INTEGRATION",
+    "external_calls": 0
+  },
+  "current_runtime_observation": {
+    "utc": "2026-09-16T18:29:26Z",
+    "backend_id": "9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a",
+    "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
+    "app_mount": "C:/ai-lab-core/build/deploy-main-483f9bf8/backend:/app:rw",
+    "data_mount": "C:/ai-lab-core/data:/data:rw",
+    "recovery_or_wip_mounted": false,
+    "engine_timeout_root_cause": "UNKNOWN"
+  },
+  "remaining_gates": [
+    "OWNER_REVIEW_OF_GUARD_SOURCE",
+    "CURRENT_POSTGRESQL_SCHEMA_WAL_TABLESPACES_AND_QUEUE_STATE",
+    "ROLLBACK_DATA_FRESHNESS",
+    "EFFECTIVE_FIRST_START_FLAGS",
+    "PRODUCTION_MANIFEST_APPROVAL",
+    "SEPARATE_OPERATIONAL_CUTOVER_APPROVAL"
+  ],
+  "cutover": "NOT_RUN_NOT_AUTHORIZED"
+}
