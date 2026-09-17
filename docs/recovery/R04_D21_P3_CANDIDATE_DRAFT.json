@@ -1,9 +1,9 @@
 {
   "schema": "NEXT_STABIL_D21_P3_CANDIDATE_DRAFT_V1",
-  "integration_set_id": "R04-D21-P3-20260916T200609Z-0ee0ea5",
-  "candidate_status": "DRAFT_NOT_APPROVED_FOR_START",
+  "integration_set_id": "R04-D21-P3-CORE-SWITCH-20260917T141404Z",
+  "candidate_status": "CORE_SWITCH_PREFLIGHT_READY_WAITING_OWNER_WINDOW",
   "approval": {
-    "status": "NOT_APPROVED",
+    "status": "WAITING_CURRENT_OWNER_CONFIRMATION",
     "decision_id": "D-21",
     "operational_cutover_authorized": false
   },
@@ -60,7 +60,7 @@
     "external_calls": 0
   },
   "current_runtime_observation": {
-    "utc": "2026-09-16T19:59:54Z",
+    "utc": "2026-09-17T14:09:00Z",
     "backend_id": "9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a",
     "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
     "app_mount": "C:/ai-lab-core/build/deploy-main-483f9bf8/backend:/app:rw",
@@ -81,7 +81,7 @@
     }
   },
   "current_database_observation": {
-    "utc": "2026-09-16T20:03:19Z",
+    "utc": "2026-09-17T14:14:43Z",
     "status": "CURRENT_DB_METADATA_OBSERVED_READ_ONLY",
     "transaction_read_only": true,
     "sql_exit_code": 0,
@@ -122,7 +122,7 @@
       "isolated_data_restore": "PASS",
       "consistency": "COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL",
       "verified_links": "PASS_IN_TESTED_SCOPE",
-      "owner_acceptance": "NOT_YET_ACCEPTED_READY_FOR_REVIEW",
+      "owner_acceptance": "ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS",
       "tool_provenance_review": {
         "tool_root_commit": "e3f2125883420a12c8721c5ba597203dcf403add",
         "result": "RECONCILED_REPORT_TRANSCRIPTION_ERRORS_CORRECTED",
@@ -154,13 +154,37 @@
     "fresh_current_point_verified": true,
     "data_restore_is_automatic_application_rollback": false
   },
+  "phase_a_preflight": {
+    "op_id": "R04-D21-P3-CORE-SWITCH-20260917T141404Z",
+    "status": "CORE_SWITCH_PREFLIGHT_READY_WAITING_OWNER_WINDOW_NO_CUTOVER",
+    "staging_root": "C:/ai-lab-core-staging/recovery/R04_D21_P2_20260915T212340Z/p3-core-switch-20260917T141404Z",
+    "payload": {
+      "file_count": 592,
+      "total_bytes": 5061238,
+      "git_blob_mismatches": 0,
+      "aggregate_sha256": "7A65EDFC8E18B4B1B592A5DDEB1EBFA5C2CA85762260299157E7132AEE48B055",
+      "archive_sha256": "3D5A52C6DF18018B446205C8EAD30EB209C04D4A3EE097D1E3DFCF59130612DA",
+      "file_manifest_sha256": "2D6721F36E55B6D386CD47035A169030DB5BF990B0C81BA23D9E7A695D3A5452"
+    },
+    "override": {
+      "tracked_path": "operations/runtime/approved-compose/R04-D21-P3-core.override.yml",
+      "config_source_commit": "f5cc96f70c9689d07cb18d1734cf4cc664f308b0",
+      "sha256": "F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86",
+      "compose_version": "v5.5.1",
+      "sanitized_config_summary_sha256": "73BF672F4C2167A2DFEE37A121FAD5162074378FB82F86EC7B420CC21496B90D",
+      "full_render_persisted": false,
+      "environment_mismatches": 0
+    },
+    "operation_plan_sha256": "8F5691A5504FE01213C97502D20B2517FF172A641092629413FD08F64FE31E78",
+    "database_delta": "SELECTED_QUEUE_PROJECTION_UNCHANGED_FULL_DELTA_NOT_FULLY_OBSERVED",
+    "production_mutations": 0
+  },
   "remaining_gates": [
-    "FRESH_ROLLBACK_POINT_OWNER_REVIEW",
-    "WRITES_AFTER_COMPONENT_WINDOWS_REASSESSMENT",
+    "CURRENT_OWNER_WINDOW_CONFIRMATION_FOR_EXACT_OP_ID",
+    "FINAL_DRIFT_CHECK",
     "PENDING_WORK_PRESERVATION_IN_OPERATIONAL_WINDOW",
     "EFFECTIVE_FIRST_START_FLAGS_NOT_DEPLOYED",
-    "PRODUCTION_MANIFEST_APPROVAL",
-    "SEPARATE_OPERATIONAL_CUTOVER_APPROVAL"
+    "GLOBAL_PRODUCTION_START_MANIFEST_NOT_APPROVED"
   ],
   "cutover": "NOT_RUN_NOT_AUTHORIZED"
 }

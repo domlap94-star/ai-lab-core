@@ -235,3 +235,21 @@ Status review: `ROLLBACK_TOOL_PROVENANCE_RECONCILED /
 EVIDENCE_READY_FOR_REVIEW`; odstępstwa są zapisane jako
 `PROCEDURAL_DEVIATIONS_RECORDED / NO_RETROACTIVE_PASS`. Produkcyjny manifest
 pozostaje `NOT_APPROVED_FOR_START`, a cutover `NOT_AUTHORIZED / NOT_RUN`.
+
+## 7. Odbiór właściciela 2026-09-17 i dalsza granica
+
+Właściciel przyjął ograniczony wynik danych punktu
+`E:\ai-lab-backup\20260917T082022Z`, immutable manifest SHA-256
+`2759D684710FB857DBCD0D985B5C480857122E3B139B9DDC362BFF4903895597`,
+jako `ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS`.
+Odbiór obejmuje capture/integrity i izolowane odtworzenie tylko w sprawdzonym
+zakresie. Nie usuwa `COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL`, braku
+owner/run labels, historycznego niezatwierdzonego pull/run `alpine:3.20`,
+pierwszego niedostarczonego transferu tmpfs ani braku dowodu pełnego
+host/VHD/model/profile/credential/escrow recovery. Nie jest proceduralnym PASS
+dla tych odstępstw i nie zmienia immutable dowodów.
+
+Odbiór punktu nie jest zgodą na restore danych ani cutover. Faza A przygotowała
+osobny pakiet `R04-D21-P3-CORE-SWITCH-20260917T141404Z`; jego faza B nadal
+wymaga bieżącego potwierdzenia właściciela dokładnego OP_ID, payloadu,
+override, przerwy i ryzyka rollbacku.

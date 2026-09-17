@@ -1,6 +1,6 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `ROLLBACK_TOOL_PROVENANCE_RECONCILED / EVIDENCE_READY_FOR_REVIEW / CAPTURE_AND_ISOLATED_DATA_RESTORE_RESULTS_PRESERVED / NO_CUTOVER`
+Status: `ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS / CORE_SWITCH_PREFLIGHT_READY / WAITING_OWNER_WINDOW / NO_CUTOVER`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
@@ -339,59 +339,70 @@ Zakres planowany:
    innych usług), odczytać nowy pełny ID/mounty/image i zweryfikować schema,
    `/version`, legacy API, public gateway/Web oraz brak nowych zadań/kolejek.
 
-Przykładowe mutujące polecenia są wyłącznie specyfikacją i mają status
-`NOT_EXECUTED / REQUIRES_OWNER_APPROVAL`:
+Faza A przygotowała dokładny pakiet
+`R04-D21-P3-CORE-SWITCH-20260917T141404Z`. Poniższe polecenie jest
+specyfikacją zatwierdzonego zakresu, ale nadal ma status
+`NOT_EXECUTED / REQUIRES_CURRENT_OWNER_CONFIRMATION`:
+
+Nieaktywny override jest przypięty w recovery do commita
+`f5cc96f70c9689d07cb18d1734cf4cc664f308b0`; jego publikacja nie instaluje
+go pod docelową ścieżką i nie zatwierdza użycia przez runtime.
 
 ```powershell
-# NOT_EXECUTED / REQUIRES_OWNER_APPROVAL
-Move-Item -LiteralPath 'C:\ai-lab-core\backend' `
-  -Destination 'C:\ai-lab-core-staging\recovery\R04_D21_P2_20260915T212340Z\p3-cutover-R04-D21-P2-20260916T083044Z-cb6e225\rollback-backend'
-
-# NOT_EXECUTED / REQUIRES_OWNER_APPROVAL
-Move-Item -LiteralPath 'C:\ai-lab-core-staging\recovery\R04_D21_P2_20260915T212340Z\p3-cutover-R04-D21-P2-20260916T083044Z-cb6e225\candidate-backend' `
-  -Destination 'C:\ai-lab-core\backend'
-
-# NOT_EXECUTED / REQUIRES_OWNER_APPROVAL; exact image must first be resolved
-docker --context desktop-linux compose -p ai-lab-core `
+# NOT_EXECUTED / REQUIRES_CURRENT_OWNER_CONFIRMATION
+docker --context desktop-linux compose `
+  --project-name ai-lab-core `
+  --project-directory 'C:\ai-lab-core' `
   -f 'C:\ai-lab-core\compose.yaml' `
   -f 'C:\ai-lab-core\operations\runtime\approved-compose\R04-D21-P3-core.override.yml' `
-  up -d --no-deps --no-build --force-recreate backend
+  up -d --no-deps --no-build --pull never --force-recreate --timeout 30 backend
 ```
 
-Nie wolno wykonać tych poleceń z nierozstrzygniętym image identity, SQL,
-backup/event state, rollback point lub bez nowej zgody właściciela.
+Całe wywołanie ma limit 180 s, a oddzielne readiness maksymalnie 180 s. Timeout
+oznacza `CUTOVER_STATE_UNKNOWN`, nie retry. Nie wolno wykonać operacji bez
+końcowego drift checku i bieżącego potwierdzenia właściciela dla dokładnego
+OP_ID, payloadu i override.
 
 Rollback kodu/config dla tego pakietu używa istniejącego deploymentu
 `483f9bf8b1a591ded8a42df5da87663c664ed5d4`, historycznego image ID
 `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`
-po jego bieżącym potwierdzeniu oraz override D21-016 o SHA-256
-`36355C9392BA1A9A060B036D7B64B42E0CBD4EF65579335BB7C95DDA807436E8`.
-Powrót danych nie jest zawarty w tym rollbacku i pozostaje zależnością R03.
+po jego bieżącym potwierdzeniu, override D21-016 o SHA-256
+`36355C9392BA1A9A060B036D7B64B42E0CBD4EF65579335BB7C95DDA807436E8`
+oraz lokalnego image-pin override SHA-256
+`7ECE19FC6B4F16AD1A4626C1AD843086EBE1960E486C4D66F2384926259CE845`.
+Powrót danych nie jest zawarty w tym rollbacku. Stara recepta przywraca legacy
+producer flags i nie daje nowego guarda seed/reconciler; jest to jawne ryzyko
+bramki właściciela, nie ukryty BASE_ONLY rollback.
 
-## 6. Blockery i wynik
+## 6. Faza A i bieżąca bramka
 
-`PREPARATION_PARTIAL / NO_CUTOVER` pozostaje z powodu operacyjnych bramek i
-potrzeby ochrony zastanego pending work; wybór świeżego punktu został wykonany,
-lecz sam punkt nie otrzymał jeszcze statusu `ACCEPTED`:
+Właściciel przyjął punkt `20260917T082022Z` jako
+`ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS`. Nie usuwa to
+ograniczeń component windows, provenance ani braku pełnego host recovery.
 
-1. `FRESH_ROLLBACK_POINT_OWNER_REVIEW_REQUIRED`: punkt z rozliczonym
-   provenance i jawnymi odstępstwami
-   `20260917T082022Z` ma capture+drill PASS, lecz pozostaje `READY_FOR_REVIEW`;
-   przed przyszłym cutoverem trzeba ocenić zapisy powstałe po jego oknach.
-2. `PRODUCTION_START_MANIFEST_NOT_APPROVED`: draft ma wymagane flagi `false`,
-   lecz nie został zainstalowany, odczytany jako effective ani zatwierdzony.
-3. `PENDING_WORK_MUST_BE_PRESERVED`: 18 document-preparation, 16 analysis i
-   jeden Assistant pozostają zastanym stanem, którego P3 nie może uruchomić,
-   zdublować ani zgubić.
+Faza A odczytała ponownie runtime, PostgreSQL i zasoby bez mutacji produkcji.
+Backend/obraz/mounty i pozostałe pięć kontenerów są zgodne z przypiętym stanem;
+Public Gateway/Web działają, publiczne `/control*` nadal daje 404, Supervisor
+pozostaje zatrzymany. PostgreSQL READ ONLY potwierdził schema i Administrator
+`1/1`; pending pozostaje `18/16/1`. Wybrana projekcja kolejki nie zmieniła się
+względem 2026-09-16, lecz pełna delta treści po component windows jest
+`DELTA_NOT_FULLY_OBSERVED`.
+
+Payload ma 592 pliki, zero blob mismatches i aggregate SHA-256
+`7A65EDFC8E18B4B1B592A5DDEB1EBFA5C2CA85762260299157E7132AEE48B055`.
+Override SHA-256
+`F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86`
+przeszedł bezskutkowe `docker compose config --no-interpolate` w Compose v5.5.1;
+pełnego renderu i sekretów nie utrwalono. Dokładny plan operacji ma SHA-256
+`8F5691A5504FE01213C97502D20B2517FF172A641092629413FD08F64FE31E78`.
+
+Faza B pozostaje `WAITING_OWNER_WINDOW / NO_CUTOVER`. Po bieżącym
+potwierdzeniu OP_ID nadal obowiązuje finalny drift check; materialna zmiana
+tożsamości, aktywnej pracy lub kolizja z taskiem zatrzymuje operację przed
+mutacją. Produkcyjny globalny manifest P1 pozostaje `NOT_APPROVED_FOR_START`.
 
 Dokładne akcje komponentowe znajdują się w
-`docs/recovery/R04_D21_P3_CHANGESET.csv`. W tej kontynuacji testy aplikacji,
-Flutter, Web build, migracje i runtime smoke kandydata były `NOT_RUN`. Po
-wcześniejszym metadata read i transakcji PostgreSQL READ ONLY wykonano wyłącznie
-jeden fresh CaptureOnly oraz izolowany data restore/drill opisany powyżej; nie
-uruchamiano aplikacji kandydata.
-
-Jedyna następna decyzja właściciela: review dokładnego fresh pointu
-`20260917T082022Z` i osobna zgoda na już opisane minimalne okno P3 backend
-source-switch, jeżeli wiek punktu oraz zapisy po jego component windows są
-akceptowalne. Nie ma zgody na cutover, P4/P5 ani R06.
+`docs/recovery/R04_D21_P3_CHANGESET.csv`, a checkpoint w
+`docs/recovery/checkpoints/20260917T143219Z-R04-D21-P3-CORE-SWITCH-PREFLIGHT.md`.
+Testy aplikacji, Flutter, Web build, migracje i runtime smoke kandydata są
+`NOT_RUN`; nie uruchamiano aplikacji kandydata, backupu ani restore.
