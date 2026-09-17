@@ -1,0 +1,38 @@
+services:
+  backend:
+    image: sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702
+    pull_policy: never
+    environment:
+      SOURCE_REVISION: "0ee0ea50943578e6e552aae23ce1688595ddc262"
+      DATABASE_SCHEMA_REVISION: "followup_assistant_chat_history_20260829"
+      DATABASE_STARTUP_SEED_ENABLED: "false"
+      BACKUP_PLAN_RECONCILER_ENABLED: "false"
+      VISION_AUTOMATION_ENABLED: "false"
+      VISUAL_V2_ENABLED: "false"
+      ADVANCED_ANALYSIS_ENABLED: "false"
+      KNOWLEDGE_BASE_PROCESSING_ENABLED: "false"
+      KNOWLEDGE_BASE_VECTOR_WRITES_ENABLED: "false"
+      DOCUMENT_PREPARATION_ENABLED: "false"
+      ASSISTANT_PIPELINE_V2_ENABLED: "false"
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - type: bind
+        source: C:/ai-lab-core/backend
+        target: /app
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: C:/ai-lab-core/data
+        target: /data
+        bind:
+          create_host_path: false
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - ai-lab-network
