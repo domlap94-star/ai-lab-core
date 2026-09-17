@@ -1,12 +1,13 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `STARTUP_ACTIVATION_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW / IDENTITY_READBACK_PARTIAL / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
 Podstawa: P1 launcher source `2e69622bc6a0b4888427f8ae5be119377aed26d9`,
 DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`, P3 backend
-source `0ee0ea50943578e6e552aae23ce1688595ddc262`.
+source `0ee0ea50943578e6e552aae23ce1688595ddc262`; kontynuacja P4/A source
+`8756314f51a76091a483cfc9b677a05c7f67f315`.
 
 ## 1. Granica i przyjęty stan P3
 
@@ -30,8 +31,8 @@ P4-A przygotowuje wyłącznie nieaktywny zestaw do osobnego review:
   kontenerów;
 - draft manifestu oparty na bieżących tożsamościach sześciu kontenerów;
 - rollbackowe kopie pięciu definicji tasków i dwóch obecnych wejść użytkownika;
-- wyłączony draft taska `NEXT Stabil - Host`, 1 535 B, SHA-256
-  `66810B9DABE86518C28A3D7A9709B8D1DC50688F4B6B2BFC7A69B514D87629CB`;
+- wyłączony draft taska `NEXT Stabil - Host`, 1 536 B, SHA-256
+  `013ED40479F65861E92A329077F7E2ECCBF04FB40C6891C96CD0638BB4B7FD21`;
 - changeset triggerów i kolejność instalacji uniemożliwiającą przypadkową
   aktywację.
 
@@ -39,16 +40,20 @@ Lokalny pakiet jest w chronionym stagingu:
 
 `C:\ai-lab-core-staging\recovery\R04_D21_P2_20260915T212340Z\p4-startup-activation-20260917T210051Z`
 
-Indeks pakietu ma SHA-256
+Pierwotny indeks 16 plików ma SHA-256
 `DC76525E49B77C7CA791B9724D38F9E26C2FC7FDA8513A2403B7D167481ACB72`.
-Jest `LOCAL_ONLY / NOT_INSTALLED / NOT_APPROVED`.
+Pozostaje historycznym dowodem preimage; kontynuacja ma oddzielny indeks po
+zmianie źródeł. Efektywny indeks kontynuacji obejmuje 18 przypiętych plików,
+ma 4 222 B i SHA-256
+`78966E33376D4A6E118B79AFE2A844403AFEF1B0E56BB8A972B438FB55428482`.
+Całość jest `LOCAL_ONLY / NOT_INSTALLED / NOT_APPROVED`.
 
 ## 3. Minimalny payload
 
 | Rola | Źródło | Docelowa ścieżka po osobnej zgodzie | Bajty | SHA-256 | Stan dziś |
 | --- | --- | --- | ---: | --- | --- |
-| Launcher | `operations/runtime/start-host-services.ps1` z P1 | `C:\ai-lab-core\operations\runtime\start-host-services.ps1` | 62 651 | `12B978E97DFE5766945238EF92C591AC3DC6896E71279EA3B3D792A9EFD73108` | Brak w instalacji |
-| Runtime validator | `operations/runtime/startup-runtime.ps1` z DATA_ONLY | `C:\ai-lab-core\operations\runtime\startup-runtime.ps1` | 59 253 | `DC4E5EB638B93470BFF252D23864BBB1FC2F75D001B2D1E9FC20C0B849C0A103` | Brak w instalacji |
+| Launcher | `operations/runtime/start-host-services.ps1` z kontynuacji P4/A | `C:\ai-lab-core\operations\runtime\start-host-services.ps1` | 63 377 | `7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871` | Brak w instalacji |
+| Runtime validator | `operations/runtime/startup-runtime.ps1` z kontynuacji P4/A | `C:\ai-lab-core\operations\runtime\startup-runtime.ps1` | 69 194 | `349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7` | Brak w instalacji |
 | Existing-only helper | `operations/windows/start-compose-after-docker.ps1` z P1 | `C:\ai-lab-core\operations\windows\start-compose-after-docker.ps1` | 880 | `91C763F5D0FF6CC7184E0B238EA6A6047CBB3FB13F88917777F4E0696E9667EC` | Do zastąpienia starego helpera `445AFFC0...EDECC5` |
 | P3 override | już zainstalowany plik | `C:\ai-lab-core\operations\runtime\approved-compose\R04-D21-P3-core.override.yml` | 1 174 | `F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86` | KEEP |
 
@@ -74,6 +79,38 @@ istniejących, działających kontenerów projektu `ai-lab-core`, wszystkie z
 RepoDigests nie zostały utrwalone: projekcja metadanych obrazu utraciła wynik i
 nie była ponawiana. Fizyczny backing `qdrant_storage` i Docker/WSL VHD pozostają
 `UNKNOWN`; nie wolno zamieniać tego w `ALL_DATA_ON_D_PASS`.
+
+Kontynuacja P4/A podjęła jedno ograniczone okno odczytowe. Natywne odczyty
+Engine odpowiadały, ale trzy kolejne lokalne formatowania bezpiecznej projekcji
+zakończyły się odpowiednio na opcjonalnych polach `Mount.Name`,
+`Healthcheck.StartPeriod` i skalarnym `RepoDigests.Count`, zanim wynik został
+utrwalony. Zgodnie z zakazem retry-do-skutku dalsze odczyty przerwano. Bieżąca
+`.Name` i `RepoDigests` pozostają `NOT_VERIFIED`; nazwa `ai-lab-backend` w
+drafcie pochodzi z zainstalowanego override P3, nie z nowego runtime readbacku.
+Nie jest to dowód bieżącej nazwy kontenera ani podstawa do zatwierdzenia
+manifestu.
+
+## 4.1. Wynik review tożsamości i zimnego startu
+
+Na preimage `daf0931cff28944e5df528f63cd95b4d99dd041a` odtworzono:
+
+- zmianę wyłącznie pełnego ID: `valid=true`, bez błędu i bez blokady;
+- kolejność draftu `backend, postgres, ...`: fake start backendu następował
+  przed PostgreSQL, bez obserwacji health;
+- brak ról `startup_launcher`, `startup_runtime`, `backend_override` oraz sześć
+  placeholderów digestów.
+
+Poprawka `NEXT_STABIL_STARTUP_PACKAGE_V1` egzekwuje oddzielnie service label,
+runtime name i pełny ID, wiąże trzy brakujące role plików, rozróżnia normalny
+RepoDigest od backend-only `LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST` oraz
+porządkuje sześć usług. PostgreSQL ma wymaganie `HEALTHY`; backend zależy od
+jego potwierdzonego health i nie jest startowany przy `starting`, `UNKNOWN` lub
+deadline. Tryb local-image wymaga pozytywnie odczytanej pustej listy digestów;
+timeout i błąd odczytu nie uruchamiają fallbacku.
+
+Kampania offline Windows PowerShell 5.1 przeszła: P1 plan `53`, real adapters
+`51`, DATA_ONLY `44` i P4 package `14` asercji. Są to asercje syntetycznych
+granic, nie testy live startu ani P4-B.
 
 Aktualny odczyt HTTP z 2026-09-17T21:00:51Z dał backend health `200`, public
 gateway health `200` i publiczne `/control` `404`. Projekcja pól `/version`
@@ -119,7 +156,10 @@ bez triggerów, nadal `Enabled=true`. Żaden XML nie został zaimportowany.
    ścieżką. Rollback: przywrócić dokładne bajty tylko po przywróceniu poprzedniej
    semantyki startu.
 3. Zarejestrować `NEXT Stabil - Host` jako `Enabled=false`, principal `domai`,
-   `InteractiveToken`, `LeastPrivilege`, `IgnoreNew`, limit `PT6M`. Nie uruchamiać.
+   `InteractiveToken`, `LeastPrivilege`, `IgnoreNew`, limit `PT15M`. Limit jest
+   skończony i obejmuje budżet Engine 180 s, sześć ograniczonych etapów
+   kontenerów, dwa host-service oraz finalne readiness; nie oznacza gwarancji
+   zakończenia w tym czasie. Nie uruchamiać.
    Rollback: usunąć tylko dokładnie nowy task po potwierdzeniu identity.
 4. Usunąć wyłącznie automatyczne triggery z tasków Public/Private/Supervisor,
    pozostawiając executory enabled/on-demand. Wyłączyć legacy Docker Desktop i
@@ -170,8 +210,9 @@ usuwa tej bramki D-21.
 ## 10. Bramy przed P4-B
 
 - właścicielski review tego exact pakietu i changesetu;
-- bezpieczne uzupełnienie brakujących RepoDigests albo świadoma, osobno
-  zaakceptowana polityka identity bez ich fabrykowania;
+- jeden poprawnie utrwalony readback runtime `.Name`, pełnych ID i
+  `RepoDigests` sześciu obrazów; backend-only local-image może zostać wybrany
+  wyłącznie po potwierdzonym pustym `RepoDigests`, bez fabrykowania digestu;
 - rozliczenie fizycznego backingu Qdrant/VHD oraz decyzja, czy ograniczony start
   może poprzedzić relokację;
 - decyzja o minimalnej funkcji `OPEN_AFTER_BASE_READY` albo jawne utrzymanie
@@ -180,8 +221,8 @@ usuwa tej bramki D-21.
 - osobny plan odbioru harmonogramu backupu;
 - zatwierdzony manifest startowy; obecny draft nie jest nim.
 
-Następny krok: właścicielski review pakietu P4-A i osobna zgoda na **jeden**
-P4-B obejmujący najpierw wyłączenie starego Startup wrappera, instalację
-wyłączonego host taska i payloadu, następnie kontrolowaną aktywację dopiero po
-zatwierdzeniu kompletnego manifestu. Bez tej zgody nie wolno wykonać żadnego z
-powyższych kroków.
+Następny krok: jednorazowy, poprawnie rejestrowany readback dokładnej nazwy i
+RepoDigests sześciu przypiętych zasobów, następnie review wynikowego draftu.
+Dopiero kompletny manifest może otrzymać osobną zgodę P4-B na wyłączenie starego
+Startup wrappera, instalację wyłączonego host taska i payloadu oraz świadomą
+aktywację. Bez tej zgody nie wolno wykonać żadnego z powyższych kroków.

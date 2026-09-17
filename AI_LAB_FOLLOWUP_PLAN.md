@@ -2818,7 +2818,11 @@ preserved the ACTIVE_DATA junction and existing database, and reached
 review of phase-B evidence and the later two-layer environment readback. This
 is not acceptance of the global production set or permission for another
 runtime mutation. P4-A subsequently prepared one inactive launcher payload,
-draft manifest, exact trigger changes and rollback package for review; it did
-not install or run them. The production manifest, Supervisor, relocation, task
+draft manifest, exact trigger changes and rollback package for review. Its
+continuation reproduced and fixed the missing full container-ID binding and
+PostgreSQL-health-before-backend ordering in source/offline tests. The bounded
+runtime name/RepoDigest readback was not persisted after formatter failures,
+remains `NOT_VERIFIED / BLOCKING_P4B`, and was not retried to success. P4-A did
+not install or run the package. The production manifest, Supervisor, relocation, task
 installation, full startup/rollback acceptance, backup schedule proof, cleanup
 and P4-B/P5 remain separately gated.

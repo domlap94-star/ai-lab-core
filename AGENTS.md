@@ -27,8 +27,11 @@
   `0ee0ea50943578e6e552aae23ce1688595ddc262` from the canonical backend path
   and is owner-accepted as `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
   LIMITED_RUNTIME_SCOPE`; it is not acceptance of the global production set.
-  D21-P4/A prepared an inactive startup activation package for review only.
-  A production manifest, installation, task/shortcut changes, live
+  D21-P4/A now has reviewed source and offline tests for full container-ID
+  binding, explicit image identity modes and PostgreSQL health before backend;
+  it remains inactive and not installed. Its attempted runtime name/RepoDigest
+  projection was not persisted after formatter failures, so identity readback
+  is `NOT_VERIFIED / BLOCKING_P4B`. A production manifest, installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
   separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
@@ -84,9 +87,10 @@
   not authorize another recreate, rollback without a new trigger/decision,
   Supervisor start, runtime/config/data/mount/task changes, migration, backup,
   restore, escrow, relocation, cleanup, or continuation into P4-B/P5. P4-A is
-  documentation and an inactive local package only; its draft manifest remains
-  `NOT_APPROVED` and none of its task or file changes may be installed without
-  a new exact owner decision.
+  source/offline review plus an inactive local package only; its draft manifest
+  remains `NOT_APPROVED`, its runtime identity readback remains incomplete, and
+  none of its task or file changes may be installed without a new exact owner
+  decision.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

@@ -1,6 +1,7 @@
 {
   "schema": "NEXT_STABIL_STARTUP_SET_V1",
   "component_identity_schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+  "startup_package_schema": "NEXT_STABIL_STARTUP_PACKAGE_V1",
   "set_id": "R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z",
   "root": "C:\\ai-lab-core",
   "approval": {
@@ -46,6 +47,24 @@
       "role": "supervisor_script",
       "path": "operations/supervisor/server.js",
       "sha256": "4CFB7F9E3D97521D8D0F6D588BB119AB34C9D52FAD498AA520368CD13B170701",
+      "evidence": "INSTALLED_BYTES_OBSERVED_2026-09-17"
+    },
+    {
+      "role": "startup_launcher",
+      "path": "operations/runtime/start-host-services.ps1",
+      "sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871",
+      "evidence": "P4A_CONTINUATION_SOURCE_NOT_INSTALLED"
+    },
+    {
+      "role": "startup_runtime",
+      "path": "operations/runtime/startup-runtime.ps1",
+      "sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7",
+      "evidence": "P4A_CONTINUATION_SOURCE_NOT_INSTALLED"
+    },
+    {
+      "role": "backend_override",
+      "path": "operations/runtime/approved-compose/R04-D21-P3-core.override.yml",
+      "sha256": "F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86",
       "evidence": "INSTALLED_BYTES_OBSERVED_2026-09-17"
     }
   ],
@@ -118,11 +137,17 @@
   "containers": [
     {
       "service": "backend",
-      "container_name": "backend",
+      "container_name": "ai-lab-backend",
       "compose_project": "ai-lab-core",
       "container_id": "686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854",
       "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
-      "repo_digest": "UNKNOWN_NOT_OBSERVED",
+      "image_identity_mode": "UNRESOLVED",
+      "repo_digest": "NOT_VERIFIED",
+      "startup_order": 60,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [
+        "postgres"
+      ],
       "restart_policy": "unless-stopped",
       "mounts": [
         {
@@ -153,7 +178,11 @@
       "compose_project": "ai-lab-core",
       "container_id": "240343ebff4fb299b239db2817efea1910ab59c29ed3ec9df3a8abde04e81226",
       "image_id": "sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d",
-      "repo_digest": "UNKNOWN_NOT_OBSERVED",
+      "image_identity_mode": "UNRESOLVED",
+      "repo_digest": "NOT_VERIFIED",
+      "startup_order": 10,
+      "health_requirement": "HEALTHY",
+      "depends_on_healthy": [],
       "restart_policy": "unless-stopped",
       "mounts": [
         {
@@ -178,7 +207,11 @@
       "compose_project": "ai-lab-core",
       "container_id": "daa3b0b86b74d4a156522034406f8bd685848181e2467df85d55c37067551fae",
       "image_id": "sha256:0bd98fa780cda3b77b2e56463e729fa0f893e1ab3b3fd467c8777ad101bd5286",
-      "repo_digest": "UNKNOWN_NOT_OBSERVED",
+      "image_identity_mode": "UNRESOLVED",
+      "repo_digest": "NOT_VERIFIED",
+      "startup_order": 20,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
       "restart_policy": "unless-stopped",
       "mounts": [
         {
@@ -210,7 +243,11 @@
       "compose_project": "ai-lab-core",
       "container_id": "a44e719ecfecbd46e982589199706746539217196ccdc1014b8493a23737081c",
       "image_id": "sha256:3c07c723761004a0e82cdbf55ed5000a6cc256568139022fa7c395a14709c684",
-      "repo_digest": "UNKNOWN_NOT_OBSERVED",
+      "image_identity_mode": "UNRESOLVED",
+      "repo_digest": "NOT_VERIFIED",
+      "startup_order": 30,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
       "restart_policy": "unless-stopped",
       "mounts": [
         {
@@ -235,7 +272,11 @@
       "compose_project": "ai-lab-core",
       "container_id": "9575ca068b8c547c189071f3f950be8b74c7651dc830918ad6979a2e6a654c39",
       "image_id": "sha256:a26effeb7bb7d36495cb1b9940ce630d5ce91532a7dd6376341609e273d5f6b0",
-      "repo_digest": "UNKNOWN_NOT_OBSERVED",
+      "image_identity_mode": "UNRESOLVED",
+      "repo_digest": "NOT_VERIFIED",
+      "startup_order": 40,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
       "restart_policy": "unless-stopped",
       "mounts": [
         {
@@ -260,7 +301,11 @@
       "compose_project": "ai-lab-core",
       "container_id": "7ff1c45ea12c2d1639471d68a5704b82e262fc422160b6374be36733229ac083",
       "image_id": "sha256:ec24bcaa4b1f4563f57d3fef810e7d92c84893f5fdbe71af40bb3711882036d4",
-      "repo_digest": "UNKNOWN_NOT_OBSERVED",
+      "image_identity_mode": "UNRESOLVED",
+      "repo_digest": "NOT_VERIFIED",
+      "startup_order": 50,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
       "restart_policy": "unless-stopped",
       "mounts": [
         {
@@ -357,20 +402,21 @@
     "reason": "OPEN_AFTER_BASE_READY_NOT_IMPLEMENTED; existing manual UI shortcut is preserved"
   },
   "p4a_preparation": {
-    "status": "STARTUP_ACTIVATION_PACKAGE_READY_FOR_REVIEW_NOT_INSTALLED",
+    "status": "STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW_IDENTITY_READBACK_PARTIAL_NOT_INSTALLED",
     "selected_launcher_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
     "selected_data_validator_source": "cb6e22506a0fecc440400566293524536847b9b0",
+    "p4a_continuation_source": "8756314f51a76091a483cfc9b677a05c7f67f315",
     "payload": [
       {
         "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
-        "sha256": "12B978E97DFE5766945238EF92C591AC3DC6896E71279EA3B3D792A9EFD73108",
-        "bytes": 62651,
+        "sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871",
+        "bytes": 63377,
         "installed": false
       },
       {
         "target": "C:\\ai-lab-core\\operations\\runtime\\startup-runtime.ps1",
-        "sha256": "DC4E5EB638B93470BFF252D23864BBB1FC2F75D001B2D1E9FC20C0B849C0A103",
-        "bytes": 59253,
+        "sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7",
+        "bytes": 69194,
         "installed": false
       },
       {
@@ -385,11 +431,12 @@
       "path": "operations/runtime/approved-compose/R04-D21-P3-core.override.yml",
       "sha256": "F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86"
     },
-    "local_package_index_sha256": "DC76525E49B77C7CA791B9724D38F9E26C2FC7FDA8513A2403B7D167481ACB72",
+    "historical_local_package_index_sha256": "DC76525E49B77C7CA791B9724D38F9E26C2FC7FDA8513A2403B7D167481ACB72",
+    "continuation_index_path": "continuation-20260917T222614Z/evidence/local-package-index.json",
     "live_operations_performed": 0,
     "open_blockers": [
       "GLOBAL_START_MANIFEST_NOT_APPROVED",
-      "CONTAINER_REPO_DIGESTS_NOT_OBSERVED",
+      "CONTAINER_RUNTIME_NAME_AND_REPO_DIGEST_READBACK_NOT_PERSISTED_AFTER_FORMATTER_FAILURE",
       "QDRANT_PHYSICAL_BACKING_UNKNOWN",
       "OPEN_AFTER_BASE_READY_NOT_IMPLEMENTED",
       "TASK_TRIGGER_CHANGES_NOT_INSTALLED",
