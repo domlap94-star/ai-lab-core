@@ -111,7 +111,7 @@
     "requested_business_data_writes": 0
   },
   "rollback_evidence": {
-    "status": "FRESH_ROLLBACK_POINT_READY_FOR_REVIEW",
+    "status": "ROLLBACK_TOOL_PROVENANCE_RECONCILED_EVIDENCE_READY_FOR_REVIEW",
     "fresh_point": {
       "path": "E:/ai-lab-backup/20260917T082022Z",
       "manifest_sha256": "2759D684710FB857DBCD0D985B5C480857122E3B139B9DDC362BFF4903895597",
@@ -122,7 +122,15 @@
       "isolated_data_restore": "PASS",
       "consistency": "COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL",
       "verified_links": "PASS_IN_TESTED_SCOPE",
-      "owner_acceptance": "NOT_YET_ACCEPTED_READY_FOR_REVIEW"
+      "owner_acceptance": "NOT_YET_ACCEPTED_READY_FOR_REVIEW",
+      "tool_provenance_review": {
+        "tool_root_commit": "e3f2125883420a12c8721c5ba597203dcf403add",
+        "result": "RECONCILED_REPORT_TRANSCRIPTION_ERRORS_CORRECTED",
+        "procedural_deviations": "OWNER_RUN_LABELS_MISSING_ALPINE_PULL_RUN_TMPFS_DELIVERY_FAILURE_NO_RETROACTIVE_PASS",
+        "immutable_manifest_changed": false,
+        "evidence": "docs/recovery/R04_D21_P3_FRESH_ROLLBACK_EVIDENCE.md",
+        "checkpoint": "docs/recovery/checkpoints/20260917T101953Z-R04-D21-P3-ROLLBACK-PROVENANCE.md"
+      }
     },
     "accepted_full_point": {
       "path": "E:/ai-lab-backup/20260908T210559Z",

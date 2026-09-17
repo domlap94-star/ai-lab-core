@@ -1,6 +1,6 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `FRESH_ROLLBACK_POINT_READY_FOR_REVIEW / CAPTURE_AND_ISOLATED_DATA_RESTORE_PASS / NO_CUTOVER`
+Status: `ROLLBACK_TOOL_PROVENANCE_RECONCILED / EVIDENCE_READY_FOR_REVIEW / CAPTURE_AND_ISOLATED_DATA_RESTORE_RESULTS_PRESERVED / NO_CUTOVER`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
@@ -171,7 +171,7 @@ zweryfikowany punkt przed cutoverem:
 - bieżące wyniki tasków `267014/1/1` nie dowodzą świeżej kopii po tych punktach.
 
 Nowy punkt `E:\ai-lab-backup\20260917T082022Z` jest
-`FRESH_ROLLBACK_POINT_READY_FOR_REVIEW`:
+`ROLLBACK_TOOL_PROVENANCE_RECONCILED / EVIDENCE_READY_FOR_REVIEW`:
 
 - `RecoveryPointV2 / full / CaptureOnly`, manifest SHA-256
   `2759D684710FB857DBCD0D985B5C480857122E3B139B9DDC362BFF4903895597`;
@@ -187,7 +187,21 @@ Nowy punkt `E:\ai-lab-backup\20260917T082022Z` jest
 - spójność to nadal `COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL /
   VERIFIED_LINKS_IN_TESTED_SCOPE`, nie atomowy snapshot całego systemu.
 
+Read-only review po wykonaniu rozdzielił tool-root commit
+`e3f2125883420a12c8721c5ba597203dcf403add`, ostatnie commity poszczególnych
+plików, kanoniczne bloby Git oraz surowe bajty checkoutu. Poprzednio wpisane
+bloby, commit `9e7df257...` oraz trzy SHA-256 sklasyfikowano jako
+`REPORT_TRANSCRIPTION_ERROR`; nie wykryto odmiennego source narzędzia.
+`text=auto` i `core.autocrlf=true` wyjaśniają jedynie prawidłową różnicę raw
+CRLF względem canonical LF writer/reader. Brak pełnych owner/run labels,
+nieautoryzowany pull/run `alpine:3.20` i pierwsze niedostarczone kopiowanie do
+tmpfs pozostają zapisanymi odstępstwami bez retroaktywnego PASS. Dokładne
+argumenty/mounty/network krótkotrwałego kontenera alpine nie zostały zachowane
+i pozostają `UNKNOWN`.
+
 Pełny raport: `docs/recovery/R04_D21_P3_FRESH_ROLLBACK_EVIDENCE.md`.
+Checkpoint provenance:
+`docs/recovery/checkpoints/20260917T101953Z-R04-D21-P3-ROLLBACK-PROVENANCE.md`.
 
 Dużych artefaktów historycznych punktów z 2026-09-08 i 2026-09-11 nie
 haszowano ponownie; wszystkie 9 artefaktów nowego punktu przeszło osobną pełną
@@ -360,7 +374,8 @@ Powrót danych nie jest zawarty w tym rollbacku i pozostaje zależnością R03.
 potrzeby ochrony zastanego pending work; wybór świeżego punktu został wykonany,
 lecz sam punkt nie otrzymał jeszcze statusu `ACCEPTED`:
 
-1. `FRESH_ROLLBACK_POINT_OWNER_REVIEW_REQUIRED`: punkt
+1. `FRESH_ROLLBACK_POINT_OWNER_REVIEW_REQUIRED`: punkt z rozliczonym
+   provenance i jawnymi odstępstwami
    `20260917T082022Z` ma capture+drill PASS, lecz pozostaje `READY_FOR_REVIEW`;
    przed przyszłym cutoverem trzeba ocenić zapisy powstałe po jego oknach.
 2. `PRODUCTION_START_MANIFEST_NOT_APPROVED`: draft ma wymagane flagi `false`,
