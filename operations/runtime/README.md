@@ -57,6 +57,27 @@ helper now fails closed; there is no `docker compose up` fallback. Replacing the
 installed task and activating the launcher remain later, separately approved
 rollout steps.
 
+`NEXT_STABIL_STARTUP_PACKAGE_V1` adds the pinned P4/A contract without making
+the draft executable. It requires the full 64-hex container ID independently
+of the Compose service label and runtime container name, and it includes the
+launcher, shared runtime and installed P3 backend override in the file-role
+hash set. The normal image identity is an observed repository digest. A
+separate `LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST` mode is allowed only for the
+backend, only with the exact image and container IDs, and only when the image
+adapter positively observes an empty `RepoDigests` list; timeout, read failure
+or a nonmatching digest never selects that mode. The current production draft
+remains `NOT_APPROVED` while its runtime name/digest projection is not
+persisted.
+
+The pinned package also carries an explicit unique `startup_order`, a
+`health_requirement`, and `depends_on_healthy` links. PostgreSQL is started
+before the backend and must become Docker-`healthy` within the shared bounded
+stage deadline before a backend start can be submitted. `starting`, missing or
+unknown health cannot be treated as ready. An already running backend is never
+stopped to enforce this check. These fields order and gate only existing,
+identity-verified containers; they do not add Compose create/up/recreate or an
+unbounded dependency scheduler.
+
 ## Machine result
 
 Results use `NEXT_STABIL_STARTUP_RESULT_V1`. `BASE_READY_LIMITED` means only
@@ -114,6 +135,8 @@ Run only from the recovery worktree:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-start-host-services.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-startup-real-adapters.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-startup-data-junction.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-p4-startup-package.ps1
 ```
 
 The test creates only synthetic files and short `powershell.exe -NoProfile`

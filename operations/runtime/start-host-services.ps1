@@ -537,29 +537,38 @@ function New-RealStartupAdapters {
         if ($ids.status -ne 'SUCCESS') { throw ('Docker container observation failed: ' + $ids.status) }
         $result = New-Object System.Collections.Generic.List[object]
         foreach ($id in @($ids.stdout -split '[\r\n]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
-            $format = '{{.Id}}|{{.Name}}|{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}|{{.Image}}|{{.State.Running}}|{{json .Mounts}}|{{json .HostConfig.PortBindings}}|{{json .NetworkSettings.Ports}}'
+            $format = '{{.Id}}|{{.Name}}|{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}|{{.Image}}|{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}NONE{{end}}|{{json .Mounts}}|{{json .HostConfig.PortBindings}}|{{json .NetworkSettings.Ports}}'
             $inspect = & $invokeDocker @('--context', $context, 'inspect', '--format', $format, $id.Trim())
             if ($inspect.status -ne 'SUCCESS') { throw ('Docker inspect failed: ' + $inspect.status) }
-            $parts = $inspect.stdout.Trim() -split '\|', 9
-            if ($parts.Count -ne 9) { throw 'Docker inspect returned an invalid format.' }
+            $parts = $inspect.stdout.Trim() -split '\|', 10
+            if ($parts.Count -ne 10) { throw 'Docker inspect returned an invalid format.' }
             $digests = & $invokeDocker @('--context', $context, 'image', 'inspect', '--format', '{{json .RepoDigests}}', $parts[4])
             if ($digests.status -ne 'SUCCESS') { throw ('Docker image identity failed: ' + $digests.status) }
-            $parsedDigests = $digests.stdout | ConvertFrom-Json -ErrorAction Stop
+            $parsedDigests = @($digests.stdout | ConvertFrom-Json -ErrorAction Stop | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) })
             $repoDigests = @()
             foreach ($digest in $parsedDigests) { $repoDigests += [string]$digest }
             $approvedDigest = [string](Get-StartupProperty -InputObject $Expected -Name 'repo_digest')
-            $matchedDigest = @($repoDigests | Where-Object { ([string]$_).EndsWith($approvedDigest, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1)
+            $identityMode = [string](Get-StartupProperty -InputObject $Expected -Name 'image_identity_mode')
+            if ([string]::IsNullOrWhiteSpace($identityMode)) { $identityMode = 'REPO_DIGEST' }
+            $matchedDigest = if ($identityMode -eq 'REPO_DIGEST') {
+                @($repoDigests | Where-Object { ([string]$_).EndsWith($approvedDigest, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1)
+            }
+            else {
+                @()
+            }
             $result.Add([pscustomobject]@{
                 full_id = $parts[0]
                 container_name = $parts[1].TrimStart('/')
                 compose_project = $parts[2]
                 service = $parts[3]
                 image_id = $parts[4]
-                repo_digest = if ($matchedDigest.Count -eq 1) { $approvedDigest } else { '' }
+                repo_digest = if (@($matchedDigest).Count -eq 1) { $approvedDigest } else { '' }
+                repo_digest_state = if ($repoDigests.Count -eq 0) { 'CONFIRMED_ABSENT' } else { 'OBSERVED' }
                 running = [System.Convert]::ToBoolean($parts[5])
-                mounts = @(ConvertFrom-StartupDockerMounts $parts[6])
-                configured_ports = @(ConvertFrom-StartupDockerPorts $parts[7])
-                active_ports = @(ConvertFrom-StartupDockerPorts $parts[8])
+                health_status = $parts[6]
+                mounts = @(ConvertFrom-StartupDockerMounts $parts[7])
+                configured_ports = @(ConvertFrom-StartupDockerPorts $parts[8])
+                active_ports = @(ConvertFrom-StartupDockerPorts $parts[9])
             })
         }
         return $result.ToArray()
@@ -944,7 +953,9 @@ function Invoke-NextStabilStartupPlan {
         $containerPhase = Invoke-StartupExistingContainerPhase `
             -ExpectedContainers $expectedContainers `
             -Adapters $Adapters `
-            -CommandTimeoutMilliseconds $nativeTimeout
+            -CommandTimeoutMilliseconds $nativeTimeout `
+            -StageTimeoutMilliseconds $serviceTimeout `
+            -PollMilliseconds $poll
         foreach ($event in @($containerPhase.events)) { $events.Add($event) }
         if (-not $containerPhase.success) {
             return New-StartupResult -Code $containerPhase.code -Events $events -Details @(

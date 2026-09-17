@@ -3,6 +3,7 @@ Set-StrictMode -Version 2.0
 $script:NextStabilStartupSchema = "NEXT_STABIL_STARTUP_SET_V1"
 $script:NextStabilComponentIdentitySchema = "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1"
 $script:NextStabilDataTopologySchema = "NEXT_STABIL_DATA_TOPOLOGY_V1"
+$script:NextStabilStartupPackageSchema = "NEXT_STABIL_STARTUP_PACKAGE_V1"
 $script:NextStabilCanonicalRoot = "C:\ai-lab-core"
 $script:NextStabilCanonicalDataPath = "C:\ai-lab-core\data"
 $script:NextStabilCanonicalDataTarget = "D:\ai-lab-data"
@@ -592,8 +593,15 @@ function Test-StartupDataTopology {
 
 function Get-StartupSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
-
-    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToUpperInvariant()
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToUpperInvariant()
+    }
+    finally {
+        $sha.Dispose()
+        $stream.Dispose()
+    }
 }
 
 function Test-StartupSha256Value {
@@ -604,6 +612,11 @@ function Test-StartupSha256Value {
 function Test-StartupImageIdentity {
     param([AllowNull()][object]$Value)
     return ($Value -is [string] -and ([string]$Value) -match '^sha256:[0-9A-Fa-f]{64}$')
+}
+
+function Test-StartupContainerId {
+    param([AllowNull()][object]$Value)
+    return ($Value -is [string] -and ([string]$Value) -match '^[0-9A-Fa-f]{64}$')
 }
 
 function ConvertFrom-StartupDockerVersionResponse {
@@ -628,12 +641,15 @@ function Test-StartupSetManifest {
     $errors = New-Object System.Collections.Generic.List[string]
     $schema = Get-StartupProperty -InputObject $Manifest -Name 'schema'
     $identitySchema = Get-StartupProperty -InputObject $Manifest -Name 'component_identity_schema'
+    $packageSchema = Get-StartupProperty -InputObject $Manifest -Name 'startup_package_schema'
+    $isPinnedStartupPackage = ($packageSchema -eq $script:NextStabilStartupPackageSchema)
     $setId = Get-StartupProperty -InputObject $Manifest -Name 'set_id'
     $rootValue = Get-StartupProperty -InputObject $Manifest -Name 'root'
     $approval = Get-StartupProperty -InputObject $Manifest -Name 'approval'
 
     if ($schema -ne $script:NextStabilStartupSchema) { $errors.Add('MANIFEST_SCHEMA_UNSUPPORTED') }
     if ($identitySchema -ne $script:NextStabilComponentIdentitySchema) { $errors.Add('COMPONENT_IDENTITY_SCHEMA_UNSUPPORTED') }
+    if ($null -ne $packageSchema -and -not [string]::IsNullOrWhiteSpace([string]$packageSchema) -and -not $isPinnedStartupPackage) { $errors.Add('STARTUP_PACKAGE_SCHEMA_UNSUPPORTED') }
     if (-not ($setId -is [string]) -or $setId -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$') { $errors.Add('SET_ID_INVALID') }
     if (-not ($rootValue -is [string]) -or [string]::IsNullOrWhiteSpace([string]$rootValue)) {
         $errors.Add('ROOT_INVALID')
@@ -691,6 +707,9 @@ function Test-StartupSetManifest {
 
     $files = @(Get-StartupProperty -InputObject $Manifest -Name 'files')
     $requiredFileRoles = @('compose_config', 'compose_helper', 'public_gateway_script', 'private_gateway_script', 'supervisor_script')
+    if ($isPinnedStartupPackage) {
+        $requiredFileRoles += @('startup_launcher', 'startup_runtime', 'backend_override')
+    }
     $seenFileRoles = @{}
     foreach ($file in $files) {
         if ($null -eq $file) { continue }
@@ -776,6 +795,7 @@ function Test-StartupSetManifest {
 
     $containers = @(Get-StartupProperty -InputObject $Manifest -Name 'containers')
     $containerNames = @{}
+    $containerOrders = @{}
     $matchedDataBindings = @{}
     if ($containers.Count -eq 0) { $errors.Add('CONTAINERS_MISSING') }
     foreach ($container in $containers) {
@@ -792,8 +812,34 @@ function Test-StartupSetManifest {
                 $errors.Add(('CONTAINER_FIELD_INVALID:{0}:{1}' -f $service, $name))
             }
         }
+        $containerId = Get-StartupProperty -InputObject $container -Name 'container_id'
+        if ($isPinnedStartupPackage -or $null -ne $containerId) {
+            if (-not (Test-StartupContainerId -Value $containerId)) { $errors.Add("CONTAINER_ID_INVALID:$service") }
+        }
         if (-not (Test-StartupImageIdentity -Value (Get-StartupProperty -InputObject $container -Name 'image_id'))) { $errors.Add("CONTAINER_IMAGE_INVALID:$service") }
-        if (-not (Test-StartupImageIdentity -Value (Get-StartupProperty -InputObject $container -Name 'repo_digest'))) { $errors.Add("CONTAINER_DIGEST_INVALID:$service") }
+        $identityMode = [string](Get-StartupProperty -InputObject $container -Name 'image_identity_mode')
+        if ([string]::IsNullOrWhiteSpace($identityMode)) { $identityMode = 'REPO_DIGEST' }
+        if ($identityMode -eq 'REPO_DIGEST') {
+            if (-not (Test-StartupImageIdentity -Value (Get-StartupProperty -InputObject $container -Name 'repo_digest'))) { $errors.Add("CONTAINER_DIGEST_INVALID:$service") }
+        }
+        elseif ($identityMode -eq 'LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST') {
+            if ($service -ne 'backend') { $errors.Add("CONTAINER_LOCAL_IMAGE_MODE_FORBIDDEN:$service") }
+            if ([string](Get-StartupProperty -InputObject $container -Name 'repo_digest') -ne 'CONFIRMED_ABSENT') { $errors.Add("CONTAINER_LOCAL_IMAGE_ABSENCE_MARKER_INVALID:$service") }
+        }
+        else {
+            $errors.Add("CONTAINER_IMAGE_IDENTITY_MODE_INVALID:$service")
+        }
+        if ($isPinnedStartupPackage) {
+            $startupOrder = Get-StartupProperty -InputObject $container -Name 'startup_order'
+            if ((-not ($startupOrder -is [int]) -and -not ($startupOrder -is [long])) -or [int64]$startupOrder -le 0 -or $containerOrders.ContainsKey([string]$startupOrder)) {
+                $errors.Add("CONTAINER_STARTUP_ORDER_INVALID:$service")
+            }
+            else {
+                $containerOrders[[string]$startupOrder] = $service
+            }
+            $healthRequirement = [string](Get-StartupProperty -InputObject $container -Name 'health_requirement')
+            if ($healthRequirement -notin @('RUNNING', 'HEALTHY')) { $errors.Add("CONTAINER_HEALTH_REQUIREMENT_INVALID:$service") }
+        }
         $containerMounts = @(Get-StartupProperty -InputObject $container -Name 'mounts')
         if ($containerMounts.Count -eq 0) { $errors.Add("CONTAINER_MOUNTS_MISSING:$service") }
         foreach ($mount in $containerMounts) {
@@ -817,6 +863,26 @@ function Test-StartupSetManifest {
         }
         foreach ($port in @(Get-StartupProperty -InputObject $container -Name 'ports')) {
             if ((Get-StartupProperty -InputObject $port -Name 'host_ip') -ne '127.0.0.1') { $errors.Add("CONTAINER_PORT_NOT_LOOPBACK:$service") }
+        }
+    }
+    if ($isPinnedStartupPackage) {
+        foreach ($container in $containers) {
+            if ($null -eq $container) { continue }
+            $service = [string](Get-StartupProperty -InputObject $container -Name 'service')
+            foreach ($dependency in @(Get-StartupProperty -InputObject $container -Name 'depends_on_healthy')) {
+                $dependencyName = [string]$dependency
+                if ([string]::IsNullOrWhiteSpace($dependencyName) -or -not $containerNames.ContainsKey($dependencyName) -or $dependencyName -eq $service) {
+                    $errors.Add("CONTAINER_HEALTH_DEPENDENCY_INVALID:$service")
+                    continue
+                }
+                $dependencyContainer = @($containers | Where-Object { [string](Get-StartupProperty -InputObject $_ -Name 'service') -eq $dependencyName })[0]
+                if ([string](Get-StartupProperty -InputObject $dependencyContainer -Name 'health_requirement') -ne 'HEALTHY') {
+                    $errors.Add(('CONTAINER_HEALTH_DEPENDENCY_NOT_HEALTHY:{0}:{1}' -f $service, $dependencyName))
+                }
+                $dependencyOrder = [int64](Get-StartupProperty -InputObject $dependencyContainer -Name 'startup_order')
+                $serviceOrder = [int64](Get-StartupProperty -InputObject $container -Name 'startup_order')
+                if ($dependencyOrder -ge $serviceOrder) { $errors.Add(('CONTAINER_HEALTH_DEPENDENCY_ORDER_INVALID:{0}:{1}' -f $service, $dependencyName)) }
+            }
         }
     }
     foreach ($bindingKey in @($dataTopology.approved_bindings.Keys)) {
@@ -981,12 +1047,37 @@ function Test-StartupStringSetEqual {
 function Test-ApprovedContainerIdentity {
     param([Parameter(Mandatory = $true)]$Expected, [Parameter(Mandatory = $true)]$Observed)
     $errors = New-Object System.Collections.Generic.List[string]
-    foreach ($field in @('container_name', 'compose_project', 'service', 'image_id', 'repo_digest')) {
+    foreach ($field in @('container_name', 'compose_project', 'service', 'image_id')) {
         $expectedValue = [string](Get-StartupProperty -InputObject $Expected -Name $field)
         $observedValue = [string](Get-StartupProperty -InputObject $Observed -Name $field)
         if (-not $expectedValue.Equals($observedValue, [System.StringComparison]::OrdinalIgnoreCase)) {
             $errors.Add(('CONTAINER_IDENTITY_MISMATCH:{0}' -f $field))
         }
+    }
+    $expectedContainerId = [string](Get-StartupProperty -InputObject $Expected -Name 'container_id')
+    if (-not [string]::IsNullOrWhiteSpace($expectedContainerId)) {
+        $observedContainerId = [string](Get-StartupProperty -InputObject $Observed -Name 'full_id')
+        if (-not $expectedContainerId.Equals($observedContainerId, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $errors.Add('CONTAINER_IDENTITY_MISMATCH:container_id')
+        }
+    }
+    $identityMode = [string](Get-StartupProperty -InputObject $Expected -Name 'image_identity_mode')
+    if ([string]::IsNullOrWhiteSpace($identityMode)) { $identityMode = 'REPO_DIGEST' }
+    if ($identityMode -eq 'REPO_DIGEST') {
+        $expectedDigest = [string](Get-StartupProperty -InputObject $Expected -Name 'repo_digest')
+        $observedDigest = [string](Get-StartupProperty -InputObject $Observed -Name 'repo_digest')
+        if (-not $expectedDigest.Equals($observedDigest, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $errors.Add('CONTAINER_IDENTITY_MISMATCH:repo_digest')
+        }
+    }
+    elseif ($identityMode -eq 'LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST') {
+        $observedDigestState = [string](Get-StartupProperty -InputObject $Observed -Name 'repo_digest_state')
+        if ($observedDigestState -ne 'CONFIRMED_ABSENT') {
+            $errors.Add('CONTAINER_IDENTITY_MISMATCH:repo_digest_state')
+        }
+    }
+    else {
+        $errors.Add('CONTAINER_IDENTITY_MISMATCH:image_identity_mode')
     }
     $expectedMounts = @((Get-StartupProperty -InputObject $Expected -Name 'mounts') | ForEach-Object { ConvertTo-StartupComparableMount -Mount $_ })
     $observedMounts = @((Get-StartupProperty -InputObject $Observed -Name 'mounts') | ForEach-Object { ConvertTo-StartupComparableMount -Mount $_ })
@@ -1029,22 +1120,79 @@ function ConvertTo-StartupHostObservation {
     return [pscustomobject]@{ status = 'PRESENT'; matches = $items; detail = '' }
 }
 
+function Wait-StartupExistingContainerReady {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$Expected,
+        [Parameter(Mandatory = $true)]$Adapters,
+        [Parameter(Mandatory = $true)][int]$StageTimeoutMilliseconds,
+        [Parameter(Mandatory = $true)][int]$PollMilliseconds
+    )
+    $service = [string](Get-StartupProperty -InputObject $Expected -Name 'service')
+    $healthRequirement = [string](Get-StartupProperty -InputObject $Expected -Name 'health_requirement')
+    if ([string]::IsNullOrWhiteSpace($healthRequirement)) { $healthRequirement = 'RUNNING' }
+    $deadline = (Get-MonotonicMilliseconds) + $StageTimeoutMilliseconds
+    do {
+        $matches = @(& $Adapters.ObserveContainer $Expected)
+        if ($matches.Count -eq 0) { return [pscustomobject]@{ success = $false; code = 'CONTROLLED_DEPLOY_REQUIRED'; component = $service; observed = $null } }
+        if ($matches.Count -ne 1) { return [pscustomobject]@{ success = $false; code = 'CONTAINER_IDENTITY_AMBIGUOUS'; component = $service; observed = $null } }
+        $identity = Test-ApprovedContainerIdentity -Expected $Expected -Observed $matches[0]
+        if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); observed = $matches[0] } }
+        if ([bool](Get-StartupProperty -InputObject $matches[0] -Name 'running')) {
+            if ($healthRequirement -eq 'RUNNING') {
+                return [pscustomobject]@{ success = $true; code = 'CONTAINER_READY'; component = $service; observed = $matches[0] }
+            }
+            if ([string](Get-StartupProperty -InputObject $matches[0] -Name 'health_status') -eq 'healthy') {
+                return [pscustomobject]@{ success = $true; code = 'CONTAINER_HEALTHY'; component = $service; observed = $matches[0] }
+            }
+        }
+        $remaining = Get-StartupRemainingMilliseconds -Deadline $deadline -MaximumMilliseconds $PollMilliseconds
+        if ($remaining -le 0) { break }
+        & $Adapters.Sleep $remaining
+    } while ((Get-MonotonicMilliseconds) -lt $deadline)
+    $code = if ($healthRequirement -eq 'HEALTHY') { 'CONTAINER_HEALTH_UNKNOWN' } else { 'CONTAINER_NOT_RUNNING_AFTER_START' }
+    return [pscustomobject]@{ success = $false; code = $code; component = $service; observed = $null }
+}
+
 function Invoke-StartupExistingContainerPhase {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][object[]]$ExpectedContainers,
         [Parameter(Mandatory = $true)]$Adapters,
-        [Parameter(Mandatory = $true)][int]$CommandTimeoutMilliseconds
+        [Parameter(Mandatory = $true)][int]$CommandTimeoutMilliseconds,
+        [int]$StageTimeoutMilliseconds = 60000,
+        [int]$PollMilliseconds = 1000
     )
     $events = New-Object System.Collections.Generic.List[object]
-    foreach ($expected in $ExpectedContainers) {
+    $orderedContainers = @($ExpectedContainers | Sort-Object @{ Expression = {
+        $order = Get-StartupProperty -InputObject $_ -Name 'startup_order'
+        if ($null -eq $order) { return [int64]::MaxValue }
+        return [int64]$order
+    } })
+    $containersByService = @{}
+    foreach ($definition in $orderedContainers) { $containersByService[[string](Get-StartupProperty -InputObject $definition -Name 'service')] = $definition }
+    foreach ($expected in $orderedContainers) {
         $service = [string](Get-StartupProperty -InputObject $expected -Name 'service')
+        foreach ($dependencyNameValue in @(Get-StartupProperty -InputObject $expected -Name 'depends_on_healthy')) {
+            $dependencyName = [string]$dependencyNameValue
+            if ([string]::IsNullOrWhiteSpace($dependencyName)) { continue }
+            if (-not $containersByService.ContainsKey($dependencyName)) {
+                return [pscustomobject]@{ success = $false; code = 'CONTAINER_DEPENDENCY_INVALID'; component = $service; events = $events.ToArray() }
+            }
+            $dependencyReady = Wait-StartupExistingContainerReady -Expected $containersByService[$dependencyName] -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
+            if (-not $dependencyReady.success) {
+                return [pscustomobject]@{ success = $false; code = $dependencyReady.code; component = $dependencyName; detail = @(Get-StartupProperty -InputObject $dependencyReady -Name 'detail'); events = $events.ToArray() }
+            }
+            $events.Add([pscustomobject]@{ component = $dependencyName; action = 'DEPENDENCY_HEALTH_CONFIRMED' })
+        }
         $matches = @(& $Adapters.ObserveContainer $expected)
         if ($matches.Count -eq 0) { return [pscustomobject]@{ success = $false; code = 'CONTROLLED_DEPLOY_REQUIRED'; component = $service; events = $events.ToArray() } }
         if ($matches.Count -ne 1) { return [pscustomobject]@{ success = $false; code = 'CONTAINER_IDENTITY_AMBIGUOUS'; component = $service; events = $events.ToArray() } }
         $identity = Test-ApprovedContainerIdentity -Expected $expected -Observed $matches[0]
         if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); events = $events.ToArray() } }
         if ([bool](Get-StartupProperty -InputObject $matches[0] -Name 'running')) {
+            $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
+            if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
             $events.Add([pscustomobject]@{ component = $service; action = 'PRESERVE_RUNNING' })
             continue
         }
@@ -1058,13 +1206,9 @@ function Invoke-StartupExistingContainerPhase {
             $code = if ((Get-StartupProperty -InputObject $startResult -Name 'status') -eq 'TIMEOUT') { 'CONTAINER_START_UNKNOWN' } else { 'CONTAINER_START_FAILED' }
             return [pscustomobject]@{ success = $false; code = $code; component = $service; events = $events.ToArray() }
         }
-        $after = @(& $Adapters.ObserveContainer $expected)
-        if ($after.Count -ne 1 -or -not [bool](Get-StartupProperty -InputObject $after[0] -Name 'running')) {
-            return [pscustomobject]@{ success = $false; code = 'CONTAINER_NOT_RUNNING_AFTER_START'; component = $service; events = $events.ToArray() }
-        }
-        $afterIdentity = Test-ApprovedContainerIdentity -Expected $expected -Observed $after[0]
-        if (-not $afterIdentity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH_AFTER_START'; component = $service; detail = @($afterIdentity.errors); events = $events.ToArray() } }
-        if (-not $observedFullId.Equals([string](Get-StartupProperty -InputObject $after[0] -Name 'full_id'), [System.StringComparison]::OrdinalIgnoreCase)) {
+        $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
+        if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
+        if (-not $observedFullId.Equals([string](Get-StartupProperty -InputObject $ready.observed -Name 'full_id'), [System.StringComparison]::OrdinalIgnoreCase)) {
             return [pscustomobject]@{ success = $false; code = 'CONTAINER_RUNTIME_ID_CHANGED'; component = $service; events = $events.ToArray() }
         }
     }

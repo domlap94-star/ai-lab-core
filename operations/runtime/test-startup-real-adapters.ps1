@@ -98,6 +98,8 @@ function New-RawAdapterState {
         creation_date = [datetime]'2026-09-15T12:34:56Z'
         start_status = 'SUCCESS'
         host_delay_ms = 0
+        repo_digests = @('repo@sha256:' + ('b' * 64))
+        image_identity_status = 'SUCCESS'
     }
 }
 
@@ -283,10 +285,13 @@ function New-RawSystemBoundary {
             $mountJson = @([ordered]@{ Type = 'bind'; Name = ''; Source = (Join-Path $testRoot 'backend'); Destination = '/app'; RW = $false }) | ConvertTo-Json -Depth 5 -Compress
             $configured = ConvertTo-PortJson $State.configured_ports
             $active = ConvertTo-PortJson $State.active_ports
-            $line = @($State.container_id, '/d21-p1-backend', 'd21-p1', 'backend', ('sha256:' + ('a' * 64)), ([string]$State.container_running), $mountJson, $configured, $active) -join '|'
+            $line = @($State.container_id, '/d21-p1-backend', 'd21-p1', 'backend', ('sha256:' + ('a' * 64)), ([string]$State.container_running), 'NONE', $mountJson, $configured, $active) -join '|'
             return [pscustomobject]@{ status = 'SUCCESS'; stdout = $line; stderr = ''; process_left_running = $false }
         }
-        if ($joined -like '--context desktop-linux-test image inspect*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = ('["repo@sha256:' + ('b' * 64) + '"]'); stderr = ''; process_left_running = $false } }
+        if ($joined -like '--context desktop-linux-test image inspect*') {
+            if ($State.image_identity_status -ne 'SUCCESS') { return [pscustomobject]@{ status = $State.image_identity_status; stdout = ''; stderr = 'synthetic image identity failure'; process_left_running = $false } }
+            return [pscustomobject]@{ status = 'SUCCESS'; stdout = (ConvertTo-Json -InputObject @($State.repo_digests) -Compress); stderr = ''; process_left_running = $false }
+        }
         if ($joined -like '--context desktop-linux-test start*') {
             $State.container_start_count++
             $State.container_running = $true
@@ -356,6 +361,25 @@ try {
     Assert-Adapter ($result.code -eq 'BASE_READY_LIMITED') ('raw-boundary positive plan succeeds; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress))
     Assert-Adapter ($state.container_start_count -eq 0 -and $state.host_start_count.Count -eq 0) 'ready synthetic set is preserved without starts'
     Assert-Adapter (@($state.calls | Where-Object { $_ -notmatch '^(native:|host:|http:)' }).Count -eq 0) 'raw fixture campaign records only complete fake-boundary calls'
+
+    $localImageManifest = Copy-AdapterFixture $manifest
+    $localImageManifest.containers[0] | Add-Member -NotePropertyName image_identity_mode -NotePropertyValue 'LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST'
+    $localImageManifest.containers[0].repo_digest = 'CONFIRMED_ABSENT'
+    $state = New-RawAdapterState $localImageManifest
+    $state.repo_digests = @()
+    $localImageResult = Invoke-RawPlan $localImageManifest $state
+    Assert-Adapter ($localImageResult.code -eq 'BASE_READY_LIMITED' -and $state.container_start_count -eq 0) ('explicit backend local-image mode passes only after the real adapter confirms empty RepoDigests; actual=' + ($localImageResult | ConvertTo-Json -Depth 8 -Compress))
+
+    $state = New-RawAdapterState $manifest
+    $state.repo_digests = @('repo@sha256:' + ('c' * 64))
+    $wrongDigestResult = Invoke-RawPlan $manifest $state
+    Assert-Adapter ($wrongDigestResult.code -eq 'IDENTITY_MISMATCH' -and $state.container_start_count -eq 0) 'nonmatching observed repository digest blocks before start'
+
+    $state = New-RawAdapterState $localImageManifest
+    $state.repo_digests = @()
+    $state.image_identity_status = 'TIMEOUT'
+    $unknownDigestResult = Invoke-RawPlan $localImageManifest $state
+    Assert-Adapter ($unknownDigestResult.code -eq 'ADAPTER_FAILURE' -and $state.container_start_count -eq 0) 'image identity timeout remains unknown and never falls back to local-image mode'
 
     $public = @($manifest.host_services | Where-Object { $_.name -eq 'public_gateway' })[0]
     $state = New-RawAdapterState $manifest
