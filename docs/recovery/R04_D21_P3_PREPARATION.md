@@ -441,3 +441,35 @@ Zanonimizowany handoff znajduje się w
 Surowe logi i indeks 32 lokalnych plików pozostają `LOCAL_ONLY`. Dalsza granica
 to review; P4/P5, relokacja, task install, full startup/reboot/rollback
 acceptance i cleanup pozostają bez zgody.
+
+## 8. Post-switch readback środowiska backendu
+
+Historyczne zdanie z fazy B o braku niezależnego readbacku flag pozostaje
+prawdziwe dla tamtego handoffu. W osobnym, późniejszym oknie read-only
+`2026-09-17T19:53:26.3159410Z–2026-09-17T19:53:27.4036434Z` potwierdzono:
+
+- tę samą instancję backendu przed i po odczycie: pełny ID
+  `686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854`,
+  image `sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702`,
+  `StartedAt=2026-09-17T16:41:59.852578882Z`, `RestartCount=0`;
+- `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`, working
+  directory `/app` i oczekiwaną ścieżkę startu;
+- `CONTAINER_ENV_OBSERVED 11/11 MATCH` oraz
+  `BACKEND_PROCESS_ENV_OBSERVED 11/11 MATCH`, w tym wszystkie `9/9`
+  przełączników równe `false`;
+- `/health=200`, `/version=200` z właściwym source/schema,
+  `/gateway-health=200` i publiczne `/control=404`.
+
+Druga warstwa pochodzi wyłącznie z allowlistowanej projekcji
+`/proc/<zweryfikowany_pid>/environ` istniejącego procesu backendu. Jeden krótki
+proces kontrolny `python -I -S -B` zakończył się `exit 0`; nie importował
+aplikacji, nie zapisywał plików i nie otwierał połączeń. Dowód nie jest
+bezpośrednim odczytem obiektu Settings w pamięci i nie dowodzi każdego
+historycznego cyklu dispatcherów ani globalnego braku wcześniejszych zapisów.
+Bezpieczna projekcja lokalna ma 5 249 B i SHA-256
+`126E78F1A9009DDA463C9C7C517BDB25AB4769015DB75CD6C55ED982A5B4E1F3`.
+
+Wynik tej kontroli to
+`P3 BACKEND_STARTUP_ENVIRONMENT_READBACK_PASS / CURRENT_READ_ONLY_EVIDENCE`.
+Nie zmienia on `NOT_APPROVED_FOR_START` globalnego manifestu i nie nadaje P3
+ani R04 statusu `ACCEPTED`.

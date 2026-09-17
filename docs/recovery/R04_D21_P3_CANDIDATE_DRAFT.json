@@ -78,6 +78,29 @@
       "extra": 0,
       "file_list_sha256": "62E23C479FEEF458D03FD1363D7465EA4D486C7948A35D0965B3C5F480BFD9A7"
     },
+    "environment_readback": {
+      "window_start_utc": "2026-09-17T19:53:26.3159410Z",
+      "window_end_utc": "2026-09-17T19:53:27.4036434Z",
+      "status": "BACKEND_STARTUP_ENVIRONMENT_READBACK_PASS_CURRENT_READ_ONLY_EVIDENCE",
+      "container_env": "11/11_MATCH",
+      "backend_process_env": "11/11_MATCH",
+      "boolean_flags_false": "9/9",
+      "process_identity": "MATCH_PID1",
+      "same_instance_before_after": true,
+      "started_at": "2026-09-17T16:41:59.852578882Z",
+      "restart_count_before_after": "0/0",
+      "http_statuses": {
+        "backend_health": 200,
+        "backend_version": 200,
+        "public_gateway_health": 200,
+        "public_control": 404
+      },
+      "safe_local_evidence_sha256": "126E78F1A9009DDA463C9C7C517BDB25AB4769015DB75CD6C55ED982A5B4E1F3",
+      "safe_local_evidence_bytes": 5249,
+      "settings_object_memory_read": false,
+      "historical_dispatcher_cycles_inferred": false,
+      "runtime_mutations": 0
+    },
     "postgres": {
       "container_id": "240343ebff4fb299b239db2817efea1910ab59c29ed3ec9df3a8abde04e81226",
       "image_id": "sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d",
@@ -212,11 +235,12 @@
       "source_manifest_sha256": "994A17D7BCD7BA8120F73BC462AC6A2313A47F04D91F6639D2863A98A3FD6999"
     },
     "local_evidence_index_sha256": "6D6354AC5D458919149ABC5DBD44C409CF67E7917A98ED57BD18DDEEE7F62085",
+    "post_switch_environment_readback": "BACKEND_STARTUP_ENVIRONMENT_READBACK_PASS_CURRENT_READ_ONLY_EVIDENCE",
     "global_manifest_approved": false,
     "supervisor": "INTENTIONALLY_STOPPED"
   },
   "remaining_gates": [
-    "OWNER_REVIEW_OF_LIMITED_BACKEND_RUNTIME_RESULT",
+    "OWNER_REVIEW_OF_LIMITED_BACKEND_RUNTIME_AND_ENVIRONMENT_READBACK_RESULT",
     "GLOBAL_PRODUCTION_START_MANIFEST_NOT_APPROVED",
     "FULL_STARTUP_AND_ROLLBACK_ACCEPTANCE_NOT_RUN",
     "P4_P5_NOT_AUTHORIZED",
