@@ -1,6 +1,6 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS / CORE_SWITCH_PREFLIGHT_READY / WAITING_OWNER_WINDOW / NO_CUTOVER`
+Status: `ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS / CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW / LIMITED_RUNTIME_VERIFIED`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
@@ -11,10 +11,10 @@ Okna obserwacji: `2026-09-16T13:38:16Z–13:43:51Z`,
 `2026-09-16T19:59:54Z–20:05:34Z` oraz
 `2026-09-17T08:20:22Z–09:09:01Z`
 
-Ten dokument jest załącznikiem wykonawczym D-21. Nie jest nową roadmapą,
-zatwierdzonym manifestem startowym ani zgodą na wykonanie opisanych operacji.
-Każda czynność mutująca poniżej ma status
-`NOT_EXECUTED / REQUIRES_OWNER_APPROVAL`.
+Ten dokument jest załącznikiem wykonawczym D-21. Nie jest nową roadmapą ani
+zatwierdzonym globalnym manifestem startowym. Planowana faza B backend-only
+została wykonana po osobnej zgodzie właściciela; wszystkie pozostałe opisane
+mutacje nadal mają status `NOT_EXECUTED / REQUIRES_OWNER_APPROVAL`.
 
 ## 1. Odbiór wejścia i granice
 
@@ -396,13 +396,48 @@ przeszedł bezskutkowe `docker compose config --no-interpolate` w Compose v5.5.1
 pełnego renderu i sekretów nie utrwalono. Dokładny plan operacji ma SHA-256
 `8F5691A5504FE01213C97502D20B2517FF172A641092629413FD08F64FE31E78`.
 
-Faza B pozostaje `WAITING_OWNER_WINDOW / NO_CUTOVER`. Po bieżącym
-potwierdzeniu OP_ID nadal obowiązuje finalny drift check; materialna zmiana
-tożsamości, aktywnej pracy lub kolizja z taskiem zatrzymuje operację przed
-mutacją. Produkcyjny globalny manifest P1 pozostaje `NOT_APPROVED_FOR_START`.
+Faza B otrzymała bieżące potwierdzenie właściciela dla dokładnego OP_ID, a
+finalny drift check przeszedł. Jedno backend-only przełączenie zostało wykonane
+i ma wynik `CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW /
+LIMITED_RUNTIME_VERIFIED`. Produkcyjny globalny manifest P1 pozostaje
+`NOT_APPROVED_FOR_START`.
 
 Dokładne akcje komponentowe znajdują się w
 `docs/recovery/R04_D21_P3_CHANGESET.csv`, a checkpoint w
 `docs/recovery/checkpoints/20260917T143219Z-R04-D21-P3-CORE-SWITCH-PREFLIGHT.md`.
-Testy aplikacji, Flutter, Web build, migracje i runtime smoke kandydata są
-`NOT_RUN`; nie uruchamiano aplikacji kandydata, backupu ani restore.
+Flutter, Web build, migracje, Supervisor, modele, eksport, backup i restore są
+`NOT_RUN`; wykonano wyłącznie ograniczony runtime smoke nowego backendu.
+
+## 7. Faza B — wynik rzeczywisty
+
+W oknie `2026-09-17T16:39:54Z–16:49:38Z`:
+
+- raz zatrzymano stary backend i raz odtworzono wyłącznie backend przez
+  zatwierdzony override z `--no-deps --no-build --pull never`;
+- zainstalowane źródła i `/app` są zgodne per-file `592/592`, bez
+  missing/mismatch/extra; `/app` jest read-only;
+- nowy backend ma ID
+  `686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854`
+  i zachowuje przypięty image `sha256:6342b36f...d63702`;
+- backend, Gateway i OpenAPI odpowiadają; publiczne `/control*` pozostaje 404;
+- `/version` wskazuje source `0ee0ea50943578e6e552aae23ce1688595ddc262`
+  i właściwą schema, ale pełna tożsamość pozostaje `UNVERIFIED /
+  runtime_configuration=REVIEW_REQUIRED` bez globalnego manifestu;
+- hash zainstalowanego override jest zgodny; niezależny runtime readback jego
+  flag nie został zachowany, więc efektywny stan flag pozostaje `NOT_VERIFIED`;
+- PostgreSQL read-only zachował schema, DB size, Administrator `1/1`, brak
+  restore/import oraz pending `18/16/1`;
+- pięć pozostałych kontenerów zachowało pełne ID i czasy startu; Supervisor
+  pozostał `INTENTIONALLY_STOPPED`;
+- rollback nie był potrzebny ani wykonywany.
+
+Manifest ochrony R00 jest kompletny: `116` wpisów pozostaje zgodnych na
+oryginalnych ścieżkach, a `87` backendowych zachowano z identycznymi hashami w
+dokładnym katalogu rollback; missing/mismatch `0/0`. Dane, junction, mount
+`/data`, harmonogramy i kolejki nie były zmieniane.
+
+Zanonimizowany handoff znajduje się w
+`docs/recovery/checkpoints/20260917T165525Z-R04-D21-P3-CORE-SWITCH-HANDOFF.md`.
+Surowe logi i indeks 32 lokalnych plików pozostają `LOCAL_ONLY`. Dalsza granica
+to review; P4/P5, relokacja, task install, full startup/reboot/rollback
+acceptance i cleanup pozostają bez zgody.

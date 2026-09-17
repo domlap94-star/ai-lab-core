@@ -23,8 +23,12 @@
   only in recovery. P2 preservation/candidate is owner-accepted as NOT_DEPLOYED;
   the exact directory junction `C:\ai-lab-core\data -> D:\ai-lab-data` is the
   owner-approved `ACTIVE_DATA_ONLY` topology and may be validated offline.
-  Installation, a production manifest, task/shortcut changes, live start,
-  cutover and P3-P5 still require separate approval. Preserve
+  The owner-authorized D21-P3 backend-only switch now runs accepted source
+  `0ee0ea50943578e6e552aae23ce1688595ddc262` from the canonical backend path
+  with limited runtime verification; it is ready for review, not accepted as
+  the global production set. A production manifest, task/shortcut changes,
+  full live start/rollback acceptance, relocation, cleanup and P4-P5 still
+  require separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
   cutover/cleanup approval; production must never execute recovery, staging, or
   test WIP.
@@ -73,10 +77,11 @@
   new roadmap, change scope/criteria, or replace 9B/KB/Temporary Chat. "Continue"
   does not consume operational approvals or authorize the next package.
   `WAITING_APPROVAL` requires the applicable decision.
-- D-21 `P3 PREPARATION ONLY` permits bounded read-only Docker/WSL/host/SQL
-  metadata and reviewed planning documentation. It does not permit installation,
-  cutover, runtime/config/data/mount/task changes, service start/restart, backup,
-  restore, escrow, or automatic continuation into operational P3/P4/P5.
+- D-21 P3 authorized and completed exactly one backend-only source switch for
+  OP_ID `R04-D21-P3-CORE-SWITCH-20260917T141404Z`. That consumed operation does
+  not authorize another recreate, rollback without a new trigger/decision,
+  Supervisor start, runtime/config/data/mount/task changes, migration, backup,
+  restore, escrow, relocation, cleanup, or continuation into P4/P5.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

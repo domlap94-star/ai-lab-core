@@ -249,7 +249,10 @@ pierwszego niedostarczonego transferu tmpfs ani braku dowodu pełnego
 host/VHD/model/profile/credential/escrow recovery. Nie jest proceduralnym PASS
 dla tych odstępstw i nie zmienia immutable dowodów.
 
-Odbiór punktu nie jest zgodą na restore danych ani cutover. Faza A przygotowała
-osobny pakiet `R04-D21-P3-CORE-SWITCH-20260917T141404Z`; jego faza B nadal
-wymaga bieżącego potwierdzenia właściciela dokładnego OP_ID, payloadu,
-override, przerwy i ryzyka rollbacku.
+Odbiór punktu nie jest zgodą na restore danych. Właściciel później zatwierdził
+jedno backend-only przełączenie pakietu
+`R04-D21-P3-CORE-SWITCH-20260917T141404Z`, przyjmując wskazane ograniczenia.
+Operacja zakończyła się wynikiem `CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW /
+LIMITED_RUNTIME_VERIFIED`; rollback kodu/config ani restore danych nie były
+potrzebne lub wykonywane. Punkt pozostaje zachowany i nie uzyskuje przez to
+szerszego odbioru host/VHD/model/profile/credential/escrow recovery.

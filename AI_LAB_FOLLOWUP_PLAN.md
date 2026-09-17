@@ -2809,9 +2809,13 @@ junction/mount/data changes, production start, P3 cutover and cleanup remain
 separately gated. The source guard at
 `cb6e22506a0fecc440400566293524536847b9b0` with evidence
 `e9c17933b9f6a7f9ee6c825d371661a3769da0c9` is owner-accepted as
-`OFFLINE_TEST_ONLY / NOT_DEPLOYED`. D-21 now permits only P3 preparation:
-bounded read-only Docker/WSL/host/SQL metadata and a concrete changeset. This
-does not approve installation, a production manifest, service changes,
-cutover, relocation, task installation, live startup or cleanup. The first
-runtime mutation still requires a separate owner decision on the completed
-changeset.
+`OFFLINE_TEST_ONLY / NOT_DEPLOYED`. D-21 then prepared an exact P3 changeset
+and the owner separately authorized one backend-only source switch for OP_ID
+`R04-D21-P3-CORE-SWITCH-20260917T141404Z`. The operation installed source
+`0ee0ea50943578e6e552aae23ce1688595ddc262` under the canonical backend path,
+preserved the ACTIVE_DATA junction and existing database, and reached
+`CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW / LIMITED_RUNTIME_VERIFIED`.
+This is not acceptance of the global production set or permission for another
+runtime mutation. The production manifest, Supervisor, relocation, task
+installation, full startup/rollback acceptance, cleanup and P4/P5 remain
+separately gated.

@@ -1,11 +1,13 @@
 {
   "schema": "NEXT_STABIL_D21_P3_CANDIDATE_DRAFT_V1",
   "integration_set_id": "R04-D21-P3-CORE-SWITCH-20260917T141404Z",
-  "candidate_status": "CORE_SWITCH_PREFLIGHT_READY_WAITING_OWNER_WINDOW",
+  "candidate_status": "CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW_LIMITED_RUNTIME_VERIFIED",
   "approval": {
-    "status": "WAITING_CURRENT_OWNER_CONFIRMATION",
+    "status": "EXACT_BACKEND_ONLY_OWNER_WINDOW_AUTHORIZED_AND_CONSUMED",
     "decision_id": "D-21",
-    "operational_cutover_authorized": false
+    "operational_cutover_authorized": false,
+    "backend_only_switch_authorized_and_consumed": true,
+    "further_runtime_mutation_authorized": false
   },
   "base_candidate": {
     "set_id": "R04-D21-P2-20260916T083044Z-cb6e225",
@@ -16,7 +18,7 @@
     "commit": "0ee0ea50943578e6e552aae23ce1688595ddc262",
     "tree": "4ccbc8922051401da1422be0d08f271476c3bab6",
     "parent": "ddec6ea20e2d755354e742e324d0d9cea5e5802f",
-    "status": "SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED_NOT_DEPLOYED",
+    "status": "SOURCE_AND_SYNTHETIC_TESTS_ACCEPTED_BACKEND_RUNTIME_INSTALLED_LIMITED_VERIFIED",
     "files": [
       {"path": "backend/app/core/config.py", "sha256": "F07A13EF54F3E24FF9D6CAE7FBC235659DAE954CEC54E62ACE4FCD16DADFC52C"},
       {"path": "backend/app/database/init_db.py", "sha256": "2072F3657A115ABB67F56E82B498FFC2CDC32765135BF2315C813D17A8284BDE"},
@@ -60,13 +62,22 @@
     "external_calls": 0
   },
   "current_runtime_observation": {
-    "utc": "2026-09-17T14:09:00Z",
-    "backend_id": "9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a",
+    "utc": "LOCAL_EVIDENCE_TIMESTAMP_NOT_INDEPENDENTLY_VERIFIED",
+    "backend_id": "686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854",
     "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
-    "app_mount": "C:/ai-lab-core/build/deploy-main-483f9bf8/backend:/app:rw",
+    "app_mount": "C:/ai-lab-core/backend:/app:ro",
     "data_mount": "C:/ai-lab-core/data:/data:rw",
     "recovery_or_wip_mounted": false,
     "engine_timeout_root_cause": "UNKNOWN",
+    "source_revision": "0ee0ea50943578e6e552aae23ce1688595ddc262",
+    "runtime_file_compare": {
+      "expected": 592,
+      "observed": 592,
+      "missing": 0,
+      "mismatch": 0,
+      "extra": 0,
+      "file_list_sha256": "62E23C479FEEF458D03FD1363D7465EA4D486C7948A35D0965B3C5F480BFD9A7"
+    },
     "postgres": {
       "container_id": "240343ebff4fb299b239db2817efea1910ab59c29ed3ec9df3a8abde04e81226",
       "image_id": "sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d",
@@ -81,7 +92,7 @@
     }
   },
   "current_database_observation": {
-    "utc": "2026-09-17T14:14:43Z",
+    "utc": "LOCAL_EVIDENCE_TIMESTAMP_NOT_INDEPENDENTLY_VERIFIED",
     "status": "CURRENT_DB_METADATA_OBSERVED_READ_ONLY",
     "transaction_read_only": true,
     "sql_exit_code": 0,
@@ -179,12 +190,37 @@
     "database_delta": "SELECTED_QUEUE_PROJECTION_UNCHANGED_FULL_DELTA_NOT_FULLY_OBSERVED",
     "production_mutations": 0
   },
+  "phase_b_result": {
+    "status": "CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW_LIMITED_RUNTIME_VERIFIED",
+    "operation_window": "LOCAL_EVIDENCE_ONLY_EXACT_TIMES_NOT_INDEPENDENTLY_VERIFIED",
+    "old_backend_id": "9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a",
+    "new_backend_id": "686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854",
+    "backend_stop_count": 1,
+    "backend_recreate_count": 1,
+    "rollback_count": 0,
+    "data_restore_count": 0,
+    "migrations_run": 0,
+    "other_container_ids_unchanged": 5,
+    "pending_preserved": "18/16/1",
+    "protected_entries": {
+      "expected": 203,
+      "in_place": 116,
+      "preserved_rollback": 87,
+      "mismatch": 0,
+      "missing": 0,
+      "rollback_path": "C:/ai-lab-core-staging/recovery/R04_D21_P2_20260915T212340Z/p3-core-switch-20260917T141404Z/rollback-plan/pre-switch-install-backend-R04-D21-P3-CORE-SWITCH-20260917T141404Z",
+      "source_manifest_sha256": "994A17D7BCD7BA8120F73BC462AC6A2313A47F04D91F6639D2863A98A3FD6999"
+    },
+    "local_evidence_index_sha256": "6D6354AC5D458919149ABC5DBD44C409CF67E7917A98ED57BD18DDEEE7F62085",
+    "global_manifest_approved": false,
+    "supervisor": "INTENTIONALLY_STOPPED"
+  },
   "remaining_gates": [
-    "CURRENT_OWNER_WINDOW_CONFIRMATION_FOR_EXACT_OP_ID",
-    "FINAL_DRIFT_CHECK",
-    "PENDING_WORK_PRESERVATION_IN_OPERATIONAL_WINDOW",
-    "EFFECTIVE_FIRST_START_FLAGS_NOT_DEPLOYED",
-    "GLOBAL_PRODUCTION_START_MANIFEST_NOT_APPROVED"
+    "OWNER_REVIEW_OF_LIMITED_BACKEND_RUNTIME_RESULT",
+    "GLOBAL_PRODUCTION_START_MANIFEST_NOT_APPROVED",
+    "FULL_STARTUP_AND_ROLLBACK_ACCEPTANCE_NOT_RUN",
+    "P4_P5_NOT_AUTHORIZED",
+    "DELTA_NOT_FULLY_OBSERVED"
   ],
-  "cutover": "NOT_RUN_NOT_AUTHORIZED"
+  "cutover": "BACKEND_ONLY_SWITCH_EXECUTED_GLOBAL_CUTOVER_NOT_APPROVED"
 }
