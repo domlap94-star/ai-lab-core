@@ -3,7 +3,8 @@
 Status dokumentu: `P1_SOURCE_AND_OFFLINE_TESTS_ACCEPTED /
 P2_PRESERVATION_AND_CANDIDATE_ACCEPTED /
 ACTIVE_DATA_TOPOLOGY_AND_DESTINATION_SOURCE_ACCEPTED /
-P3_PREPARATION_PARTIAL / NO_OPERATIONAL_CHANGES`
+P3_CORE_BACKEND_SOURCE_SWITCH_ACCEPTED_LIMITED_RUNTIME_SCOPE /
+P4A_STARTUP_ACTIVATION_PACKAGE_READY_FOR_REVIEW_NOT_INSTALLED`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -16,7 +17,8 @@ się w `docs/recovery/R04_SINGLE_ROOT_STARTUP_MAP.csv`.
 
 Najważniejsze ustalenia:
 
-1. Aktywny backend nie korzysta z `C:\ai-lab-core\backend`. Kontener
+1. **Historyczny odczyt 2026-09-15:** aktywny wtedy backend nie korzystał z
+   `C:\ai-lab-core\backend`. Kontener
    `9d9b46c530412e48562b5427a0586b08c1e919ff293ec2cbd1489faffc98615a`
    ma rzeczywisty mount
    `C:/ai-lab-core/build/deploy-main-483f9bf8/backend -> /app`, obraz
@@ -207,57 +209,48 @@ Uprawnienie: osobna zgoda P2 obejmuje preservation/candidate wyłącznie lokalni
 sekretne lub biznesowe payloads pozostają poza Git. Szczegóły:
 `R04_D21_P2_CANDIDATE_EVIDENCE.md`.
 
-### D21-P3 — kontrolowany cutover jednego zestawu
+### D21-P3 — wykonany backend-only switch, ograniczony odbiór
 
-Stan preparation 2026-09-16: `PARTIAL / READ_ONLY / NO_CUTOVER`. Junction D:
-i Public Gateway potwierdzono bieżąco, lecz Engine nie zwrócił bounded
-`docker ps` ani celowanego inspectu. SQL nie wykonano bez zweryfikowanego
-kontenera/hostowego psql. Docker data VHD jest bieżąco na C:, backup taski 2/3
-mają last result `1`, a backup reconciler w source startuje bezwarunkowo i może
-zapisywać sync state. Dokładny changeset znajduje się w
-`R04_D21_P3_CHANGESET.csv`, a dowody i sekwencja w
-`R04_D21_P3_PREPARATION.md`.
+OP_ID `R04-D21-P3-CORE-SWITCH-20260917T141404Z` wykonał dokładnie jedno
+przełączenie backendu na source
+`0ee0ea50943578e6e552aae23ce1688595ddc262`. Bieżący backend
+`686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854`
+ma `/app=C:/ai-lab-core/backend:ro` i `/data=C:/ai-lab-core/data:rw`; payload
+592/592, schema i pending `18/16/1` zostały zachowane. Rollback nie był użyty.
+Późniejszy readback tej samej instancji potwierdził dwie warstwy `11/11 MATCH`
+i `9/9` przełączników `false`.
 
-Precondition: P1/P2 i DATA_ONLY source accepted, bieżące exact
-container/image/mount/volume/log metadata, READ ONLY schema/WAL/tablespaces/
-queue/backup state, odebrany base-only guard reconcilera, aktualny
-rollback point i okno operacyjne,
-brak aktywnego backup/import/restore/export, dokładny source/build manifest oraz
-osobna zgoda na przerwę. R03 nadal nie pozwala deklarować pełnej recovery
-readiness; właściciel musi osobno zaakceptować aktualność punktu cofnięcia i
-ryzyko.
-Efekt: zatrzymanie tylko wskazanych usług, przełączenie backendu na zatwierdzone
-`C:\ai-lab-core\backend`, in-root reviewed Compose override, gateway/worker
-source z tego samego set. Dane już poprawnie pracujące przez
-`C:\ai-lab-core\data -> D:\ai-lab-data` otrzymują `KEEP`; nie są kopiowane na C:
-ani migrowane między aliasem i targetem. Przełączenie backendu jest zmianą
-wersji niezależną od relokacji pozostałych zapisów.
-Verification: mount/image/full hashes, DB revision bez migracji nieobjętych
-zgodą, API/Web/gateway boundaries, kolejki bez wznowienia, brak recovery/staging
-mount.
-Rollback: dokładny aktywny override `36355C...436E8`, deploy
-`483f9bf8...`, obraz `6342b36f...63702`, bieżący Web manifest i task definitions.
-Uprawnienie: osobna zgoda deployment/cutover; żadna komenda nie została wykonana.
-
-Najmniejszy proponowany pierwszy pakiet to `P3 CORE BACKEND SOURCE SWITCH`:
-zachowanie obecnego Web/gateway i danych, instalacja exact backend source,
-jedna kontrolowana rekreacja wyłącznie backendu bez build/pull, wszystkie
-producery wyłączone oraz Supervisor nadal zatrzymany. Pakiet nie jest jeszcze
-gotowy do zgody operacyjnej, dopóki cztery blockery preparation nie zostaną
-zamknięte. Relokacja Docker VHD/Qdrant i profilu workera jest osobnym późniejszym
-krokiem P3, nie częścią pierwszego switchu.
+Właściciel przyjął ten wynik jako `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
+LIMITED_RUNTIME_SCOPE`. Odbiór nie jest odczytem obiektu `Settings` w pamięci,
+historią wszystkich dispatcherów, globalnym dowodem braku zapisów ani odbiorem
+całego P3/R04. `DELTA_NOT_FULLY_OBSERVED`, VHD/Qdrant/profile, harmonogramy
+backupu oraz globalny start pozostają odrębnymi bramkami. Zużyta zgoda na switch
+nie uprawnia do recreate lub rollbacku.
 
 ### D21-P4 — jeden start i rollback acceptance
 
-Precondition: P3 stabilny, backup/rollback nadal dostępny, owner w oknie testu.
-Efekt: utworzenie jednego taska `NEXT Stabil - Host`, przepięcie manualnego
-shortcutu do tego samego entrypointu oraz wyłączenie dopiero zastąpionych
-indywidualnych tasków startowych. Backup i Trash Purge pozostają oddzielnymi
-harmonogramami.
-Verification: pełna macierz §3 wraz z rebootem i rollbackiem. Supervisor nadal
-jest `INTENTIONALLY_STOPPED`, dopóki R05 nie uzyska osobnego runtime approval.
-Rollback: przywrócenie exact wcześniejszych tasków, wrappera i shortcutu.
-Uprawnienie: osobna zgoda na Task Scheduler/shortcut/reboot test.
+P4-A przygotował `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z` jako
+`STARTUP_ACTIVATION_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED`. Pakiet zawiera
+minimalny trzyplikowy payload przyjętego launchera, draft manifestu sześciu
+istniejących kontenerów, dokładny changeset triggerów, rollback XML pięciu
+tasków, kopie wrappera/skrótu i wyłączony draft `NEXT Stabil - Host`.
+
+Docelowo jeden task `NEXT Stabil - Host` uruchamia zaakceptowany launcher.
+Taski Public/Private/Supervisor pozostają enabled/on-demand jako executory, lecz
+ich niezależne triggery logon mają zostać usunięte. Startup wrapper musi zostać
+wyłączony **przed** instalacją launchera. Taski backupu i Trash Purge pozostają
+oddzielnymi harmonogramami.
+
+Manualny `NEXT Stabil.lnk` pozostaje obecnym wejściem UI, ponieważ P1 nie ma
+`OPEN_AFTER_BASE_READY`; nie wolno go przepiąć na launcher, który nie otworzy
+klienta. To jawna luka do osobnego source/review, nie powód do drugiego
+launchera.
+
+Verification P4-B: normalny start, drugi start bez duplikatów, Docker
+ready/not-ready, celowo zatrzymany Supervisor, konflikt portu, błędny
+mount/wersja, publiczne `/control`, logon/reboot i rollback. Supervisor pozostaje
+`INTENTIONALLY_STOPPED`. Globalny manifest jest `NOT_APPROVED`; P4-B wymaga
+osobnej exact zgody na instalację, aktywację i okno operacyjne.
 
 ### D21-P5 — archiwizacja i wycofanie
 
@@ -273,9 +266,8 @@ Uprawnienie: osobna exact-name cleanup approval.
 
 ## 5. Otwarte bramki i niewiadome
 
-- `R03 WAITING_APPROVAL / WAITING_ESCROW_DECISION`: nie blokuje mapy ani P1/P2,
-  ale blokuje deklarację pełnej recovery readiness. Przed ryzykownym P3 trzeba
-  osobno rozstrzygnąć aktualność rollback point i świadomie zaakceptować ryzyko.
+- `R03 WAITING_APPROVAL / WAITING_ESCROW_DECISION`: nie blokuje mapy ani P4-A,
+  ale blokuje deklarację pełnej recovery readiness.
 - `R05 IN_PROGRESS`: operator Web runtime, real Temporary Chat, upload i external
   end-to-end pozostają niezweryfikowane. Dlatego P3/P4 nie może automatycznie
   uruchomić Supervisora/exportu.
@@ -301,9 +293,10 @@ Uprawnienie: osobna exact-name cleanup approval.
 - Qdrant managed volume, Docker/WSL VHD i warstwy zapisu, zewnętrzne
   tablespaces/WAL, container logs/cache oraz profil/state zewnętrznego workera
   nadal nie mają pełnego dowodu fizycznej lokalizacji.
-- Draft P2 jest celowo `NOT_APPROVED_FOR_START`; brak bieżących
-  ID/image/digest/mountów po timeoutach Engine, brak SQL, guardu reconcilera i
-  aktualnej decyzji rollback danych blokuje P3.
+- Draft P4-A jest celowo `NOT_APPROVED_FOR_START`. Bieżące container ID,
+  image ID i mounty są zarejestrowane, ale RepoDigests, Qdrant/VHD backing,
+  `OPEN_AFTER_BASE_READY`, task install i pełna macierz start/rollback pozostają
+  otwarte.
 
 Te braki blokują odpowiednie relokacje lub cleanup, lecz nie unieważniają
 gotowości mapy i planu do właścicielskiego review.
@@ -317,12 +310,11 @@ Do Git trafiają tylko zanonimizowane indeksy, draft i dokumentacja. Nie wykonan
 cutoveru, relokacji, cleanupu, task/shortcut/mount/config/flag change, restartu,
 startu aplikacji/launchera/Supervisora/workera, UI, modeli, backupu ani restore.
 
-Launcher P1 pozostaje wyłącznie w recovery. Draft P2 nie został zainstalowany i
-produkcyjny walidator odrzuca go przez `START_NOT_APPROVED`; adapterów nie
-wywołano. Klient i bezpośredni start procesu pozostają fail-closed. P3–P5 są
-`NOT_RUN / NOT_AUTHORIZED`.
+Launcher P1 nadal nie jest zainstalowany. Draft P4-A ma `NOT_APPROVED`, a
+nieaktywny pakiet, XML i rollback copies pozostają LOCAL_ONLY. P4-A nie zmienił
+tasków, skrótów, plików instalacji, manifestu produkcyjnego ani runtime.
 
-Następny krok: owner review scalonego P3 changesetu. Po rzeczywistej zmianie
-stanu Engine należy dokończyć jedną bounded projekcję exact container/image/
-mount/volume/log i jedną READ ONLY sesję SQL. Dopiero potem osobna zgoda może
-objąć `P3 CORE BACKEND SOURCE SWITCH`; ten plan jej nie udziela.
+Następny krok: owner review exact pakietu P4-A. Osobna zgoda P4-B musi wskazać
+kolejność wyłączenia Startup wrappera, instalacji disabled host taska i payloadu,
+zatwierdzenia kompletnego manifestu oraz późniejszego testu operacyjnego z
+rollbackiem. Ten plan nie udziela tej zgody.

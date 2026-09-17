@@ -23,12 +23,14 @@
   only in recovery. P2 preservation/candidate is owner-accepted as NOT_DEPLOYED;
   the exact directory junction `C:\ai-lab-core\data -> D:\ai-lab-data` is the
   owner-approved `ACTIVE_DATA_ONLY` topology and may be validated offline.
-  The owner-authorized D21-P3 backend-only switch now runs accepted source
+  The owner-authorized D21-P3 backend-only switch now runs source
   `0ee0ea50943578e6e552aae23ce1688595ddc262` from the canonical backend path
-  with limited runtime verification; it is ready for review, not accepted as
-  the global production set. A production manifest, task/shortcut changes,
-  full live start/rollback acceptance, relocation, cleanup and P4-P5 still
-  require separate approval. Preserve
+  and is owner-accepted as `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
+  LIMITED_RUNTIME_SCOPE`; it is not acceptance of the global production set.
+  D21-P4/A prepared an inactive startup activation package for review only.
+  A production manifest, installation, task/shortcut changes, live
+  start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
+  separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
   cutover/cleanup approval; production must never execute recovery, staging, or
   test WIP.
@@ -81,7 +83,10 @@
   OP_ID `R04-D21-P3-CORE-SWITCH-20260917T141404Z`. That consumed operation does
   not authorize another recreate, rollback without a new trigger/decision,
   Supervisor start, runtime/config/data/mount/task changes, migration, backup,
-  restore, escrow, relocation, cleanup, or continuation into P4/P5.
+  restore, escrow, relocation, cleanup, or continuation into P4-B/P5. P4-A is
+  documentation and an inactive local package only; its draft manifest remains
+  `NOT_APPROVED` and none of its task or file changes may be installed without
+  a new exact owner decision.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

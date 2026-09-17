@@ -2805,8 +2805,8 @@ and service state are intended to grow on D:. It is not an archive/export-only
 path and there is no planned copy-first-to-C: design. Existing backup schedules
 remain separate from ordinary startup and are not replaced or changed by this
 decision. Source validation and offline tests are authorized in recovery;
-junction/mount/data changes, production start, P3 cutover and cleanup remain
-separately gated. The source guard at
+junction/mount/data changes, another runtime mutation, P4-B startup activation
+and cleanup remain separately gated. The source guard at
 `cb6e22506a0fecc440400566293524536847b9b0` with evidence
 `e9c17933b9f6a7f9ee6c825d371661a3769da0c9` is owner-accepted as
 `OFFLINE_TEST_ONLY / NOT_DEPLOYED`. D-21 then prepared an exact P3 changeset
@@ -2814,8 +2814,11 @@ and the owner separately authorized one backend-only source switch for OP_ID
 `R04-D21-P3-CORE-SWITCH-20260917T141404Z`. The operation installed source
 `0ee0ea50943578e6e552aae23ce1688595ddc262` under the canonical backend path,
 preserved the ACTIVE_DATA junction and existing database, and reached
-`CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW / LIMITED_RUNTIME_VERIFIED`.
-This is not acceptance of the global production set or permission for another
-runtime mutation. The production manifest, Supervisor, relocation, task
-installation, full startup/rollback acceptance, cleanup and P4/P5 remain
-separately gated.
+`CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE` after owner
+review of phase-B evidence and the later two-layer environment readback. This
+is not acceptance of the global production set or permission for another
+runtime mutation. P4-A subsequently prepared one inactive launcher payload,
+draft manifest, exact trigger changes and rollback package for review; it did
+not install or run them. The production manifest, Supervisor, relocation, task
+installation, full startup/rollback acceptance, backup schedule proof, cleanup
+and P4-B/P5 remain separately gated.

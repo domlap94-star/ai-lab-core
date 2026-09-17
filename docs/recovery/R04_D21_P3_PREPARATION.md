@@ -1,6 +1,6 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS / CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW / LIMITED_RUNTIME_VERIFIED`
+Status: `ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS / CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE / P4A_STARTUP_ACTIVATION_PACKAGE_READY_FOR_REVIEW_NOT_INSTALLED`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
@@ -398,8 +398,8 @@ pełnego renderu i sekretów nie utrwalono. Dokładny plan operacji ma SHA-256
 
 Faza B otrzymała bieżące potwierdzenie właściciela dla dokładnego OP_ID, a
 finalny drift check przeszedł. Jedno backend-only przełączenie zostało wykonane
-i ma wynik `CORE_BACKEND_SOURCE_SWITCH_READY_FOR_REVIEW /
-LIMITED_RUNTIME_VERIFIED`. Produkcyjny globalny manifest P1 pozostaje
+i właściciel przyjął je jako `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
+LIMITED_RUNTIME_SCOPE`. Produkcyjny globalny manifest P1 pozostaje
 `NOT_APPROVED_FOR_START`.
 
 Dokładne akcje komponentowe znajdują się w
@@ -439,8 +439,8 @@ dokładnym katalogu rollback; missing/mismatch `0/0`. Dane, junction, mount
 Zanonimizowany handoff znajduje się w
 `docs/recovery/checkpoints/20260917T165525Z-R04-D21-P3-CORE-SWITCH-HANDOFF.md`.
 Surowe logi i indeks 32 lokalnych plików pozostają `LOCAL_ONLY`. Dalsza granica
-to review; P4/P5, relokacja, task install, full startup/reboot/rollback
-acceptance i cleanup pozostają bez zgody.
+to P4-A `READY_FOR_REVIEW / NOT_INSTALLED`; P4-B/P5, relokacja, task install,
+full startup/reboot/rollback acceptance i cleanup pozostają bez zgody.
 
 ## 8. Post-switch readback środowiska backendu
 
@@ -471,5 +471,11 @@ Bezpieczna projekcja lokalna ma 5 249 B i SHA-256
 
 Wynik tej kontroli to
 `P3 BACKEND_STARTUP_ENVIRONMENT_READBACK_PASS / CURRENT_READ_ONLY_EVIDENCE`.
-Nie zmienia on `NOT_APPROVED_FOR_START` globalnego manifestu i nie nadaje P3
-ani R04 statusu `ACCEPTED`.
+Właściciel przyjął switch jako `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
+LIMITED_RUNTIME_SCOPE`. Nie zmienia to `NOT_APPROVED_FOR_START` globalnego
+manifestu ani nie nadaje całemu P3 lub R04 statusu `ACCEPTED`.
+
+P4-A przygotował następnie wyłącznie nieaktywny pakiet
+`R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`: payload launchera, draft
+manifestu, changeset triggerów, rollback XML i disabled host-task XML. Pakiet
+jest `READY_FOR_REVIEW / NOT_INSTALLED`; P4-B nadal wymaga osobnej zgody.
