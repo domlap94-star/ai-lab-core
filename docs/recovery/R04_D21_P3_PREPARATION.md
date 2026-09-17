@@ -1,6 +1,6 @@
 # R04 / D-21 / P3 — przygotowanie dokładnego changesetu
 
-Status: `PREPARATION_PARTIAL / BASE_START_GUARD_ACCEPTED / CURRENT_DB_METADATA_OBSERVED / ROLLBACK_EVIDENCE_REVIEW_READY / NO_CUTOVER`
+Status: `FRESH_ROLLBACK_POINT_READY_FOR_REVIEW / CAPTURE_AND_ISOLATED_DATA_RESTORE_PASS / NO_CUTOVER`
 Punkt wejścia: evidence `e9c17933b9f6a7f9ee6c825d371661a3769da0c9`
 Zaakceptowany source DATA_ONLY: `cb6e22506a0fecc440400566293524536847b9b0`
 Tree source: `c349a1d6ebfeb6077bc62181667f7f3c8f9d42cc`
@@ -8,7 +8,8 @@ Zaakceptowany guard source: `0ee0ea50943578e6e552aae23ce1688595ddc262`
 Guard tree: `4ccbc8922051401da1422be0d08f271476c3bab6`
 Okna obserwacji: `2026-09-16T13:38:16Z–13:43:51Z`,
 `2026-09-16T18:29:26Z–18:34:45Z` oraz
-`2026-09-16T19:59:54Z–20:05:34Z`
+`2026-09-16T19:59:54Z–20:05:34Z` oraz
+`2026-09-17T08:20:22Z–09:09:01Z`
 
 Ten dokument jest załącznikiem wykonawczym D-21. Nie jest nową roadmapą,
 zatwierdzonym manifestem startowym ani zgodą na wykonanie opisanych operacji.
@@ -154,7 +155,8 @@ i zero pending backup sync. Nie odczytywano treści dokumentów, poczty, zapyta�
 innych sesji, haseł, adresów e-mail ani danych użytkowników. Żądane zapisy
 danych biznesowych: brak. To nie jest deklaracja braku technicznego I/O hosta.
 
-Rollback pozostaje `REVIEW_READY / DATA_FRESHNESS_OWNER_DECISION_REQUIRED`:
+Historyczny rollback pozostaje zachowany, ale właściciel wybrał jeden nowy,
+zweryfikowany punkt przed cutoverem:
 
 - odebrany full point `E:\ai-lab-backup\20260908T210559Z`, manifest
   `8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B`,
@@ -168,7 +170,28 @@ Rollback pozostaje `REVIEW_READY / DATA_FRESHNESS_OWNER_DECISION_REQUIRED`:
   ma 3/3 artefakty obecne i zgodne rozmiarem;
 - bieżące wyniki tasków `267014/1/1` nie dowodzą świeżej kopii po tych punktach.
 
-Nie haszowano ponownie dużych artefaktów. Zanonimizowany stdout SQL jest
+Nowy punkt `E:\ai-lab-backup\20260917T082022Z` jest
+`FRESH_ROLLBACK_POINT_READY_FOR_REVIEW`:
+
+- `RecoveryPointV2 / full / CaptureOnly`, manifest SHA-256
+  `2759D684710FB857DBCD0D985B5C480857122E3B139B9DDC362BFF4903895597`;
+- 9 artefaktów / 8 233 194 286 B, wszystkie obecne oraz zgodne rozmiarem i
+  SHA-256;
+- ValidateOnly exit `0`, a osobny izolowany drill dokładnie tego punktu
+  potwierdził PostgreSQL, pięć domen storage, obie kolekcje Qdrant,
+  release/config/inventory oraz opaque n8n;
+- 6362/6362 referencje plikowe rozwiązane, zero missing/unsafe/mismatch;
+- Qdrant 57 i 157 punktów, 1024/Cosine, bindingi do odtworzonej DB zgodne;
+- immutable manifest zachowuje CaptureOnly `qdrant_restore_verified=false`;
+  drill jest osobnym dowodem i nie przepisuje historii capture;
+- spójność to nadal `COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL /
+  VERIFIED_LINKS_IN_TESTED_SCOPE`, nie atomowy snapshot całego systemu.
+
+Pełny raport: `docs/recovery/R04_D21_P3_FRESH_ROLLBACK_EVIDENCE.md`.
+
+Dużych artefaktów historycznych punktów z 2026-09-08 i 2026-09-11 nie
+haszowano ponownie; wszystkie 9 artefaktów nowego punktu przeszło osobną pełną
+kontrolę SHA-256. Zanonimizowany stdout SQL z wcześniejszego odczytu jest
 `LOCAL_ONLY`, 10 219 B, SHA-256
 `EA575FADD1537B2BFDAC813F23766E838536CA366DB361869A5DA818FA9B704E`;
 sanitowane podsumowanie ma 2 936 B i SHA-256
@@ -225,7 +248,8 @@ kandydat P3 musi jednak przed cutoverem:
   `false` i potwierdzić effective env projekcją bez sekretów;
 - zachować zastany pending work: 18 document-preparation, 16 analysis i jeden
   Assistant; nie wykonywać ich ani nie zgubić podczas okna;
-- rozstrzygnąć świeżość punktu rollbacku;
+- uzyskać owner review świeżego punktu i przed cutoverem ocenić nowe zapisy po
+  jego component windows;
 - zachować Supervisor `INTENTIONALLY_STOPPED`.
 
 Guard jest odebrany jako source/test i nie jest wdrożony. Bez jawnych flag w
@@ -332,13 +356,13 @@ Powrót danych nie jest zawarty w tym rollbacku i pozostaje zależnością R03.
 
 ## 6. Blockery i wynik
 
-`PREPARATION_PARTIAL` pozostaje z powodu dwóch operacyjnych bramek i potrzeby
-ochrony zastanego pending work:
+`PREPARATION_PARTIAL / NO_CUTOVER` pozostaje z powodu operacyjnych bramek i
+potrzeby ochrony zastanego pending work; wybór świeżego punktu został wykonany,
+lecz sam punkt nie otrzymał jeszcze statusu `ACCEPTED`:
 
-1. `ROLLBACK_DATA_FRESHNESS_OWNER_DECISION_REQUIRED`: task 1 ma
-   `SCHED_S_TASK_TERMINATED`, taski 2/3 wynik `1`, brak zachowanych końcowych
-   logów; odebrany punkt full z 2026-09-08 i punkty DB/n8n z 2026-09-11 nie
-   obejmują jawnie zmian do bieżącej obserwacji 2026-09-16.
+1. `FRESH_ROLLBACK_POINT_OWNER_REVIEW_REQUIRED`: punkt
+   `20260917T082022Z` ma capture+drill PASS, lecz pozostaje `READY_FOR_REVIEW`;
+   przed przyszłym cutoverem trzeba ocenić zapisy powstałe po jego oknach.
 2. `PRODUCTION_START_MANIFEST_NOT_APPROVED`: draft ma wymagane flagi `false`,
    lecz nie został zainstalowany, odczytany jako effective ani zatwierdzony.
 3. `PENDING_WORK_MUST_BE_PRESERVED`: 18 document-preparation, 16 analysis i
@@ -347,11 +371,12 @@ ochrony zastanego pending work:
 
 Dokładne akcje komponentowe znajdują się w
 `docs/recovery/R04_D21_P3_CHANGESET.csv`. W tej kontynuacji testy aplikacji,
-Flutter, Web build, migracje i runtime smoke kandydata były `NOT_RUN`. Wykonano
-wyłącznie bieżący metadata read i jedną transakcję PostgreSQL READ ONLY.
+Flutter, Web build, migracje i runtime smoke kandydata były `NOT_RUN`. Po
+wcześniejszym metadata read i transakcji PostgreSQL READ ONLY wykonano wyłącznie
+jeden fresh CaptureOnly oraz izolowany data restore/drill opisany powyżej; nie
+uruchamiano aplikacji kandydata.
 
-Jedyna następna decyzja właściciela: czy przyszły P3 może użyć odebranego full
-pointu z 2026-09-08 razem z DB/n8n z 2026-09-11 mimo nieobjętych zmian do
-2026-09-16 i niezerowych wyników ostatnich tasków, czy przed cutoverem wymagany
-jest nowy, zweryfikowany punkt rollbacku. Bez tej decyzji nie ma zgody na
-cutover, P4/P5 ani R06.
+Jedyna następna decyzja właściciela: review dokładnego fresh pointu
+`20260917T082022Z` i osobna zgoda na już opisane minimalne okno P3 backend
+source-switch, jeżeli wiek punktu oraz zapisy po jego component windows są
+akceptowalne. Nie ma zgody na cutover, P4/P5 ani R06.

@@ -111,7 +111,19 @@
     "requested_business_data_writes": 0
   },
   "rollback_evidence": {
-    "status": "REVIEW_READY_FRESHNESS_OWNER_DECISION_REQUIRED",
+    "status": "FRESH_ROLLBACK_POINT_READY_FOR_REVIEW",
+    "fresh_point": {
+      "path": "E:/ai-lab-backup/20260917T082022Z",
+      "manifest_sha256": "2759D684710FB857DBCD0D985B5C480857122E3B139B9DDC362BFF4903895597",
+      "scope": "RecoveryPointV2/full/CaptureOnly",
+      "artifacts": 9,
+      "total_bytes": 8233194286,
+      "all_artifact_hashes_match": true,
+      "isolated_data_restore": "PASS",
+      "consistency": "COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL",
+      "verified_links": "PASS_IN_TESTED_SCOPE",
+      "owner_acceptance": "NOT_YET_ACCEPTED_READY_FOR_REVIEW"
+    },
     "accepted_full_point": {
       "path": "E:/ai-lab-backup/20260908T210559Z",
       "manifest_sha256": "8F20A7845473097EE74019966583EC3F121139C4B562265F9A7391FAFAF6BE4B",
@@ -129,11 +141,14 @@
       "manifest_sha256": "F8005856EF68F1AF88B5CD70DC19452B4DA8FDCE689371E397131081F71539AA",
       "artifacts_present_and_size_matched": "3/3"
     },
-    "latest_task_results": "267014/1/1",
-    "fresh_current_point_verified": false
+    "latest_task_results_before_manual_point": "267014/1/1",
+    "existing_schedules_changed": false,
+    "fresh_current_point_verified": true,
+    "data_restore_is_automatic_application_rollback": false
   },
   "remaining_gates": [
-    "ROLLBACK_DATA_FRESHNESS_OWNER_DECISION",
+    "FRESH_ROLLBACK_POINT_OWNER_REVIEW",
+    "WRITES_AFTER_COMPONENT_WINDOWS_REASSESSMENT",
     "PENDING_WORK_PRESERVATION_IN_OPERATIONAL_WINDOW",
     "EFFECTIVE_FIRST_START_FLAGS_NOT_DEPLOYED",
     "PRODUCTION_MANIFEST_APPROVAL",
