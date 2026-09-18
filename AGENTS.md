@@ -27,12 +27,15 @@
   `0ee0ea50943578e6e552aae23ce1688595ddc262` from the canonical backend path
   and is owner-accepted as `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
   LIMITED_RUNTIME_SCOPE`; it is not acceptance of the global production set.
-  D21-P4/A now has reviewed source and offline tests for full container-ID
-  binding, explicit image identity modes and PostgreSQL health before backend;
-  it remains inactive and not installed. A later bounded read-only campaign
+  D21-P4/A source `8756314f51a76091a483cfc9b677a05c7f67f315` and evidence
+  `8a156e0c738699b4bfee01fb98f0d10f01c803ba` are owner-accepted as
+  `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. A later bounded read-only campaign
   proved that four secondary draft IDs were transcription errors and reconciled
   all six exact container/image/digest identities in the inactive draft. This is
-  `CURRENT_READ_ONLY_EVIDENCE / READY_FOR_REVIEW`, not manifest approval. A production manifest, installation, task/shortcut changes, live
+  `CURRENT_READ_ONLY_EVIDENCE`, not manifest approval. Phase A of bounded P4/B
+  window `R04-D21-P4B-WINDOW-20260918T084652Z` prepared exact proposed
+  manifest/task bytes and passed offline validation; it remains
+  `WAITING_OWNER_CONFIRMATION / NOT_INSTALLED`. A production manifest, installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
   separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
@@ -88,10 +91,14 @@
   not authorize another recreate, rollback without a new trigger/decision,
   Supervisor start, runtime/config/data/mount/task changes, migration, backup,
   restore, escrow, relocation, cleanup, or continuation into P4-B/P5. P4-A is
-  source/offline review plus an inactive local package only; its draft manifest
-  remains `NOT_APPROVED`. The bounded read-only identity evidence is complete
-  6/6 after a documented transcription correction, but none of its task or file
-  changes may be installed without a new exact owner decision.
+  owner-accepted only as source/offline plus an inactive local package; its
+  repository draft manifest remains `NOT_APPROVED`. The bounded read-only
+  identity evidence is complete 6/6 after a documented transcription
+  correction. The P4/B Phase-A package is an inert proposal in protected
+  staging: no task, trigger, Startup wrapper, installation file, manifest or
+  runtime may be changed until the owner sends the exact current Phase-B
+  confirmation. That future confirmation is single-use and does not authorize
+  reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

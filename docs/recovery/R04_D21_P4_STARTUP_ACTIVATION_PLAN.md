@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A FOUR_SERVICE_IDENTITY_RECONCILED / CURRENT_READ_ONLY_EVIDENCE / INACTIVE_STARTUP_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED / P4B_PHASE_A_WINDOW_READY_WAITING_OWNER_CONFIRMATION / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -229,19 +229,83 @@ usuwa tej bramki D-21.
 
 ## 10. Bramy przed P4-B
 
-- właścicielski review zaktualizowanego exact pakietu, changesetu i wyniku
-  `DRAFT_TRANSCRIPTION_ERROR_PROVEN`; wszystkie 6/6 tożsamości są przypięte,
-  lecz manifest nadal nie ma zgody startowej;
-- rozliczenie fizycznego backingu Qdrant/VHD oraz decyzja, czy ograniczony start
-  może poprzedzić relokację;
-- decyzja o minimalnej funkcji `OPEN_AFTER_BASE_READY` albo jawne utrzymanie
-  oddzielnego skrótu UI;
+- P4/A source/offline/identity package ma odbiór właściciela; identity 6/6 nie
+  jest już blockerem, lecz repository/global manifest nadal nie ma zgody startowej;
+- właściciel dopuścił przygotowanie ograniczonego startu przed relokacją
+  Qdrant/VHD/profile, z jawnym zachowaniem tych braków jako ryzyka — nie jest to
+  akceptacja fizycznego położenia danych;
+- właściciel dopuścił zachowanie oddzielnego skrótu UI; `OPEN_AFTER_BASE_READY`
+  pozostaje poza Phase B i nie jest pozornie domykane przez launcher;
 - dokładne, bieżące definicje triggerów bez driftu;
 - osobny plan odbioru harmonogramu backupu;
-- zatwierdzony manifest startowy; obecny draft nie jest nim.
+- dokładne potwierdzenie właściciela Phase B dla opublikowanego OP_ID/hashów;
+  obecny repository draft nie jest zatwierdzonym manifestem startowym.
 
-Następny krok: review skorygowanego pakietu 6/6 i osobna, dokładna decyzja o
-P4-B. Musi ona jawnie rozstrzygnąć, czy ograniczona instalacja/start może
-poprzedzić relokację Qdrant/VHD, oraz wskazać operacyjne okno, preflight,
-rollback i zakres triggerów. Bez tej zgody nie wolno wykonać żadnego z kroków
+Następny krok: po publikacji Phase A właściciel wysyła jedno dokładne zdanie
+potwierdzenia P4/B albo odmawia. Bez tej zgody nie wolno wykonać żadnego kroku
 instalacji lub aktywacji.
+
+## 11. P4/B Phase A — dokładne okno przygotowane, bez instalacji
+
+OP_ID: `R04-D21-P4B-WINDOW-20260918T084652Z`. Właściciel zaakceptował P4/A
+source `8756314f51a76091a483cfc9b677a05c7f67f315` i evidence
+`8a156e0c738699b4bfee01fb98f0d10f01c803ba` jako
+`SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED` oraz dopuścił
+wyłącznie Phase A następnego okna. Phase B nie jest jeszcze autoryzowana.
+
+Fresh read-only preflight potwierdził sześć exact kontenerów jako running bez
+restartu w oknie, PostgreSQL healthy, backend P3 na oczekiwanym ID/mountach,
+Public Gateway i backend health `200`, publiczne `/control*` `404`, brak
+listenerów `8787/8788` oraz niezmieniony stan Supervisor
+`INTENTIONALLY_STOPPED`. Zadania backupowe nie były uruchamiane; ich ostatnie
+wyniki pozostają osobnym dowodem, a globalny brak aktywnej pracy nie został
+ogłoszony. Dodatkowy wpis HKCU Run dla Docker Desktop istnieje i w tym oknie
+pozostaje bez zmian, poza allowlistą mutacji P4/B.
+
+Resource preflight: Windows physical available `7.026 GiB`, commit reserve
+`36.421 GiB`, C: free `577.991 GiB`, D: free `854.714 GiB` — dotychczasowe
+progi host/disk przechodzą. Bieżąca dostępność puli Docker/WSL i bieżące użycie
+swap pozostają `UNKNOWN`, ponieważ Phase A nie wykonywała WSL ani kontenera
+pomiarowego. Configured swap to `8 GiB`; nie wolno przepisać tego na pełny
+resource-gate PASS.
+
+Dokładne artefakty Phase A w chronionym stagingu:
+
+- P4/A effective index: `3FCF1938111C9746FB9F4B5D57F1F98C5085099503B1385B862B0F68776303A9`;
+- Phase-A window index: `F99FF54E06DD9508992D9D41D38CE5C8BF54D02748814EDEA619BD046B772FF8`;
+- proposed manifest target `C:\ai-lab-core\operations\runtime\startup-set.json`,
+  SHA-256 `E66F22A7EC433183940FC3014E1B9F8C1DBE535375EC2D6580B958B55586010C`;
+- exact task/file changeset SHA-256
+  `FC0E884F531F93E922FF0C84AC87D6B6DBF34EC825B6E86796DE702ABE328F0C`;
+- launcher/runtime/helper SHA-256 odpowiednio `7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871`,
+  `349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7`,
+  `91C763F5D0FF6CC7184E0B238EA6A6047CBB3FB13F88917777F4E0696E9667EC`;
+- P3 override pozostaje KEEP: `F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86`.
+
+Proponowane XML SHA-256: Docker Compose disabled/no-trigger
+`235F272C9C9BE19C1B1E67C1E7817189943F56309CDD73E7C9949E33C002FD3D`,
+Docker Desktop disabled/no-trigger
+`ED350348A5AD475B9866BE6AA86AD41E3694A60B68B312CC2CA38A66712D1EE5`,
+Host disabled `28204912151A622AD05625D0E32578C354BE7A3F800E3E3DD76F0C10D7429106`,
+Host enabled/logon `9AFA131B95498EDFEF78FD6CD411C9E03FCBD2611E05C105B3EFC536FD4190F0`,
+Host enabled/on-demand `7EAA8E6B24F2581C7F7791BF261DACB962F18A9FB8E8309E10977D4599EA546E`,
+Private/Public/Supervisor on-demand no-trigger odpowiednio
+`0CEBB54538D713EB283EF6F95D9ED7933C5E954147621B71906D0F68D27F05EE`,
+`1F1265B7C0FE2309317BB26123255C2CA5C8A6E4FEF9B70553B6D1A18DC75169`,
+`22AFAFCB41FF0B5958417452D6EEF90B5C559E2520DFC77B4A61EA0EE0D19B4F`.
+
+Walidacja Phase A zakończyła się exit `0`; stdout SHA-256
+`FA967B2592EF3609B4FA00AB2AFDF557BC24A7A6F25735EA184917DAA2BEF8E1`.
+Parser Windows PowerShell 5.1 przyjął trzy pliki payloadu, wszystkie XML i JSON.
+Pure validator uruchomiony bez adapterów na zamierzonym canonical target odmówił
+wyłącznie przez oczekiwane przed instalacją `FILE_MISSING` dla launcher/runtime
+i `FILE_HASH_MISMATCH` legacy helpera. Nie zwrócił approval mismatch; dowodzi to
+fail-closed pre-install, nie wykonania P4/B.
+
+Jedyny SAFE_INACTIVE rollback po przyszłej części instalacyjnej ma wyłączyć
+Host task/no-trigger i przywrócić dokładne preimage tasków/wrappera/pliku helpera
+bez startowania ich oraz bez przywracania automatycznego Supervisora lub
+legacy compose-up. Reboot/logoff/cold-stop, backup/restore, relokacja,
+Supervisor, P5 i R06 pozostają poza przygotowanym oknem. Następny krok to jedno
+dokładne potwierdzenie właściciela obejmujące te hashe, skutki i ograniczenia;
+do tego czasu `WAITING_OWNER_CONFIRMATION / NOT_INSTALLED`.

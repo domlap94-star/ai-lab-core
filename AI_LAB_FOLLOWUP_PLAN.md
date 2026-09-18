@@ -2827,3 +2827,16 @@ container/image/digest identities and remains `NOT_APPROVED`. P4-A did not
 install or run the package. The production manifest, Supervisor, relocation, task
 installation, full startup/rollback acceptance, backup schedule proof, cleanup
 and P4-B/P5 remain separately gated.
+
+**P4/A OWNER ACCEPTANCE AND P4/B PHASE-A WINDOW — 2026-09-18.** The owner
+accepted P4/A source `8756314f51a76091a483cfc9b677a05c7f67f315` and evidence
+`8a156e0c738699b4bfee01fb98f0d10f01c803ba` only as
+`SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. For OP_ID
+`R04-D21-P4B-WINDOW-20260918T084652Z`, Phase A performed a bounded read-only
+preflight and prepared exact proposed manifest/task/payload bytes in protected
+staging. Offline validation passed; no installation, task/trigger/Startup
+mutation, service start or runtime mutation occurred. Phase B remains
+`WAITING_OWNER_CONFIRMATION`: the proposed approved manifest is not installed,
+the repository draft remains `NOT_APPROVED`, and this record is not standing
+permission for later deployment, rollback, Supervisor, backup/restore,
+relocation, P5 or R06.
