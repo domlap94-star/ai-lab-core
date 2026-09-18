@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED_TESTED_ON_POWERSHELL_51_READY_FOR_REVIEW / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS / EXACT_PACKAGE_READY_FOR_REVIEW / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -415,3 +415,43 @@ przejrzanych bajtów i wcześniejszego dowodu, ale recepta nie otrzymuje statusu
 `ACCEPTED_FOR_EXACT_RESUME`. Następny krok to osobno przygotowana i przetestowana
 recepta/index z jawnym bindingiem sześciu baseline paths; dopiero jej review może
 poprzedzić fresh live drift check i nowe jednorazowe potwierdzenie UAC.
+
+## 15. P4/B input binding — dokładny pakiet LOCAL_ONLY do review
+
+Zakres `R04-D21-P4B-INPUT-BINDINGS-20260918T192258Z` nie wykonał UAC,
+Dockera, Task Schedulera, HTTP ani instalacji. Fail-before rzeczywistej funkcji
+ze starej recepty `5F310C64...1FD67` potwierdził, że pierwszy odczyt baseline
+szukał `docker-container-backend-pass2-command.json` pod rootem recepty i
+kończył się przed fake Docker oraz przed granicą mutacji.
+
+Nowa recepta rozdziela: `recipePackageRoot`, przypięty `inputIndexPath` i
+jednorazowy `ExecutionOutputRoot`. `Resolve-InstallerInputs` odczytuje indeks
+raz, wymaga 29 unikalnych ról, sprawdza dokładną ścieżkę, rozmiar i SHA-256,
+przechowuje zweryfikowany bufor, a następnie parsuje z niego sześć records.
+`Assert-ContainersUnchanged` otrzymuje te same rozstrzygnięte obiekty; nie buduje
+ponownie basename ani nie wybiera pliku z CWD. Ścieżki względne są rozstrzygane
+wyłącznie względem rootu indeksu. Root escape, reparse, duplikat, brak, zmiana
+serwisu lub uszkodzony JSON kończą się odmową.
+
+| Service | Role | Indexed file | Bytes | SHA-256 |
+|---|---|---|---:|---|
+| backend | `resume_container_backend` | `r04-d21-p4b-resume-20260918t112015z\docker-container-backend-pass2-command.json` | 1420 | `55C4250C34C89C8545C2DF3F29C9A9D5673BBB065BEF48CB26EC6FE904DEAF2F` |
+| postgres | `resume_container_postgres` | `r04-d21-p4b-resume-20260918t112015z\docker-container-postgres-pass2-command.json` | 1358 | `2BFBBB37FD1FB5E02B4786CDC10E107766629FB578DE90958CFFE8F8498E3289` |
+| qdrant | `resume_container_qdrant` | `r04-d21-p4b-resume-20260918t112015z\docker-container-qdrant-pass2-command.json` | 1494 | `3534EB5AA13CD7F40547AA24E66673B27713AFFAD305740F6AFE2B013E871C55` |
+| n8n | `resume_container_n8n` | `r04-d21-p4b-resume-20260918t112015z\docker-container-n8n-pass2-command.json` | 1342 | `B25B289BB1EAECD67CCE57B187E0437794B5C938BD0D91DADE6F57E179797055` |
+| open-webui | `resume_container_open-webui` | `r04-d21-p4b-resume-20260918t112015z\docker-container-open-webui-pass2-command.json` | 1377 | `EF5E3CF0F922FC9F7ABD244BF7F7D2C4927739E9BCD4D5BCBAAC139FD8971677` |
+| ollama | `resume_container_ollama` | `r04-d21-p4b-resume-20260918t112015z\docker-container-ollama-pass2-command.json` | 1342 | `39551CA0F6DC8EC1F0642D818EBF6F569EA0E6BCED826CB69CD2240D1D5EF78E` |
+
+Końcowa recepta ma 55,623 B i SHA-256
+`733AA23F15EF9CC1E8A87F1A1B38EF523464F09160EDACF50300F00957D05B6A`.
+Indeks pakietu ma 4,156 B i SHA-256
+`ED05FE269F89BE881474CA9B2C00D62589720FD0AE1959547D55A4032B54875C`.
+Windows PowerShell `5.1.26100.8894` zaliczył 14/14 przypadków, 119 asercji,
+6/6 historycznych odpowiedzi fake boundary oraz dokładne argv 7/7. Zarezerwowany
+`execution-output\exact-resume-attempt-1` pozostaje nieutworzony. Stare recipe,
+index, baseline i wejścia instalacji zachowują swoje bajty.
+
+Status: `RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS /
+EXACT_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED`. Wymagany następny krok to
+review dokładnych LOCAL_ONLY bajtów; fresh live drift check, jeden UAC i okno
+operacyjne wymagają późniejszej, osobnej zgody.

@@ -2886,3 +2886,19 @@ No Docker/task/HTTP preflight, UAC, installation, rollback or warm run followed.
 Status: `EXACT_RECIPE_PREFLIGHT_BLOCKED / BASELINE_PATH_BINDING_MISMATCH`.
 A newly tested recipe/index and later new single-use owner confirmation are
 required; copying inputs or changing paths ad hoc is not an approved workaround.
+
+**P4/B INPUT BINDING FIX — 2026-09-18.** The owner then authorized only a
+LOCAL_ONLY recipe/index correction and offline tests. The preserved recipe
+`5F310C64...1FD67` reproduced fail-before: its real
+`Assert-ContainersUnchanged` looked below its own recipe root and failed before
+the fake Docker boundary. The input-bound recipe `733AA23F...D05B6A` now reads
+the immutable input index once, binds all 29 unique roles by exact path, size
+and SHA-256, parses each of six baselines from the verified buffer, and passes
+the same resolved objects to the real container guard. Output root identity is
+separate and exclusive. Windows PowerShell 5.1 final results were 14/14 cases,
+119 assertions, six fake boundary calls and one synthetic mutation-boundary
+arrival; real Docker/Task Scheduler/HTTP/UAC/host mutations were 0. The frozen
+LOCAL_ONLY package index is `ED05FE26...875C`. Status:
+`RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS /
+EXACT_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED`. This does not approve a live
+drift check, UAC, installation, rollback or warm run.

@@ -1,5 +1,13 @@
 # R04 / D-21 / P4-B — native argument transport evidence
 
+> Granica odbioru po review input binding, 2026-09-18: recepta transportowa
+> `5F310C64...1FD67` zachowuje własne 17/17 i 120 asercji oraz historyczny
+> dozwolony inspect. Nie była jednak wykonawczo kompletna z powodu
+> `BASELINE_PATH_BINDING_MISMATCH`. Osobny LOCAL_ONLY pakiet input binding
+> `733AA23F...D05B6A` / index `ED05FE26...875C` odtworzył ten fail-before i
+> przeszedł 14/14, 119 asercji bez live Docker/Task/HTTP/UAC/mutacji. Nie
+> przepisuje to historycznych wyników transportu i nie nadaje zgody P4/B.
+
 Status: `RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED / TESTED_ON_POWERSHELL_51 /
 READY_FOR_REVIEW / NOT_INSTALLED`
 

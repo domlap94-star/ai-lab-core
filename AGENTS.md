@@ -48,11 +48,15 @@
   read-only backend Docker inspect. The current installation state is still
   `PARTIAL_SAFE_INACTIVE`. A later owner-authorized static preflight confirmed
   the exact recipe/index bytes and all indexed inputs, but found that
-  `Assert-ContainersUnchanged` resolves six baseline records under the new
-  recipe root while those records are indexed under the previous consumed
-  resume. The exact recipe is therefore `PREFLIGHT_BLOCKED /
-  BASELINE_PATH_BINDING_MISMATCH`; no fresh Docker/task read, UAC or mutation
-  followed. Payload and
+  `Assert-ContainersUnchanged` resolved six baseline records under the new
+  recipe root while those records were indexed under the previous consumed
+  resume. A subsequent `SOURCE / LOCAL FILE READ / OFFLINE TEST ONLY` scope
+  reproduced that fail-before and prepared LOCAL_ONLY input-bound recipe
+  `733AA23F...D05B6A` plus package index `ED05FE26...875C`. The final Windows
+  PowerShell 5.1 campaign passed 14/14 cases and 119 assertions with all 29
+  indexed inputs and six baselines resolved by exact role/path/size/hash;
+  Docker/task/HTTP/UAC/host mutations remained zero. This is `EXACT_PACKAGE_READY_FOR_REVIEW`,
+  not operational authorization. Payload and
   manifest remain uninstalled, five existing tasks remain on their preimages
   and warm runs are `0/2`. A production manifest, further installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
@@ -118,9 +122,9 @@
   `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The partial disabled Host
   task and relocated Startup wrapper must not be treated as an installed
   launcher. The corrected transport bytes retain their offline/read-only
-  evidence, but the replacement recipe/index are not executable as the exact
-  resume because their six baseline input paths do not match. Any continuation
-  requires a newly tested recipe/index, owner review of those exact bytes, a
+  evidence. The later input-bound LOCAL_ONLY recipe/index are ready only for
+  exact-byte review; they have not performed a live drift check or installation.
+  Any continuation requires owner review of those exact bytes, a
   fresh bounded drift check, a new current owner decision and owner presence for
   one UAC prompt. That future decision is single-use and does not authorize
   reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
