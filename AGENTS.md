@@ -46,7 +46,13 @@
   split (56 received argv tokens instead of 7), prepared corrected LOCAL_ONLY
   recipe `5F310C64...1FD67`, passed PowerShell 5.1 17/17 cases and one exact
   read-only backend Docker inspect. The current installation state is still
-  `PARTIAL_SAFE_INACTIVE`; the recipe is only `READY_FOR_REVIEW`. Payload and
+  `PARTIAL_SAFE_INACTIVE`. A later owner-authorized static preflight confirmed
+  the exact recipe/index bytes and all indexed inputs, but found that
+  `Assert-ContainersUnchanged` resolves six baseline records under the new
+  recipe root while those records are indexed under the previous consumed
+  resume. The exact recipe is therefore `PREFLIGHT_BLOCKED /
+  BASELINE_PATH_BINDING_MISMATCH`; no fresh Docker/task read, UAC or mutation
+  followed. Payload and
   manifest remain uninstalled, five existing tasks remain on their preimages
   and warm runs are `0/2`. A production manifest, further installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
@@ -111,10 +117,12 @@
   `R04-D21-P4B-WINDOW-20260918T084652Z` and the later resume authorization
   `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The partial disabled Host
   task and relocated Startup wrapper must not be treated as an installed
-  launcher. The corrected replacement recipe/index are ready for review but are
-  not accepted or authorized for execution. Any continuation requires owner
-  review of those exact bytes, a new current owner decision, a fresh bounded
-  drift check and owner presence for one UAC prompt. That future decision is single-use and does not authorize
+  launcher. The corrected transport bytes retain their offline/read-only
+  evidence, but the replacement recipe/index are not executable as the exact
+  resume because their six baseline input paths do not match. Any continuation
+  requires a newly tested recipe/index, owner review of those exact bytes, a
+  fresh bounded drift check, a new current owner decision and owner presence for
+  one UAC prompt. That future decision is single-use and does not authorize
   reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,

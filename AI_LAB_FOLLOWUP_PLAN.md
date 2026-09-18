@@ -2874,3 +2874,15 @@ This is `READY_FOR_REVIEW`, not P4/B acceptance or operational permission.
 Installation state remains PARTIAL_SAFE_INACTIVE, payload/manifest absent,
 five tasks on preimage and warm runs `0/2`. A new exact owner decision and fresh
 bounded drift check are still required before any future UAC.
+
+**P4/B EXACT RECIPE PREFLIGHT — 2026-09-18.** The owner authorized a static
+read-only check before any new UAC. Recipe SHA-256 `5F310C64...1FD67`, index
+SHA-256 `43F285C2...A2A9`, all 17 recipe-index entries and all 29 referenced
+input-index entries matched size and SHA-256. The exact recipe nevertheless
+resolves six container baseline files below its new `$resumeRoot`; those files
+exist only at their indexed paths below the previous consumed resume. Running
+the reviewed bytes would therefore fail before Docker and before mutation.
+No Docker/task/HTTP preflight, UAC, installation, rollback or warm run followed.
+Status: `EXACT_RECIPE_PREFLIGHT_BLOCKED / BASELINE_PATH_BINDING_MISMATCH`.
+A newly tested recipe/index and later new single-use owner confirmation are
+required; copying inputs or changing paths ad hoc is not an approved workaround.

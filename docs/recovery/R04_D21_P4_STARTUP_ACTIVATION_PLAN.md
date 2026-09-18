@@ -380,3 +380,38 @@ Przed przyszłą operacją kolejność nadal brzmi: review dokładnej recepty i
 indeksu -> nowa jednorazowa decyzja właściciela -> świeży bounded drift check ->
 co najwyżej jeden osobno zatwierdzony UAC -> istniejąca zamknięta sekwencja
 instalacji. Obecny wynik nie upoważnia do żadnego z tych skutków operacyjnych.
+
+## 14. P4/B exact-recipe preflight — blokada wiązania baseline paths
+
+Dla przygotowanego external resume ID
+`R04-D21-P4B-RESUME-20260918T163031Z` wykonano wyłącznie statyczny,
+read-only preflight przed pytaniem właściciela o UAC. Recepta 45,009 B ma
+oczekiwany SHA-256
+`5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67`,
+a indeks 7,454 B ma oczekiwany SHA-256
+`43F285C2E82032F6914F5C5F8BA0653C85EC44F2A4F24E13D835A7C02162A2A9`.
+Wszystkie `17/17` wpisów indeksu recepty i `29/29` wpisów wskazanego input
+indexu istnieją oraz mają zgodny rozmiar i hash. Katalog
+`installer-execution` nie istniał, więc nie wykryto kolizji historycznych
+wyników.
+
+Preflight wykazał jednak deterministyczny błąd kontraktu wejściowego.
+`Assert-ContainersUnchanged` czyta każdy baseline jako
+`Join-Path $resumeRoot "docker-container-<service>-pass2-command.json"`, gdzie
+`$resumeRoot` wskazuje katalog `p4b-native-transport-20260918T152017Z`.
+Żaden z sześciu plików nie istnieje pod tą ścieżką. Wszystkie sześć poprawnych,
+indeksowanych i hash-matched records znajduje się w katalogu poprzedniego,
+skonsumowanego `r04-d21-p4b-resume-20260918t112015z`.
+
+Niezmieniona recepta zatrzymałaby się z błędem odczytu baseline przed pierwszym
+wywołaniem Docker i przed mutacją. Kopiowanie rekordów do nowego katalogu albo
+zmiana `$resumeRoot` zmieniłyby przejrzany kontrakt wykonania; nie wykonano
+takiego obejścia. Nie uruchomiono Docker, Task Scheduler, HTTP, UAC, instalatora,
+rollbacku ani warm runu. Status pozostaje `PARTIAL_SAFE_INACTIVE`, warm runs
+`0/2`, globalny manifest `NOT_APPROVED_FOR_START`.
+
+Transport natywnych argumentów zachowuje ograniczony odbiór dla dokładnie
+przejrzanych bajtów i wcześniejszego dowodu, ale recepta nie otrzymuje statusu
+`ACCEPTED_FOR_EXACT_RESUME`. Następny krok to osobno przygotowana i przetestowana
+recepta/index z jawnym bindingiem sześciu baseline paths; dopiero jej review może
+poprzedzić fresh live drift check i nowe jednorazowe potwierdzenie UAC.
