@@ -42,10 +42,13 @@
   accepted and elevation/input checks passed, but the elevated pre-mutation
   Docker guard failed because Windows PowerShell 5.1 split the `docker inspect`
   Go-template argument passed through `Start-Process`. The resume recorded
-  `mutation_started=false`. The current state is `PARTIAL_SAFE_INACTIVE /
-  RESUME_PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED`; payload and manifest
-  remain uninstalled, five existing tasks remain on their preimages and warm
-  runs are `0/2`. A production manifest, further installation, task/shortcut changes, live
+  `mutation_started=false`. A later source/offline-only scope reproduced the
+  split (56 received argv tokens instead of 7), prepared corrected LOCAL_ONLY
+  recipe `5F310C64...1FD67`, passed PowerShell 5.1 17/17 cases and one exact
+  read-only backend Docker inspect. The current installation state is still
+  `PARTIAL_SAFE_INACTIVE`; the recipe is only `READY_FOR_REVIEW`. Payload and
+  manifest remain uninstalled, five existing tasks remain on their preimages
+  and warm runs are `0/2`. A production manifest, further installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
   separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
@@ -108,8 +111,9 @@
   `R04-D21-P4B-WINDOW-20260918T084652Z` and the later resume authorization
   `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The partial disabled Host
   task and relocated Startup wrapper must not be treated as an installed
-  launcher. Any continuation requires a reviewed replacement recipe that fixes
-  native argument transport, a new current owner decision, a fresh bounded
+  launcher. The corrected replacement recipe/index are ready for review but are
+  not accepted or authorized for execution. Any continuation requires owner
+  review of those exact bytes, a new current owner decision, a fresh bounded
   drift check and owner presence for one UAC prompt. That future decision is single-use and does not authorize
   reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source

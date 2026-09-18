@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE_RESUME_PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED_TESTED_ON_POWERSHELL_51_READY_FOR_REVIEW / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -348,3 +348,35 @@ disabled/no-trigger/never-run, pięć tasków na preimage, legacy helper bez zmi
 payload/manifest nieobecne, warm runs `0/2`. Obie jednorazowe zgody są
 skonsumowane. Następny krok wymaga osobno przejrzanej recepty z bezpiecznym
 transportem argumentów natywnych, nowego indeksu i nowej decyzji właściciela.
+
+## 13. P4/B native argument transport — recepta gotowa do review
+
+W zakresie `R04-D21-P4B-RECIPE-TRANSPORT-FIX-20260918T152017Z` nie wykonano
+nowego UAC ani instalacji. Zachowana funkcja preimage przekazała dokładny guard
+do nieszkodliwego programu argv i odtworzyła rozpad 7 oczekiwanych argumentów na
+56. Poprawiona recepta przejęła przypięte funkcje
+`ConvertTo-WindowsNativeArgument`, `Join-WindowsNativeArguments` i
+`Invoke-BoundedNativeCommand` z accepted source
+`8756314f51a76091a483cfc9b677a05c7f67f315`. Jej main block i kolejność
+guardów/mutacji pozostały bez zmian.
+
+Końcowa recepta ma SHA-256
+`5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67`;
+LOCAL_ONLY index ma SHA-256
+`43F285C2E82032F6914F5C5F8BA0653C85EC44F2A4F24E13D835A7C02162A2A9`.
+Windows PowerShell `5.1.26100.8894` zaliczył 17/17 przypadków i 120 asercji.
+Po tym PASS wykonano dokładnie jeden niepodniesiony `docker container inspect`
+backendu przez tę samą funkcję i template; exit 0 potwierdził właściwy ID,
+obraz, mounty, port, sieć oraz `RestartCount=0`. Nie był to pełny preflight
+sześciu usług.
+
+Status narzędzia: `RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED /
+TESTED_ON_POWERSHELL_51 / READY_FOR_REVIEW`. Stan instalacji nie zmienił się:
+wrapper pozostaje w rollbacku, Host disabled/no-trigger/never-run, pięć tasków
+na preimage, launcher/runtime/global manifest nieobecne, helper legacy, warm
+runs `0/2`, globalny manifest `NOT_APPROVED_FOR_START`.
+
+Przed przyszłą operacją kolejność nadal brzmi: review dokładnej recepty i
+indeksu -> nowa jednorazowa decyzja właściciela -> świeży bounded drift check ->
+co najwyżej jeden osobno zatwierdzony UAC -> istniejąca zamknięta sekwencja
+instalacji. Obecny wynik nie upoważnia do żadnego z tych skutków operacyjnych.

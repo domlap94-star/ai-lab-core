@@ -434,6 +434,27 @@
     "warm_runs": 0,
     "blocker": "WINDOWS_POWERSHELL_START_PROCESS_ARGUMENTLIST_SPLIT_DOCKER_INSPECT_TEMPLATE"
   },
+  "p4b_recipe_transport_review": {
+    "status": "RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED_TESTED_ON_POWERSHELL_51_READY_FOR_REVIEW",
+    "recipe_id": "R04-D21-P4B-RECIPE-TRANSPORT-FIX-20260918T152017Z",
+    "entry_head": "540c981e05ce5c868996fc06ac6aab339ac6d650",
+    "accepted_transport_source": "8756314f51a76091a483cfc9b677a05c7f67f315",
+    "failed_recipe_sha256": "D8E2868F51F04D179C3749CA6E0691C307BA8B7ABEB668CC9987E60D4A350F61",
+    "corrected_recipe_sha256": "5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67",
+    "recipe_index_sha256": "43F285C2E82032F6914F5C5F8BA0653C85EC44F2A4F24E13D835A7C02162A2A9",
+    "offline_test": "PASS_17_OF_17_120_ASSERTIONS_POWERSHELL_5_1",
+    "preimage_argv_count": 56,
+    "fixed_argv_count": 7,
+    "exact_docker_readback": "PASS_SINGLE_BACKEND_INSPECT",
+    "docker_readback_verdict_sha256": "FBFFA2C853565C539480B8C8F94355FD6E08C06D515653B3C201D9F9A7CF1A43",
+    "docker_invocations": 1,
+    "uac_attempts": 0,
+    "mutation_started": false,
+    "installation_performed": false,
+    "runtime_mutation_performed": false,
+    "warm_runs": 0,
+    "owner_operational_approval_required": true
+  },
   "p4a_preparation": {
     "status": "STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW_IDENTITY_RECONCILED_NOT_INSTALLED",
     "selected_launcher_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",

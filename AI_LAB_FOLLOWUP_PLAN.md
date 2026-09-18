@@ -2859,3 +2859,18 @@ five existing tasks on preimage, payload/manifest absent and warm runs `0/2`.
 This resume authorization and its single UAC are consumed. A corrected recipe,
 new index/review and a new exact owner decision are required before any further
 mutation.
+
+**P4/B NATIVE ARGUMENT TRANSPORT RECIPE — 2026-09-18.** A later
+source/offline-only scope reproduced the old boundary with a harmless argv
+program: 7 intended guard arguments arrived as 56. Corrected LOCAL_ONLY recipe
+SHA-256 `5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67`
+reuses the accepted P1 serializer/bounded runner and preserves the installer
+main sequence. Windows PowerShell 5.1 passed 17/17 cases and 120 assertions.
+Exactly one non-elevated backend `docker container inspect` then passed through
+the same function/template; no second Docker call, UAC or host mutation
+occurred. New LOCAL_ONLY index SHA-256 is
+`43F285C2E82032F6914F5C5F8BA0653C85EC44F2A4F24E13D835A7C02162A2A9`.
+This is `READY_FOR_REVIEW`, not P4/B acceptance or operational permission.
+Installation state remains PARTIAL_SAFE_INACTIVE, payload/manifest absent,
+five tasks on preimage and warm runs `0/2`. A new exact owner decision and fresh
+bounded drift check are still required before any future UAC.
