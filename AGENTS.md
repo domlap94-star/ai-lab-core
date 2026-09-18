@@ -29,9 +29,10 @@
   LIMITED_RUNTIME_SCOPE`; it is not acceptance of the global production set.
   D21-P4/A now has reviewed source and offline tests for full container-ID
   binding, explicit image identity modes and PostgreSQL health before backend;
-  it remains inactive and not installed. Its attempted runtime name/RepoDigest
-  projection was not persisted after formatter failures, so identity readback
-  is `NOT_VERIFIED / BLOCKING_P4B`. A production manifest, installation, task/shortcut changes, live
+  it remains inactive and not installed. A later bounded read-only campaign
+  proved that four secondary draft IDs were transcription errors and reconciled
+  all six exact container/image/digest identities in the inactive draft. This is
+  `CURRENT_READ_ONLY_EVIDENCE / READY_FOR_REVIEW`, not manifest approval. A production manifest, installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
   separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
@@ -88,9 +89,9 @@
   Supervisor start, runtime/config/data/mount/task changes, migration, backup,
   restore, escrow, relocation, cleanup, or continuation into P4-B/P5. P4-A is
   source/offline review plus an inactive local package only; its draft manifest
-  remains `NOT_APPROVED`, its runtime identity readback remains incomplete, and
-  none of its task or file changes may be installed without a new exact owner
-  decision.
+  remains `NOT_APPROVED`. The bounded read-only identity evidence is complete
+  6/6 after a documented transcription correction, but none of its task or file
+  changes may be installed without a new exact owner decision.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW / CURRENT_IDENTITY_READBACK_2_OF_6_PARTIAL / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A FOUR_SERVICE_IDENTITY_RECONCILED / CURRENT_READ_ONLY_EVIDENCE / INACTIVE_STARTUP_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -48,6 +48,12 @@ ma 4 222 B i SHA-256
 `78966E33376D4A6E118B79AFE2A844403AFEF1B0E56BB8A972B438FB55428482`.
 Całość jest `LOCAL_ONLY / NOT_INSTALLED / NOT_APPROVED`.
 
+Korekta tożsamości zachowuje oba starsze indeksy. Nowy indeks 18 plików ma
+5 545 B i SHA-256
+`3FCF1938111C9746FB9F4B5D57F1F98C5085099503B1385B862B0F68776303A9`;
+zmienionym plikiem pakietu jest wyłącznie nieaktywny draft, 15 469 B,
+SHA-256 `E17DDCA39D4D3BC7BBAD6F0688738DAA1B7C28B5810BB611C83A940234A28403`.
+
 ## 3. Minimalny payload
 
 | Rola | Źródło | Docelowa ścieżka po osobnej zgodzie | Bajty | SHA-256 | Stan dziś |
@@ -63,53 +69,46 @@ te bajty, nie ich recoveryowe odpowiedniki.
 
 ## 4. Bieżący zestaw runtime użyty do draftu
 
-Historyczny odczyt metadanych `desktop-linux` z 2026-09-17T20:54:22Z pokazał sześć
-istniejących, działających kontenerów projektu `ai-lab-core`, wszystkie z
-`RestartCount=0`, restart policy `unless-stopped` i siecią `ai-lab-network`:
+Pierwotny `runtime-inventory.json` punktu `20260917T082022Z` (captured at
+`2026-09-17T08:21:56.3539611Z`, 11 349 B, SHA-256
+`D3DE5C85E73F9B6771A5480D9A7E90A923CE0079BB2850702D5081E884D0EBC0`)
+zawierał pełne ID kontenerów, image ID, RepoDigests i mounty czterech usług.
+Pierwotny draft P4/A z commita `daf0931c...` zachował tylko zgodne skróty
+widoczne wcześniej w UI, lecz miał inne rozwinięcia pozostałych znaków. Brak
+innego pierwotnego odczytu potwierdzającego wartości draftu. Klasyfikacja:
+`DRAFT_TRANSCRIPTION_ERROR_PROVEN`; nie ma dowodu recreate, zmiany obrazu,
+sprawcy ani utraty danych.
 
-| Usługa | Pełny ID | Image ID | Dane | Port hosta |
+Jedna zatwierdzona lista projektu `ai-lab-core`, obejmująca zatrzymane zasoby,
+dała 10 rekordów. Dla każdej z czterech ról istniał dokładnie jeden kandydat.
+Bieżące pełne ID tych kontenerów i ich obrazów są identyczne z pierwotnym
+runtime inventory. Pierwszy formatter odczytał Qdrant, a dla trzech bindów
+zakończył się kontrolowanym błędem opcjonalnego `Mount.Name`; po poprawce i
+17/17 asercjach offline dokończono tylko te trzy zapisane selektory, bez drugiej
+listy projektu i bez ponowienia Qdrant.
+
+| Usługa | Bieżący pełny ID / nazwa | Image ID / RepoDigest | Stan i daty | Dane / klasyfikacja |
 | --- | --- | --- | --- | --- |
-| backend | `686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854` | `sha256:6342b36f...d63702` | `/app=C:/ai-lab-core/backend:ro`; `/data=C:/ai-lab-core/data:rw` | `127.0.0.1:8000` |
-| postgres | `240343ebff4fb299b239db2817efea1910ab59c29ed3ec9df3a8abde04e81226` | `sha256:a426e44b...d8508d` | `C:/ai-lab-core/data/postgres:/var/lib/postgresql/data:rw` | `127.0.0.1:5432` |
-| qdrant | `daa3b0b86b74d4a156522034406f8bd685848181e2467df85d55c37067551fae` | `sha256:0bd98fa7...d5286` | volume `qdrant_storage:/qdrant/storage:rw` | `127.0.0.1:6333/6334` |
-| n8n | `a44e719ecfecbd46e982589199706746539217196ccdc1014b8493a23737081c` | `sha256:3c07c723...9c684` | `C:/ai-lab-core/data/n8n:/home/node/.n8n:rw` | `127.0.0.1:5678` |
-| open-webui | `9575ca068b8c547c189071f3f950be8b74c7651dc830918ad6979a2e6a654c39` | `sha256:a26effeb...f6b0` | `C:/ai-lab-core/data/openwebui:/app/backend/data:rw` | `127.0.0.1:3000` |
-| ollama | `7ff1c45ea12c2d1639471d68a5704b82e262fc422160b6374be36733229ac083` | `sha256:ec24bcaa...036d4` | `C:/ai-lab-core/data/ollama:/root/.ollama:rw` | `127.0.0.1:11434` |
+| qdrant | `daa3b0b86b748aa3a52052dac08bfde499cf19ad61600a1325e09061a5451fae` / `/qdrant` | `sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286`; `qdrant/qdrant@sha256:0bd98fa7...d5286` | running; created `2026-08-21T14:19:38Z`; started `2026-09-14T14:41:10Z`; restart 0 | `qdrant_storage:/qdrant/storage:rw`; `DRAFT_TRANSCRIPTION_ERROR_PROVEN` |
+| n8n | `a44e719ecfecf72a199b4f8b3ec9d7503548d2098601e767d5e9e6503d37081c` / `/n8n` | `sha256:3c07c723326dd72e46a6969181c66a75260b7a204b9b77ba1ece6d594489c684`; `docker.n8n.io/n8nio/n8n@sha256:3c07c723...9c684` | running; created `2026-08-19T22:21:37Z`; started `2026-09-14T14:41:11Z`; restart 0 | `C:/ai-lab-core/data/n8n:/home/node/.n8n:rw`; `DRAFT_TRANSCRIPTION_ERROR_PROVEN` |
+| open-webui | `9575ca068b8cc17d0b2ac72e0062867c5c74650c12619bf6ecc6b48d1ec54c39` / `/open-webui` | `sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0`; `ghcr.io/open-webui/open-webui@sha256:a26effeb...f6b0` | running; created `2026-08-19T06:14:31Z`; started `2026-09-14T14:41:11Z`; restart 0 | `C:/ai-lab-core/data/openwebui:/app/backend/data:rw`; `DRAFT_TRANSCRIPTION_ERROR_PROVEN` |
+| ollama | `7ff1c45ea12cb9a26df1540cdeb5993c30fe12ac1d9c199ea7ce776847aac083` / `/ollama` | `sha256:ec24bcaa2a810eb74171ce7c517813ef4821ed678988845e8d76cf62467036d4`; `ollama/ollama@sha256:ec24bcaa...036d4` | running; created `2026-08-19T06:12:25Z`; started `2026-09-14T14:41:10Z`; restart 0 | `C:/ai-lab-core/data/ollama:/root/.ollama:rw`; `DRAFT_TRANSCRIPTION_ERROR_PROVEN` |
 
-RepoDigests nie zostały utrwalone: projekcja metadanych obrazu utraciła wynik i
-nie była ponawiana. Fizyczny backing `qdrant_storage` i Docker/WSL VHD pozostają
-`UNKNOWN`; nie wolno zamieniać tego w `ALL_DATA_ON_D_PASS`.
+Qdrant, n8n, Open WebUI i Ollama mają project/service labels `ai-lab-core` /
+odpowiednią rolę, policy `unless-stopped`, prawidłowe loopback porty i sieć
+`ai-lab-network`. Historyczny readback backend/PostgreSQL z
+`2026-09-18T00:02:24Z`–`00:02:25Z` pozostaje źródłem ich poprawnych ID i
+RepoDigests. Lista pokazała również cztery zatrzymane kontenery drillu z label
+`service=backend`; nie zastępują one działającego, dokładnie przypiętego
+`ai-lab-backend`.
 
-Kontynuacja P4/A podjęła jedno ograniczone okno odczytowe. Natywne odczyty
-Engine odpowiadały, ale trzy kolejne lokalne formatowania bezpiecznej projekcji
-zakończyły się odpowiednio na opcjonalnych polach `Mount.Name`,
-`Healthcheck.StartPeriod` i skalarnym `RepoDigests.Count`, zanim wynik został
-utrwalony. Zgodnie z zakazem retry-do-skutku dalsze odczyty przerwano. Bieżąca
-`.Name` i `RepoDigests` pozostają `NOT_VERIFIED`; nazwa `ai-lab-backend` w
-drafcie pochodzi z zainstalowanego override P3, nie z nowego runtime readbacku.
-Nie jest to dowód bieżącej nazwy kontenera ani podstawa do zatwierdzenia
-manifestu.
-
-Nowy, osobno zatwierdzony readback `2026-09-18T00:02:24.5802192Z`–
-`2026-09-18T00:02:27.4592777Z` zapisał bezpieczną projekcję zanim rozpoczęto
-formatowanie raportu. Wynik jest bieżący, lecz częściowy:
-
-| Usługa | Pełny ID kontenera | Nazwa runtime / label service | Image ID | RepoDigests | Wynik |
-| --- | --- | --- | --- | --- | --- |
-| backend | zgodny `686ac376...c854` | `/ai-lab-backend` / `backend` | zgodny `sha256:6342b36f...d63702` | 2 obserwowane | `CURRENT_IDENTITY_MATCH` |
-| postgres | zgodny `240343eb...1226` | `/postgres` / `postgres` | zgodny `sha256:a426e44b...d8508d` | 1 obserwowany | `CURRENT_IDENTITY_MATCH` |
-| qdrant | przypięty `daa3b0b8...1fae` nie istnieje | brak | przypięty `sha256:0bd98fa7...d5286` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
-| n8n | przypięty `a44e719e...081c` nie istnieje | brak | przypięty `sha256:3c07c723...9c684` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
-| open-webui | przypięty `9575ca06...4c39` nie istnieje | brak | przypięty `sha256:a26effeb...f6b0` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
-| ollama | przypięty `7ff1c45e...c083` nie istnieje | brak | przypięty `sha256:ec24bcaa...036d4` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
-
-Każdy nieobecny obiekt zwrócił `No such container` i `No such image` dla
-dokładnego pełnego ID. Nie wykonano `ps`, wyszukiwania zamienników po nazwach,
-ponowienia ani adopcji nowej instancji. Safe evidence ma 11 181 B i SHA-256
-`D82FC6FD1E3141EAF9EFB4BEDFC1051E5DC13F50BCA474D0D9B0253443F1116C`.
-Backend ma RepoDigests, więc backend-only tryb braku digestu nie został wybrany.
-Ponieważ kompletność wynosi `2/6`, draft i indeks 18 plików pozostały
-niezmienione i nieważne do startu.
+Safe projections mają odpowiednio 21 717 B / SHA-256
+`7FB247C58E9B1675D35572356C485219C14332771B48DF636F6CDFF75CA0B184`
+oraz 16 859 B / SHA-256
+`9F4980132ACCF73F4790742849862963E5629386C12E4F225676899DB7EE3B66`.
+Draft wiąże teraz 6/6 pełnych ID, image ID i RepoDigest, lecz nadal ma
+`approval.status=NOT_APPROVED`. Fizyczny backing `qdrant_storage` i Docker/WSL
+VHD pozostają `UNKNOWN`; nie wolno zamieniać tego w `ALL_DATA_ON_D_PASS`.
 
 ## 4.1. Wynik review tożsamości i zimnego startu
 
@@ -230,11 +229,9 @@ usuwa tej bramki D-21.
 
 ## 10. Bramy przed P4-B
 
-- właścicielski review tego exact pakietu i changesetu;
-- rozliczenie bieżącej tożsamości Qdrant, n8n, Open WebUI i Ollama: przypięte
-  pełne ID kontenerów oraz obrazów są potwierdzone jako nieobecne; bez osobnej
-  decyzji nie wolno wyszukiwać po nazwie, adoptować zamienników ani zmieniać
-  draftu; backend i PostgreSQL mają bieżący, poprawnie utrwalony readback;
+- właścicielski review zaktualizowanego exact pakietu, changesetu i wyniku
+  `DRAFT_TRANSCRIPTION_ERROR_PROVEN`; wszystkie 6/6 tożsamości są przypięte,
+  lecz manifest nadal nie ma zgody startowej;
 - rozliczenie fizycznego backingu Qdrant/VHD oraz decyzja, czy ograniczony start
   może poprzedzić relokację;
 - decyzja o minimalnej funkcji `OPEN_AFTER_BASE_READY` albo jawne utrzymanie
@@ -243,9 +240,8 @@ usuwa tej bramki D-21.
 - osobny plan odbioru harmonogramu backupu;
 - zatwierdzony manifest startowy; obecny draft nie jest nim.
 
-Następny krok: osobna decyzja właściciela o ograniczonym rozliczeniu czterech
-nieobecnych przypiętych zasobów (bez tworzenia/startu), tak aby wskazać ich
-aktualne pełne ID i image identity albo jawnie zmienić skład przyszłego zestawu.
-Dopiero kompletny manifest 6/6 może otrzymać osobną zgodę P4-B na wyłączenie starego
-Startup wrappera, instalację wyłączonego host taska i payloadu oraz świadomą
-aktywację. Bez tej zgody nie wolno wykonać żadnego z powyższych kroków.
+Następny krok: review skorygowanego pakietu 6/6 i osobna, dokładna decyzja o
+P4-B. Musi ona jawnie rozstrzygnąć, czy ograniczona instalacja/start może
+poprzedzić relokację Qdrant/VHD, oraz wskazać operacyjne okno, preflight,
+rollback i zakres triggerów. Bez tej zgody nie wolno wykonać żadnego z kroków
+instalacji lub aktywacji.

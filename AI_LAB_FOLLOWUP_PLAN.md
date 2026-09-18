@@ -2820,9 +2820,10 @@ is not acceptance of the global production set or permission for another
 runtime mutation. P4-A subsequently prepared one inactive launcher payload,
 draft manifest, exact trigger changes and rollback package for review. Its
 continuation reproduced and fixed the missing full container-ID binding and
-PostgreSQL-health-before-backend ordering in source/offline tests. The bounded
-runtime name/RepoDigest readback was not persisted after formatter failures,
-remains `NOT_VERIFIED / BLOCKING_P4B`, and was not retried to success. P4-A did
-not install or run the package. The production manifest, Supervisor, relocation, task
+PostgreSQL-health-before-backend ordering in source/offline tests. A later
+bounded read-only campaign reconciled the remaining four identities as
+`DRAFT_TRANSCRIPTION_ERROR_PROVEN`; the inactive draft now binds 6/6 exact
+container/image/digest identities and remains `NOT_APPROVED`. P4-A did not
+install or run the package. The production manifest, Supervisor, relocation, task
 installation, full startup/rollback acceptance, backup schedule proof, cleanup
 and P4-B/P5 remain separately gated.
