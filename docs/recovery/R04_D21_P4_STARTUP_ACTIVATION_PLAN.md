@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW / IDENTITY_READBACK_PARTIAL / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW / CURRENT_IDENTITY_READBACK_2_OF_6_PARTIAL / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -63,7 +63,7 @@ te bajty, nie ich recoveryowe odpowiedniki.
 
 ## 4. Bieżący zestaw runtime użyty do draftu
 
-Odczyt metadanych `desktop-linux` z 2026-09-17T20:54:22Z pokazał sześć
+Historyczny odczyt metadanych `desktop-linux` z 2026-09-17T20:54:22Z pokazał sześć
 istniejących, działających kontenerów projektu `ai-lab-core`, wszystkie z
 `RestartCount=0`, restart policy `unless-stopped` i siecią `ai-lab-network`:
 
@@ -89,6 +89,27 @@ utrwalony. Zgodnie z zakazem retry-do-skutku dalsze odczyty przerwano. Bieżąca
 drafcie pochodzi z zainstalowanego override P3, nie z nowego runtime readbacku.
 Nie jest to dowód bieżącej nazwy kontenera ani podstawa do zatwierdzenia
 manifestu.
+
+Nowy, osobno zatwierdzony readback `2026-09-18T00:02:24.5802192Z`–
+`2026-09-18T00:02:27.4592777Z` zapisał bezpieczną projekcję zanim rozpoczęto
+formatowanie raportu. Wynik jest bieżący, lecz częściowy:
+
+| Usługa | Pełny ID kontenera | Nazwa runtime / label service | Image ID | RepoDigests | Wynik |
+| --- | --- | --- | --- | --- | --- |
+| backend | zgodny `686ac376...c854` | `/ai-lab-backend` / `backend` | zgodny `sha256:6342b36f...d63702` | 2 obserwowane | `CURRENT_IDENTITY_MATCH` |
+| postgres | zgodny `240343eb...1226` | `/postgres` / `postgres` | zgodny `sha256:a426e44b...d8508d` | 1 obserwowany | `CURRENT_IDENTITY_MATCH` |
+| qdrant | przypięty `daa3b0b8...1fae` nie istnieje | brak | przypięty `sha256:0bd98fa7...d5286` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
+| n8n | przypięty `a44e719e...081c` nie istnieje | brak | przypięty `sha256:3c07c723...9c684` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
+| open-webui | przypięty `9575ca06...4c39` nie istnieje | brak | przypięty `sha256:a26effeb...f6b0` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
+| ollama | przypięty `7ff1c45e...c083` nie istnieje | brak | przypięty `sha256:ec24bcaa...036d4` nie istnieje | brak odczytu | `ABSENT_PINNED_CONTAINER_AND_IMAGE` |
+
+Każdy nieobecny obiekt zwrócił `No such container` i `No such image` dla
+dokładnego pełnego ID. Nie wykonano `ps`, wyszukiwania zamienników po nazwach,
+ponowienia ani adopcji nowej instancji. Safe evidence ma 11 181 B i SHA-256
+`D82FC6FD1E3141EAF9EFB4BEDFC1051E5DC13F50BCA474D0D9B0253443F1116C`.
+Backend ma RepoDigests, więc backend-only tryb braku digestu nie został wybrany.
+Ponieważ kompletność wynosi `2/6`, draft i indeks 18 plików pozostały
+niezmienione i nieważne do startu.
 
 ## 4.1. Wynik review tożsamości i zimnego startu
 
@@ -210,9 +231,10 @@ usuwa tej bramki D-21.
 ## 10. Bramy przed P4-B
 
 - właścicielski review tego exact pakietu i changesetu;
-- jeden poprawnie utrwalony readback runtime `.Name`, pełnych ID i
-  `RepoDigests` sześciu obrazów; backend-only local-image może zostać wybrany
-  wyłącznie po potwierdzonym pustym `RepoDigests`, bez fabrykowania digestu;
+- rozliczenie bieżącej tożsamości Qdrant, n8n, Open WebUI i Ollama: przypięte
+  pełne ID kontenerów oraz obrazów są potwierdzone jako nieobecne; bez osobnej
+  decyzji nie wolno wyszukiwać po nazwie, adoptować zamienników ani zmieniać
+  draftu; backend i PostgreSQL mają bieżący, poprawnie utrwalony readback;
 - rozliczenie fizycznego backingu Qdrant/VHD oraz decyzja, czy ograniczony start
   może poprzedzić relokację;
 - decyzja o minimalnej funkcji `OPEN_AFTER_BASE_READY` albo jawne utrzymanie
@@ -221,8 +243,9 @@ usuwa tej bramki D-21.
 - osobny plan odbioru harmonogramu backupu;
 - zatwierdzony manifest startowy; obecny draft nie jest nim.
 
-Następny krok: jednorazowy, poprawnie rejestrowany readback dokładnej nazwy i
-RepoDigests sześciu przypiętych zasobów, następnie review wynikowego draftu.
-Dopiero kompletny manifest może otrzymać osobną zgodę P4-B na wyłączenie starego
+Następny krok: osobna decyzja właściciela o ograniczonym rozliczeniu czterech
+nieobecnych przypiętych zasobów (bez tworzenia/startu), tak aby wskazać ich
+aktualne pełne ID i image identity albo jawnie zmienić skład przyszłego zestawu.
+Dopiero kompletny manifest 6/6 może otrzymać osobną zgodę P4-B na wyłączenie starego
 Startup wrappera, instalację wyłączonego host taska i payloadu oraz świadomą
 aktywację. Bez tej zgody nie wolno wykonać żadnego z powyższych kroków.
