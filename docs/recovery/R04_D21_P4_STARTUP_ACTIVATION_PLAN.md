@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED / P4B_PHASE_A_WINDOW_READY_WAITING_OWNER_CONFIRMATION / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE_INSTALLATION_BLOCKED_UAC_CANCELLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -250,8 +250,10 @@ instalacji lub aktywacji.
 OP_ID: `R04-D21-P4B-WINDOW-20260918T084652Z`. Właściciel zaakceptował P4/A
 source `8756314f51a76091a483cfc9b677a05c7f67f315` i evidence
 `8a156e0c738699b4bfee01fb98f0d10f01c803ba` jako
-`SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED` oraz dopuścił
-wyłącznie Phase A następnego okna. Phase B nie jest jeszcze autoryzowana.
+`SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. Phase A
+przygotowała pakiet, a właściciel następnie zatwierdził jednorazową Phase B na
+opublikowanym HEAD `bd9acc14f6f0d12bacdb5a9a8dd5a8f69a5b333b`. Zgoda została
+skonsumowana przez rozpoczętą operację i nie jest stałym uprawnieniem.
 
 Fresh read-only preflight potwierdził sześć exact kontenerów jako running bez
 restartu w oknie, PostgreSQL healthy, backend P3 na oczekiwanym ID/mountach,
@@ -302,10 +304,17 @@ wyłącznie przez oczekiwane przed instalacją `FILE_MISSING` dla launcher/runti
 i `FILE_HASH_MISMATCH` legacy helpera. Nie zwrócił approval mismatch; dowodzi to
 fail-closed pre-install, nie wykonania P4/B.
 
-Jedyny SAFE_INACTIVE rollback po przyszłej części instalacyjnej ma wyłączyć
-Host task/no-trigger i przywrócić dokładne preimage tasków/wrappera/pliku helpera
-bez startowania ich oraz bez przywracania automatycznego Supervisora lub
-legacy compose-up. Reboot/logoff/cold-stop, backup/restore, relokacja,
-Supervisor, P5 i R06 pozostają poza przygotowanym oknem. Następny krok to jedno
-dokładne potwierdzenie właściciela obejmujące te hashe, skutki i ograniczenia;
-do tego czasu `WAITING_OWNER_CONFIRMATION / NOT_INSTALLED`.
+Phase B przeniosła dokładny wrapper poza Startup i utworzyła Host jako
+disabled/no-trigger. Aktualizacja pierwszego istniejącego taska została
+odrzucona przez Windows (`Access denied`); formalny proces `RunAs`/UAC został
+anulowany i nie był ponawiany. Pięć istniejących tasków zachowuje preimage i
+stare triggery. Launcher/runtime/manifest nie zostały zainstalowane, helper nie
+został zastąpiony, warm runs wynoszą `0/2`, a żadnego taska ani usługi nie
+uruchomiono. Próba SAFE_INACTIVE normalizacji została wykonana raz i zatrzymała
+się na tej samej ochronie istniejących tasków. Stan to `PARTIAL_SAFE_INACTIVE /
+INSTALLATION_BLOCKED_UAC_CANCELLED`, nie P4/B PASS.
+
+Reboot/logoff/cold-stop, backup/restore, relokacja, Supervisor, P5 i R06
+pozostają poza zakresem. Następny krok wymaga nowej bieżącej decyzji, świeżego
+bounded drift check oraz obecności właściciela przy jednym monicie UAC; dopiero
+potem wolno wznowić dokładną kolejność przed instalacją payloadu.

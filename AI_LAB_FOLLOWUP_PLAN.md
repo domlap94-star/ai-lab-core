@@ -2834,9 +2834,13 @@ accepted P4/A source `8756314f51a76091a483cfc9b677a05c7f67f315` and evidence
 `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. For OP_ID
 `R04-D21-P4B-WINDOW-20260918T084652Z`, Phase A performed a bounded read-only
 preflight and prepared exact proposed manifest/task/payload bytes in protected
-staging. Offline validation passed; no installation, task/trigger/Startup
-mutation, service start or runtime mutation occurred. Phase B remains
-`WAITING_OWNER_CONFIRMATION`: the proposed approved manifest is not installed,
-the repository draft remains `NOT_APPROVED`, and this record is not standing
-permission for later deployment, rollback, Supervisor, backup/restore,
-relocation, P5 or R06.
+staging. Offline validation passed. The owner then supplied the exact single-use
+Phase-B confirmation. The wrapper was moved out of Startup and a new Host task
+was created disabled/no-trigger, but Windows denied changes to the existing
+tasks. The one formal `RunAs`/UAC attempt was cancelled and was not retried. No
+payload or manifest was installed, no task/service was started and warm runs
+remain `0/2`. Phase B is therefore `PARTIAL_SAFE_INACTIVE /
+INSTALLATION_BLOCKED_UAC_CANCELLED`; the repository draft remains
+`NOT_APPROVED`. The consumed operation is not standing permission for another
+deployment attempt, rollback, Supervisor, backup/restore, relocation, P5 or
+R06.

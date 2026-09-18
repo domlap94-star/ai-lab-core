@@ -402,14 +402,20 @@
     "reason": "OPEN_AFTER_BASE_READY_NOT_IMPLEMENTED; existing manual UI shortcut is preserved"
   },
   "p4b_window_preparation": {
-    "status": "WINDOW_READY_WAITING_OWNER_CONFIRMATION_NOT_INSTALLED",
+    "status": "PARTIAL_SAFE_INACTIVE_INSTALLATION_BLOCKED_UAC_CANCELLED",
     "op_id": "R04-D21-P4B-WINDOW-20260918T084652Z",
-    "package_head": "8a156e0c738699b4bfee01fb98f0d10f01c803ba",
+    "package_head": "bd9acc14f6f0d12bacdb5a9a8dd5a8f69a5b333b",
     "launcher_source": "8756314f51a76091a483cfc9b677a05c7f67f315",
     "manifest_target": "C:\\ai-lab-core\\operations\\runtime\\startup-set.json",
-    "phase_b_authorized": false,
+    "phase_b_authorized": true,
+    "authorization_consumed": true,
     "installation_performed": false,
-    "runtime_mutation_performed": false
+    "runtime_mutation_performed": false,
+    "startup_wrapper": "MOVED_TO_PROTECTED_ROLLBACK",
+    "host_task": "INSTALLED_DISABLED_NO_TRIGGER_NEVER_RUN",
+    "existing_task_set": "UNCHANGED_PREIMAGE_WITH_EXISTING_TRIGGERS",
+    "warm_runs": 0,
+    "blocker": "EXISTING_TASK_UPDATE_ACCESS_DENIED_AND_UAC_CANCELLED"
   },
   "p4a_preparation": {
     "status": "STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW_IDENTITY_RECONCILED_NOT_INSTALLED",
