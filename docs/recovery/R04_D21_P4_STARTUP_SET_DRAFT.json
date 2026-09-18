@@ -417,6 +417,23 @@
     "warm_runs": 0,
     "blocker": "EXISTING_TASK_UPDATE_ACCESS_DENIED_AND_UAC_CANCELLED"
   },
+  "p4b_resume_attempt": {
+    "status": "PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED",
+    "resume_id": "R04-D21-P4B-RESUME-20260918T112015Z",
+    "entry_head": "79e4bf1b802664851b6499f566d302e868841d67",
+    "recipe_index_sha256": "9DD6A85B14B307DA698513849EC0DF9E81ED7EBDF278B1064329AA64234B6E7E",
+    "recipe_sha256": "D8E2868F51F04D179C3749CA6E0691C307BA8B7ABEB668CC9987E60D4A350F61",
+    "input_index_sha256": "ED8826F7CFAB1A33B84C5FCF3BDA1E57FB48E9598100B3826C0CDDDCC3131CDA",
+    "uac_attempts": 1,
+    "uac_accepted": true,
+    "elevation_and_inputs": "PASS",
+    "mutation_started": false,
+    "rollback_attempted": false,
+    "installation_performed": false,
+    "runtime_mutation_performed": false,
+    "warm_runs": 0,
+    "blocker": "WINDOWS_POWERSHELL_START_PROCESS_ARGUMENTLIST_SPLIT_DOCKER_INSPECT_TEMPLATE"
+  },
   "p4a_preparation": {
     "status": "STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW_IDENTITY_RECONCILED_NOT_INSTALLED",
     "selected_launcher_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",

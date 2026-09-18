@@ -34,12 +34,18 @@
   all six exact container/image/digest identities in the inactive draft. This is
   `CURRENT_READ_ONLY_EVIDENCE`, not manifest approval. Phase A of bounded P4/B
   window `R04-D21-P4B-WINDOW-20260918T084652Z` prepared exact proposed
-  manifest/task bytes and passed offline validation. The later exact Phase-B
-  authorization was consumed, but Windows blocked the existing-task updates
-  after the Startup wrapper was moved and a disabled/no-trigger Host task was
-  created. The state is `PARTIAL_SAFE_INACTIVE /
-  INSTALLATION_BLOCKED_UAC_CANCELLED`; payload and manifest remain uninstalled,
-  five existing tasks remain on their preimages and warm runs are `0/2`. A production manifest, further installation, task/shortcut changes, live
+  manifest/task bytes and passed offline validation. The first exact Phase-B
+  authorization was consumed after the Startup wrapper was moved and a
+  disabled/no-trigger Host task was created; Windows then blocked the existing
+  task updates and the first UAC was cancelled. A later single-use resume
+  `R04-D21-P4B-RESUME-20260918T112015Z` was also consumed. Its one UAC was
+  accepted and elevation/input checks passed, but the elevated pre-mutation
+  Docker guard failed because Windows PowerShell 5.1 split the `docker inspect`
+  Go-template argument passed through `Start-Process`. The resume recorded
+  `mutation_started=false`. The current state is `PARTIAL_SAFE_INACTIVE /
+  RESUME_PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED`; payload and manifest
+  remain uninstalled, five existing tasks remain on their preimages and warm
+  runs are `0/2`. A production manifest, further installation, task/shortcut changes, live
   start/rollback acceptance, relocation, cleanup and P4-B/P5 still require
   separate approval. Preserve
   existing runtime roots and historical A4 evidence until a later exact
@@ -99,10 +105,12 @@
   repository draft manifest remains `NOT_APPROVED`. The bounded read-only
   identity evidence is complete 6/6 after a documented transcription
   correction. The P4/B authorization for OP_ID
-  `R04-D21-P4B-WINDOW-20260918T084652Z` is consumed. Its partial disabled Host
+  `R04-D21-P4B-WINDOW-20260918T084652Z` and the later resume authorization
+  `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The partial disabled Host
   task and relocated Startup wrapper must not be treated as an installed
-  launcher. Any continuation requires a new current owner decision, a fresh
-  bounded drift check and owner presence for one UAC prompt. That future decision is single-use and does not authorize
+  launcher. Any continuation requires a reviewed replacement recipe that fixes
+  native argument transport, a new current owner decision, a fresh bounded
+  drift check and owner presence for one UAC prompt. That future decision is single-use and does not authorize
   reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,

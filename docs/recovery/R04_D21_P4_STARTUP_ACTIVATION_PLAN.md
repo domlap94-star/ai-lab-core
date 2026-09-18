@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE_INSTALLATION_BLOCKED_UAC_CANCELLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE_RESUME_PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -318,3 +318,33 @@ Reboot/logoff/cold-stop, backup/restore, relokacja, Supervisor, P5 i R06
 pozostają poza zakresem. Następny krok wymaga nowej bieżącej decyzji, świeżego
 bounded drift check oraz obecności właściciela przy jednym monicie UAC; dopiero
 potem wolno wznowić dokładną kolejność przed instalacją payloadu.
+
+## 12. P4/B resume — zatrzymanie przed mutacją
+
+Właściciel zatwierdził jednorazowe wznowienie
+`R04-D21-P4B-RESUME-20260918T112015Z` z recipe index
+`9DD6A85B14B307DA698513849EC0DF9E81ED7EBDF278B1064329AA64234B6E7E`.
+Recepta miała SHA-256
+`D8E2868F51F04D179C3749CA6E0691C307BA8B7ABEB668CC9987E60D4A350F61`,
+a input index SHA-256
+`ED8826F7CFAB1A33B84C5FCF3BDA1E57FB48E9598100B3826C0CDDDCC3131CDA`.
+Dokładnie jeden `RunAs`/UAC został uruchomiony i zaakceptowany. Instalator
+potwierdził elevated token, właściwy SID i input index, lecz zakończył się na
+pierwszym guardzie kontenera o `2026-09-18T11:58:10.5820968Z`.
+
+Nie był to mismatch kontenera. `Start-Process -ArgumentList` w Windows
+PowerShell 5.1 rozdzielił zawierający spacje Go-template dla `docker inspect`;
+Docker otrzymał fragment `-}}{{range` jako flagę. Stderr ma 171 B i SHA-256
+`37965294C541CC98E4D13C3EBB63DE7C24BCC71EFC2ECAE89DB3BD02D9523CBD`.
+Event log ma SHA-256
+`618B31443F27C22E0C745AB54D407FE4FED4C0177A85B5B1B5331D851E0C6339`
+i jawnie zapisuje `mutation_started=false`.
+
+Nie wykonano drugiego UAC, poprawki recepty, task update, instalacji plików,
+manifestu, warm runu ani rollbacku resume. SAFE_INACTIVE rollback nie był
+potrzebny, ponieważ recepta nie przekroczyła granicy mutacji. Stan po pierwszym
+oknie pozostaje: wrapper poza Startup w chronionym rollbacku, Host
+disabled/no-trigger/never-run, pięć tasków na preimage, legacy helper bez zmiany,
+payload/manifest nieobecne, warm runs `0/2`. Obie jednorazowe zgody są
+skonsumowane. Następny krok wymaga osobno przejrzanej recepty z bezpiecznym
+transportem argumentów natywnych, nowego indeksu i nowej decyzji właściciela.

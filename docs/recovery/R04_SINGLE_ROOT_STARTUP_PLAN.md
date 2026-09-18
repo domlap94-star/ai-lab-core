@@ -5,7 +5,7 @@ P2_PRESERVATION_AND_CANDIDATE_ACCEPTED /
 ACTIVE_DATA_TOPOLOGY_AND_DESTINATION_SOURCE_ACCEPTED /
 P3_CORE_BACKEND_SOURCE_SWITCH_ACCEPTED_LIMITED_RUNTIME_SCOPE /
 P4A_SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED_NOT_INSTALLED /
-P4B_PHASE_A_WINDOW_READY_WAITING_OWNER_CONFIRMATION_NOT_INSTALLED`
+P4B_PARTIAL_SAFE_INACTIVE_RESUME_PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -316,7 +316,12 @@ nieaktywny pakiet, XML i rollback copies pozostają LOCAL_ONLY. P4-A nie zmieni�
 tasków, skrótów, plików instalacji, manifestu produkcyjnego ani runtime.
 
 Phase A okna `R04-D21-P4B-WINDOW-20260918T084652Z` przygotowała exact pakiet,
-preimage i walidację offline, bez instalacji lub mutacji runtime. Następny krok
-to jedno dokładne potwierdzenie właściciela dla opublikowanych hashów, kolejności
-wyłączenia Startup wrappera, instalacji disabled host taska i payloadu,
-zatwierdzenia manifestu oraz dwóch warm runs. Ten plan nie udziela tej zgody.
+preimage i walidację offline. Pierwsza Phase B przeniosła wrapper do chronionego
+rollbacku i utworzyła Host disabled/no-trigger, po czym zatrzymała się bez
+instalacji payloadu. Jednorazowe wznowienie
+`R04-D21-P4B-RESUME-20260918T112015Z` uzyskało elevated token i przeszło kontrolę
+wejść, lecz zatrzymało się przed mutacją na błędzie transportu argumentu
+`docker inspect` przez Windows PowerShell 5.1. Nie wykonano drugiego UAC ani
+rollbacku resume; stan partial safe inactive pozostał bez zmian. Następny krok
+to przejrzenie poprawionej recepty i indeksu, a dopiero później osobna dokładna
+zgoda właściciela. Ten plan nie udziela tej zgody.

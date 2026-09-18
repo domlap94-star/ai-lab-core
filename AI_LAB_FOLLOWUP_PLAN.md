@@ -2844,3 +2844,18 @@ INSTALLATION_BLOCKED_UAC_CANCELLED`; the repository draft remains
 `NOT_APPROVED`. The consumed operation is not standing permission for another
 deployment attempt, rollback, Supervisor, backup/restore, relocation, P5 or
 R06.
+
+**P4/B SINGLE-USE RESUME — 2026-09-18.** The owner separately authorized
+resume `R04-D21-P4B-RESUME-20260918T112015Z`, bound to recipe index
+`9DD6A85B14B307DA698513849EC0DF9E81ED7EBDF278B1064329AA64234B6E7E`,
+while present for one UAC prompt. The one UAC was accepted. The elevated
+installer passed the token and exact input-index gate, then failed on its first
+Docker pre-mutation read because Windows PowerShell 5.1 split the `docker
+inspect` Go-template argument supplied through `Start-Process -ArgumentList`.
+The safe event states `mutation_started=false`; no resume rollback was required
+or attempted. The previously established safe partial state is unchanged:
+wrapper retained in protected rollback, Host disabled/no-trigger and never run,
+five existing tasks on preimage, payload/manifest absent and warm runs `0/2`.
+This resume authorization and its single UAC are consumed. A corrected recipe,
+new index/review and a new exact owner decision are required before any further
+mutation.
