@@ -65,6 +65,18 @@
   cutover/cleanup approval; production must never execute recovery, staging, or
   test WIP.
 
+  A subsequent owner-authorized source/local-file/offline review reproduced
+  `RV-P4B-FULL-01` through `RV-P4B-FULL-04` against the preserved preimage and
+  prepared LOCAL_ONLY full-path recipe
+  `16A35C328A091801A4713A7F282A72C7E143BE489BF847A1AEE15599F70C4DC8`
+  with package index
+  `1355EF0878C31202145E4E324C40A5D07E343FB78B0C6C7D029E2E932C43E3BF`.
+  The final PowerShell 5.1 campaigns passed 14 input cases/110 assertions and
+  10 orchestration cases/67 assertions; all 9 owned workers were accounted for
+  and real Docker/Task/CIM/TCP/HTTP/UAC/host mutations remained zero. This is
+  `FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW / OFFLINE_ONLY /
+  NOT_INSTALLED`, not P4/B acceptance or execution permission.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that
@@ -122,7 +134,7 @@
   `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The partial disabled Host
   task and relocated Startup wrapper must not be treated as an installed
   launcher. The corrected transport bytes retain their offline/read-only
-  evidence. The later input-bound LOCAL_ONLY recipe/index are ready only for
+  evidence. The later full-path LOCAL_ONLY recipe/index/ZIP are ready only for
   exact-byte review; they have not performed a live drift check or installation.
   Any continuation requires owner review of those exact bytes, a
   fresh bounded drift check, a new current owner decision and owner presence for

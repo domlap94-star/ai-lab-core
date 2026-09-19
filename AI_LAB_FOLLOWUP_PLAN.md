@@ -2902,3 +2902,23 @@ LOCAL_ONLY package index is `ED05FE26...875C`. Status:
 `RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS /
 EXACT_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED`. This does not approve a live
 drift check, UAC, installation, rollback or warm run.
+
+**P4/B FULL ERROR AND SAFE-INACTIVE ROLLBACK PATH — 2026-09-19.** A later
+owner-authorized source/local-file/offline-only review executed the preserved
+preimage and reproduced all four review findings: the read-only `$Host`
+collision and invalid `if` expression at the status boundary, deletion allowed
+by a null/unknown task state, synchronous lower boundaries outside the deadline,
+and a harness that previously proved text patterns instead of the actual
+orchestration. The corrected LOCAL_ONLY recipe is 77,031 B, SHA-256
+`16A35C328A091801A4713A7F282A72C7E143BE489BF847A1AEE15599F70C4DC8`;
+its package index is 3,775 B, SHA-256
+`1355EF0878C31202145E4E324C40A5D07E343FB78B0C6C7D029E2E932C43E3BF`.
+Final Windows PowerShell 5.1 results were 14 input cases/110 assertions and 10
+orchestration cases/67 assertions. They exercised success, pre-mutation stop,
+post-mutation SAFE_INACTIVE, first-warm failure, unsafe rollback refusal,
+logging failure preserving the original error, foreign identities and a
+hanging lower boundary; owned workers balanced 9/9. Real
+Docker/Task/CIM/TCP/HTTP/UAC/product mutations were zero. Status:
+`FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW / OFFLINE_ONLY /
+NOT_INSTALLED`. A later operation still requires exact-byte owner review, a
+fresh bounded drift check and a separate single-use decision.

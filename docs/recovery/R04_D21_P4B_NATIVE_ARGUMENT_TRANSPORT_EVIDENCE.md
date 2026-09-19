@@ -7,6 +7,10 @@
 > `733AA23F...D05B6A` / index `ED05FE26...875C` odtworzył ten fail-before i
 > przeszedł 14/14, 119 asercji bez live Docker/Task/HTTP/UAC/mutacji. Nie
 > przepisuje to historycznych wyników transportu i nie nadaje zgody P4/B.
+> Kontynuacja 2026-09-19 zachowuje oba historyczne pakiety i domyka osobno
+> pełną ścieżkę błędu/rollbacku. Recepta `16A35C32...0C4DC8` z indeksem
+> `1355EF08...3E3BF` przeszła wykonawcze testy offline; nie była uruchomiona
+> przeciwko hostowi.
 
 Status: `RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED / TESTED_ON_POWERSHELL_51 /
 READY_FOR_REVIEW / NOT_INSTALLED`
@@ -186,3 +190,45 @@ runtime and manifest remain uninstalled; warm runs remain `0/2`. The next step
 is owner review of the exact recipe and index. A future installation requires a
 new single-use decision, fresh bounded drift check and separately approved UAC.
 This evidence does not authorize that operation.
+
+## Full error and SAFE_INACTIVE rollback path — 2026-09-19
+
+Zakres `RV-P4B-FULL-01–04` wykonano na zachowanym preimage. Nie wykonano
+Docker, Task Scheduler, CIM, TCP, HTTP, UAC ani mutacji produktu. Preimage
+potwierdził cztery niezależne braki:
+
+- kolizję niezmiennej zmiennej `$Host` oraz błędne `-Status (if (...))`;
+- predykat rollbacku, dla którego `$null -ne 'Running'` pozwalał na usuwanie;
+- synchroniczną granicę hosta niewłączoną do budżetu całego adaptera;
+- harness sprawdzający tekst źródła zamiast rzeczywistego catch/finalization.
+
+Nowa recepta ma 77,031 B i SHA-256
+`16A35C328A091801A4713A7F282A72C7E143BE489BF847A1AEE15599F70C4DC8`.
+Package index ma 3,775 B i SHA-256
+`1355EF0878C31202145E4E324C40A5D07E343FB78B0C6C7D029E2E932C43E3BF`.
+Review ZIP ma 37,305 B, osiem wpisów i SHA-256
+`DE8483568A17E27E80F3EE1C222C9E4BAC8EC6D78BA4C4CDC6DC48E2A86CFAEC`;
+roundtrip listy wpisów przeszedł. ZIP nie zawiera raw logów, danych firmy ani
+payloadu runtime.
+
+Końcowy harness wejściowy przeszedł 14 przypadków/110 asercji. Harness
+orkiestracji przeszedł 10 przypadków/67 asercji i wykonał rzeczywiste funkcje
+recepty dla: sukcesu dwóch warm runów, błędu przed mutacją, błędu po mutacji z
+SAFE_INACTIVE, zatrzymania po pierwszym warm runie, odmów rollbacku dla
+Running/Queued/Unknown/denied/timeout, awarii logowania bez maskowania błędu
+pierwotnego, obcej tożsamości i zawieszonej granicy dolnej. Własne workery
+zakończyły się 9/9. Zarezerwowany output
+`execution-output\exact-full-path-attempt-1` nie powstał.
+
+Pliki testowe pozostają LOCAL_ONLY w chronionym katalogu P4/B. Recepta nie
+przyjmuje arbitralnego kodu z JSON; zamknięte operacje hosta korzystają ze
+wspólnego pozostałego deadline, a timeout po możliwym żądaniu startu daje
+UNKNOWN bez retry. Destrukcyjny rollback wymaga pozytywnie potwierdzonego
+disabled/no-trigger/exact identity i braku instancji; stan nieznany, obcy helper
+lub obcy plik blokują usuwanie.
+
+Wynik to `FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW /
+OFFLINE_ONLY / NOT_INSTALLED`. Stan hosta pozostaje historyczny:
+`PARTIAL_SAFE_INACTIVE`, payload/manifest nieobecne i warm runs `0/2`. Każda
+przyszła operacja wymaga osobnego review exact recipe/index/ZIP, świeżego
+bounded drift check i nowej jednorazowej decyzji właściciela.

@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS / EXACT_PACKAGE_READY_FOR_REVIEW / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW / OFFLINE_ONLY / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -455,3 +455,39 @@ Status: `RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS /
 EXACT_PACKAGE_READY_FOR_REVIEW / NOT_INSTALLED`. Wymagany następny krok to
 review dokładnych LOCAL_ONLY bajtów; fresh live drift check, jeden UAC i okno
 operacyjne wymagają późniejszej, osobnej zgody.
+
+## 16. P4/B full error path — recepta LOCAL_ONLY do review
+
+Kontynuacja `R04-D21-P4B-FULL-PATH-20260919T045804Z` zachowuje historyczną
+receptę input-binding bez zmian. Na jej preimage odtworzono `RV-P4B-FULL-01–04`:
+kolizję `$Host` i nieprawidłowe wyrażenie statusu, niebezpieczne traktowanie
+nieznanego stanu taska w rollbacku, granicę hosta poza deadline oraz
+niewystarczający tekstowy harness.
+
+Wynikowa recepta, `invoke-p4b-resume-installer.full-path.ps1`, ma 77,031 B i
+SHA-256 `16A35C328A091801A4713A7F282A72C7E143BE489BF847A1AEE15599F70C4DC8`.
+Indeks `full-path-package-index.json` ma 3,775 B i SHA-256
+`1355EF0878C31202145E4E324C40A5D07E343FB78B0C6C7D029E2E932C43E3BF`.
+Review ZIP ma 37,305 B i SHA-256
+`DE8483568A17E27E80F3EE1C222C9E4BAC8EC6D78BA4C4CDC6DC48E2A86CFAEC`.
+
+Końcowe PowerShell 5.1 testy offline:
+
+- input/index: 14 przypadków, 110 asercji;
+- real orchestration with complete lower-boundary fakes: 10 przypadków,
+  67 asercji;
+- własne workery: 9 startów i 9 rozliczonych zakończeń;
+- real Docker/Task/CIM/TCP/HTTP/UAC/host mutations: 0;
+- parser recepty: PASS; reserved execution output: absent.
+
+Rollback usuwa własne pliki wyłącznie po pozytywnym potwierdzeniu dokładnej
+tożsamości Host, disabled/no-trigger, stanu Ready/Disabled i braku
+running/queued instances. UNKNOWN, denial, timeout, foreign helper/file lub
+niejednoznaczna tożsamość kończą się PARTIAL/UNKNOWN bez destrukcyjnej
+czynności. Awaria zapisu stage/final result nie maskuje pierwotnego błędu.
+
+Status pozostaje `NOT_INSTALLED`; historyczny host to nadal
+`PARTIAL_SAFE_INACTIVE`, warm runs `0/2`, globalny manifest
+`NOT_APPROVED_FOR_START`. Następny krok to review dokładnych bajtów recepty,
+indeksu i ZIP. Live drift check, UAC, instalacja i warm runs wymagają osobnej
+jednorazowej zgody.
