@@ -2966,3 +2966,27 @@ preflight followed, no UAC was requested and Install was not invoked. Status:
 The next permissible step is a new owner decision for one replacement bounded
 read-only preflight using a predeclared short evidence path; it is not approval
 for UAC or installation.
+
+**P4/B REPLACEMENT READ-ONLY PREFLIGHT — 2026-09-19.** The owner authorized one
+replacement campaign under `C:\ai-lab-core-staging\recovery\P4B-PF-01`.
+Before host access, UTF-8 XML/JSON and atomic temp-to-rename probes passed; the
+longest planned collector path was 90 characters. Static inspection of the
+frozen recipe confirmed path lengths 205/252/275 for the package root,
+reserved output root and `installer-events.jsonl`. No I/O was performed at the
+reserved output, so `INSTALLER_OUTPUT_PATH_COMPATIBILITY_NOT_VERIFIED` remains.
+
+The bounded host collector wrote all six task XML files. Docker Desktop,
+Docker Compose, Public Gateway, Private Gateway and Supervisor exactly matched
+their pinned preimage hashes. Host XML matches the intended disabled,
+no-trigger, InteractiveToken, LeastPrivilege, IgnoreNew and PT15M definition
+after normalizing `domai` to its exact SID and an omitted XML `RunLevel` to the
+task-schema default `LeastPrivilege`. The collector then exited `1` because its
+projection expected `CimClass` on the Host trigger object. Dynamic Host state
+and last-run data were therefore not persisted and were not reread. Later
+host/resource, Docker and HTTP branches did not execute. Local file checks
+confirmed the Startup wrapper absent, its rollback copy hash-matching, the
+launcher/runtime/manifest absent, the legacy helper and P3 override unchanged,
+and the reserved execution output absent. No UAC, Install, warm run, rollback,
+installation mutation or business-data mutation occurred. Status:
+`P4B REPLACEMENT_READ_ONLY_PREFLIGHT_PARTIAL /
+HOST_TASK_FORMATTER_CIMCLASS_FAILURE / NO_UAC / NOT_INSTALLED`.

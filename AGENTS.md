@@ -110,6 +110,24 @@
   A new owner decision is required for any replacement preflight. It is not
   permission to run Install or request UAC.
 
+  The owner subsequently authorized one replacement read-only preflight under
+  the fixed short root `C:\ai-lab-core-staging\recovery\P4B-PF-01`. Local
+  UTF-8/XML/JSON and atomic-rename probes passed with a maximum planned path of
+  90 characters. The frozen installer paths remain 205/252/275 characters and
+  their future write compatibility is still `NOT_VERIFIED`. The bounded host
+  collector persisted all six task XML files, including exact raw matches for
+  the five pinned preimages, then exited `1` while projecting the Host trigger
+  because the returned object had no `CimClass` property. Host static XML
+  matches the disabled/no-trigger design after normalizing the exact owner SID
+  and the task-schema default `LeastPrivilege`; dynamic Host state and
+  `LastRunTime` were not persisted and were not read again. Docker, HTTP,
+  remaining host/resource reads, UAC, Install, warm runs and installation/data
+  mutations were not performed. Status is
+  `REPLACEMENT_READ_ONLY_PREFLIGHT_PARTIAL /
+  HOST_TASK_FORMATTER_CIMCLASS_FAILURE / NO_UAC / NOT_INSTALLED`. Another live
+  read requires a new owner decision; this partial result grants no operational
+  permission.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that

@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE / PRE_UAC_BLOCKED / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / REPLACEMENT_READ_ONLY_PREFLIGHT_PARTIAL / HOST_TASK_FORMATTER_CIMCLASS_FAILURE / NO_UAC / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -551,3 +551,38 @@ Status: `PRE_UAC_BLOCKED / PREFLIGHT_EVIDENCE_NOT_PERSISTED_PATH_LENGTH /
 NO_MUTATION`. Następny krok wymaga nowej decyzji właściciela na jeden
 replacement bounded read-only preflight z wcześniej ustalonym krótkim katalogiem
 dowodowym. Ta decyzja nie może jednocześnie stanowić zgody na UAC lub Install.
+
+## 19. Zastępczy preflight pod krótką ścieżką
+
+Właściciel dopuścił jedną zastępczą kampanię read-only pod dokładnym rootem
+`C:\ai-lab-core-staging\recovery\P4B-PF-01`. Root nie istniał przed kampanią,
+nie był reparse pointem i nie uzyskał szerszej listy principalów `Allow` niż
+rodzic. Dwa lokalne błędy wzorca parsera ścieżki recepty wystąpiły przed I/O
+probe i przed odczytami hosta; pusty własny root został zachowany i użyty po
+osobnym potwierdzeniu poprawnego wzorca. Następnie:
+
+- UTF-8 XML/JSON oraz atomic temp-to-rename roundtrip: `PASS`;
+- najdłuższa planowana ścieżka kolektora: `90 <= 220`;
+- ścieżki recepty: package root `205`, reserved execution root `252`,
+  `installer-events.jsonl` `275`;
+- reserved output nie został utworzony ani przetestowany, dlatego pozostaje
+  `INSTALLER_OUTPUT_PATH_COMPATIBILITY_NOT_VERIFIED`.
+
+Bounded host collector zakończył się `exit 1`, bez timeoutu, po utrwaleniu
+sześciu XML-i tasków. Pięć historycznych tasków ma dokładne hashe preimage.
+Host XML po normalizacji `domai` do przypiętego SID oraz braku `RunLevel` do
+domyślnego `LeastPrivilege` odpowiada statycznie disabled/no-trigger,
+InteractiveToken, IgnoreNew i PT15M. Błąd
+`HOST_TRIGGER_CIMCLASS_PROPERTY_NOT_FOUND` wystąpił podczas budowy projekcji;
+dynamiczny stan Host i `LastRunTime` pozostały `NOT_PERSISTED_NO_REREAD`.
+
+Nie wykonano dalszych gałęzi host/resources, Docker ani HTTP. Lokalnie
+potwierdzono: wrapper Startup `ABSENT`, kopia rollback zgodna, launcher/runtime/
+manifest `ABSENT`, legacy helper i P3 override zgodne, reserved output
+`ABSENT`. UAC, Install, warm runs, rollback i mutacje instalacji/danych: `0`.
+
+Status: `REPLACEMENT_READ_ONLY_PREFLIGHT_PARTIAL /
+HOST_TASK_FORMATTER_CIMCLASS_FAILURE / CURRENT_TASK_XML_AND_LOCAL_FILE_EVIDENCE /
+NO_UAC / NOT_INSTALLED`. Kampania nie otwiera bramki UAC. Następny live odczyt
+wymaga nowej decyzji po review poprawki wyłącznie read-only projekcji triggera;
+nie wolno użyć tego wyniku do Install lub warm runs.
