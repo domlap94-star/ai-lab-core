@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW / OFFLINE_ONLY / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW / OFFLINE_ONLY / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -491,3 +491,34 @@ Status pozostaje `NOT_INSTALLED`; historyczny host to nadal
 `NOT_APPROVED_FOR_START`. Następny krok to review dokładnych bajtów recepty,
 indeksu i ZIP. Live drift check, UAC, instalacja i warm runs wymagają osobnej
 jednorazowej zgody.
+
+## 17. P4/B — zależności SAFE_INACTIVE i nierozliczone mutacje
+
+Kontynuacja `R04-D21-P4B-ROLLBACK-DEPENDENCIES-20260919T101500Z` nie wykonała
+live preflightu ani żadnej operacji hostowej. Na przypiętym preimage pełnej
+ścieżki odtworzono `RV-P4B-FULL-03B`, `RV-P4B-FULL-02B` i
+`RV-P4B-FULL-02C`. Poprawiona recepta:
+
+1. przechowuje tożsamość i stan każdego mutatora; niepewny handoff kończy próbę
+   jako `PARTIAL_PENDING_OPERATION_UNKNOWN` bez automatycznego retry,
+   konkurującego rollbacku i cleanupu zależnych plików;
+2. przywraca legacy helper wyłącznie po potwierdzeniu bezpiecznego Host i
+   wszystkich znanych konsumentów Compose oraz braku ich running/queued;
+3. przed każdym zapisem rollbacku taska ponownie odczytuje i dopuszcza tylko
+   przypięty preimage albo znany stan pośredni/docelowy tej operacji;
+4. zachowuje pozytywny `SAFE_INACTIVE` przy kompletnym, zgodnym dowodzie, więc
+   poprawka nie polega na globalnym zakazie rollbacku.
+
+Przypięte wyniki LOCAL_ONLY:
+
+- recipe `F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E`;
+- package index `FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F`;
+- review ZIP `D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C`;
+- preimage `4/4`, `16` asercji; input `14/14`, `110` asercji;
+  orkiestracja `15/15`, `96` asercji; workery `437/437`;
+- rzeczywiste Docker/Task/CIM/TCP/HTTP/UAC/mutacje produktu `0`.
+
+Pakiet ma status `ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
+OFFLINE_ONLY / NOT_INSTALLED`. Jeden następny krok to niezależny review tych
+dokładnych bajtów. Dopiero późniejsza, nowa zgoda może objąć fresh bounded drift
+check, jeden UAC i próbę instalacji; obecna zgoda tego nie obejmuje.

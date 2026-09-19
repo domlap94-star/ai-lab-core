@@ -232,3 +232,48 @@ OFFLINE_ONLY / NOT_INSTALLED`. Stan hosta pozostaje historyczny:
 `PARTIAL_SAFE_INACTIVE`, payload/manifest nieobecne i warm runs `0/2`. Każda
 przyszła operacja wymaga osobnego review exact recipe/index/ZIP, świeżego
 bounded drift check i nowej jednorazowej decyzji właściciela.
+
+## Zależności rollbacku i nierozliczone mutacje — 2026-09-19
+
+Kontynuacja była wyłącznie `SOURCE / LOCAL FILE READ / OFFLINE TEST ONLY`.
+Zachowany preimage `16A35C32...0C4DC8` odtworzył trzy dalsze uwagi:
+
+- `RV-P4B-FULL-03B — REPRODUCED`: po timeout po handoffie stary kod uruchamiał
+  konkurujący rollback i usuwał zależne pliki, zanim kontrolowany późny writer
+  zakończył operację;
+- `RV-P4B-FULL-02B — REPRODUCED`: znany bezczynny Host pozwalał przywrócić
+  legacy helper pomimo nierozliczonego Compose/automatycznego triggera;
+- `RV-P4B-FULL-02C — REPRODUCED`: realna ścieżka rollbacku rejestrowała task
+  przez `-Force` bez świeżej kontroli przypiętego lub operation-owned stanu.
+
+Preimage harness przeszedł `4/4` przypadki i `16` asercji, wykazując rzeczywistą
+kolejność oraz zakończenie jednego kontrolowanego późnego writera. Poprawiona
+recepta przechowuje ustrukturyzowany ledger operacji mutujących. Stan
+`PENDING_OPERATION_UNKNOWN` blokuje automatyczny retry, rollback i cleanup
+zależnych plików. Przywrócenie legacy helpera wymaga pozytywnego potwierdzenia
+bezczynności i bezpiecznej konfiguracji Host oraz Compose, a każdy zapis taska
+w rollbacku przechodzi wspólną kontrolę tożsamości bezpośrednio przed zapisem.
+UNKNOWN, brak odczytu lub obcy drift oznaczają zero zapisu do danego taska i
+zachowanie plików.
+
+| Artefakt | Bajty | SHA-256 |
+|---|---:|---|
+| `invoke-p4b-resume-installer.rollback-safe.ps1` | 91,889 | `F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E` |
+| `test-input-bindings-rollback-safe.ps1` | 22,568 | `4753C26B1FB85CDA351A30B5E1FF1750398954D99CCA185399978894ADBC3C00` |
+| `test-rollback-safe-orchestration.ps1` | 27,098 | `61C9C6FF8E083AFFAB3F2A84550ED0CC41558C800250285751F953994FEDFBEC` |
+| `repro-preimage-rollback-dependencies.ps1` | 24,302 | `85D0A96DBA5A77EA8E6F9F2083EC0AC87557A044FE40EA1C9EF9E2C215B28E01` |
+| `rollback-safe-package-index.json` | 2,970 | `FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F` |
+| `REVIEW_INDEX.md` | 2,620 | `731BE887CCEF81AF701ABA5DA8210027C3CE7A7CA71CEF9B19AB128EECBE600C` |
+| review ZIP, 7 wpisów | 47,891 | `D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C` |
+
+Końcowe Windows PowerShell `5.1.26100.8894`: input/index `14/14`, `110`
+asercji; orkiestracja `15/15`, `96` asercji; workery `437/437`; parser czterech
+skryptów `PASS`; ZIP roundtrip i hashe wszystkich siedmiu wpisów `PASS`.
+Rzeczywiste Docker/Task Scheduler/CIM/TCP/HTTP/UAC i mutacje produktu: `0`.
+Stan hosta nie był ponownie odczytywany i pozostaje wyłącznie historyczny:
+wrapper w rollbacku, Host disabled/no-trigger, pięć tasków na preimage,
+payload/manifest nieobecne, warm runs `0/2`.
+
+Wynik: `P4B ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
+OFFLINE_ONLY / NOT_INSTALLED`. Nie jest to odbiór P4/B ani zgoda na live
+preflight, UAC, instalację lub rollback hosta.

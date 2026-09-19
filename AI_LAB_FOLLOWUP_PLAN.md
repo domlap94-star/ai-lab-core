@@ -2922,3 +2922,25 @@ Docker/Task/CIM/TCP/HTTP/UAC/product mutations were zero. Status:
 `FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW / OFFLINE_ONLY /
 NOT_INSTALLED`. A later operation still requires exact-byte owner review, a
 fresh bounded drift check and a separate single-use decision.
+
+**P4/B ROLLBACK DEPENDENCIES AND PENDING MUTATIONS — 2026-09-19.** The next
+owner-authorized source/local-file/offline-only continuation reproduced
+`RV-P4B-FULL-03B`, `RV-P4B-FULL-02B` and `RV-P4B-FULL-02C` on the frozen
+full-path preimage. A handed-off but unresolved mutator could previously race
+automatic rollback and file cleanup; a safe Host did not prove that the
+Compose consumer of the legacy helper was safe; and rollback could overwrite a
+foreign or unreadable task because the real write path lacked a fresh identity
+gate. The corrected LOCAL_ONLY recipe is 91,889 B, SHA-256
+`F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E`;
+its package index is 2,970 B, SHA-256
+`FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F`,
+and the seven-entry review ZIP is 47,891 B, SHA-256
+`D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C`.
+Fail-before passed 4/4 cases and 16 assertions. Final Windows PowerShell 5.1
+results were 14 input cases/110 assertions and 15 orchestration cases/96
+assertions; all 437/437 owned workers were accounted for. Real
+Docker/Task/CIM/TCP/HTTP/UAC/product mutations were zero. Status:
+`ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW / OFFLINE_ONLY /
+NOT_INSTALLED`. The host state remains historical and was not read in this
+continuation; a live preflight, UAC, installation or rollback still requires
+independent review and a new single-use owner decision.

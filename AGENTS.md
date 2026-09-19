@@ -77,6 +77,23 @@
   `FULL_ERROR_AND_SAFE_INACTIVE_ROLLBACK_PATH_READY_FOR_REVIEW / OFFLINE_ONLY /
   NOT_INSTALLED`, not P4/B acceptance or execution permission.
 
+  The next owner-authorized source/local-file/offline review reproduced
+  `RV-P4B-FULL-03B`, `RV-P4B-FULL-02B`, and `RV-P4B-FULL-02C` against that
+  frozen preimage. The replacement LOCAL_ONLY recipe is
+  `F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E`;
+  its package index is
+  `FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F`
+  and its review ZIP is
+  `D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C`.
+  Pending mutators now block competing rollback and dependent cleanup;
+  restoring the legacy helper requires confirmed-safe Host and Compose
+  consumers; rollback task writes require fresh, operation-owned identity.
+  Final PowerShell 5.1 results were 14 input cases/110 assertions and 15
+  orchestration cases/96 assertions with 437/437 workers accounted for and no
+  real Docker/Task/CIM/TCP/HTTP/UAC/product mutation. Status is
+  `ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
+  OFFLINE_ONLY / NOT_INSTALLED`; no live preflight or operation is authorized.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that
