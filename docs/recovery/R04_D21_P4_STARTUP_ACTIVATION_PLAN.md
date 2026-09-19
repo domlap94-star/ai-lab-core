@@ -586,3 +586,63 @@ HOST_TASK_FORMATTER_CIMCLASS_FAILURE / CURRENT_TASK_XML_AND_LOCAL_FILE_EVIDENCE 
 NO_UAC / NOT_INSTALLED`. Kampania nie otwiera bramki UAC. Następny live odczyt
 wymaga nowej decyzji po review poprawki wyłącznie read-only projekcji triggera;
 nie wolno użyć tego wyniku do Install lub warm runs.
+
+## 20. Poprawka kolektora XML i dokończenie ograniczonego odczytu
+
+Właściciel dopuścił wyłącznie poprawkę LOCAL_ONLY kolektora oraz jedno
+ograniczone dokończenie kampanii odczytowej w podkatalogu `c2` istniejącego
+rootu PF-01. Historyczny kolektor pozostał bez zmian. Poprawiona wersja:
+
+- nie używa `CimClass` do projekcji triggerów; typ bierze z bezpiecznie
+  sparsowanego elementu XML w prawidłowym namespace;
+- rozdziela statyczną definicję taska, bieżący `State` oraz `TaskInfo`;
+- ma zamknięty katalog operacji i w fixture nie przechodzi do granicy hosta;
+- zachowuje każdy wynik granicy przed późniejszym formatowaniem i pozwala
+  użyć już utrwalonego rekordu bez ponowienia odczytu;
+- ogranicza każdy własny worker i rozlicza go po PID.
+
+Windows PowerShell `5.1.26100.8894` zaliczył `13` przypadków i `61` asercji,
+owned workers `3/3`. Finalny collector ma SHA-256
+`B78AC996CC180D0137454447EFC4C64007E83BFFC712D8960341BCFFF98850A3`,
+a test SHA-256
+`1F31D56E207E0F1EDC4735065A3861C1685BE3D37E00593A9691EE5F6513A83B`.
+Sześć zachowanych XML-i zostało ponownie przetworzone lokalnie: pięć tasków ma
+jeden `LogonTrigger`, Host ma zero triggerów i jest statycznie disabled;
+wszystkie zachowują `InteractiveToken`, `LeastPrivilege` i `IgnoreNew`.
+
+W ograniczonym oknie odczytowym utrwalono sześć stanów tasków. Public Gateway
+był `Running`, Host `Disabled`, a Docker Desktop, Docker Compose, Private
+Gateway i Supervisor miały stan `Ready`. Wszystkie sześć `TaskInfo` zakończyło
+się błędem mapowania kolektora
+`CommandNotFoundException,Invoke-ClosedWorkerOperation`. Odczytów nie
+powtórzono, dlatego `LastRunTime` i `LastTaskResult` pozostają
+`NOT_VERIFIED`. Listenery: `8000` Docker port proxy i `8789` Public Gateway;
+`8787/8788` nie występowały w tym ograniczonym snapshotcie. HTTP: backend
+health/version `200`, public root/gateway-health `200`, public `/control` i
+`/control/health` `404`.
+
+Windows available wynosił `6.557 GiB`, commit reserve `35.493 GiB`, wolne C:
+`575.323 GiB`, wolne D: `854.573 GiB`; istniejące bramki Windows/dysk
+przeszły. Docker/WSL pool available i swap-used pozostają `UNKNOWN`. Docker
+local metadata potwierdziły istniejący HKCU Run, VHDX na C: (`44.902 GiB`)
+oraz konfigurację WSL `18GB`/swap `8GB`; nie są one odbiorem relokacji.
+
+Kampania Docker zapisała kompletne, bezpieczne rekordy: sześć kontenerów,
+sześć obrazów, wolumen Qdrant i `docker info`. Końcowy formatter zawiódł po
+odczytach, więc projekcję odtworzono wyłącznie z zapisanych rekordów, bez
+ponownego kontaktu z Engine. Wszystkie sześć przypiętych kontenerów działało,
+miało `RestartCount=0`, dokładne ID/image/mounty/porty/sieć odpowiadały draftowi,
+a PostgreSQL był `healthy`. Qdrant używa `qdrant_storage`; Docker root to
+`/var/lib/docker`, co nie zamyka relokacji VHD/profile.
+
+Finalna bezpieczna projekcja LOCAL_ONLY ma SHA-256
+`6D18493AFACBF19BFDA5D0607910572101AC5D27A36665AAE596727F8B159B74`,
+indeks `A3FB97D5F46713753CBEC8A509D518D2DBFAE96EFAB7ABE44B8624F266FF52F8`.
+Exact recipe/index/ZIP pozostają bez zmiany. UAC, Install, warm runs, rollback,
+task/service/container mutations i business-data mutations: `0`.
+
+Status: `P4B PREFLIGHT_EVIDENCE_PARTIAL /
+TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`. Globalny manifest
+pozostaje `NOT_APPROVED_FOR_START`, a kompatybilność zapisu zarezerwowanych
+ścieżek outputu `252/275` pozostaje `NOT_VERIFIED_NO_IO`. Wynik nie otwiera
+bramki UAC ani instalacji.

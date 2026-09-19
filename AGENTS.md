@@ -128,6 +128,26 @@
   read requires a new owner decision; this partial result grants no operational
   permission.
 
+  The owner then authorized a collector-only correction and one bounded
+  continuation under `C:\ai-lab-core-staging\recovery\P4B-PF-01\c2`.
+  The corrected LOCAL_ONLY collector passed Windows PowerShell 5.1 offline
+  tests (`13` cases, `61` assertions, owned workers `3/3`) and reprojected the
+  six already saved XML files without another host read. The bounded campaign
+  persisted all six task states, listeners, Windows resources, Docker-local
+  metadata and six safe HTTP results. Six `TaskInfo` reads failed in the
+  collector mapping layer and were not repeated; consequently `LastRunTime`
+  and `LastTaskResult` remain `NOT_VERIFIED`. The Docker collector completed
+  all six container, six image, one volume and one info reads; its final local
+  formatter failed, so the safe projection was rebuilt only from the saved
+  exit-zero records without another Engine read. All six pinned containers
+  were running with unchanged exact identities/mounts/ports, restart count
+  zero, and PostgreSQL healthy. Status is `P4B PREFLIGHT_EVIDENCE_PARTIAL /
+  TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`. No task,
+  service, container, installation or business-data mutation was performed.
+  The exact installer recipe is unchanged; its reserved output path
+  compatibility remains `NOT_VERIFIED_NO_IO`. This evidence grants no UAC,
+  Install, warm-run or P4/B operational permission.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that

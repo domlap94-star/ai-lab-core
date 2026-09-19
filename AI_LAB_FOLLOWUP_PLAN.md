@@ -2990,3 +2990,35 @@ and the reserved execution output absent. No UAC, Install, warm run, rollback,
 installation mutation or business-data mutation occurred. Status:
 `P4B REPLACEMENT_READ_ONLY_PREFLIGHT_PARTIAL /
 HOST_TASK_FORMATTER_CIMCLASS_FAILURE / NO_UAC / NOT_INSTALLED`.
+
+**P4/B COLLECTOR CORRECTION AND READBACK — 2026-09-19.** A LOCAL_ONLY
+correction replaced the invalid dependency on trigger-object `CimClass` with
+strict task-XML parsing and closed lower boundaries. Windows PowerShell 5.1
+offline tests passed `13` cases and `61` assertions; all `3/3` owned test
+workers were accounted for and no system boundary was contacted by the tests.
+The final collector SHA-256 is
+`B78AC996CC180D0137454447EFC4C64007E83BFFC712D8960341BCFFF98850A3`.
+
+The authorized bounded continuation did not repeat the six saved task XML
+reads. It observed all six task states (`Host=Disabled`, Public Gateway
+`Running`, the other four legacy tasks `Ready`) and persisted listener,
+resource, Docker-local and HTTP projections. All six `TaskInfo` calls reached
+a collector mapping error and were not repeated; `LastRunTime` and
+`LastTaskResult` therefore remain `NOT_VERIFIED`. The Docker campaign completed
+six container, six image, one volume and one info read with exit zero per
+record. Its final formatter failed locally, so `docker-safe.json` was rebuilt
+from those saved records without another Engine call. Six exact containers
+were running with unchanged image/mount/port/network identity and restart
+count zero; PostgreSQL was healthy. Backend health and version returned `200`,
+Public Gateway root/health returned `200`, and public `/control` plus
+`/control/health` returned `404`.
+
+The safe LOCAL_ONLY final projection is SHA-256
+`6D18493AFACBF19BFDA5D0607910572101AC5D27A36665AAE596727F8B159B74`;
+its index is
+`A3FB97D5F46713753CBEC8A509D518D2DBFAE96EFAB7ABE44B8624F266FF52F8`.
+Status remains `P4B PREFLIGHT_EVIDENCE_PARTIAL /
+TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`. The exact recipe,
+package index and review ZIP are unchanged. Reserved installer-output path
+compatibility remains `NOT_VERIFIED_NO_IO`; UAC, Install, warm runs, rollback
+and host/data mutations remain zero.
