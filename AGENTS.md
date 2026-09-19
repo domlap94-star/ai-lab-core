@@ -183,6 +183,15 @@
 
 ## NEXT Stabil — shared roadmap and checkpoint
 
+- D-22 sets the first priority only after R04 is finished and owner-accepted:
+  approved Excel/Google Sheets are the sole evidence source for historical
+  Client field repair, followed by validation, then analysis and linking of
+  only a closed set of still-unassigned mail. Never use mail, threads,
+  attachments, or imported mail-note text to repair Client fields; never
+  reanalyse or relink already assigned mail in that campaign. Preserve correct,
+  manual, confirmed, and deliberately cleared values per field. This priority
+  does not interrupt R04 or authorize production audit, data writes, Gmail or
+  Sheets access, models, import, merge/delete, or deployment.
 - Before changing code, read section 0 of the shared roadmap, the active package
   card, linked requirements, and the latest note in `docs/recovery/checkpoints/`.
   Verify branch `recovery/next-stabil-repair-completion`, remote SHA, the correct

@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION. R04 i R05 pozostają IN_PROGRESS. R05-A4 pozostaje `SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`. D-21 P1/P2/DATA_ONLY/guard i ograniczony P3 zachowują wcześniejsze odbiory. P4/A pozostaje `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B nadal jest `PARTIAL_SAFE_INACTIVE`. Dokładna LOCAL_ONLY recepta `F6D3A8CC...C883F0E` pozostaje przyjęta wyłącznie jako `EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE / NOT_INSTALLED`. Poprawiony LOCAL_ONLY collector przeszedł offline `13/61`, a właścicielsko zatwierdzona kontynuacja utrwaliła stany tasków `6/6`, host/resources/HTTP oraz bieżące metadane sześciu kontenerów i obrazów. Wszystkie sześć `TaskInfo` zakończyło się błędem mapowania i nie zostało ponowione, dlatego `LastRunTime/LastTaskResult` pozostają `NOT_VERIFIED`. Status operacyjny to `P4B PREFLIGHT_EVIDENCE_PARTIAL / TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`; UAC, Install, warm runs i mutacje instalacji/danych nie wystąpiły. Globalny manifest pozostaje `NOT_APPROVED_FOR_START`, Supervisor `INTENTIONALLY_STOPPED`, a P4-B/P5 i R06–R24 nie zostały uruchomione. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION. R04 i R05 pozostają IN_PROGRESS. R05-A4 pozostaje `SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`. D-21 P1/P2/DATA_ONLY/guard i ograniczony P3 zachowują wcześniejsze odbiory. P4/A pozostaje `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B nadal jest `PARTIAL_SAFE_INACTIVE`. Dokładna LOCAL_ONLY recepta `F6D3A8CC...C883F0E` pozostaje przyjęta wyłącznie jako `EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE / NOT_INSTALLED`. Poprawiony LOCAL_ONLY collector przeszedł offline `13/61`, a właścicielsko zatwierdzona kontynuacja utrwaliła stany tasków `6/6`, host/resources/HTTP oraz bieżące metadane sześciu kontenerów i obrazów. Wszystkie sześć `TaskInfo` zakończyło się błędem mapowania i nie zostało ponowione, dlatego `LastRunTime/LastTaskResult` pozostają `NOT_VERIFIED`. Status operacyjny to `P4B PREFLIGHT_EVIDENCE_PARTIAL / TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`; UAC, Install, warm runs i mutacje instalacji/danych nie wystąpiły. Globalny manifest pozostaje `NOT_APPROVED_FOR_START`, Supervisor `INTENTIONALLY_STOPPED`, a P4-B/P5 i R06–R24 nie zostały uruchomione. D-22 wiążąco ustala pierwszy priorytet po zakończeniu i właścicielskim odbiorze R04: `ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE`; audyt i wykonanie tych napraw pozostają `NOT_RUN`, a aktywny zakres R04/P4-B nie zmienia się. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -21,20 +21,20 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
 | Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B zachowuje `PARTIAL_SAFE_INACTIVE`; recepta ma `EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE / NOT_INSTALLED`, a odczyt `PREFLIGHT_EVIDENCE_PARTIAL / TASK_INFO_MAPPING_ERROR_NO_REREAD`; globalny manifest `NOT_APPROVED_FOR_START`; cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
-| Checkpoint ID | `R04-20260919T142238Z-D21-P4B-COLLECTOR-READBACK-PARTIAL` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-19T14:22:38Z` |
-| Aktualny wykonawca / sesja | Codex / poprawka kolektora offline PASS i jedna bounded read-only kontynuacja zakończona PARTIAL po błędzie wszystkich sześciu TaskInfo. Bez ponowienia getterów, UAC, Install, warm runs i mutacji |
+| Checkpoint ID | `DOC-20260919T193025Z-POST-R04-CRM-PRIORITY` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-19T19:30:25Z` |
+| Aktualny wykonawca / sesja | Codex / wyłącznie dokumentacyjny zapis D-22. Aktywny R04/P4-B pozostaje przy poprzednim wyniku PARTIAL; bez odczytów produkcji, UAC, Install, audytu CRM, Gmail/Sheets/n8n, modeli i mutacji danych |
 | Aktywny pakiet / podetap | `R04 / D-21 / P4-B` — exact recipe odebrana tylko source/offline; preflight evidence PARTIAL; cały R04 nadal `IN_PROGRESS` |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; preservation `116 + 87 = 203/203` |
 | Gałąź / SHA kodu objętego sprawdzeniem | Guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`, tree `4ccbc8922051401da1422be0d08f271476c3bab6`, preimage `ddec6ea20e2d755354e742e324d0d9cea5e5802f`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; P2 evidence `f872cf9e548a7ec196289e0c1987b654b1017505`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
-| Ostatnia faktycznie zakończona czynność | Poprawiony collector zaliczył offline `13/61`; bez ponowienia XML odczytał zapisane task definitions. Live: Task State `6/6`; TaskInfo `0/6` przez błąd mapowania, bez retry. Host/resources/HTTP i Docker safe records utrwalone; 6/6 kontenerów running, restart zero, PostgreSQL healthy |
-| Potwierdzone testy bieżącego wykonania | Zachowane PS 5.1 testy recepty bez zmian. Bieżący collector: `13` cases, `61` assertions, workers `3/3`, exit 0. Task XML `6/6`, Task State `6/6`; HTTP 6 odczytów; Docker 6 container + 6 image + volume + info z exit zero per record. TaskInfo `0/6`, więc wynik PARTIAL. UAC/Install/warm/mutations `0` |
+| Ostatnia faktycznie zakończona czynność | Dokumentacyjnie zapisano D-22 i kolejność po R04. Ostatnia czynność operacyjna pozostaje bez zmian: collector zaliczył offline `13/61`; Task State `6/6`, TaskInfo `0/6` przez błąd mapowania bez retry; host/resources/HTTP i Docker safe records zostały wcześniej utrwalone |
+| Potwierdzone testy bieżącego wykonania | D-22: testy produktu `NOT_RUN` — zmiana wyłącznie dokumentacyjna. Zachowane PS 5.1 testy recepty bez zmian. Poprzedni collector: `13` cases, `61` assertions, workers `3/3`, exit 0; Task XML `6/6`, Task State `6/6`; HTTP 6 odczytów; Docker 6 container + 6 image + volume + info z exit zero per record. TaskInfo `0/6`, więc wynik PARTIAL. UAC/Install/warm/mutations `0` |
 | Niezacommitowana praca / zabezpieczenie | LOCAL_ONLY `C:\ai-lab-core-staging\recovery\P4B-PF-01\c2`; final `6D18493A...59B74`, index `A3FB97D5...F52F8`. Exact recipe/index/ZIP pozostają bez zmian. Payload/manifest pozostają NOT_INSTALLED |
 | Niezakończone procesy i skutki operacyjne | Wszystkie własne procesy rozliczone; brak instalatora i UAC. LastRun/LastTaskResult sześciu tasków `NOT_VERIFIED`; Install/mutations/rollback/warm runs 0 |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260919T142238Z-R04-D21-P4B-COLLECTOR-READBACK-PARTIAL.md` |
-| Zakres aktualnej zgody | Jedna kontynuacja read-only została zużyta. Exact recipe pozostaje odebrana tylko source/offline. Żadna zgoda na kolejny live read, UAC lub Install nie pozostaje aktywna |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260919T193025Z-POST-R04-CRM-PRIORITY.md` |
+| Zakres aktualnej zgody | Zapis D-22 był dokumentacyjny i nie odnowił żadnej zgody operacyjnej. Jedna kontynuacja read-only P4-B pozostaje zużyta; exact recipe jest odebrana tylko source/offline; brak zgody na kolejny live read, UAC, Install, audyt CRM lub dostęp do Gmail/Sheets/n8n |
 | Blokada / wymagana decyzja | `TASK_INFO_MAPPING_ERROR_NO_REREAD`; LastRun/LastTaskResult nie są fresh evidence. Installer output path 252/275 `NOT_VERIFIED_NO_IO`. Docker/WSL pool availability i swap-used `UNKNOWN`; Qdrant/VHD/profile, backup proof i UI są otwarte |
 | Jeden następny bezpieczny krok | Owner review wyniku PARTIAL i osobna decyzja o tym, czy brak TaskInfo ma zostać domknięty nowym bounded odczytem przed jakąkolwiek zgodą operacyjną; ten zapis nie udziela UAC ani Install |
 | Warunek STOP | Brak kolejnego UAC, instalacji plików/manifestu, task changes, Host/launchera, warm runów, restart/reboot, Supervisora, backup/restore, relokacji, P4-B/P5/R06 |
@@ -226,6 +226,44 @@ Zakazy bazowe: `git add .`, `git clean`, `reset --hard`, force push, `flutter cl
 Nowy problem musi mieć wersję, konkretny wpływ i test rozstrzygający. Hipoteza nie jest naprawiana jak potwierdzony bug. Zamknięty pakiet otwieramy tylko dla odtworzonej regresji lub istotnego nowego dowodu dotyczącego jego warunku odbioru. Usprawnienie niewpływające na kryterium trafia do jawnego backlogu — nie resetuje projektu.
 
 ## 6. Kamienie odbioru i kolejność
+
+### Pilny priorytet po właścicielskim odbiorze R04 — D-22
+
+Ta kolejność zaczyna obowiązywać dopiero po zakończeniu i właścicielskim odbiorze
+R04. Nie przerywa bieżącego R04/P4-B, nie uruchamia R12/R16/R20/R22 i nie
+stanowi zgody na odczyt lub zapis danych:
+
+1. **ARKUSZE:** audyt rzeczywistej ścieżki importu zatwierdzonych Excel/Google
+   Sheets, usunięcie przyczyny nowych błędów i kontrolowana korekta historycznych
+   pól klientów wyłącznie na podstawie arkuszy.
+2. **KOREKTA I WALIDACJA KLIENTÓW:** dry-run per rekord/pole, ochrona poprawnych,
+   ręcznych, potwierdzonych i świadomie pustych wartości, osobna zgoda na
+   odwracalną partię, optimistic concurrency i post-check. Brak wystarczającego
+   materiału arkuszowego pozostaje jawnym wyjątkiem; Gmail nie jest źródłem
+   zastępczym. Każda propozycja wskazuje arkusz, zakładkę, stabilną tożsamość
+   rekordu/komórki i wersję lub hash materiału; sam numer wiersza po sortowaniu
+   nie wystarcza.
+3. **TYLKO NIEPRZYPISANE MAILE:** dopiero po walidacji poprawionego zakresu
+   klientów zamknąć stabilny zbiór wiadomości bez skutecznego powiązania,
+   analizować wyłącznie ten zbiór i zmieniać wyłącznie dozwolone powiązanie oraz
+   metadane decyzji. Już przypisanych wiadomości nie analizować ponownie ani nie
+   przepinać; mail nie może poprawiać pól klienta.
+4. Następnie pozostałe pilne poprawki CRM: ręczny wybór klienta poza sugestiami;
+   zaznaczanie/licznik/bulk delete kandydatów z koszem; odporne scalanie grupowe;
+   diagnoza credentials n8n/Google bez próbnej rotacji/restartu; opisowe błędy
+   z zachowanymi kodami maszynowymi; oraz odrębne, pochodzeniowo bezpieczne
+   uporządkowanie importowych bloków mailowych w notatkach, jeśli zostanie
+   osobno objęte wykonaniem.
+
+Wcześniejszy plan użycia arkuszy **oraz maili** do historycznej korekty klientów
+jest zastąpiony. Historyczne dowody operacji pozostają niezmienione. Źródła
+korekty historycznych pól: wyłącznie arkusze; liczba maili użytych do tej
+korekty ma wynosić `0`. CRM i historia zmian służą jedynie identyfikacji,
+porównaniu, wykrywaniu konfliktów i ochronie wpisów użytkownika. Audyt,
+implementacja, modele i naprawa danych mają status `NOT_RUN`.
+Model lokalny może później proponować ustrukturyzowaną interpretację tylko z
+dowodami arkuszowymi, po wykazaniu jakości i odrębnym dopuszczeniu; nie jest
+wymagany dla przypadków deterministycznych i nie otrzymuje dowolnego SQL.
 
 - **K0 — baza kontrolowana:** R00–R04 w zakresie właściwych decyzji i operacji. Można bezpiecznie testować/odtwarzać oraz jednoznacznie identyfikować zestaw.
 - **K1 — użyteczny CRM + Asystent:** R16 i jego zależności. 9B + KB + Visual + trudna analiza + historia działają w aplikacji. Nie czekamy z tym odbiorem na wszystkie oferty/umowy/CAD. Kontrolowane wydanie K1 jest osobnym zleceniem; nie jest pełnym Masterplan PASS.
@@ -781,12 +819,14 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 2. Sprawdzić exactly-once/idempotency, retry i konflikty certain/ambiguous/unresolved dla PDF/TXT oraz metadanych nadawcy.
 3. Przygotować read-only mailbox ID/window comparison bez bodies, mark-read i zmian labels. Rozróżnić permission/window gap od braku wiadomości w DB.
 4. Dla 4262 historycznych źródeł najpierw aktualny raport dry-run i conflict review. Nowe zachowanie matcher ≠ zgoda na masowy relink; apply tylko wskazanego batcha po osobnej zgodzie.
+5. D-22 ogranicza pilną kampanię historycznej poczty po R04 do stabilnego snapshotu **wyłącznie wiadomości nieprzypisanych**, wyznaczonego z metadanych i rzeczywistych relacji po walidacji klientów. Już przypisanych wiadomości nie analizować ani nie przepinać; nie pobierać hurtowo wątków/załączników i nie używać maili do zmiany pól klientów.
 
 **Sprawdzenia i dowody**
 
 - Local success przy vision_auto_eligible=false wywołuje drugi pass bez Vision; brak duplikatów i cross-client links.
 - Niejednoznaczne pozostają do review; forced failure/retry nie nadpisuje ręcznej decyzji.
 - Provider/DB comparison podaje wyraźne okno i kompletność; compose/send test używa stub/sandbox i potwierdzenia człowieka.
+- Tuż przed zapisem wiadomość nadal jest nieprzypisana; ręczne przypisanie wygrywa, batch wznawia tylko niezakończone pozycje, a `matched / ambiguous / no-match / error` pozostają rozróżnione bez dopasowania na siłę.
 
 **Warunek zamknięcia:** Nowy przepływ przyjęcia i powiązania odebrany; historyczne rekordy mają rozstrzygniętą klasę lub jawny backlog zaakceptowany przez właściciela.
 
@@ -921,6 +961,7 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 4. Odebrać analogiczny zakres na Windows/Web z tego samego RELEASE_ID; dotyk/układ/loading/back/deep links, role i brak rzeczywistych wysyłek.
 5. W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu.
 6. W odbiorze Asystenta przejść oddzielne scenariusze D-15/D-16: rozproszone wystarczające dane bez zbędnego dopytania; brak dokumentu z uzasadnioną estymacją; nieznany parametr z wariantami; odmowa nieuzasadnionej liczby przy zachowanej pomocy; oraz jawne rozstrzygnięcie złego scope, nieaktualnego pomiaru i konfliktu źródeł.
+7. Dla priorytetu D-22 odebrać API/UI poprawionych pól i rozdzielenie semantyczne informacji: opis zdarzenia nie jest adresem mapy, rodzaj budynku nie jest typem prawnym klienta, a data zgłoszenia/propozycja/potwierdzony termin pozostają odrębne. Błędy mają opis dla użytkownika oraz stabilny kod diagnostyczny; niepewny zapis nie może być fałszywie opisany jako brak zapisu.
 
 **Sprawdzenia i dowody**
 
@@ -1056,17 +1097,20 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 
 **Zakres wykonania**
 
+0. Bezpośrednio po właścicielskim odbiorze R04 wykonać priorytet D-22 bez czekania na niepowiązane oferty/umowy/AI ani pełne zakończenie pozostałego R20: prześledzić `arkusz/komórka -> importer -> kandydat -> klient/sprawa -> API -> UI`, naprawić przyczynę i istniejące błędne pola **wyłącznie z zatwierdzonych arkuszy**. Nagłówki są wskazówką, a znaczenie wynika z całego logicznego rekordu (np. e-mail w kolumnie telefonu pozostaje e-mailem; opis oględzin nie staje się adresem; dom/posadzka nie zmieniają typu prawnego/branży; daty zgłoszenia, propozycji i wizyty są odrębne; sąsiedni wiersz nie jest źródłem). Każda propozycja wiąże arkusz, zakładkę, stabilny rekord/komórkę oraz wersję/hash. Dry-run pokazuje current/proposed/source/provenance/reason/decision per pole; correct/manual/confirmed/explicitly-cleared są chronione, konflikty pozostają propozycjami, a zapis sprawdza bieżącą wersję. Ponowienie nie tworzy duplikatów ani nie cofa napraw.
 1. Odebrać Client 360, statusy/daty, global search, Candidate preview/merge, activity/change history, mail, dashboard, calendar/tasks/notes, inspections i Trash.
 2. Nie otwierać na nowo wyboru A/B ContactPerson: followup dokumentuje B i migrację z 22.08.2026. Zweryfikować rzeczywiste działanie preferred/multiple decision-makers/generic coordinates/cross-client guard/archive.
 3. Sprawdzić upload folder/multi-file/drag-drop, przypinanie/odpinanie/przenoszenie dokumentów z kontrolą, mapę/foreground GPS/EXIF/orientation/device metadata w zakresie masterplanu.
 4. Dostarczyć brakujące drafts notatki/zadania/e-maila/raportu oraz porównanie dokumentów, jeżeli obecne wejścia ich nie realizują. Zapis narzędziowy tylko allowlisted i z wymaganym approval; bez dowolnego shell/SQL.
 5. Rozstrzygnąć powiązanie finansowych dokumentów potrzebnych sprawie w istniejącym archiwum; nie zakładać budowy pełnej księgowości.
+6. Zachować pilne poprawki użyteczności: ręczne wyszukiwanie docelowego klienta poza sugestiami; `Zaznacz wszystko` z rozróżnieniem strony i całego filtra, licznikiem oraz batch delete przez kosz; scalanie grupowe z wynikiem per element, kontrolą konfliktu/wersji i retry tylko pozycji niezakończonych.
 
 **Sprawdzenia i dowody**
 
 - Właściciel wykonuje kompletną syntetyczną sprawę z dokumentami, osobami, zadaniem, wizją, ofertą i umową; historia i deep links są spójne.
 - Role mają negatywne testy działań; optimistic conflict, merge review, Trash restore/purge tylko w izolacji i zgodnie z polityką.
 - UI zachowuje stany loading/error/empty/offline/back i brak N+1 w krytycznych listach.
+- Testy D-22 obejmują mylące kolumny, wiele adresów/spraw, ręczne poprawki i świadomie puste pola, równoległą edycję, przerwany batch oraz ponowienie po utracie odpowiedzi. Liczba maili użytych do korekty historycznych pól klientów wynosi `0`; raport rozróżnia naprawione, poprawne bez zmian, konflikty, brak źródła i pominięcia.
 
 **Warunek zamknięcia:** Istniejące DEMONSTRATED pozostają objęte regresją, braki mają małe zakończone slice, a nie nową implementację CRM.
 
@@ -1129,6 +1173,7 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 3. Retencja usuwa wyłącznie zarządzane, kwalifikujące się kopie, zachowując punkt odzyskania; stan z audytu auto_delete=false nie jest błędem do samowolnego przełączenia.
 4. Audytować i uzgodnić n8n execution retention, log/audit policy oraz security-header compatibility; brak cleanup przed właściwym approval.
 5. Powtórzyć potrzebne granice auth/rate/CORS/debug/secrets i admission backup/OCR/model na aktualnym zestawie.
+6. Po etapach arkuszowej korekty i ograniczonego dopasowania poczty z D-22 zdiagnozować okresowe błędy credentials n8n/Google na podstawie konkretnego etapu, kodu błędu i minimalnych metadanych/logów. Opublikowany projekt nie jest automatycznie `Testing`; bez próbnej rotacji/kasowania credentials, restartu usług ani analizy treści całej skrzynki.
 
 **Sprawdzenia i dowody**
 

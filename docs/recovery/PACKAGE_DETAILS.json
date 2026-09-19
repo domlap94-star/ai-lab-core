@@ -573,23 +573,25 @@
       "R02",
       "R10"
     ],
-    "goal": "Przetworzony lokalnie załącznik trafia do właściwej sprawy lub review, a historia nie jest przepinana po cichu.",
+    "goal": "Po walidacji klientów dopasować wyłącznie zamknięty zbiór nieprzypisanych wiadomości; już przypisanej historii nie analizować ani nie przepinać.",
     "scope": [
       "Spiąć lokalny terminal z istniejącym bounded reconciliation oraz jego eligibility; nie wystarczy dopisać call-site, jeżeli wewnętrzna bramka nadal wymaga V1 Vision.",
       "Sprawdzić exactly-once/idempotency, retry i konflikty certain/ambiguous/unresolved dla PDF/TXT oraz metadanych nadawcy.",
       "Przygotować read-only mailbox ID/window comparison bez bodies, mark-read i zmian labels. Rozróżnić permission/window gap od braku wiadomości w DB.",
-      "Dla 4262 historycznych źródeł najpierw aktualny raport dry-run i conflict review. Nowe zachowanie matcher ≠ zgoda na masowy relink; apply tylko wskazanego batcha po osobnej zgodzie."
+      "Dla 4262 historycznych źródeł najpierw aktualny raport dry-run i conflict review. Nowe zachowanie matcher ≠ zgoda na masowy relink; apply tylko wskazanego batcha po osobnej zgodzie.",
+      "D-22: po walidacji poprawionych klientów zamknąć stabilny snapshot wyłącznie wiadomości bez skutecznego powiązania. Analizować tylko ten zbiór; nie analizować ponownie ani nie przepinać już przypisanych maili, nie pobierać hurtowo wątków/załączników i nie zmieniać pól klientów na podstawie poczty."
     ],
     "checks": [
       "Local success przy vision_auto_eligible=false wywołuje drugi pass bez Vision; brak duplikatów i cross-client links.",
       "Niejednoznaczne pozostają do review; forced failure/retry nie nadpisuje ręcznej decyzji.",
-      "Provider/DB comparison podaje wyraźne okno i kompletność; compose/send test używa stub/sandbox i potwierdzenia człowieka."
+      "Provider/DB comparison podaje wyraźne okno i kompletność; compose/send test używa stub/sandbox i potwierdzenia człowieka.",
+      "Tuż przed zapisem wiadomość nadal jest nieprzypisana; ręczna decyzja jest chroniona, batch wznawia tylko pozycje niezakończone, a matched/ambiguous/no-match/error pozostają rozróżnione."
     ],
-    "done": "Nowy przepływ przyjęcia i powiązania odebrany; historyczne rekordy mają rozstrzygniętą klasę lub jawny backlog zaakceptowany przez właściciela.",
-    "impact": "Kod matcher/call-sites; normalne link writes i historyczny apply oddzielnie gated. Brak provider writes w audycie coverage.",
+    "done": "Nowy przepływ przyjęcia i powiązania odebrany; pilna kampania historyczna obejmuje tylko stabilny zbiór wiadomości bez skutecznego powiązania i ma rozstrzygniętą klasę lub jawny backlog.",
+    "impact": "Kod matcher/call-sites; normalne link writes i historyczny apply oddzielnie gated. Kampania D-22 zmienia tylko dozwolone powiązanie i metadane decyzji; zero zmian pól klientów z maila.",
     "approval": "Source/deploy; provider read scope; osobne batch IDs i approval dla historycznych relacji.",
     "rollback": "Revert call-site; odtworzenie konkretnych starych linków z provenance, nie masowy unlink.",
-    "exclude": "Automatyczne uznanie confidence za zgodę na konflikt, full mailbox export, automatyczna wysyłka.",
+    "exclude": "Analiza lub przepinanie już przypisanych maili, używanie maili/wątków/załączników/notatek do korekty pól klientów, automatyczne uznanie confidence, full mailbox export, automatyczna wysyłka.",
     "status": "PLANNED",
     "primary_requirements": [
       "M-018",
@@ -805,14 +807,15 @@
       "R12",
       "R15"
     ],
-    "goal": "Uzyskać pierwszą realnie używalną wersję CRM + AI bez czekania na wszystkie późniejsze moduły.",
+    "goal": "Uzyskać pierwszą realnie używalną wersję CRM + AI; po R04 odebrać także API/UI naprawy arkuszowych pól i opisowe błędy bez czekania na późniejsze moduły.",
     "scope": [
       "Użyć istniejącego AVD Pixel_8: uruchomić po sprawdzeniu zasobów, nie żądać telefonu, nie wipe/reinstall dla wygody. Połączyć z bezpiecznym backendem syntetycznym.",
       "Najpierw sprawdzić zainstalowaną wersję i kompatybilność. Nowy candidate APK tylko po osobnej zgodzie, zachowując certyfikat i dane. Test starego APK nie potwierdza nowego UI.",
       "Przejść login/expiry, Client 360, upload/source viewer, chat, tło, powrót, przerwanie sieci, rename/delete/cancel, wielokrotne finalizacje i wiadomości błędu.",
       "Odebrać analogiczny zakres na Windows/Web z tego samego RELEASE_ID; dotyk/układ/loading/back/deep links, role i brak rzeczywistych wysyłek.",
       "W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu.",
-      "W odbiorze Asystenta przejść oddzielne scenariusze D-15/D-16: rozproszone wystarczające dane bez zbędnego dopytania; brak dokumentu z uzasadnioną estymacją; nieznany parametr z wariantami; odmowa nieuzasadnionej liczby przy zachowanej pomocy; oraz jawne rozstrzygnięcie złego scope, nieaktualnego pomiaru i konfliktu źródeł."
+      "W odbiorze Asystenta przejść oddzielne scenariusze D-15/D-16: rozproszone wystarczające dane bez zbędnego dopytania; brak dokumentu z uzasadnioną estymacją; nieznany parametr z wariantami; odmowa nieuzasadnionej liczby przy zachowanej pomocy; oraz jawne rozstrzygnięcie złego scope, nieaktualnego pomiaru i konfliktu źródeł.",
+      "D-22: odebrać w API/UI semantykę poprawionych pól (opis zdarzenia ≠ adres mapy, budynek ≠ typ prawny klienta, data zgłoszenia/propozycja/potwierdzony termin są odrębne) oraz opisowe komunikaty z kodami diagnostycznymi i uczciwym stanem niepewnego zapisu."
     ],
     "checks": [
       "Operator wykonuje syntetyczną sprawę od kliknięcia do zapisanej odpowiedzi z prawidłowym źródłem i wraca do niej po zamknięciu klienta.",
@@ -820,7 +823,7 @@
       "Każdy wspierany target ma zidentyfikowany build i zaakceptowany krytyczny przepływ.",
       "Odbiór samego dokumentu nie zastępuje odbioru całej uprawnionej sprawy, a poprawna odmowa liczby bez podstaw nie zastępuje pozytywnego testu estymacji tam, gdzie podstawy istnieją. R04-A2 bez modelu nie nadaje tym kryteriom PASS."
     ],
-    "done": "Kamień K1: działający CRM + analityczny Asystent, gotowy do osobnego kontrolowanego wydania, mimo nadal otwartych ofert/umów/metod. Nie oznaczać pełnego Masterplan PASS.",
+    "done": "Kamień K1 zachowuje dotychczasowy zakres; D-22 wymaga wcześniej poprawnej prezentacji semantycznej danych klientów i uczciwych stanów błędu. Nie oznaczać pełnego Masterplan PASS.",
     "impact": "Testy runtime i ewentualne małe UX fixes. Brak automatycznej publikacji lub kasowania AVD.",
     "approval": "Okno emulatora/modeli/tempchat oraz osobno candidate install/release; before production deploy R03.",
     "rollback": "Zachowany build/aplikacja/dane i kompatybilny backend; nie downgrade niekompatybilnego schema w ciemno.",
@@ -1004,24 +1007,27 @@
       "R18",
       "R19"
     ],
-    "goal": "Zachować działający CRM i domknąć jego rolę jako miejsca całej historii sprawy.",
+    "goal": "Po odbiorze R04 najpierw naprawić import i historyczne pola klientów wyłącznie z arkuszy, zwalidować wynik, a następnie domknąć pilne funkcje CRM.",
     "scope": [
       "Odebrać Client 360, statusy/daty, global search, Candidate preview/merge, activity/change history, mail, dashboard, calendar/tasks/notes, inspections i Trash.",
       "Nie otwierać na nowo wyboru A/B ContactPerson: followup dokumentuje B i migrację z 22.08.2026. Zweryfikować rzeczywiste działanie preferred/multiple decision-makers/generic coordinates/cross-client guard/archive.",
       "Sprawdzić upload folder/multi-file/drag-drop, przypinanie/odpinanie/przenoszenie dokumentów z kontrolą, mapę/foreground GPS/EXIF/orientation/device metadata w zakresie masterplanu.",
       "Dostarczyć brakujące drafts notatki/zadania/e-maila/raportu oraz porównanie dokumentów, jeżeli obecne wejścia ich nie realizują. Zapis narzędziowy tylko allowlisted i z wymaganym approval; bez dowolnego shell/SQL.",
-      "Rozstrzygnąć powiązanie finansowych dokumentów potrzebnych sprawie w istniejącym archiwum; nie zakładać budowy pełnej księgowości."
+      "Rozstrzygnąć powiązanie finansowych dokumentów potrzebnych sprawie w istniejącym archiwum; nie zakładać budowy pełnej księgowości.",
+      "D-22 — pierwszy priorytet po odbiorze R04: prześledzić arkusz/komórkę przez importer, kandydata, klienta/sprawę, API i UI; naprawić przyczynę oraz istniejące błędne pola wyłącznie z zatwierdzonych Excel/Google Sheets. Dry-run per pole zawiera current/proposed/source/provenance/reason/decision; correct/manual/confirmed/explicitly-cleared są chronione, konflikty są propozycjami, zapis sprawdza wersję, a retry nie dubluje ani nie cofa napraw.",
+      "Zachować pilne UX CRM: ręczny wybór klienta poza sugestiami; Zaznacz wszystko z rozróżnieniem strony/filtra, licznikiem i koszem; scalanie grupowe z wynikiem per element, kontrolą konfliktu/wersji i retry tylko pozycji niezakończonych."
     ],
     "checks": [
       "Właściciel wykonuje kompletną syntetyczną sprawę z dokumentami, osobami, zadaniem, wizją, ofertą i umową; historia i deep links są spójne.",
       "Role mają negatywne testy działań; optimistic conflict, merge review, Trash restore/purge tylko w izolacji i zgodnie z polityką.",
-      "UI zachowuje stany loading/error/empty/offline/back i brak N+1 w krytycznych listach."
+      "UI zachowuje stany loading/error/empty/offline/back i brak N+1 w krytycznych listach.",
+      "D-22 obejmuje mylące kolumny, wiele adresów/spraw, ręczne i świadomie puste pola, równoległą edycję, przerwany batch oraz retry po utracie odpowiedzi. Maile użyte do korekty pól klientów: 0; raport rozróżnia naprawione, poprawne bez zmian, konflikty, brak źródła i pominięcia."
     ],
-    "done": "Istniejące DEMONSTRATED pozostają objęte regresją, braki mają małe zakończone slice, a nie nową implementację CRM.",
-    "impact": "Najpierw verification, minimalne fixes; możliwe potrzebne uzupełnienia schema po projekcie. Production business actions nie wchodzą do automatycznych testów.",
+    "done": "D-22: przyczyna i kontrolowana korekta arkuszowa są odebrane per pole bez nieuprawnionych zmian; maile użyte jako źródło pól klientów = 0. Pozostałe DEMONSTRATED zachowują regresję, a braki mają małe slice.",
+    "impact": "Najpierw read-only audit i dry-run; osobno zatwierdzony reversible batch z version check oraz post-check. Chronić correct/manual/confirmed/explicitly-cleared; production business actions nie wchodzą do automatycznych testów.",
     "approval": "Source; osobno nowe tool write authority, schema i deploy. Bez powtórnej decyzji o już przyjętym ContactPerson B.",
     "rollback": "Poprzedni kompatybilny build/feature switch; nie odwracać historycznych powiązań klientów globalnie.",
-    "exclude": "Przebudowa całego CRM, nowe nieograniczone Agent write tools, testy realnego purge/send.",
+    "exclude": "Maile/wątki/załączniki/notatki jako źródło korekty pól klientów, przymusowe merge przy konflikcie, przebudowa całego CRM, nieograniczone Agent write tools, testy realnego purge/send.",
     "status": "PLANNED",
     "primary_requirements": [
       "M-005",
@@ -1117,24 +1123,25 @@
       "R09",
       "R16"
     ],
-    "goal": "Wykrywać awarie i chronić odtwarzalność bez automatycznego kasowania danych dla samego „porządku”.",
+    "goal": "Wykrywać awarie i chronić odtwarzalność; po etapach D-22 celowanie zdiagnozować okresowe credentials n8n/Google bez próbnej zmiany produkcji.",
     "scope": [
       "Domknąć backup stale/failure, disk low, DB down, Vision AUTH/UI_CHANGED, orphan job, schema mismatch i n8n down. Wybrany zewnętrzny kanał alertów wymaga osobnej zgody.",
       "Zweryfikować aktualne schedule/UI i dry-run polityki E/F: próg 10%, cel 12%, wiek 60/14 dni i priorytety kopii zgodnie z zatwierdzoną decyzją. Przypisanie wieku do celu potwierdzić z rzeczywistym planem, nie odgadywać z samych liczb.",
       "Retencja usuwa wyłącznie zarządzane, kwalifikujące się kopie, zachowując punkt odzyskania; stan z audytu auto_delete=false nie jest błędem do samowolnego przełączenia.",
       "Audytować i uzgodnić n8n execution retention, log/audit policy oraz security-header compatibility; brak cleanup przed właściwym approval.",
-      "Powtórzyć potrzebne granice auth/rate/CORS/debug/secrets i admission backup/OCR/model na aktualnym zestawie."
+      "Powtórzyć potrzebne granice auth/rate/CORS/debug/secrets i admission backup/OCR/model na aktualnym zestawie.",
+      "D-22: po korekcie arkuszowej i ograniczonej kampanii nieprzypisanej poczty zdiagnozować okresowe błędy credentials n8n/Google z konkretnego etapu, kodu i minimalnych metadanych/logów; bez założenia Testing, próbnej rotacji/kasowania credentials, restartu i analizy treści całej skrzynki."
     ],
     "checks": [
       "Fault injection w izolacji wywołuje właściwy alert bez ujawnienia sekretów; przejściowy błąd nie powoduje nieograniczonych powiadomień.",
       "Dry-run retention daje dokładny manifest plików/rozmiarów/przyczyn i zachowanych kopii; apply tylko po osobnej zgodzie.",
       "Operacje nie blokują hot-path UI i mają jawny status, historię oraz możliwość bezpiecznego pause."
     ],
-    "done": "Operacje wymagane w followup odebrane; wyłączona retencja jest akceptowana wyłącznie jako jawna decyzja właściciela, a nie ukryte COMPLETE.",
+    "done": "Operacje wymagane w followup odebrane; diagnoza credentials wskazuje rzeczywisty etap/kod/przyczynę albo jawne UNKNOWN, bez założenia Testing i bez rotacji/restartu. Retencja nadal wymaga własnych bramek.",
     "impact": "Konfiguracja/alerty; destructive retention i n8n purge oddzielnie gated, niezależnie od source PASS.",
     "approval": "Zachować istniejące FOLLOWUP_BACKUP_RETENTION_DELETE_APPROVAL_REQUIRED i FOLLOWUP_N8N_RETENTION_APPROVAL_REQUIRED; kanał zewnętrzny osobno.",
     "rollback": "Wycofanie konfiguracji; skasowany backup nie ma automatycznego rollbacku — przed deletion wymagany zachowany restore chain i świadoma zgoda.",
-    "exclude": "Docker prune, kasowanie kopii niezarządzanych, retencja traktowana jako bezpiecznie odwracalna.",
+    "exclude": "Próbna rotacja/kasowanie credentials, restart usług lub analiza całej poczty jako diagnoza; Docker prune, kasowanie kopii niezarządzanych, retencja traktowana jako bezpiecznie odwracalna.",
     "status": "PLANNED",
     "primary_requirements": [
       "M-068",

@@ -25,6 +25,42 @@ wznowienia jest `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` na zatwierdzonej
 gałęzi recovery. Historyczne sekcje kolejności poniżej są dowodem, nie
 instrukcją rozpoczęcia CHUNK-a ani konsumpcją approval gate.
 
+## D-22 — pilna kolejność CRM po R04
+
+Po zakończeniu i właścicielskim odbiorze R04 pierwszeństwo przed nowymi
+funkcjami AI, ofertami, umowami i globalnym odbiorem otrzymuje:
+
+1. audyt i naprawa importu zatwierdzonych Excel/Google Sheets oraz
+   historycznych pól klientów **wyłącznie na podstawie tych arkuszy**;
+2. dry-run, kontrolowana korekta i walidacja klientów z ochroną per pole dla
+   wartości poprawnych, ręcznych, potwierdzonych i świadomie pustych;
+3. dopiero potem zamknięcie snapshotu metadanych wiadomości rzeczywiście
+   nieprzypisanych i analiza wyłącznie tych wiadomości w celu przypisania do
+   poprawionej bazy — bez zmiany pól klientów i bez ponownego analizowania lub
+   przepinania wiadomości już przypisanych;
+4. pozostałe pilne poprawki CRM: ręczny wybór klienta poza sugestiami,
+   zaznaczanie/licznik/bulk delete kandydatów, odporne scalanie grupowe,
+   diagnoza credentials n8n/Google oraz opisowe błędy z kodami diagnostycznymi.
+
+Wcześniejsze założenie korekty historii na podstawie arkuszy oraz maili jest
+zastąpione. Mail, cały wątek, załącznik i korespondencja wklejona do notatek nie
+są źródłem poprawianych wartości historycznych. CRM i historia zmian służą
+jedynie identyfikacji rekordu, porównaniu, wykrywaniu konfliktów i ochronie
+pracy użytkownika. Brak źródła w arkuszu pozostaje wyjątkiem; nie jest
+uzupełniany z Gmaila ani rejestru publicznego. Liczba maili użytych do tej
+korekty ma wynosić `0`.
+
+Nowy przyrostowy import poczty pozostaje odrębnym wymaganiem. Ograniczona
+historyczna kampania pocztowa używa stabilnych ID, minimalnej treści tylko dla
+nieprzypisanych wiadomości, ponownie sprawdza brak powiązania przed zapisem i
+pozwala pozostawić `ambiguous / no-match / error`. Porządkowanie importowych
+bloków mailowych w notatkach jest osobnym, pochodzeniowo bezpiecznym podetapem;
+nie blokuje pilnej naprawy arkuszowej i nie usuwa tekstu ręcznego.
+
+Ten zapis jest wymaganiem i kolejnością, nie wykonaniem. Audyt produkcji,
+Gmail/Sheets/n8n, modele, import, korekta, merge/delete i deploy pozostają
+`NOT_RUN`. Bieżący R04/P4-B oraz jego zgody i warunki STOP nie zmieniają się.
+
 ## Global execution rules
 
 Każdy FOLLOW-UP CHUNK:
