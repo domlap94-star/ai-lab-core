@@ -680,3 +680,40 @@ zabronione.
 
 Status: `SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 /
 CURRENT_DRIFT_PASS_WITH_RESOURCE_LIMITATION / NO_UAC / NOT_INSTALLED`.
+
+## 22. Run01 — częściowa instalacja i STOP
+
+Właściciel odebrał ograniczoną zmianę short-output i zatwierdził dokładnie jedno
+wznowienie `R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z`. Wykonano jeden
+RunAs/UAC. Recepta zainstalowała i zweryfikowała trzy pliki oraz exact manifest,
+zastosowała docelowe definicje tasków i uruchomiła Host raz. Host zakończył się
+`LastTaskResult=22`; Private Gateway nie został uruchomiony. Stdout launchera
+nie był częścią akcji taska, dlatego dokładny wewnętrzny wynik pozostaje
+`LAUNCHER_RESULT_DETAIL_NOT_CAPTURED`.
+
+Recepta wykonała jedyny dozwolony SAFE_INACTIVE. Public Gateway pozostawał
+`Running`, więc zależny destrukcyjny rollback plików i helper restore zostały
+zablokowane. Wynik recepty: `PARTIAL_AFTER_FAILURE`; rollback:
+`PARTIAL_UNKNOWN`; workery `50/50`; pending mutator `false`; warm runs `0/2`;
+Private starts `0`.
+
+Stan po operacji:
+
+- launcher `7BB24450...F33871`, runtime `349404C3...4FA7`, existing-only helper
+  `91C763F5...667EC` i manifest `E66F22A7...010C` są zainstalowane;
+- Docker Desktop/Compose są disabled/no-trigger;
+- Public/Private/Supervisor są enabled/on-demand/no-trigger; Public działa,
+  Private i Supervisor nie działają;
+- Host jest disabled/no-trigger, PT15M/InteractiveToken/LeastPrivilege/
+  IgnoreNew, a trigger logowania nie został zainstalowany;
+- wrapper Startup pozostaje poza Startup, z exact kopią w rollbacku;
+- sześć przypiętych kontenerów pozostało running i bez restartów; PostgreSQL
+  pozostał healthy; backend/Public Gateway odpowiedziały `200`, a publiczne
+  `/control*` `404`.
+
+Repozytoryjny draft zachowuje `NOT_APPROVED`. Exact zainstalowany manifest był
+przypiętym `APPROVED_FOR_START` wejściem tej operacji; nie daje to odbioru P4/B.
+Jednorazowa zgoda, UAC i SAFE_INACTIVE są zużyte. Następny krok to owner review
+wyniku `HOST_TASK_FAILED_22` i osobna decyzja o ograniczonej diagnostyce. Bez
+retry Host/Install, drugiego UAC, niezależnego rollbacku, logon/reboot, P5 lub
+R06.

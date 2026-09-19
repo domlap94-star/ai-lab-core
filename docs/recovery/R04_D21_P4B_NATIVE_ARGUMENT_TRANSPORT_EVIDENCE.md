@@ -307,3 +307,39 @@ roundtrip `17/17`. Status:
 `SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 / NO_UAC /
 NOT_INSTALLED`. Dalszy RunAs/UAC, Install, warm runs lub rollback wymagają
 nowej bieżącej decyzji właściciela.
+
+## Wynik exact resume short-output — 2026-09-19
+
+Właściciel zaakceptował pochodną tylko dla jednorazowego resume
+`R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z`. Jeden RunAs/UAC został
+wykonany. Instalator zakończył `PARTIAL_AFTER_FAILURE` z
+`HOST_TASK_FAILED:22`; pierwszy Host run był jedyną próbą, warm `0/2`, Private
+starts `0`. Recepta wykonała jeden SAFE_INACTIVE, który zakończył
+`PARTIAL_UNKNOWN`, ponieważ Public Gateway pozostał `Running`; nie wykonano
+destrukcyjnego rollbacku plików ani helper restore. Wszystkie workery
+instalatora są rozliczone `50/50`, pending mutator `false`.
+
+Zainstalowane hashe odpowiadają czterem przypiętym wejściom. Pooperacyjny
+readback wykazał Host disabled/no-trigger z `LastTaskResult=22`, brak logon
+triggera, Private i Supervisor bez listenerów, backend/Public Gateway `200`,
+publiczne `/control*` `404` oraz sześć niezmienionych działających kontenerów,
+`RestartCount=0`, PostgreSQL healthy. Nie wykonano container start/stop/restart.
+
+Bezpieczne dowody LOCAL_ONLY:
+
+| Dowód | Bajty | SHA-256 |
+|---|---:|---|
+| installer result | 10,760 | `3EA0038DDE23C63D69E13E038B329274357C3AC6FFFE89B398098C4243E764C6` |
+| installer events | 9,098 | `F915A12C457589BAD3F7BD30144C66D5A66B4D0D7C5FFB25C2E507C789111CC2` |
+| post task | 5,544 | `B3D1EDB09910B5A4E67027469E8335DE0ECDB1DAD3000C497B6DD2AF8488A005` |
+| post task definitions | 8,616 | `97352F8F1C027C7E8B2C4A0F392B90A3DEBB4B71EB95AFCA0C38EC580C31C825` |
+| post surface | 4,845 | `AE93C524C82125C3A1C512E52F2A29C35F9581042B9CEB9497228D784D9649FE` |
+| post containers | 8,299 | `8865AC7C224CCA04A4FD851238DC6C3EACC691FD92D4FB7CF3453E53C08969E9` |
+
+Nie utrwalono bezpiecznej projekcji stdout launchera, więc kod `22` pozostaje
+`LAUNCHER_RESULT_DETAIL_NOT_CAPTURED`. Nie wolno przypisać go konkretnemu
+adapterowi bez nowego dowodu. Status: `P4B PARTIAL_AFTER_FAILURE /
+HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN /
+PAYLOAD_AND_MANIFEST_INSTALLED / HOST_DISABLED_NO_TRIGGER /
+WARM_RUNS_0_OF_2 / PRIVATE_NOT_STARTED / LOGON_TRIGGER_NOT_INSTALLED /
+READY_FOR_OWNER_REVIEW`. Zgoda/UAC/rollback są skonsumowane; bez retry.

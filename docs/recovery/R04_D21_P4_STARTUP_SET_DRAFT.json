@@ -603,6 +603,7 @@
         "9F4980132ACCF73F4790742849862963E5629386C12E4F225676899DB7EE3B66"
       ]
     },
+    "historical_snapshot_before_run01": true,
     "live_operations_performed": 0,
     "open_blockers": [
       "GLOBAL_START_MANIFEST_NOT_APPROVED",
@@ -612,5 +613,66 @@
       "VHD_AND_PROFILE_RELOCATION_OPEN",
       "SCHEDULED_BACKUP_OPERATION_NOT_YET_VERIFIED_REPAIR_PENDING"
     ]
+  },
+  "p4b_short_output_resume": {
+    "status": "PARTIAL_AFTER_FAILURE_HOST_TASK_FAILED_22_SAFE_INACTIVE_PARTIAL_UNKNOWN_READY_FOR_OWNER_REVIEW",
+    "resume_id": "R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z",
+    "recipe_sha256": "F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A",
+    "package_index_sha256": "36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E",
+    "result_sha256": "3EA0038DDE23C63D69E13E038B329274357C3AC6FFFE89B398098C4243E764C6",
+    "finished_utc": "2026-09-19T21:08:13.8402781Z",
+    "uac_attempts": 1,
+    "mutation_started": true,
+    "installed_files": [
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
+        "sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871"
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\startup-runtime.ps1",
+        "sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7"
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\windows\\start-compose-after-docker.ps1",
+        "sha256": "91C763F5D0FF6CC7184E0B238EA6A6047CBB3FB13F88917777F4E0696E9667EC"
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\startup-set.json",
+        "sha256": "E66F22A7EC433183940FC3014E1B9F8C1DBE535375EC2D6580B958B55586010C",
+        "approval_status": "APPROVED_FOR_START"
+      }
+    ],
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "host_task": {
+      "state": "Disabled",
+      "trigger": "NONE",
+      "last_run_utc": "2026-09-19T21:07:53Z",
+      "last_task_result": 22,
+      "launcher_result_detail": "NOT_CAPTURED"
+    },
+    "warm_runs_completed": 0,
+    "private_gateway_starts_observed": 0,
+    "rollback": {
+      "attempted": true,
+      "status": "PARTIAL_UNKNOWN",
+      "destructive_file_rollback": false,
+      "helper_restore": false,
+      "blocking_observation": "NEXT Stabil - Public Gateway:Running"
+    },
+    "pending_mutation_seen": false,
+    "workers_accounted": "50/50",
+    "post_state": {
+      "docker_desktop": "DISABLED_NO_TRIGGER",
+      "docker_compose": "DISABLED_NO_TRIGGER",
+      "public_gateway": "RUNNING_ON_DEMAND_NO_TRIGGER",
+      "private_gateway": "READY_ON_DEMAND_NO_TRIGGER_NOT_STARTED",
+      "supervisor": "READY_ON_DEMAND_NO_TRIGGER_INTENTIONALLY_STOPPED",
+      "host_logon_trigger": "NOT_INSTALLED",
+      "containers": "SIX_OF_SIX_UNCHANGED_RUNNING_RESTART_COUNT_ZERO",
+      "postgres": "healthy"
+    },
+    "authorization_consumed": true,
+    "owner_review_required": true,
+    "automatic_retry_authorized": false
   }
 }

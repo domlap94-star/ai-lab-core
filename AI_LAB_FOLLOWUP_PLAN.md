@@ -3087,3 +3087,31 @@ roundtrip `17/17`. Status:
 CURRENT_DRIFT_PASS_WITH_RESOURCE_LIMITATION / NO_UAC / NOT_INSTALLED`.
 No RunAs/UAC, Install, task/file mutation, service start, warm run or rollback
 is authorized until the owner gives the exact new single-use decision.
+
+**P4/B RUN01 RESULT — 2026-09-19.** The owner accepted the limited
+short-output derivative and authorized exactly one resume
+`R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z`. One RunAs/UAC was used.
+The installer wrote and verified the exact launcher, runtime, existing-only
+helper and installed manifest, applied the target task definitions and invoked
+Host once. Host returned `22`; no launcher detail was captured, so the result
+is `HOST_TASK_FAILED_22 / LAUNCHER_RESULT_DETAIL_NOT_CAPTURED`, not an inferred
+adapter failure.
+
+The recipe used its single SAFE_INACTIVE. Because Public Gateway was still
+`Running`, dependent file/helper rollback was correctly refused. Final recipe
+status is `PARTIAL_AFTER_FAILURE`, rollback `PARTIAL_UNKNOWN`, owned workers
+`50/50`, pending mutator `false`, warm runs `0/2`, Private starts `0`. Host is
+`Disabled/no-trigger` with `LastTaskResult=22`; no Host logon trigger was
+installed. Docker Desktop and Docker Compose are disabled/no-trigger;
+Public/Private/Supervisor definitions are enabled/on-demand/no-trigger. Public
+remains running, Private and Supervisor are not running, and Supervisor remains
+`INTENTIONALLY_STOPPED`.
+
+Post-readback confirmed backend/Public Gateway `200`, public `/control*` `404`
+and all six exact containers still running with unchanged ID/image/mount/port/
+network identity and `RestartCount=0`; PostgreSQL is healthy. Container
+start/stop/restart counts were `0/0/0`. Repository draft remains
+`NOT_APPROVED`; the exact installed manifest is the pinned operation input and
+is `APPROVED_FOR_START`. This is not P4/B acceptance. The resume, UAC and
+rollback authority are consumed; no retry, independent rollback, logon/reboot,
+P5 or R06 is authorized without a new owner decision.

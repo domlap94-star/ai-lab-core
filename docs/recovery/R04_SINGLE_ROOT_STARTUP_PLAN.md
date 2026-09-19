@@ -5,7 +5,8 @@ P2_PRESERVATION_AND_CANDIDATE_ACCEPTED /
 ACTIVE_DATA_TOPOLOGY_AND_DESTINATION_SOURCE_ACCEPTED /
 P3_CORE_BACKEND_SOURCE_SWITCH_ACCEPTED_LIMITED_RUNTIME_SCOPE /
 P4A_SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED_NOT_INSTALLED /
-P4B_PARTIAL_SAFE_INACTIVE_RESUME_PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED`
+P4B_PARTIAL_AFTER_FAILURE_HOST_TASK_FAILED_22_SAFE_INACTIVE_PARTIAL_UNKNOWN /
+PAYLOAD_AND_MANIFEST_INSTALLED_HOST_DISABLED_NO_TRIGGER_WARM_RUNS_0_OF_2`
 Źródło statusu wykonawczego: §0 i §0.2
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
@@ -325,3 +326,26 @@ wejść, lecz zatrzymało się przed mutacją na błędzie transportu argumentu
 rollbacku resume; stan partial safe inactive pozostał bez zmian. Następny krok
 to przejrzenie poprawionej recepty i indeksu, a dopiero później osobna dokładna
 zgoda właściciela. Ten plan nie udziela tej zgody.
+
+## 7. Stan po exact P4/B run01 — 2026-09-19
+
+Późniejsza, osobna decyzja właściciela zatwierdziła jednorazowo exact
+short-output resume. Jeden RunAs/UAC zainstalował trzy pliki P1/P4-A i exact
+manifest oraz zastosował docelowe definicje tasków. Pierwszy Host warm run
+zakończył się kodem `22`, zanim Private Gateway został uruchomiony. Jedyny
+SAFE_INACTIVE zakończył się `PARTIAL_UNKNOWN`; działający Public Gateway
+zablokował destrukcyjny rollback zależnych plików/helpera.
+
+Aktualny potwierdzony stan to: wrapper Startup nadal nieaktywny; launcher,
+runtime, existing-only helper i exact installed manifest obecne; Docker
+Desktop/Compose disabled/no-trigger; Public/Private/Supervisor on-demand bez
+automatycznych triggerów; Host disabled/no-trigger z LastTaskResult `22`;
+warm `0/2`; brak Host logon triggera; Supervisor nadal
+`INTENTIONALLY_STOPPED`. Sześć kontenerów zachowało tożsamość i nie zostało
+zrestartowanych.
+
+Repozytoryjny draft nadal jest `NOT_APPROVED`, ale exact installed manifest
+jest przypiętym `APPROVED_FOR_START` wejściem zużytej operacji. Stan nie oznacza
+ukończonego jednego startu. Przed dalszą diagnostyką lub mutacją wymagane są
+owner review i nowa decyzja; automatyczny retry lub kolejny rollback są
+zabronione.

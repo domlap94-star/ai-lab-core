@@ -165,6 +165,22 @@
   derivative or authorization for RunAs/UAC, Install, task/file mutation,
   warm runs or rollback; those require the new exact single-use owner decision.
 
+  The owner then accepted that exact derivative and authorized the single-use
+  resume `R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z`. One RunAs/UAC was
+  used. The exact three files and installed manifest were written and task
+  definitions reached the recipe target, but the first Host warm attempt ended
+  with `LastTaskResult=22` before Private Gateway started. The recipe consumed
+  its one SAFE_INACTIVE and ended `PARTIAL_AFTER_FAILURE /
+  SAFE_INACTIVE_PARTIAL_UNKNOWN`: Public Gateway remained `Running`, so
+  dependent file/helper rollback was not allowed. Current confirmed state is
+  Host `Disabled/no-trigger`, warm runs `0/2`, Private not started, Supervisor
+  `INTENTIONALLY_STOPPED`, no Host logon trigger, and six unchanged running
+  containers. Repository draft remains `NOT_APPROVED`; the exact installed
+  manifest is the pinned `APPROVED_FOR_START` operation input. The operation,
+  UAC and rollback authority are consumed. Do not retry Host/installer, perform
+  another rollback or infer the cause of exit `22`; further diagnosis or
+  mutation requires a new owner decision.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that
@@ -228,15 +244,14 @@
   identity evidence is complete 6/6 after a documented transcription
   correction. The P4/B authorization for OP_ID
   `R04-D21-P4B-WINDOW-20260918T084652Z` and the later resume authorization
-  `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The partial disabled Host
-  task and relocated Startup wrapper must not be treated as an installed
-  launcher. The corrected transport bytes retain their offline/read-only
-  evidence. The later full-path LOCAL_ONLY recipe/index/ZIP are ready only for
-  exact-byte review; they have not performed a live drift check or installation.
-  Any continuation requires owner review of those exact bytes, a
-  fresh bounded drift check, a new current owner decision and owner presence for
-  one UAC prompt. That future decision is single-use and does not authorize
-  reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
+  `R04-D21-P4B-RESUME-20260918T112015Z` are consumed. The later short-output
+  resume `R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z` is also consumed.
+  It installed the exact payload/manifest but stopped after Host result `22`;
+  SAFE_INACTIVE remained partial, Host is disabled/no-trigger and warm runs are
+  `0/2`. This is not P4/B acceptance. Any continuation requires owner review of
+  the preserved result and a new narrowly defined decision. No standing
+  permission exists for another UAC, retry, rollback, reboot/logoff, Supervisor,
+  backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.
