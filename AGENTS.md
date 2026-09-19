@@ -222,9 +222,20 @@
   only a closed set of still-unassigned mail. Never use mail, threads,
   attachments, or imported mail-note text to repair Client fields; never
   reanalyse or relink already assigned mail in that campaign. Preserve correct,
-  manual, confirmed, and deliberately cleared values per field. This priority
-  does not interrupt R04 or authorize production audit, data writes, Gmail or
-  Sheets access, models, import, merge/delete, or deployment.
+  manual, confirmed, and deliberately cleared values per field. After the
+  future approved implementation, an unambiguous new Sheet row creates or
+  links one Client directly and idempotently; Sheet candidates are reserved for
+  errors/conflicts, not mandatory per-row approval. A changed linked row adds
+  versioned information and visible provenance without deleting older CRM data;
+  clearing/removing source cells or rows never deletes the Client or relations.
+  Qualifying mail creates a candidate only when it cannot be matched to an
+  existing Client; a later Client/contact may resolve one unambiguous mail
+  candidate by email OR phone without rewriting Client fields from mail.
+  Preserve the existing n8n 15-minute mechanism for incremental new Gmail and
+  new/changed Sheet records, with stable checkpoints, idempotency and visible
+  failures. These are documented future requirements, currently `NOT_RUN`;
+  this priority does not interrupt R04 or authorize production audit, data
+  writes, Gmail/Sheets/n8n access, models, import, merge/delete, or deployment.
 - Before changing code, read section 0 of the shared roadmap, the active package
   card, linked requirements, and the latest note in `docs/recovery/checkpoints/`.
   Verify branch `recovery/next-stabil-repair-completion`, remote SHA, the correct

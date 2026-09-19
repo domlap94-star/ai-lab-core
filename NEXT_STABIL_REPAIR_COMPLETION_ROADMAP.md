@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION. R04 i R05 pozostają IN_PROGRESS. R05-A4 pozostaje `SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`. D-21 P1/P2/DATA_ONLY/guard i ograniczony P3 zachowują wcześniejsze odbiory. P4/A pozostaje `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. Właściciel odebrał dokładną pochodną short-output `F65DF723...BF8C9A` tylko dla jednorazowego resume `R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z`; zgoda, jeden UAC i jeden SAFE_INACTIVE zostały zużyte. Instalator zakończył `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22`, a rollback `PARTIAL_UNKNOWN`: trzy przypięte pliki i manifest są zainstalowane, Host jest `Disabled` bez triggera z `LastTaskResult=22`, warm runs `0/2`, Private nie został uruchomiony, Supervisor pozostaje `INTENTIONALLY_STOPPED`, a trigger logowania Host nie powstał. Sześć przypiętych kontenerów zachowało pełne ID/image/mounty/porty/sieć i `RestartCount=0`; PostgreSQL pozostał healthy. Repozytoryjny draft nadal jest `NOT_APPROVED`, natomiast dokładny zainstalowany manifest jest przypiętym `APPROVED_FOR_START`; nie oznacza to odbioru P4/B ani globalnego startu. D-22 wiążąco ustala pierwszy priorytet po zakończeniu i właścicielskim odbiorze R04: `ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE`; audyt i wykonanie tych napraw pozostają `NOT_RUN`, a aktywny zakres R04/P4-B nie zmienia się. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION. R04 i R05 pozostają IN_PROGRESS. R05-A4 pozostaje `SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`. D-21 P1/P2/DATA_ONLY/guard i ograniczony P3 zachowują wcześniejsze odbiory. P4/A pozostaje `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. Właściciel odebrał dokładną pochodną short-output `F65DF723...BF8C9A` tylko dla jednorazowego resume `R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z`; zgoda, jeden UAC i jeden SAFE_INACTIVE zostały zużyte. Instalator zakończył `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22`, a rollback `PARTIAL_UNKNOWN`: trzy przypięte pliki i manifest są zainstalowane, Host jest `Disabled` bez triggera z `LastTaskResult=22`, warm runs `0/2`, Private nie został uruchomiony, Supervisor pozostaje `INTENTIONALLY_STOPPED`, a trigger logowania Host nie powstał. Sześć przypiętych kontenerów zachowało pełne ID/image/mounty/porty/sieć i `RestartCount=0`; PostgreSQL pozostał healthy. Repozytoryjny draft nadal jest `NOT_APPROVED`, natomiast dokładny zainstalowany manifest jest przypiętym `APPROVED_FOR_START`; nie oznacza to odbioru P4/B ani globalnego startu. D-22 wiążąco ustala pierwszy priorytet po zakończeniu i właścicielskim odbiorze R04: `ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE`. Przyszła polityka tworzy lub wiąże jednoznacznego klienta bez kandydata arkuszowego, wersjonuje zmiany Sheets bez utraty danych, rozwiązuje jednoznacznych kandydatów mailowych po e-mailu **lub** telefonie oraz zachowuje istniejący przyrostowy harmonogram n8n co 15 minut dla nowych maili i nowych/zmienionych rekordów Sheets. Audyt, implementacja i wykonanie pozostają `NOT_RUN`; aktywny zakres oraz checkpoint R04/P4-B nie zmieniają się. Bieżący stan znajduje się wyłącznie w §0.**
 
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
@@ -264,6 +264,80 @@ implementacja, modele i naprawa danych mają status `NOT_RUN`.
 Model lokalny może później proponować ustrukturyzowaną interpretację tylko z
 dowodami arkuszowymi, po wykazaniu jakości i odrębnym dopuszczeniu; nie jest
 wymagany dla przypadków deterministycznych i nie otrzymuje dowolnego SQL.
+
+Po przyszłym zatwierdzonym wdrożeniu arkusze są traktowane jako całość
+dostępnych właścicielowi informacji dla tego zakresu. Jednoznaczny nowy wpis
+tworzy bezpośrednio jednego klienta albo wiąże się z istniejącym; nie powstaje
+obowiązkowy kandydat arkuszowy ani osobny monit dla każdego poprawnego wiersza.
+Brak opcjonalnych danych pozostaje pusty. Stabilna tożsamość źródła, wersja i
+identyfikator operacji chronią przed duplikatem po sortowaniu, przesunięciu,
+retry albo timeoutcie. Nieczytelny, pusty, sprzeczny lub niejednoznaczny wpis
+ma osobny wynik do rozliczenia, a historyczne kandydaty arkuszowe wymagają
+kontrolowanego audytu zamiast masowej akceptacji/usunięcia.
+
+Kandydat powstaje wyłącznie z kwalifikującego się maila, którego nie można
+jednoznacznie dopasować do istniejącego klienta; awaria techniczna nie jest
+`no-match`, a odpowiedzi jednego zgłoszenia nie tworzą kandydata per wiadomość.
+Po zapisaniu klienta ręcznie/z arkusza albo właściwego kontaktu jednoznaczny
+nierozstrzygnięty kandydat może zostać automatycznie połączony po e-mailu **LUB**
+telefonie, z zachowaniem maili, dokumentów, relacji, provenance i audytu. Spór
+e-mail kontra telefon, kontakt współdzielony lub kilka osób pozostaje wyjątkiem;
+nie scala dwóch klientów i nie zmienia pól klienta na podstawie maila.
+
+Zmiana wcześniej powiązanego wiersza Sheets dopisuje wersję źródła, nowe
+rozpoznane informacje i widoczną historię `poprzednia -> nowa` przy tym samym
+kliencie. Poprzednie dane nie są kasowane, automatyczny log nie trafia do
+ręcznych notatek, a czasu/autora edycji nie wolno zgadywać. Wyczyszczenie
+komórki, usunięcie wiersza, niedostępność źródła albo niepełny odczyt nie usuwa
+klienta, kontaktów, dokumentów, relacji ani wcześniejszych wartości. Ponowne
+pojawienie się rekordu korzysta z zachowanego powiązania. Nowa wartość bieżąca
+może zostać wybrana automatycznie tylko według odebranej polityki pola i bez
+konfliktu z wartością ręczną/główną/potwierdzoną/świadomie pustą.
+
+Istniejący mechanizm n8n pozostaje jedynym harmonogramem przyrostowym co 15
+minut dla nowych kwalifikujących się maili, nowych wierszy Sheets oraz zmian
+powiązanych wierszy. Nie wolno co cykl czytać/analizować całej poczty ani tworzyć
+drugiego schedulera. Brak zmian daje zero nowych klientów/kandydatów/wersji;
+retry, nakładanie cykli i timeout po zapisie zachowują pojedynczy efekt, a błąd
+pozycji nie może zniknąć przy przesunięciu kursora. Błąd credentials lub
+niepełny odczyt ma jawny status oraz czas ostatniego udanego sprawdzenia i
+przetworzenia. Deklaracja `15 minut` i ręczne `Execute` nie są dowodem działania;
+późniejszy audyt musi sprawdzić realną konfigurację i wykonania.
+
+Minimalna macierz odbioru D-22, rozdzielona między R12/R16/R20/R22:
+
+- poprawny nowy wiersz, także bez danych opcjonalnych, daje jednego klienta i
+  zero kandydatów arkuszowych; powtórzenie, sortowanie i przesunięcie nie
+  dublują, a informacja w mylącej kolumnie ma właściwą semantykę albo wyjątek;
+- jednoznaczny mail trafia do klienta bez kandydata, niedopasowany tworzy jednego
+  kandydata dla zgłoszenia, a kolejności `kandydat -> klient` i `klient -> mail`
+  kończą się pojedynczym powiązaniem po e-mailu **lub** telefonie;
+- konflikt e-mail/telefon, kontakt współdzielony lub kilka osób nie scala
+  klientów; ręczna zmiana/przypisanie wykonane w trakcie cyklu jest chronione,
+  a retry, restart i równoległe zdarzenia nie dublują efektu;
+- połączenie zachowuje wiadomości, dozwolone dokumenty/załączniki i audyt, nie
+  dokleja całego wątku do notatek i nie poprawia pól klienta z maila;
+- zmiana powiązanego wiersza zachowuje poprzednią i nową wersję, dodaje właściwy
+  kontakt/pole/sprawę/obiekt albo jawny konflikt; historyczny błędny adres jest
+  audytowalny, ale nie wraca jako bieżący cel mapy;
+- wyczyszczenie komórki i usunięcie wiersza nie kasują danych CRM, ponowne
+  pojawienie się wpisu nie dubluje, a identyfikator tylko błędny/sporny/
+  historyczny nie uruchamia automatycznego scalenia kandydata;
+- rzeczywisty później autoryzowany harmonogram potwierdza interwał 15 minut dla
+  nowych maili, nowych wierszy i edycji starego wiersza; cykl bez zmian tworzy
+  zero danych merytorycznych, a timeout/równoległość mają pojedynczy efekt;
+- awaria źródła, niepełny odczyt lub wygasłe credentials jest błędem bez
+  usuwania danych i pozornego `0 zmian`; wznowienie nie gubi ani nie dubluje
+  pozycji, Gmail nie skanuje całej historii, a niezmienione Sheets nie trafiają
+  ponownie do modelu bez potrzeby;
+- szczegóły klienta pokazują poprzednią/nową wartość, źródło, czas wykrycia i
+  rzeczywisty skutek; ręczne notatki pozostają odrębne, a brak autora/czasu
+  edycji źródła nie jest uzupełniany domysłem.
+
+Dokumentacyjny checkpoint tej polityki:
+`docs/recovery/checkpoints/20260919T220056Z-D22-CRM-AUTOMATION-POLICY.md`.
+Nie zastępuje aktywnego checkpointu operacyjnego R04/P4-B i nie zmienia jego
+warunków STOP.
 
 - **K0 — baza kontrolowana:** R00–R04 w zakresie właściwych decyzji i operacji. Można bezpiecznie testować/odtwarzać oraz jednoznacznie identyfikować zestaw.
 - **K1 — użyteczny CRM + Asystent:** R16 i jego zależności. 9B + KB + Visual + trudna analiza + historia działają w aplikacji. Nie czekamy z tym odbiorem na wszystkie oferty/umowy/CAD. Kontrolowane wydanie K1 jest osobnym zleceniem; nie jest pełnym Masterplan PASS.
@@ -822,6 +896,8 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 3. Przygotować read-only mailbox ID/window comparison bez bodies, mark-read i zmian labels. Rozróżnić permission/window gap od braku wiadomości w DB.
 4. Dla 4262 historycznych źródeł najpierw aktualny raport dry-run i conflict review. Nowe zachowanie matcher ≠ zgoda na masowy relink; apply tylko wskazanego batcha po osobnej zgodzie.
 5. D-22 ogranicza pilną kampanię historycznej poczty po R04 do stabilnego snapshotu **wyłącznie wiadomości nieprzypisanych**, wyznaczonego z metadanych i rzeczywistych relacji po walidacji klientów. Już przypisanych wiadomości nie analizować ani nie przepinać; nie pobierać hurtowo wątków/załączników i nie używać maili do zmiany pól klientów.
+6. W przyrostowym przepływie najpierw dopasować kwalifikujący się mail do istniejącego klienta po prawidłowym e-mailu, telefonie i dozwolonym kontekście. Kandydat mailowy powstaje tylko przy braku jednoznacznego klienta; błąd odczytu/credentials/parsera/zapisu pozostaje błędem, a nie `no-match`. Odpowiedzi tego samego zgłoszenia wykorzystują jednego właściwego kandydata.
+7. Po utworzeniu klienta ręcznie/z arkusza lub dodaniu dozwolonego kontaktu automatycznie rozwiązać jednoznacznego kandydata po e-mailu **LUB** telefonie, zachowując źródła, wiadomości, dokumenty i audyt. Konflikt identyfikatorów/współdzielony kontakt blokuje tylko tę pozycję; mail nie zmienia pól klienta i nie przepina istniejącego powiązania z innym klientem.
 
 **Sprawdzenia i dowody**
 
@@ -829,6 +905,8 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 - Niejednoznaczne pozostają do review; forced failure/retry nie nadpisuje ręcznej decyzji.
 - Provider/DB comparison podaje wyraźne okno i kompletność; compose/send test używa stub/sandbox i potwierdzenia człowieka.
 - Tuż przed zapisem wiadomość nadal jest nieprzypisana; ręczne przypisanie wygrywa, batch wznawia tylko niezakończone pozycje, a `matched / ambiguous / no-match / error` pozostają rozróżnione bez dopasowania na siłę.
+- Kolejności `mail -> kandydat -> klient` oraz `klient -> mail` dają pojedyncze powiązanie; zgodny sam e-mail lub sam telefon wystarcza dla jednoznacznego przypadku, lecz rozbieżność e-mail/telefon i wspólny kontakt nie powodują błędnego scalenia.
+- Retry, równoległy cykl i timeout po zapisie nie dublują kandydata, maila ani relacji; już przypisany mail pozostaje nietknięty.
 
 **Warunek zamknięcia:** Nowy przepływ przyjęcia i powiązania odebrany; historyczne rekordy mają rozstrzygniętą klasę lub jawny backlog zaakceptowany przez właściciela.
 
@@ -964,6 +1042,7 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 5. W emulatorze udowodnić kontrakt aparatu/foreground GPS z symulowanym wejściem; nie nazywać tego pomiarem dokładności fizycznego GPS/aparatu.
 6. W odbiorze Asystenta przejść oddzielne scenariusze D-15/D-16: rozproszone wystarczające dane bez zbędnego dopytania; brak dokumentu z uzasadnioną estymacją; nieznany parametr z wariantami; odmowa nieuzasadnionej liczby przy zachowanej pomocy; oraz jawne rozstrzygnięcie złego scope, nieaktualnego pomiaru i konfliktu źródeł.
 7. Dla priorytetu D-22 odebrać API/UI poprawionych pól i rozdzielenie semantyczne informacji: opis zdarzenia nie jest adresem mapy, rodzaj budynku nie jest typem prawnym klienta, a data zgłoszenia/propozycja/potwierdzony termin pozostają odrębne. Błędy mają opis dla użytkownika oraz stabilny kod diagnostyczny; niepewny zapis nie może być fałszywie opisany jako brak zapisu.
+8. W szczegółach klienta odebrać historię D-22 jako odrębne od notatek wersje źródła i wartości: poprzednia/nowa treść, komórki, czas wykrycia, dostępny czas/autor źródła bez domysłów oraz faktyczny skutek systemu. Wyczyszczenie/usunięcie w Sheets nie może zniknąć jako pozorny sukces ani usunąć danych klienta.
 
 **Sprawdzenia i dowody**
 
@@ -972,6 +1051,7 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 - `R04-A2-UI06`: `SOURCE_ACCEPTED / WEB_AB_FUNCTIONAL_ACCEPTED / NOT_DEPLOYED` dla `DocumentsController`. Właściciel zaakceptował source/test `48fbecae0a76edb25f60e9dd314bb8d65bfbae4b`, route-first A (`PASS / OWNER_OPERATED_RUSTDESK`, dowód `0d0ac4d48624035682b4b7dda06f83dd80d6abe8`) oraz historyczny B (`FUNCTIONAL_PASS / OWNER_OPERATED_RUSTDESK`, dowód przy `25c30e7dd9e3d451772eee812bdef190665e1b8d`). B zachowuje przekroczenie 25 minut i przerwy monitoringu ponad 30 sekund, więc nie otrzymuje wstecz pełnego proceduralnego PASS. Dwa wcześniejsze A pozostają `NOT_VERIFIED`; Dashboard preview `limit=6` jest dozwolony. Konkretny defekt `DocumentsController` jest naprawiony źródłowo i odebrany funkcjonalnie w Web na wskazanych wersjach. Nie dowodzi to braku wszystkich innych przyczyn historycznego incydentu ani nie obejmuje `ClientsController`, Androida, W-02, całego A2/R04/R16, docelowego zestawu wydania lub deploymentu.
 - D-17: Web jest pierwszą ścieżką kolejnych testów wspólnego API/logiki, a Android runtime jest `DEFERRED_BY_OWNER / NOT_TESTED`. Nie zamyka to wieloplatformowego K1 ani natywnych kryteriów lifecycle, uprawnień, aparatu/GPS, transportu i podpisu; wąski viewport Web nie jest Android PASS.
 - Każdy wspierany target ma zidentyfikowany build i zaakceptowany krytyczny przepływ.
+- API/UI pokazuje nowe i wcześniejsze informacje bez sklejenia ich w Notatki; ręczna/główna wartość jest chroniona, konflikt czytelny, a nieznany autor/czas edycji nie jest zmyślony.
 - Odbiór samego dokumentu nie zastępuje odbioru całej uprawnionej sprawy, a poprawna odmowa liczby bez podstaw nie zastępuje pozytywnego testu estymacji tam, gdzie podstawy istnieją. R04-A2 bez modelu nie nadaje tym kryteriom PASS.
 
 **Warunek zamknięcia:** Kamień K1: działający CRM + analityczny Asystent, gotowy do osobnego kontrolowanego wydania, mimo nadal otwartych ofert/umów/metod. Nie oznaczać pełnego Masterplan PASS.
@@ -1106,6 +1186,9 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 4. Dostarczyć brakujące drafts notatki/zadania/e-maila/raportu oraz porównanie dokumentów, jeżeli obecne wejścia ich nie realizują. Zapis narzędziowy tylko allowlisted i z wymaganym approval; bez dowolnego shell/SQL.
 5. Rozstrzygnąć powiązanie finansowych dokumentów potrzebnych sprawie w istniejącym archiwum; nie zakładać budowy pełnej księgowości.
 6. Zachować pilne poprawki użyteczności: ręczne wyszukiwanie docelowego klienta poza sugestiami; `Zaznacz wszystko` z rozróżnieniem strony i całego filtra, licznikiem oraz batch delete przez kosz; scalanie grupowe z wynikiem per element, kontrolą konfliktu/wersji i retry tylko pozycji niezakończonych.
+7. Po przyszłym wdrożeniu jednoznaczny nowy wiersz zatwierdzonego arkusza tworzy bezpośrednio jednego klienta lub wiąże źródło z istniejącym — bez kandydata arkuszowego i bez obowiązkowej akceptacji per wiersz. Brak pól opcjonalnych nie blokuje; stabilna tożsamość źródła i operacji chroni przed duplikatem po sortowaniu, przesunięciu, retry lub timeoutcie. Błędny/sprzeczny wpis pozostaje jawnym wyjątkiem.
+8. Dla zmiany powiązanego wiersza zachować poprzednią i nową wersję oraz dopisać jednoznaczną nową informację do właściwego pola/kontaktu/sprawy/obiektu/historii bez destrukcyjnego lustrzanego nadpisania. Wyczyszczenie komórki i usunięcie/nieobecność wiersza są zdarzeniami źródłowymi, nigdy automatycznym usunięciem danych CRM.
+9. Zachować historię błędnej wartości przy naprawie bieżącego pola, oddzielić aktywne identyfikatory dopasowania od identyfikatorów tylko historycznych/spornych oraz uruchomić regułę rozwiązywania kandydatów dopiero dla nowego prawidłowego kontaktu.
 
 **Sprawdzenia i dowody**
 
@@ -1113,6 +1196,10 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 - Role mają negatywne testy działań; optimistic conflict, merge review, Trash restore/purge tylko w izolacji i zgodnie z polityką.
 - UI zachowuje stany loading/error/empty/offline/back i brak N+1 w krytycznych listach.
 - Testy D-22 obejmują mylące kolumny, wiele adresów/spraw, ręczne poprawki i świadomie puste pola, równoległą edycję, przerwany batch oraz ponowienie po utracie odpowiedzi. Liczba maili użytych do korekty historycznych pól klientów wynosi `0`; raport rozróżnia naprawione, poprawne bez zmian, konflikty, brak źródła i pominięcia.
+- Nowy poprawny wiersz daje jednego klienta i zero kandydatów arkuszowych; brak danych opcjonalnych pozostaje pusty, a powtórzenie/sortowanie/zmiana pozycji nie tworzą duplikatu. Już istniejący klient zachowuje chronione pola.
+- Zmiana wiersza daje tę samą kartę, nową wersję/zdarzenie i zachowaną poprzednią wartość; wyczyszczenie komórki lub usunięcie wiersza nie usuwa klienta/relacji, a ponowne pojawienie się wpisu nie dubluje danych.
+- Ręczna zmiana w trakcie cyklu wygrywa z wcześniejszym odczytem; update źródłowy pozostaje propozycją/konfliktem. Historyczny błędny adres pozostaje w audycie, ale nie wraca jako bieżący cel mapy.
+- Nowy prawidłowy e-mail/telefon może rozwiązać jednoznacznego kandydata; identyfikator tylko błędny, sporny lub historyczny nie scala automatycznie.
 
 **Warunek zamknięcia:** Istniejące DEMONSTRATED pozostają objęte regresją, braki mają małe zakończone slice, a nie nową implementację CRM.
 
@@ -1176,12 +1263,15 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 4. Audytować i uzgodnić n8n execution retention, log/audit policy oraz security-header compatibility; brak cleanup przed właściwym approval.
 5. Powtórzyć potrzebne granice auth/rate/CORS/debug/secrets i admission backup/OCR/model na aktualnym zestawie.
 6. Po etapach arkuszowej korekty i ograniczonego dopasowania poczty z D-22 zdiagnozować okresowe błędy credentials n8n/Google na podstawie konkretnego etapu, kodu błędu i minimalnych metadanych/logów. Opublikowany projekt nie jest automatycznie `Testing`; bez próbnej rotacji/kasowania credentials, restartu usług ani analizy treści całej skrzynki.
+7. Zachować istniejący mechanizm n8n co 15 minut dla nowych kwalifikujących się maili, nowych wierszy Sheets i rzeczywistych zmian wcześniej powiązanych wierszy. Użyć trwałych checkpointów, stabilnych ID, kontroli nakładających się cykli i jawnego backlogu pozycji błędnych; bez drugiego schedulera, pełnego reimportu skrzynki i modelowania niezmienionych rekordów. Pokazywać ostatnie udane sprawdzenie i przetworzenie per źródło; awaria/niepełny odczyt nie jest `0 zmian`.
 
 **Sprawdzenia i dowody**
 
 - Fault injection w izolacji wywołuje właściwy alert bez ujawnienia sekretów; przejściowy błąd nie powoduje nieograniczonych powiadomień.
 - Dry-run retention daje dokładny manifest plików/rozmiarów/przyczyn i zachowanych kopii; apply tylko po osobnej zgodzie.
 - Operacje nie blokują hot-path UI i mają jawny status, historię oraz możliwość bezpiecznego pause.
+- Późniejszy autoryzowany test realnego harmonogramu potwierdza około 15-minutowy trigger dla nowych maili, nowych wierszy i edycji istniejącego wiersza; ręczne `Execute` lub deklaracja konfiguracji nie wystarcza.
+- Cykl bez zmian daje zero nowych klientów/kandydatów/wersji, a retry, równoległość i timeout po zapisie dają pojedynczy efekt. Awaria źródła pozostaje widoczna i po wznowieniu nie gubi ani nie dubluje pozycji.
 
 **Warunek zamknięcia:** Operacje wymagane w followup odebrane; wyłączona retencja jest akceptowana wyłącznie jako jawna decyzja właściciela, a nie ukryte COMPLETE.
 

@@ -57,6 +57,53 @@ pozwala pozostawić `ambiguous / no-match / error`. Porządkowanie importowych
 bloków mailowych w notatkach jest osobnym, pochodzeniowo bezpiecznym podetapem;
 nie blokuje pilnej naprawy arkuszowej i nie usuwa tekstu ręcznego.
 
+W zakresie D-22 prawidłowo pobrane i zinterpretowane zatwierdzone arkusze są
+całością informacji, które właściciel może dostarczyć do tej naprawy. Brak
+danych opcjonalnych pozostaje pustą wartością i nie wymusza szukania jej w
+poczcie, dokumentach lub rejestrach. Po przyszłym wdrożeniu jednoznaczny nowy
+wiersz tworzy bezpośrednio jednego klienta albo wiąże się z istniejącym, bez
+pośredniego kandydata arkuszowego i bez obowiązkowej akceptacji każdego
+poprawnego wiersza. Stabilna tożsamość źródła, idempotency key i rozliczenie
+niepewnego zapisu mają zapobiegać duplikatom mimo sortowania, przesunięcia
+wiersza, retry lub timeoutu. Błąd, pusty lub sprzeczny wpis dostaje osobny wynik
+do wyjaśnienia; nie staje się kandydatem mailowym.
+
+Kandydaci są tworzeni wyłącznie dla kwalifikujących się wiadomości, których nie
+można jednoznacznie dopasować do istniejącego klienta. Jednoznaczny e-mail,
+telefon lub dozwolony kontekst wiąże mail bez kandydata; awaria techniczna nie
+jest `no-match`, a kolejne odpowiedzi tego samego zgłoszenia nie tworzą nowych
+kandydatów. Po utworzeniu klienta ręcznie lub z arkusza oraz po dodaniu
+dozwolonego kontaktu system sprawdza nierozstrzygniętych kandydatów: zgodny
+e-mail **LUB** telefon może automatycznie rozwiązać jednoznaczny przypadek,
+zachowując wiadomości, dokumenty, źródła i audyt. Kontakt współdzielony,
+sprzeczny albo wskazujący dwóch klientów pozostaje wyjątkiem. Automatyczne
+połączenie nie poprawia pól klienta na podstawie maila i nie przepina wiadomości
+już przypisanych do innego klienta.
+
+Zmiana wcześniej powiązanego rekordu Sheets tworzy wersję źródła i widoczne w
+szczegółach klienta zdarzenie `poprzednia -> nowa`, z identyfikatorem arkusza,
+rekordu/komórek, czasem wykrycia, wynikiem interpretacji i dostępną informacją o
+czasie/autorze edycji. Nie wolno zmyślać autora ani wcześniejszych wersji sprzed
+wdrożenia rejestracji. Nowa poprawna informacja trafia do właściwego pola,
+kontaktu, sprawy, obiektu lub historii; wcześniejsze dane i provenance nie
+znikają, a wartości ręczne/główne/potwierdzone/świadomie puste pozostają
+chronione. Wyczyszczenie komórki, usunięcie wiersza albo niepełny odczyt Sheets
+nie usuwa klienta, relacji lub wcześniejszych wartości. Ponowne pojawienie się
+rekordu korzysta z zachowanego powiązania zamiast tworzyć duplikat. Historia
+źródła i automatyczne zdarzenia pozostają oddzielone od ręcznych notatek.
+
+Istniejący mechanizm n8n ma nadal sprawdzać oba źródła co 15 minut: nowe
+kwalifikujące się wiadomości Gmail, nowe rekordy Sheets i rzeczywiście zmienione
+rekordy już powiązane. Nie wolno tworzyć drugiego konkurującego schedulera ani
+co cykl analizować całej skrzynki. Trwałe checkpointy i stabilne identyfikatory
+muszą zapewniać: brak zmian = brak nowych rekordów/wersji; retry, nakładanie
+cykli i timeout po zapisie = pojedynczy efekt; błąd pojedynczej pozycji = trwały
+stan do wznowienia bez zgubienia jej przez przesunięcie kursora. Błąd
+credentials, niepełny odczyt lub awaria źródła ma jawny status i czas ostatniego
+udanego sprawdzenia/przetworzenia, a nie pozorny wynik `0 zmian`. Deklaracja
+interwału ani ręczne `Execute` nie są dowodem działającej automatyki; późniejszy
+audyt i wdrożenie wymagają odrębnej zgody.
+
 Ten zapis jest wymaganiem i kolejnością, nie wykonaniem. Audyt produkcji,
 Gmail/Sheets/n8n, modele, import, korekta, merge/delete i deploy pozostają
 `NOT_RUN`. Bieżący R04/P4-B oraz jego zgody i warunki STOP nie zmieniają się.
