@@ -2944,3 +2944,25 @@ Docker/Task/CIM/TCP/HTTP/UAC/product mutations were zero. Status:
 NOT_INSTALLED`. The host state remains historical and was not read in this
 continuation; a live preflight, UAC, installation or rollback still requires
 independent review and a new single-use owner decision.
+
+**P4/B EXACT RECIPE ACCEPTANCE AND PREFLIGHT STOP — 2026-09-19.** The owner
+accepted only the exact rollback-safe recipe/tool evidence. The recipe
+`F6D3A8CC...C883F0E`, package index `FDF9FE7A...A977F`, review ZIP
+`D2B3263B...65DA1C` and external input index `ED8826F7...31CDA` matched their
+recorded bytes. Seven ZIP entries, all six package-index entries and all 29
+external inputs matched. The unchanged recipe passed `VerifyInputsOnly` under
+external resume ID `R04-D21-P4B-EXACT-RESUME-20260919T094244Z`; the reserved
+execution output remained absent and the mode reported zero Docker, task,
+HTTP, UAC and mutation calls.
+
+The following fresh read-only preflight stopped without a usable task result.
+The existing collector reached its first exact Task Scheduler read and export,
+then failed to persist the XML because the new nested evidence path exceeded
+the Windows path limit. The new evidence directory remained empty. The task
+read was not repeated at a shorter path because the authorization prohibited
+repeating an operation after a logger/formatter failure. No Docker or HTTP
+preflight followed, no UAC was requested and Install was not invoked. Status:
+`P4B PRE_UAC_BLOCKED / PREFLIGHT_EVIDENCE_NOT_PERSISTED_PATH_LENGTH / NO_MUTATION`.
+The next permissible step is a new owner decision for one replacement bounded
+read-only preflight using a predeclared short evidence path; it is not approval
+for UAC or installation.

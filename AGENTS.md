@@ -94,6 +94,22 @@
   `ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
   OFFLINE_ONLY / NOT_INSTALLED`; no live preflight or operation is authorized.
 
+  On 2026-09-19 the owner accepted those exact recipe bytes only as
+  `EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE /
+  NOT_INSTALLED`. Local verification matched the 7-file review package, all
+  six indexed package entries and all 29 external inputs. The unchanged recipe
+  passed `VerifyInputsOnly` with external resume ID
+  `R04-D21-P4B-EXACT-RESUME-20260919T094244Z`; the reserved execution output
+  remained absent. The subsequent fresh read-only preflight did not produce a
+  usable task projection: the preserved collector reached the first exact task
+  read, then failed while writing its local XML because the selected evidence
+  path exceeded the Windows path limit. Per the single-campaign rule, that
+  task read was not repeated under a shorter path. Status is
+  `PRE_UAC_BLOCKED / PREFLIGHT_EVIDENCE_NOT_PERSISTED_PATH_LENGTH`; UAC,
+  Install, Docker/HTTP reads, warm runs and host mutations were not performed.
+  A new owner decision is required for any replacement preflight. It is not
+  permission to run Install or request UAC.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that

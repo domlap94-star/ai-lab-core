@@ -1,6 +1,6 @@
 # R04 / D-21 / P4-A — pakiet aktywacji jednego startu
 
-Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW / OFFLINE_ONLY / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
+Status: `P4A SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / P4B_PARTIAL_SAFE_INACTIVE / EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE / PRE_UAC_BLOCKED / NOT_INSTALLED / GLOBAL_START_MANIFEST_NOT_APPROVED`
 
 Pakiet: `R04-D21-P4A-STARTUP-ACTIVATION-20260917T210051Z`
 Decyzja: `D-21`
@@ -522,3 +522,32 @@ Pakiet ma status `ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
 OFFLINE_ONLY / NOT_INSTALLED`. Jeden następny krok to niezależny review tych
 dokładnych bajtów. Dopiero późniejsza, nowa zgoda może objąć fresh bounded drift
 check, jeden UAC i próbę instalacji; obecna zgoda tego nie obejmuje.
+
+## 18. Exact recipe acceptance i zatrzymany preflight
+
+Właściciel przyjął dokładną receptę wyłącznie jako
+`EXACT_ROLLBACK_SAFE_RECIPE_ACCEPTED / SOURCE_AND_OFFLINE_SCOPE /
+NOT_INSTALLED`. Lokalna kontrola wykazała:
+
+- recipe `F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E`;
+- package index `FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F`;
+- review ZIP `D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C`;
+- external input index `ED8826F7CFAB1A33B84C5FCF3BDA1E57FB48E9598100B3826C0CDDDCC3131CDA`;
+- ZIP `7/7`, package entries `6/6`, external inputs `29/29` zgodne;
+- `VerifyInputsOnly` exit `0` dla
+  `R04-D21-P4B-EXACT-RESUME-20260919T094244Z`; reserved execution output
+  pozostał nieutworzony.
+
+Świeży read-only preflight nie osiągnął bramki zgody operacyjnej. Zachowany
+collector odczytał i wyeksportował pierwszy dokładny task, lecz zapis XML do
+nowego, głęboko zagnieżdżonego katalogu zakończył się
+`DirectoryNotFoundException`: pełna ścieżka przekroczyła praktyczny limit
+Windows. Nie powstała bezpieczna projekcja taska, a katalog preflight pozostał
+pusty. Zgodnie z zakazem ponawiania udanej części odczytu po błędzie loggera nie
+uruchomiono kolektora ponownie pod krótszą ścieżką. Nie rozpoczęto odczytów
+Docker/HTTP, UAC, Install ani warm runs; host mutations `0`.
+
+Status: `PRE_UAC_BLOCKED / PREFLIGHT_EVIDENCE_NOT_PERSISTED_PATH_LENGTH /
+NO_MUTATION`. Następny krok wymaga nowej decyzji właściciela na jeden
+replacement bounded read-only preflight z wcześniej ustalonym krótkim katalogiem
+dowodowym. Ta decyzja nie może jednocześnie stanowić zgody na UAC lub Install.
