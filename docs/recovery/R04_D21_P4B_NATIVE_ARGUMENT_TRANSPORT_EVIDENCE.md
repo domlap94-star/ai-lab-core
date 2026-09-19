@@ -277,3 +277,33 @@ payload/manifest nieobecne, warm runs `0/2`.
 Wynik: `P4B ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
 OFFLINE_ONLY / NOT_INSTALLED`. Nie jest to odbiór P4/B ani zgoda na live
 preflight, UAC, instalację lub rollback hosta.
+
+## TaskInfo i dokładna pochodna short-output — 2026-09-19
+
+Odebrana recepta F6D3 pozostała byte-for-byte bez zmian. Przygotowana obok
+niej pochodna `invoke-p4b-resume-installer.short-output.ps1` ma 91,912 B i
+SHA-256
+`F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A`.
+Allowlisted diff zmienia wyłącznie identyfikację/entry HEAD, kanoniczną nazwę i
+bazę wyników na
+`C:\ai-lab-core-staging\recovery\P4B-FIN-01\out\run01`. Wszystkie ciała
+funkcji, wejścia, sześć baseline'ów, mutacje i rollback pozostają zgodne z
+preimage.
+
+Poprawiony exact TaskInfo worker przeszedł PowerShell 5.1 `16/126`, a jedna
+kampania live utrwaliła `6/6` odczytów bez uruchomienia tasków. Pochodna
+przeszła input `14/110`, orchestration `15/96`, `437/437` workerów,
+path/I/O `206<=220` i VerifyInputsOnly `29/29 + 6`; `out\run01` nie powstał.
+Bieżący drift ma wynik
+`PASS_WITH_DOCKER_WSL_POOL_AND_SWAP_UNKNOWN` — wymagane tożsamości i health są
+zgodne, Windows/disk gates przeszły, lecz pula Docker/WSL i swap-used pozostają
+`UNKNOWN`.
+
+Package index:
+`36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E`.
+Review ZIP: 75,385 B, SHA-256
+`407A872A9B0504F35F2141992E3F84132198175A0146B5B0D1925B0F878D7272`,
+roundtrip `17/17`. Status:
+`SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 / NO_UAC /
+NOT_INSTALLED`. Dalszy RunAs/UAC, Install, warm runs lub rollback wymagają
+nowej bieżącej decyzji właściciela.

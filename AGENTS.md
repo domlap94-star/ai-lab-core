@@ -148,6 +148,23 @@
   compatibility remains `NOT_VERIFIED_NO_IO`. This evidence grants no UAC,
   Install, warm-run or P4/B operational permission.
 
+  A subsequent owner-authorized LOCAL_ONLY/read-only continuation fixed the
+  exact TaskInfo child boundary and passed PowerShell 5.1 offline `16/126`;
+  the single live campaign then persisted `TaskInfo 6/6`. It also prepared the
+  exact short-output derivative recipe
+  `F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A`
+  and package index
+  `36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E`.
+  Input `14/110`, orchestration `15/96` with `437/437` workers, path/I/O
+  budget `206<=220`, VerifyInputsOnly `29/29 + 6`, and ZIP roundtrip `17/17`
+  passed. The bounded drift confirmed the six task/container identities,
+  PostgreSQL health, backend/Public Gateway and public `/control*=404`;
+  Docker/WSL pool available and swap-used remain `UNKNOWN`. Status is
+  `SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 / NO_UAC /
+  NOT_INSTALLED`. `out\run01` remains absent. This is not acceptance of the
+  derivative or authorization for RunAs/UAC, Install, task/file mutation,
+  warm runs or rollback; those require the new exact single-use owner decision.
+
 ## Safety
 
 - DEPLOYED BINARIES ARE API CONSUMERS. A source-code update does not mean that

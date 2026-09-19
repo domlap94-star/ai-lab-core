@@ -3058,3 +3058,32 @@ TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`. The exact recipe,
 package index and review ZIP are unchanged. Reserved installer-output path
 compatibility remains `NOT_VERIFIED_NO_IO`; UAC, Install, warm runs, rollback
 and host/data mutations remain zero.
+
+**P4/B TASKINFO AND SHORT OUTPUT — 2026-09-19.** A further owner-authorized
+LOCAL_ONLY/read-only continuation fixed the exact TaskInfo child boundary.
+Windows PowerShell 5.1 offline tests passed `16` cases and `126` assertions,
+with `14/14` workers accounted for and no real system boundary calls. One
+bounded live campaign then persisted `TaskInfo 6/6`; nonzero historical task
+results and the Host never-run sentinel were preserved without starting any
+task.
+
+The frozen accepted F6D3 recipe remains unchanged. Its exact derivative changes
+only recipe metadata and the output base to
+`C:\ai-lab-core-staging\recovery\P4B-FIN-01\out\run01`. The derivative is
+91,912 B, SHA-256
+`F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A`;
+package index SHA-256
+`36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E`.
+Final results: input `14/110`, orchestration `15/96`, workers `437/437`, path
+budget `206<=220`, VerifyInputsOnly `29/29 + 6`; `out\run01` remains absent.
+
+The current bounded drift passed task/container identity, PostgreSQL health,
+backend/Public Gateway, public `/control*=404`, Windows RAM/commit and disk
+thresholds. Docker/WSL pool availability and swap-used remain `UNKNOWN`.
+Review ZIP is 75,385 B, SHA-256
+`407A872A9B0504F35F2141992E3F84132198175A0146B5B0D1925B0F878D7272`,
+roundtrip `17/17`. Status:
+`SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 /
+CURRENT_DRIFT_PASS_WITH_RESOURCE_LIMITATION / NO_UAC / NOT_INSTALLED`.
+No RunAs/UAC, Install, task/file mutation, service start, warm run or rollback
+is authorized until the owner gives the exact new single-use decision.

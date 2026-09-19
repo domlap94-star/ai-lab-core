@@ -1,0 +1,19 @@
+diff --git a/invoke-p4b-resume-installer.rollback-safe.ps1 b/invoke-p4b-resume-installer.short-output.ps1
+--- a/invoke-p4b-resume-installer.rollback-safe.ps1
++++ b/invoke-p4b-resume-installer.short-output.ps1
+@@ -19 +19 @@
+-$recipeId = 'R04-D21-P4B-RECIPE-ROLLBACK-DEPENDENCIES-20260919T101500Z'
++$recipeId = 'R04-D21-P4B-RECIPE-SHORT-OUTPUT-20260919'
+@@ -22 +22 @@
+-$entryHead = '868339ab89b108e62bb3a9de1000f6573daee701'
++$entryHead = '6cb706741d3e35afb2d790bf399a91e93a2d3202'
+@@ -25 +25 @@
+-$canonicalRecipePath = Join-Path $recipePackageRoot 'invoke-p4b-resume-installer.rollback-safe.ps1'
++$canonicalRecipePath = Join-Path $recipePackageRoot 'invoke-p4b-resume-installer.short-output.ps1'
+@@ -31 +31,2 @@
+-$approvedExecutionOutputRoot = Join-Path $recipePackageRoot 'execution-output\exact-rollback-safe-attempt-1'
++$executionEvidenceBase = 'C:\ai-lab-core-staging\recovery\P4B-FIN-01'
++$approvedExecutionOutputRoot = Join-Path $executionEvidenceBase 'out\run01'
+@@ -1502 +1503 @@
+-    Assert-ExecutionOutputRoot -Path $installerRoot -ApprovedPath $approvedExecutionOutputRoot -PackageRoot $recipePackageRoot
++    Assert-ExecutionOutputRoot -Path $installerRoot -ApprovedPath $approvedExecutionOutputRoot -PackageRoot $executionEvidenceBase

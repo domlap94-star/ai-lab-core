@@ -646,3 +646,37 @@ TASK_INFO_MAPPING_ERROR_NO_REREAD / NO_UAC / NOT_INSTALLED`. Globalny manifest
 pozostaje `NOT_APPROVED_FOR_START`, a kompatybilność zapisu zarezerwowanych
 ścieżek outputu `252/275` pozostaje `NOT_VERIFIED_NO_IO`. Wynik nie otwiera
 bramki UAC ani instalacji.
+
+## 21. TaskInfo, krótki output i bramka nowego wznowienia
+
+Właściciel dopuścił LOCAL_ONLY poprawkę dokładnej granicy TaskInfo, exact
+pochodną zaakceptowanej recepty z krótką bazą outputu, ich testy oraz jeden
+bounded readback. Historyczna recepta F6D3 i jej odbiór pozostają bez zmian.
+
+Poprawiony collector przeszedł PowerShell 5.1 `16/126`, z `14/14` workerów i
+zerem rzeczywistych wywołań systemowych w testach. Jedna live kampania
+utrwaliła `TaskInfo 6/6`, bez startu lub modyfikacji tasków. Pochodna
+`invoke-p4b-resume-installer.short-output.ps1` ma 91,912 B i SHA-256
+`F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A`.
+Jej jedyny dozwolony diff obejmuje metadane oraz output
+`C:\ai-lab-core-staging\recovery\P4B-FIN-01\out\run01`; ciała funkcji,
+wejścia produktu, 29 ról, sześć baseline'ów, kolejność i rollback są
+niezmienione. `run01` pozostaje nieobecny.
+
+Końcowe wyniki: input `14/110`, orchestration `15/96`, workers `437/437`,
+path/I/O max `206<=220`, VerifyInputsOnly `29/29 + 6`, ZIP roundtrip `17/17`.
+Package index:
+`36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E`;
+review ZIP:
+`407A872A9B0504F35F2141992E3F84132198175A0146B5B0D1925B0F878D7272`.
+
+Bieżący drift potwierdził wymagane task/container/file/HTTP identity i progi
+Windows/dysk. Docker/WSL pool dostępna i swap-used pozostają `UNKNOWN`.
+Installer zachowuje własne pre-mutation guards, ale przed pierwszym UAC nadal
+wymagana jest jedna nowa bieżąca decyzja właściciela przyjmująca exact recipe,
+index, external resume ID, krótki output, dwa warm runs, warunkowy SAFE_INACTIVE
+rollback i jawne ograniczenia. Bez tej decyzji `RunAs` i `Install` są
+zabronione.
+
+Status: `SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 /
+CURRENT_DRIFT_PASS_WITH_RESOURCE_LIMITATION / NO_UAC / NOT_INSTALLED`.
