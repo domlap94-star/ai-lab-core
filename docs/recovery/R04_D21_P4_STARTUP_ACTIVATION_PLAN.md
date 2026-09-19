@@ -717,3 +717,39 @@ Jednorazowa zgoda, UAC i SAFE_INACTIVE są zużyte. Następny krok to owner revi
 wyniku `HOST_TASK_FAILED_22` i osobna decyzja o ograniczonej diagnostyce. Bez
 retry Host/Install, drugiego UAC, niezależnego rollbacku, logon/reboot, P5 lub
 R06.
+
+## 23. Host 22 — diagnoza tylko do odczytu, bez ponowienia startu
+
+Kampania `P4B-E22-01` zachowała wynik run01 bez jego przepisywania. Akcja taska
+Host nie kierowała stdout/stderr launchera do trwałego artefaktu, dlatego
+historyczny wewnętrzny kod pozostaje `LAUNCHER_RESULT_DETAIL_NOT_CAPTURED`.
+Jednocześnie diagnoza wystarcza do wskazania dwóch kolejnych, niezależnych
+blokad w dokładnie zainstalowanym źródle:
+
+1. Czyste wczytanie i walidacja exact manifestu przechodzą. Pierwsza granica
+   adaptera Docker odpada jednak na szablonie Go odczytującym
+   `.State.Health`. Backend nie ma klucza `Health`, więc exact inspect kończy
+   się `map has no entry for key "Health"`, a plan mapuje wyjątek na
+   `ADAPTER_FAILURE` i końcowy exit `22`.
+2. Jedyny zapisany selector
+   `project=ai-lab-core/service=backend`, obejmujący także stopped, zwrócił
+   pięć kontenerów: jeden zatwierdzony runtime i cztery zachowane kontenery
+   drill. Bezpieczna projekcja `with (index .State "Health")` potwierdziła ich
+   pełne ID i stan bez ponowienia selektora. Prawdziwa faza kontenerowa na tych
+   obserwacjach zwróciła `CONTAINER_IDENTITY_AMBIGUOUS`, `match_count=5`,
+   starty `0`.
+
+Test granicy rzeczywistego adaptera przeszedł przypadki `0/1/5` rekordów
+(`36` asercji, starty `0`). Test poprawionej wyłącznie projekcji przeszedł
+`7` kontroli. Offline replay fazy planu i adapter-error zachował zero wywołań
+Docker/Task oraz zero mutacji. Łączny live skutek diagnostyki to jeden selector,
+jeden nieudany exact inspect z bezpiecznym stderr oraz pięć celowanych
+read-only inspectów; nie wykonano task read/write, HTTP, UAC, Host startu,
+Install ani rollbacku.
+
+Status: `HOST22_DIAGNOSED_READ_ONLY / SOURCE_FIX_REQUIRED /
+NO_RETRY_AUTHORIZED`. Następny zakres musi być SOURCE/OFFLINE i obejmować
+wyłącznie bezpieczny odczyt opcjonalnego health oraz exact-ID-first wybór
+zatwierdzonego kontenera z fail-closed obsługą prawdziwego konfliktu. Dopiero
+niezależny review/test tych nowych bajtów może poprzedzać nową decyzję
+operacyjną.

@@ -3162,3 +3162,23 @@ start/stop/restart counts were `0/0/0`. Repository draft remains
 is `APPROVED_FOR_START`. This is not P4/B acceptance. The resume, UAC and
 rollback authority are consumed; no retry, independent rollback, logon/reboot,
 P5 or R06 is authorized without a new owner decision.
+
+**P4/B HOST 22 READ-ONLY DIAGNOSIS — 2026-09-19.** A later owner-authorized
+diagnostic campaign did not start Host, request UAC, reinstall files or mutate
+tasks. The exact installed launcher/runtime/helper/manifest hashes remained
+the run01 inputs, and pure `Read-StartupSetManifest` plus
+`Test-StartupSetManifest` validation passed. The exact production adapter then
+reproduced a Docker inspect failure because its Go template dereferenced the
+optional `.State.Health` map key for the backend container, where that key is
+absent. The single saved selector result also contained five containers with
+the same Compose project/service labels: the approved running backend and four
+retained stopped drill containers. Replaying the actual container phase on
+those independent observations returned `CONTAINER_IDENTITY_AMBIGUOUS`,
+`match_count=5`, with zero start calls.
+
+The historical run01 detail remains uncaptured; the diagnosis is a source-level
+causal reconstruction, not a rewritten historical launcher log. Status is
+`HOST22_DIAGNOSED_READ_ONLY / SOURCE_FIX_REQUIRED / NO_RETRY_AUTHORIZED`.
+Before any retry, a separate SOURCE/OFFLINE scope must make Health projection
+safe and bind selection to the approved exact container ID without silently
+adopting another instance or ignoring a real duplicate/conflict.

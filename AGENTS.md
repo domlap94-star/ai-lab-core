@@ -224,8 +224,9 @@
   reanalyse or relink already assigned mail in that campaign. Preserve correct,
   manual, confirmed, and deliberately cleared values per field. After the
   future approved implementation, an unambiguous new Sheet row creates or
-  links one Client directly and idempotently; Sheet candidates are reserved for
-  errors/conflicts, not mandatory per-row approval. A changed linked row adds
+  links one Client directly and idempotently. Invalid or conflicting Sheet rows
+  become import exceptions for review, never CRM candidates; CRM candidates
+  originate only from qualifying unmatched mail. A changed linked row adds
   versioned information and visible provenance without deleting older CRM data;
   clearing/removing source cells or rows never deletes the Client or relations.
   Qualifying mail creates a candidate only when it cannot be matched to an
@@ -259,10 +260,14 @@
   resume `R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z` is also consumed.
   It installed the exact payload/manifest but stopped after Host result `22`;
   SAFE_INACTIVE remained partial, Host is disabled/no-trigger and warm runs are
-  `0/2`. This is not P4/B acceptance. Any continuation requires owner review of
-  the preserved result and a new narrowly defined decision. No standing
-  permission exists for another UAC, retry, rollback, reboot/logoff, Supervisor,
-  backup/restore, relocation, P5 or R06.
+  `0/2`. A later read-only diagnosis, without retry, showed an unsafe optional
+  `.State.Health` projection and a broad Compose selector matching the approved
+  backend plus four retained drill containers. Status is
+  `HOST22_DIAGNOSED_READ_ONLY / SOURCE_FIX_REQUIRED / NO_RETRY_AUTHORIZED`.
+  This is not P4/B acceptance. Any continuation requires owner review and a new
+  narrowly defined SOURCE/OFFLINE decision before any later operational
+  decision. No standing permission exists for another UAC, retry, rollback,
+  reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.
