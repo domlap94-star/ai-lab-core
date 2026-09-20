@@ -290,6 +290,15 @@
   `HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW /
   OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Installed run01, Host state and D-22 are
   unchanged; update/retry still require independent review and a new decision.
+- Owner acceptance on 2026-09-20 applies only to exact Host22 source
+  `8195e5cf8dacd1976ccd9f71a1f78175c3513acc` and its offline package;
+  deployment remains false. Result-capture source
+  `727eb860c75d3dd7b010b86de3eeaa3d656c69cf` and the LOCAL_ONLY narrow-update
+  package are `READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`. The repository
+  manifest remains `NOT_APPROVED`, installed run01 remains on its old bytes
+  with Host disabled/no-trigger and warm `0/2`, and there is no standing UAC,
+  update, Host retry, task-write or rollback authorization. D-22 remains
+  unchanged and `NOT_RUN`.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

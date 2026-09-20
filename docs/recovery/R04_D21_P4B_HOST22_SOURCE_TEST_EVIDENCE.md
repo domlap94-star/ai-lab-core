@@ -233,3 +233,45 @@ Host disabled/no-trigger, warm `0/2`; Supervisor remains historically
 `INTENTIONALLY_STOPPED`. Status:
 `HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW /
 OFFLINE_TESTS_PASS / NOT_DEPLOYED`.
+
+## Owner acceptance and narrow update preparation — 2026-09-20
+
+The owner accepted exact Host22 source
+`8195e5cf8dacd1976ccd9f71a1f78175c3513acc` and review ZIP
+`D6F48B9ED1178C6362A5BF8A8C79E6B08B72D569D5C0F880FA29990939C27AEA`
+as `HOST22_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`. This does not
+accept P4/B and does not authorize an installed-file update or Host retry.
+
+Source `727eb860c75d3dd7b010b86de3eeaa3d656c69cf` adds only the thin canonical
+Host result recorder and its offline harness. The recorder writes a unique
+marker before child start, bounded stdout/stderr, exit/timestamps and parsed
+`code/events/details`. It accepts success only for exit `0` plus
+`BASE_READY_LIMITED`; timeout, an unsettled child, malformed/truncated output,
+stderr, output collision or write failure remains incomplete without retry.
+
+Final Windows PowerShell 5.1 tests on the reviewed bytes:
+
+| Scope | Assertions / scenarios | Result |
+|---|---:|---|
+| recorder, including seven short owned child processes | 28 | PASS / exit 0 |
+| narrow update, pending and rollback orchestration | 28 / 7 | PASS / exit 0 |
+
+The orchestration success fixture performs two Host starts, observes Private
+Gateway starts `1 -> 0`, and performs zero Supervisor/container starts and zero
+writes to the five dependency tasks. Pending handoff and foreign Host drift
+preserve files and prohibit destructive rollback. All timeout children were
+settled (`1/1`). Production boundaries, UAC, installation, Host retries and
+host rollback were `0`.
+
+The proposed LOCAL_ONLY package is bound to operation ID
+`R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z`: package index
+`33BD4FEDA762B0CA247D5840530353FFD5B253F9F333BFCB5EB65EC18BA220E8`,
+recipe `A9FE79A497CA30F982A2407F578765352AABE70CF1FCA62802AF176CCED88307`,
+proposed manifest
+`21F53D91DE12F2CF3FF175F68F8C08564503ED51F5A1A7C394C6BCBA5D70DC94`
+and review ZIP
+`881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6`
+(102 833 bytes; roundtrip 24/24, 23 indexed entries plus index). It is
+`NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`.
+The repository draft remains `NOT_APPROVED`; installed run01 remains on its old
+bytes with Host disabled/no-trigger and warm `0/2`.

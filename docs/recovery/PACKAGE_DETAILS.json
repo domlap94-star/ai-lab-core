@@ -196,7 +196,7 @@
     "current_execution_note": "P4/A source 8756314f51a76091a483cfc9b677a05c7f67f315 and evidence 8a156e0c738699b4bfee01fb98f0d10f01c803ba are owner-accepted as SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED. The first Phase B and later resume authorizations are consumed. The resume stopped before mutation after Windows PowerShell 5.1 split the docker inspect Go-template. LOCAL_ONLY recipe 5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67 retains its accepted transport evidence. A later static exact-recipe preflight found BASELINE_PATH_BINDING_MISMATCH for six container records. The subsequent SOURCE/LOCAL FILE READ/OFFLINE TEST scope reproduced fail-before and prepared LOCAL_ONLY recipe 733AA23F15EF9CC1E8A87F1A1B38EF523464F09160EDACF50300F00957D05B6A with package index ED05FE269F89BE881474CA9B2C00D62589720FD0AE1959547D55A4032B54875C. Windows PowerShell 5.1 passed 14/14 cases and 119 assertions, binding 29/29 roles and six baseline buffers; real Docker/Task/HTTP/UAC/host mutations were 0. A subsequent owner-authorized source/local-file/offline review reproduced RV-P4B-FULL-01 through RV-P4B-FULL-04 and prepared LOCAL_ONLY recipe 16A35C328A091801A4713A7F282A72C7E143BE489BF847A1AEE15599F70C4DC8 with package index 1355EF0878C31202145E4E324C40A5D07E343FB78B0C6C7D029E2E932C43E3BF and review ZIP DE8483568A17E27E80F3EE1C222C9E4BAC8EC6D78BA4C4CDC6DC48E2A86CFAEC. A further offline review reproduced RV-P4B-FULL-03B, RV-P4B-FULL-02B and RV-P4B-FULL-02C. The replacement LOCAL_ONLY recipe is F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E, package index FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F and review ZIP D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C. Final offline results: input 14 cases/110 assertions, orchestration 15 cases/96 assertions, owned workers 437/437 and real Docker/Task/CIM/TCP/HTTP/UAC/host mutations 0. Status: PARTIAL_SAFE_INACTIVE / ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW / OFFLINE_ONLY / NOT_INSTALLED. Launcher/runtime/manifest remain absent, five tasks remain on preimage and warm runs are 0/2 based on historical evidence; the host was not read in this continuation. Repository/global manifest stays NOT_APPROVED_FOR_START; any operation requires exact-byte review and a new owner decision. A later owner-authorized continuation fixed the exact TaskInfo child boundary (PowerShell 5.1: 16 cases/126 assertions; live TaskInfo 6/6) and prepared the exact short-output derivative F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A. Package index 36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E and review ZIP 407A872A9B0504F35F2141992E3F84132198175A0146B5B0D1925B0F878D7272 passed input 14/110, orchestration 15/96 with 437/437 workers, path/I/O max 206/220, VerifyInputsOnly 29/29 plus six baselines and ZIP roundtrip 17/17. Status SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / NO_UAC / NOT_INSTALLED; out/run01 remains absent.",
     "current_resume_preflight": "Owner-authorized preparation is complete. The corrected LOCAL_ONLY TaskInfo collector passed PowerShell 5.1 16 cases/126 assertions with 14/14 workers and real system calls 0; the single live campaign persisted TaskInfo 6/6 without task starts or writes. The short-output derivative recipe F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A changes only approved metadata/output bindings from the accepted F6D3 preimage. Package index is 36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E; review ZIP is 407A872A9B0504F35F2141992E3F84132198175A0146B5B0D1925B0F878D7272. Final offline checks passed input 14/110, orchestration 15/96, workers 437/437, path/I/O 206/220, VerifyInputsOnly 29/29 plus six baselines and ZIP 17/17. Current bounded drift confirmed six tasks, six containers, PostgreSQL health, backend/Public Gateway and public control 404; Windows/disk gates passed while Docker/WSL pool availability and swap-used remain UNKNOWN. Status SHORT_OUTPUT_DERIVATIVE_READY_FOR_REVIEW / TASKINFO_6_OF_6 / CURRENT_DRIFT_PASS_WITH_RESOURCE_LIMITATION / NO_UAC / NOT_INSTALLED. External resume ID is R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z; out/run01 remains absent. RunAs/UAC, Install, task/file mutation, warm runs and rollback require a new exact single-use owner decision.",
     "current_p4b_result": {
-    "status": "PARTIAL_AFTER_FAILURE_HOST_TASK_FAILED_22_SAFE_INACTIVE_PARTIAL_UNKNOWN_HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW_OFFLINE_TESTS_PASS_NOT_DEPLOYED_NO_RETRY_AUTHORIZED",
+    "status": "PARTIAL_AFTER_FAILURE_HOST_TASK_FAILED_22_SAFE_INACTIVE_PARTIAL_UNKNOWN_HOST22_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED_NOT_DEPLOYED_NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW_NO_OPERATIONAL_CHANGES_NO_RETRY_AUTHORIZED",
       "resume_id": "R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z",
       "recipe_sha256": "F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A",
       "package_index_sha256": "36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E",
@@ -217,7 +217,7 @@
       "host_state": "DISABLED_NO_TRIGGER",
       "supervisor_state": "INTENTIONALLY_STOPPED_NOT_STARTED",
       "container_identity": "SIX_OF_SIX_UNCHANGED_RUNNING_RESTART_COUNT_ZERO",
-    "next_action": "INDEPENDENT_REVIEW_OF_8195E5CF_SOURCE_AND_D6F48B9E_REVIEW_ZIP_THEN_SEPARATE_OWNER_DECISION_BEFORE_ANY_RETRY_UPDATE_OR_MUTATION",
+    "next_action": "INDEPENDENT_REVIEW_OF_727EB860_RECORDER_SOURCE_A9FE79A4_RECIPE_33BD4FED_INDEX_21F53D91_MANIFEST_HOST_XML_AND_881C804F_ZIP_THEN_NEW_EXACT_ONE_TIME_OWNER_OPERATIONAL_APPROVAL",
       "host22_diagnostic": {
         "status": "HOST22_DIAGNOSED_READ_ONLY_SOURCE_FIX_REQUIRED_NO_RETRY_AUTHORIZED",
         "observed_utc": "2026-09-19T23:13:46Z/2026-09-19T23:23:24Z",
@@ -302,6 +302,34 @@
       "package_location": "LOCAL_ONLY_TEMP",
       "deployed": false,
       "host_task_retried": false
+    },
+    "host22_narrow_update_preparation": {
+      "status": "NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW_NO_OPERATIONAL_CHANGES",
+      "owner_accepted_host22_source": "8195e5cf8dacd1976ccd9f71a1f78175c3513acc",
+      "result_capture_source": "727eb860c75d3dd7b010b86de3eeaa3d656c69cf",
+      "operation_id": "R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z",
+      "recorder_sha256": "C75AF85A1DCA3A48A2D26887B5AAA86A3F7AA1D86641F1A067A2DDA7FBFAC03B",
+      "recipe_sha256": "A9FE79A497CA30F982A2407F578765352AABE70CF1FCA62802AF176CCED88307",
+      "package_index_sha256": "33BD4FEDA762B0CA247D5840530353FFD5B253F9F333BFCB5EB65EC18BA220E8",
+      "proposed_manifest_sha256": "21F53D91DE12F2CF3FF175F68F8C08564503ED51F5A1A7C394C6BCBA5D70DC94",
+      "review_zip_sha256": "881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6",
+      "offline_tests": {
+        "recorder_assertions": 28,
+        "actual_owned_child_process_cases": 7,
+        "orchestration_assertions": 28,
+        "orchestration_scenarios": 7,
+        "synthetic_host_runs": 2,
+        "synthetic_private_starts": "1_THEN_0",
+        "supervisor_starts": 0,
+        "container_starts": 0,
+        "five_dependency_task_writes": 0
+      },
+      "live_boundaries_called": 0,
+      "uac_attempts": 0,
+      "installed": false,
+      "host_task_retried": false,
+      "repository_manifest_approved": false,
+      "separate_owner_operational_approval_required": true
     },
     "supersedes_current_execution_note_and_preflight": true
     },

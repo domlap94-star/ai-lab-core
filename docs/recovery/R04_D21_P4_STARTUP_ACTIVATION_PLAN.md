@@ -834,5 +834,30 @@ nie uzyskuje danych observed przez przepisanie expected. Candidate nadal ma
 Końcowe PS 5.1 przeszły `70/57/51/44/41`, pełny candidate binding + P4 `59`,
 a binding po roundtrip ZIP `18`. Review ZIP ma SHA-256
 `D6F48B9ED1178C6362A5BF8A8C79E6B08B72D569D5C0F880FA29990939C27AEA`.
+
+### P4/B Host22 narrow update package (prepared, not authorized)
+
+Owner acceptance covers Host22 source `8195e5cf...` only in its source/offline
+scope. Proposed operation
+`R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z` is a new, inactive package:
+
+1. verify the exact run01 launcher/runtime/manifest, helper KEEP hash, inactive
+   Host preimage and semantic identities of the five dependency tasks;
+2. back up only the owned run01 files and Host XML;
+3. install exact Host22 launcher/runtime, the bounded result recorder and the
+   exact proposed manifest while Host stays disabled/no-trigger;
+4. bind Host to the recorder, verify exact installed bytes, then enable only
+   on-demand execution;
+5. accept two distinct evidence attempts only when both record
+   `BASE_READY_LIMITED`; the first may start Private once and the second must
+   start it zero times; both must start Supervisor/containers zero times;
+6. add the single Host logon trigger only after both successes.
+
+The helper and five other tasks are KEEP and cannot be rewritten by this
+recipe. An unsettled mutation or Host handoff disables retry and destructive
+rollback; known pre-handoff failure may use one exact SAFE_INACTIVE rollback
+only with proven inactive owned Host and no foreign drift. The package remains
+`NOT_AUTHORIZED / NOT_INSTALLED`; independent review and a new exact one-time
+owner operational approval are required.
 Następna operacja pozostaje odrębnym, wąskim update z nową zgodą; nie wolno
 wracać do recepty zakładającej brak zainstalowanych plików lub stare triggery.

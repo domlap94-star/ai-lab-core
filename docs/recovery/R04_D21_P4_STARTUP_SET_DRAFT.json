@@ -64,6 +64,13 @@
       "evidence": "HOST22_FINAL_SOURCE_8195E5CF8DACD1976CCD9F71A1F78175C3513ACC_NOT_DEPLOYED"
     },
     {
+      "role": "startup_evidence_recorder",
+      "path": "operations/runtime/invoke-host-with-evidence.ps1",
+      "sha256": "C75AF85A1DCA3A48A2D26887B5AAA86A3F7AA1D86641F1A067A2DDA7FBFAC03B",
+      "size_bytes": 16169,
+      "evidence": "SOURCE_727EB860C75D3DD7B010B86DE3EEAA3D656C69CF_NOT_DEPLOYED"
+    },
+    {
       "role": "backend_override",
       "path": "operations/runtime/approved-compose/R04-D21-P3-core.override.yml",
       "sha256": "F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86",
@@ -715,5 +722,25 @@
     "pinned_ready_state": "RUNNING_AND_STATE_STATUS_RUNNING",
     "host_retry_authorized": false,
     "review_zip_sha256": "COMPUTED_OUTSIDE_CANDIDATE_TO_AVOID_SELF_REFERENCE"
+  },
+  "p4b_host22_narrow_update_preparation": {
+    "status": "NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW_NO_OPERATIONAL_CHANGES",
+    "accepted_host22_source": "8195e5cf8dacd1976ccd9f71a1f78175c3513acc",
+    "result_capture_source": "727eb860c75d3dd7b010b86de3eeaa3d656c69cf",
+    "operation_id": "R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z",
+    "package_index_sha256": "33BD4FEDA762B0CA247D5840530353FFD5B253F9F333BFCB5EB65EC18BA220E8",
+    "recipe_sha256": "A9FE79A497CA30F982A2407F578765352AABE70CF1FCA62802AF176CCED88307",
+    "proposed_manifest_sha256": "21F53D91DE12F2CF3FF175F68F8C08564503ED51F5A1A7C394C6BCBA5D70DC94",
+    "proposed_host_xml_sha256": {
+      "disabled": "9B7391A3D9DEA6E48959D579DEBBBCF5D4549BF19E5DF9B5D29F36766E536154",
+      "on_demand": "628F42404292FFF9CF197E544FC5704F51BB491DDB3536ABF1D1AAB6E362565E",
+      "logon": "BBC46CEAD773B30206C04B6551432B6ACE5A815F9EDDA794587DDB13E680F4D5"
+    },
+    "review_zip_sha256": "881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6",
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "operational_authorization": false,
+    "installed": false,
+    "host_retried": false,
+    "uac_attempts": 0
   }
 }

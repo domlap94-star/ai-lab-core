@@ -3235,3 +3235,20 @@ Docker/Task/CIM/TCP/HTTP/UAC/Host calls were `0`. Status is
 `HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW /
 OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Installed run01, Host disabled/no-trigger,
 warm `0/2`, Supervisor `INTENTIONALLY_STOPPED` and D-22 remain unchanged.
+
+**P4/B HOST22 ACCEPTANCE AND NARROW UPDATE PREPARATION — 2026-09-20.** The
+owner accepted exact Host22 source
+`8195e5cf8dacd1976ccd9f71a1f78175c3513acc` and its review ZIP only as
+`HOST22_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`. Source
+`727eb860c75d3dd7b010b86de3eeaa3d656c69cf` adds a thin canonical Host result
+recorder. Final Windows PowerShell 5.1 tests passed 28 recorder assertions and
+28 orchestration assertions in 7 scenarios; the synthetic successful trace had
+Host runs 2, Private starts `1 -> 0`, Supervisor/container/five-task writes 0,
+and the timeout child settled 1/1. The LOCAL_ONLY exact package for proposed
+operation `R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z` has index
+`33BD4FEDA762B0CA247D5840530353FFD5B253F9F333BFCB5EB65EC18BA220E8`, recipe
+`A9FE79A497CA30F982A2407F578765352AABE70CF1FCA62802AF176CCED88307` and ZIP
+`881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6`.
+It is `NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW /
+NO_OPERATIONAL_CHANGES`; no UAC, task write, installation, Host retry or host
+rollback occurred or is authorized. Installed run01 and D-22 are unchanged.
