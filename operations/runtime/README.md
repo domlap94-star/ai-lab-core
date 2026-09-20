@@ -15,6 +15,19 @@ example-only or mismatched manifest stops before any adapter is constructed.
 Tests import definitions with `-DefinitionOnly` and pass in complete synthetic
 adapters; JSON can never carry executable adapter code.
 
+`invoke-host-with-evidence.ps1` is the thin canonical result recorder proposed
+for the Host task. It invokes only the canonical launcher with the canonical
+manifest, creates a unique short attempt directory below
+`C:\ai-lab-core\data\logs\startup`, and writes a marker before child start plus
+bounded stdout, stderr, exit status, timestamps, and the parsed
+`NEXT_STABIL_STARTUP_RESULT_V1` projection. Timeout, an unsettled child,
+non-empty stderr, truncated output, malformed JSON, an output collision, or an
+evidence-write failure remains incomplete and is never retried. Only exit `0`
+paired with `BASE_READY_LIMITED`, `base_ready=true`, and
+`INTENTIONALLY_STOPPED` is a recorded success; launcher refusal exit `22` is
+preserved as a refusal. The recorder does not implement another startup path,
+task, scheduler, deployment action, or fallback manifest.
+
 `startup-set.example.json` is `NOT_APPROVED / EXAMPLE_ONLY`. Zero hashes and
 example identities are placeholders, not observations and not a candidate set.
 P2 must select, hash, review and separately approve a real set.
