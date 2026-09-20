@@ -141,3 +141,95 @@ new host read, retry or success. Any future attempt must first review the exact
 published source and ZIP, then separately authorize a narrow update. The next
 real Host run must persist launcher JSON `code/events/details`, stdout/stderr
 and exit under the Host account; `LastTaskResult` alone is insufficient.
+
+## Final OBS-01B/02B and PKG-HASH-01 review conditions
+
+This continuation used preimage
+`b4269ffa7bacc95b4d1441bb196e572a34a4ec43`. It did not repeat the earlier
+OBS-01/02/03 fail-before campaign.
+
+### Fail-before results
+
+The real preimage code was exercised through lower-boundary fakes:
+
+- nine null, empty or incorrectly typed required envelope fields returned
+  `NATIVE_READ_COMPLETE` instead of refusing the read;
+- a selector envelope with `stdout_truncated=null` reached
+  `CONTAINERS_READY` and one fake start;
+- exact RUNNING and PostgreSQL HEALTHY observations finishing at 51 ms were
+  accepted against the same stage deadline of 50 ms.
+
+The preserved fail-before log is 3 445 bytes, SHA-256
+`45F6FC87E091FF72E7A276A7DA38C60B8E7D319742F932F93216D95BD2113531`.
+Therefore `RV-H22-OBS-01B` and `RV-H22-OBS-02B` are `REPRODUCED`.
+
+### Source result
+
+Source commit `8195e5cf8dacd1976ccd9f71a1f78175c3513acc`:
+
+- requires actual Boolean metadata and actual string stdout/stderr in the
+  native read envelope, and a real integer exit code where applicable;
+- preserves explicit timeout, nonzero, truncation and missing-instance
+  classifications without coercing invalid metadata;
+- checks the same container-stage deadline immediately before positive
+  `PRESERVE_RUNNING`;
+- adds independent candidate bindings from manifest role/path through payload
+  bytes and current review metadata;
+- uses a deterministic test-only clock for the DATA_ONLY regression exposed by
+  the stricter final deadline guard, without changing production timeouts.
+
+The first DATA_ONLY regression run on correct production bytes exposed a
+real-clock fixture crossing the deadline and failed; its 1 164-byte log,
+SHA-256 `CDA7220617CE921F21DD74EF654500C70C35F74D4B85031CF2802AA9DBC2EBCD`,
+is preserved. Only the test clock was made deterministic; the final production
+guard and timeout values were not relaxed.
+
+### Final Windows PowerShell 5.1 campaign
+
+| Suite | Assertions | Exit | Production-boundary calls |
+|---|---:|---:|---:|
+| focused Host22 / OBS | 70 | 0 | 0 |
+| start-host-services plan | 57 | 0 | 0 |
+| real adapter mapping | 51 | 0 | 0 |
+| DATA_ONLY junction | 44 | 0 | 0 |
+| P4 package | 41 | 0 | 0 |
+| candidate binding + full P4 | 59 | 0 | 0 |
+| binding from extracted ZIP | 18 | 0 | 0 |
+
+All changed PowerShell files parsed with Windows PowerShell 5.1. JSON/CSV,
+`git diff --check`, explicit-path review and secret scan passed. No assertion
+sum is presented as an application-test count.
+
+### Final tested bytes
+
+| Path | Bytes | Raw SHA-256 | Git blob |
+|---|---:|---|---|
+| `operations/runtime/start-host-services.ps1` | 72 755 | `1327FADC5BD21DBBE076E5CAD2DF587C6B9B5F274511A99E96E8DDC4FC0BA190` | `5270f8fe4f8939b1bdd612c306681125a14631ee` |
+| `operations/runtime/startup-runtime.ps1` | 83 294 | `D1DD69F310909B62432C37863FEA2E45B8E3B846E85FE095D58B57912639F803` | `9a28364aeda68a24b366b9ac01cbd832dd9e3a8b` |
+| `operations/runtime/test-host22-container-observation.ps1` | 45 262 | `0A320DA15222C49842C8045CE741734BA8AC8E412E4210682E2C0BD91207FE6F` | `b76290216a782d51663b46a9547851c697bc4a44` |
+| `operations/runtime/test-p4-startup-package.ps1` | 50 887 | `7E229775C3AC8D1FCBB27A6B38C79E9B20F7A9C55C2816DE8415B6C678F7B829` | `59efd0eeee9948db698fb0adb577a2bb8ffa21e0` |
+| `operations/runtime/test-startup-data-junction.ps1` | 28 699 | `35C0EAB5994310F8F10AC4ECFA04C045F8A235DA0FC41EDD602865610E242532` | `a20be59cfd216f0ef9455e513f343e1a2c104784` |
+| `operations/runtime/README.md` | 11 469 | `6D1DE24F52287102D4031979F9BB7422993867404768FA4DDA77EFC17007C913` | `b19f5e00eafd45b58edc27ee8d0ff297a267a753` |
+
+### Final inactive package
+
+The candidate manifest is 27 920 bytes, SHA-256
+`4956A59671394F6F07BD1503A777EBB81D56F5F7315C0A53CB8822AAC8138697`
+and remains `NOT_APPROVED_FOR_START`.
+
+The final LOCAL_ONLY review package is:
+`C:\Users\domai\AppData\Local\Temp\R04-D21-P4B-HOST22-FINAL-REVIEW-20260920T153726Z.zip`.
+
+- ZIP: 98 281 bytes, SHA-256
+  `D6F48B9ED1178C6362A5BF8A8C79E6B08B72D569D5C0F880FA29990939C27AEA`;
+- package index: 6 166 bytes, SHA-256
+  `75A0005D4963D1FF862D53D50FC28AE3E7ECF7B93C53FF4AD85661CB8D8BAFDB`;
+- roundtrip: 20 indexed files verified by exact path/size/hash plus the index,
+  21/21 archive entries.
+
+No live Docker, WSL, Task Scheduler, CIM, TCP, HTTP, UAC, RunAs, Host or
+product operation occurred. Installed run01 is unchanged: old installed bytes,
+Host disabled/no-trigger, warm `0/2`; Supervisor remains historically
+`INTENTIONALLY_STOPPED`. Status:
+`HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED`.

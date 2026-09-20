@@ -811,3 +811,28 @@ a indeks SHA-256
 `CE373406DA49B35B01B20F4E8039A5F6F0060C54237C1B2D91193867B83B5763`.
 Pakiet pozostaje `NOT_APPROVED_FOR_START / NOT_DEPLOYED`; nie jest nową
 zgodą na Host retry, update instalacji ani zmianę run01.
+
+## 26. Host22 final OBS conditions and inactive manifest bindings
+
+Końcowy review na preimage `b4269ffa7bacc95b4d1441bb196e572a34a4ec43`
+odtworzył `RV-H22-OBS-01B/02B`. Source
+`8195e5cf8dacd1976ccd9f71a1f78175c3513acc` wymaga rzeczywistych typów pól
+kompletności koperty oraz sprawdza ten sam deadline bezpośrednio przed
+pozytywnym `PRESERVE_RUNNING`. Wcześniejsze exact-ID-first, Health i
+`state_status=running` pozostają bez osłabienia.
+
+Nieaktywny candidate wiąże teraz przyszły payload wykonawczo:
+
+| Role | Exact path | Bytes | Raw SHA-256 |
+|---|---|---:|---|
+| `startup_launcher` | `operations/runtime/start-host-services.ps1` | 72 755 | `1327FADC5BD21DBBE076E5CAD2DF587C6B9B5F274511A99E96E8DDC4FC0BA190` |
+| `startup_runtime` | `operations/runtime/startup-runtime.ps1` | 83 294 | `D1DD69F310909B62432C37863FEA2E45B8E3B846E85FE095D58B57912639F803` |
+
+Walidacja porównuje `files[]`, pliki payloadu i metadane review niezależnie;
+nie uzyskuje danych observed przez przepisanie expected. Candidate nadal ma
+`approval.status=NOT_APPROVED` i nie jest zgodą na instalację lub uruchomienie.
+Końcowe PS 5.1 przeszły `70/57/51/44/41`, pełny candidate binding + P4 `59`,
+a binding po roundtrip ZIP `18`. Review ZIP ma SHA-256
+`D6F48B9ED1178C6362A5BF8A8C79E6B08B72D569D5C0F880FA29990939C27AEA`.
+Następna operacja pozostaje odrębnym, wąskim update z nową zgodą; nie wolno
+wracać do recepty zakładającej brak zainstalowanych plików lub stare triggery.

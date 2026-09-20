@@ -52,14 +52,16 @@
     {
       "role": "startup_launcher",
       "path": "operations/runtime/start-host-services.ps1",
-      "sha256": "CF98B7BEB2710265509FBA0662857207FC10FCE38E95731004B8A54EFF378E55",
-      "evidence": "HOST22_SOURCE_ED961D6980EBEBE2E4D351319E2AA909437BC1EC_NOT_DEPLOYED"
+      "sha256": "1327FADC5BD21DBBE076E5CAD2DF587C6B9B5F274511A99E96E8DDC4FC0BA190",
+      "size_bytes": 72755,
+      "evidence": "HOST22_FINAL_SOURCE_8195E5CF8DACD1976CCD9F71A1F78175C3513ACC_NOT_DEPLOYED"
     },
     {
       "role": "startup_runtime",
       "path": "operations/runtime/startup-runtime.ps1",
-      "sha256": "85A9589461AAB91643C9B351F4F5A0872AFDB2777056E96ABE299C3F734D85FB",
-      "evidence": "HOST22_SOURCE_ED961D6980EBEBE2E4D351319E2AA909437BC1EC_NOT_DEPLOYED"
+      "sha256": "D1DD69F310909B62432C37863FEA2E45B8E3B846E85FE095D58B57912639F803",
+      "size_bytes": 83294,
+      "evidence": "HOST22_FINAL_SOURCE_8195E5CF8DACD1976CCD9F71A1F78175C3513ACC_NOT_DEPLOYED"
     },
     {
       "role": "backend_override",
@@ -676,25 +678,40 @@
     "automatic_retry_authorized": false
   },
   "p4b_host22_source_review": {
-    "status": "HOST22_OBSERVATION_COMPLETENESS_DEADLINE_AND_STATE_SOURCE_READY_FOR_REVIEW",
+    "status": "HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW",
     "entry_commit": "a398e30c5c57c916d330378979798e71937db0cb",
     "preimage_source_commit": "ed961d6980ebebe2e4d351319e2aa909437bc1ec",
-    "source_commit": "b4269ffa7bacc95b4d1441bb196e572a34a4ec43",
+    "source_commit": "8195e5cf8dacd1976ccd9f71a1f78175c3513acc",
     "deployment_status": "NOT_DEPLOYED",
     "offline_assertions": {
-      "focused": 51,
+      "focused": 70,
       "launcher_plan": 57,
       "real_adapters": 51,
       "data_junction": 44,
-      "p4_package": 40
+      "p4_package": 41,
+      "candidate_binding": 18
     },
     "production_boundary_calls": 0,
     "installed_launcher_sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871",
     "installed_runtime_sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7",
     "candidate_launcher_sha256": "1327FADC5BD21DBBE076E5CAD2DF587C6B9B5F274511A99E96E8DDC4FC0BA190",
-    "candidate_runtime_sha256": "ECAF4239A6B6C7CDCE0C521FB6B518A72402262E17A6F0C06242CA852840541E",
-    "native_envelope_completeness": "FAIL_CLOSED_ON_TRUNCATED_MISSING_TIMEOUT_NONZERO_OR_UNSETTLED",
-    "container_stage_deadline": "ONE_SHARED_MONOTONIC_DEADLINE",
+    "candidate_runtime_sha256": "D1DD69F310909B62432C37863FEA2E45B8E3B846E85FE095D58B57912639F803",
+    "payload": [
+      {
+        "role": "startup_launcher",
+        "path": "operations/runtime/start-host-services.ps1",
+        "size_bytes": 72755,
+        "sha256": "1327FADC5BD21DBBE076E5CAD2DF587C6B9B5F274511A99E96E8DDC4FC0BA190"
+      },
+      {
+        "role": "startup_runtime",
+        "path": "operations/runtime/startup-runtime.ps1",
+        "size_bytes": 83294,
+        "sha256": "D1DD69F310909B62432C37863FEA2E45B8E3B846E85FE095D58B57912639F803"
+      }
+    ],
+    "native_envelope_completeness": "FAIL_CLOSED_ON_MISSING_INVALID_OR_UNKNOWN_TYPED_METADATA_TRUNCATION_TIMEOUT_NONZERO_OR_UNSETTLED",
+    "container_stage_deadline": "ONE_SHARED_MONOTONIC_DEADLINE_CHECKED_BEFORE_POSITIVE_READY_DECISION",
     "pinned_ready_state": "RUNNING_AND_STATE_STATUS_RUNNING",
     "host_retry_authorized": false,
     "review_zip_sha256": "COMPUTED_OUTSIDE_CANDIDATE_TO_AVOID_SELF_REFERENCE"

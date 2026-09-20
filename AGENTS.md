@@ -280,6 +280,16 @@
   OFFLINE_TESTS_PASS / NOT_DEPLOYED`. This is not P4/B acceptance or
   permission to update the installed launcher. No standing permission exists for another UAC, retry,
   rollback, reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
+  Final owner-authorized SOURCE/OFFLINE review conditions were published as
+  `8195e5cf8dacd1976ccd9f71a1f78175c3513acc`: native envelope completeness
+  now requires correctly typed metadata, the shared stage deadline is checked
+  again immediately before positive readiness, and the inactive candidate is
+  independently bound to the reviewed launcher/runtime paths, sizes and raw
+  hashes. Final PS 5.1 suites passed `70/57/51/44/41`; candidate binding plus
+  the P4 package passed `59`, with production-boundary calls `0`. Status is
+  `HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW /
+  OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Installed run01, Host state and D-22 are
+  unchanged; update/retry still require independent review and a new decision.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

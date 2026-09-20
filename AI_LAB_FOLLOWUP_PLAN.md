@@ -3219,3 +3219,19 @@ complete lower-boundary fakes; production Docker/Task/CIM/TCP/HTTP/UAC/Host
 calls were `0`. Status is
 `HOST22_OBSERVATION_COMPLETENESS_DEADLINE_AND_STATE_SOURCE_READY_FOR_REVIEW /
 OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Installed run01 and D-22 were not changed.
+
+**P4/B HOST22 FINAL OBSERVATION CONDITIONS — 2026-09-20.** Final review of
+preimage `b4269ffa7bacc95b4d1441bb196e572a34a4ec43` reproduced
+`RV-H22-OBS-01B/02B`: null, empty and wrong-typed completeness metadata could
+be coerced to false, and a RUNNING/HEALTHY result could be accepted after the
+shared deadline. Source `8195e5cf8dacd1976ccd9f71a1f78175c3513acc`
+requires typed Boolean/string/integer envelope fields and checks the same
+stage deadline immediately before `PRESERVE_RUNNING`. The inactive candidate
+is now independently checked from `files[]` through exact payload path, size,
+raw SHA-256 and current review metadata; it remains `NOT_APPROVED_FOR_START`.
+Final PS 5.1 suites passed `70/57/51/44/41`, candidate binding plus P4 passed
+`59`, and the extracted review package binding passed `18`; production
+Docker/Task/CIM/TCP/HTTP/UAC/Host calls were `0`. Status is
+`HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Installed run01, Host disabled/no-trigger,
+warm `0/2`, Supervisor `INTENTIONALLY_STOPPED` and D-22 remain unchanged.
