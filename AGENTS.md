@@ -308,6 +308,16 @@
   with Host disabled/no-trigger and warm `0/2`, and there is no standing UAC,
   update, Host retry, task-write or rollback authorization. D-22 remains
   unchanged and `NOT_RUN`.
+- The first consolidated D-23 review of that narrow update identified only
+  `NUP-01/02/03` (`K0/K0/K1`). Source
+  `d3435afcfb89d02d91f2db3d1eb55be17fd790bd` and the LOCAL_ONLY derivative
+  are `ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
+  OFFLINE_ONLY / NOT_INSTALLED`: bounded mutation settlement, ownership/idle
+  plus file hashes before rollback, and two distinct complete recorder results
+  were exercised in 51 assertions / 16 scenarios with production boundaries
+  `0`. D-23 remains cycle `1/2`; the next action is one independent review of
+  this diff and its regressions, not new K2/K3 work. No UAC, installation,
+  Host retry, task write or host rollback is authorized.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

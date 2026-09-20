@@ -275,3 +275,65 @@ and review ZIP
 `NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`.
 The repository draft remains `NOT_APPROVED`; installed run01 remains on its old
 bytes with Host disabled/no-trigger and warm `0/2`.
+
+## NUP-01/02/03 consolidated review fix — 2026-09-20
+
+The first D-23 review cycle classified the frozen findings as `NUP-01 K0`,
+`NUP-02 K0` and `NUP-03 K1`. Exact preimage tests (12 assertions) reproduced:
+
+- a post-handoff exception being reduced to `FAILED / possible_effect=false /
+  settled=true`, and an inner task read exceeding its intended wait;
+- a foreign but disabled/no-trigger Host passing the rollback inactivity gate,
+  while file restore lacked current-target and backup hash ownership;
+- a warm result gate that did not bind settlement, marker/result identity,
+  persisted stdout/stderr or forbidden `START_EXISTING` events.
+
+Source `d3435afcfb89d02d91f2db3d1eb55be17fd790bd` changes the recorder so a
+runner exception after child start preserves the original error and cannot mark
+the owned child settled without proof. The derived LOCAL_ONLY recipe adds only
+the corresponding narrow-update controls: a closed bounded OBSERVE/REGISTER/
+START catalog, one shared deadline, a flushed JSONL mutation journal, exact
+task ownership and idle proof, exact current-after and backup-before hashes for
+file restore, and complete evidence validation for two distinct attempts.
+Rollback uses the same bounded/journaled boundary; pending handoff preserves
+dependent files and prohibits retry or competing cleanup.
+
+Final Windows PowerShell 5.1 results on the reviewed bytes:
+
+| Scope | Assertions / scenarios | Result |
+|---|---:|---|
+| recorder and owned child settlement | 32 / 8 child cases | PASS / exit 0 |
+| actual recipe + actual recorder + lower Task/launcher fakes | 51 / 16 | PASS / exit 0 |
+
+The positive trace performed two synthetic Host attempts and calculated
+Private starts `1 -> 0`. Calculated Supervisor starts, container
+`START_EXISTING`, unapproved `START_ONCE` and writes to the five dependency
+tasks were all `0`. One owned synthetic launcher child was started and settled;
+unsettled owned processes at campaign end were `0`. Parser, JSON, CSV,
+references, package bindings, secret scan and diff checks passed. No production
+Docker, Task Scheduler, CIM, TCP, HTTP, WSL, UAC, Host, installation or rollback
+boundary was called.
+
+Exact LOCAL_ONLY derivative:
+
+- operation ID `R04-D21-P4B-HOST22-NUP-20260920T200422Z`;
+- recorder raw SHA-256
+  `D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A`;
+- recipe 57 163 B, SHA-256
+  `0B051C2F54125E25ED6DDEDEDC63A33A738604B8AAECE713B13C473FA83FB9EF`;
+- package index 6 876 B, SHA-256
+  `67B32FB8981F765A251DDC081D4FD9473B224A2BFFEE7E96CA01C1C57A288222`;
+- proposed manifest 17 810 B, SHA-256
+  `72A6109B95D59ADD32A91C30187CCA78A597CD1858AD3331350518239616898C`;
+- review ZIP 104 965 B, SHA-256
+  `C34B9460E1E4528932F722D93BF1E57E2F1906CE8F3179E0834CACA633957A1F`,
+  roundtrip `28/28`;
+- `REVIEW_INDEX.md` 11 697 B, SHA-256
+  `F65EF66EDCCDAAD60198608268EEB3CFAC1E9A64E8348D9F95EFDCBC07ED4953`.
+
+The predecessor package and logs remain unchanged. Status is
+`P4B ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
+OFFLINE_ONLY / NOT_INSTALLED`. D-23 remains review cycle `1/2`; the next action
+is one independent review of this exact diff and its regressions. It is not
+P4/B acceptance and authorizes no live preflight, UAC, update, Host retry or
+host rollback.

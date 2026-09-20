@@ -861,3 +861,30 @@ only with proven inactive owned Host and no foreign drift. The package remains
 owner operational approval are required.
 Następna operacja pozostaje odrębnym, wąskim update z nową zgodą; nie wolno
 wracać do recepty zakładającej brak zainstalowanych plików lub stare triggery.
+
+## 27. NUP-01/02/03 — bounded mutations, owned rollback and complete attempts
+
+Pierwszy zbiorczy review D-23 przypisał wyłącznie `NUP-01 K0`, `NUP-02 K0`
+i `NUP-03 K1`. Fail-before na exact preimage wykazał trzy odpowiadające im
+ścieżki: fałszywe settlement mutacji, rollback bez pozytywnej własności i
+bezczynności oraz warm gate bez pełnego dowodu nowej próby.
+
+Nieaktywna pochodna `R04-D21-P4B-HOST22-NUP-20260920T200422Z` zachowuje
+zamrożony zakres update'u: cztery pliki run01 i własny Host; helper oraz pięć
+tasków zależnych są KEEP. Mutacje przechodzą przez zamknięty bounded catalog i
+flushed mutation journal. Nierozliczony handoff blokuje retry i zależny cleanup.
+Rollback wymaga exact semantic hash własnego, bezczynnego Host oraz bieżącego
+after hash i backup before hash każdego przywracanego pliku. Dwa warm results
+muszą mieć różne attempt IDs, zgodne marker/result, rozliczone dziecko oraz
+zweryfikowane długości i hashe utrwalonych stdout/stderr. Pierwszy dopuszcza
+wyłącznie Private `START_ONCE=1`, drugi `0`; `START_EXISTING`, Supervisor,
+Docker Desktop i inne starty odrzucają wynik.
+
+Końcowa kampania PS 5.1 zaliczyła recorder `32` asercje / `8` child cases oraz
+rzeczywistą receptę z recorderem `51` asercji / `16` scenariuszy. Produkcyjne
+granice i pięć task writes: `0`; własne procesy unsettled: `0`. Exact recipe
+SHA-256 `0B051C2F...B9EF`, package index `67B32FB8...8222`, review ZIP
+`C34B9460...7A1F` (roundtrip `28/28`). Pakiet pozostaje `OFFLINE_ONLY /
+NOT_INSTALLED`; repozytoryjny draft jest `NOT_APPROVED`. D-23 pozostaje `1/2`:
+następny krok to niezależny review tylko tego diffu i regresji, bez UAC,
+instalacji, Host retry albo rollbacku hosta.

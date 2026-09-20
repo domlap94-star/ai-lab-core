@@ -3253,6 +3253,26 @@ It is `NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW /
 NO_OPERATIONAL_CHANGES`; no UAC, task write, installation, Host retry or host
 rollback occurred or is authorized. Installed run01 and D-22 are unchanged.
 
+**P4/B NUP-01/02/03 CONSOLIDATED SOURCE/OFFLINE — 2026-09-20.** The first
+D-23 review confirmed only `NUP-01/02/03` (`K0/K0/K1`). Exact preimage tests
+reproduced false settlement after a handed-off mutation, rollback without
+positive Host/file ownership, and acceptance based on a success label rather
+than two complete new evidence attempts. Source
+`d3435afcfb89d02d91f2db3d1eb55be17fd790bd` and LOCAL_ONLY recipe
+`0B051C2F54125E25ED6DDEDEDC63A33A738604B8AAECE713B13C473FA83FB9EF`
+close those paths with a bounded closed operation catalog, a flushed mutation
+journal, ownership/idle and exact before/after file hashes, plus marker/result
+and persisted stdout/stderr verification. Final PowerShell 5.1 checks passed
+32 recorder assertions with 8 owned-child cases and 51 orchestration assertions
+in 16 scenarios; the successful pair was Private `1 -> 0`, with
+Supervisor/container/five dependency-task writes `0`, production boundaries
+`0` and unsettled owned processes `0`. Package index
+`67B32FB8981F765A251DDC081D4FD9473B224A2BFFEE7E96CA01C1C57A288222`
+and review ZIP
+`C34B9460E1E4528932F722D93BF1E57E2F1906CE8F3179E0834CACA633957A1F`
+remain LOCAL_ONLY and NOT_INSTALLED. D-23 remains cycle `1/2`; one independent
+review of this diff is next, without adding K2/K3 or authorizing live work.
+
 **D-23 ANTI_EXCESSIVE_WORK — 2026-09-20.** The owner established the mandatory
 anti-loop policy in the canonical roadmap at `ANTI_EXCESSIVE_WORK`. Before each
 NEXT Stabil review, recommendation or next prompt, Codex and ChatGPT must reread

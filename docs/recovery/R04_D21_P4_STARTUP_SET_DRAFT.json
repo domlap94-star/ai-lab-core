@@ -66,9 +66,9 @@
     {
       "role": "startup_evidence_recorder",
       "path": "operations/runtime/invoke-host-with-evidence.ps1",
-      "sha256": "C75AF85A1DCA3A48A2D26887B5AAA86A3F7AA1D86641F1A067A2DDA7FBFAC03B",
-      "size_bytes": 16169,
-      "evidence": "SOURCE_727EB860C75D3DD7B010B86DE3EEAA3D656C69CF_NOT_DEPLOYED"
+      "sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
+      "size_bytes": 17192,
+      "evidence": "SOURCE_D3435AFCFB89D02D91F2DB3D1EB55BE17FD790BD_NOT_DEPLOYED"
     },
     {
       "role": "backend_override",
@@ -737,6 +737,35 @@
       "logon": "BBC46CEAD773B30206C04B6551432B6ACE5A815F9EDDA794587DDB13E680F4D5"
     },
     "review_zip_sha256": "881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6",
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "operational_authorization": false,
+    "installed": false,
+    "host_retried": false,
+    "uac_attempts": 0
+  },
+  "p4b_host22_nup_review": {
+    "status": "ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW_OFFLINE_ONLY_NOT_INSTALLED",
+    "d23_review_cycle": "1_OF_2_COMPLETE_NEXT_REVIEW_IS_2_OF_2",
+    "source_commit": "d3435afcfb89d02d91f2db3d1eb55be17fd790bd",
+    "operation_id": "R04-D21-P4B-HOST22-NUP-20260920T200422Z",
+    "recorder_sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
+    "recipe_sha256": "0B051C2F54125E25ED6DDEDEDC63A33A738604B8AAECE713B13C473FA83FB9EF",
+    "package_index_sha256": "67B32FB8981F765A251DDC081D4FD9473B224A2BFFEE7E96CA01C1C57A288222",
+    "proposed_manifest_sha256": "72A6109B95D59ADD32A91C30187CCA78A597CD1858AD3331350518239616898C",
+    "review_zip_sha256": "C34B9460E1E4528932F722D93BF1E57E2F1906CE8F3179E0834CACA633957A1F",
+    "offline_tests": {
+      "recorder_assertions": 32,
+      "owned_child_cases": 8,
+      "orchestration_assertions": 51,
+      "orchestration_scenarios": 16,
+      "synthetic_host_attempts": 2,
+      "synthetic_private_starts": "1_THEN_0",
+      "supervisor_starts": 0,
+      "container_start_existing": 0,
+      "five_dependency_task_writes": 0,
+      "production_boundary_calls": 0,
+      "unsettled_owned_processes": 0
+    },
     "repository_draft_approval_status": "NOT_APPROVED",
     "operational_authorization": false,
     "installed": false,
