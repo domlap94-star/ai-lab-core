@@ -12,6 +12,13 @@ $runtimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $runtimeDirectory 'start-host-services.ps1') -DefinitionOnly
 . (Join-Path (Split-Path -Parent $runtimeDirectory) 'windows\start-compose-after-docker.ps1') -ImportDefinitionsOnly
 
+$script:OriginalGetMonotonicMilliseconds = ${function:Get-MonotonicMilliseconds}
+$script:ActiveSyntheticClock = $null
+function Get-MonotonicMilliseconds {
+    if ($null -ne $script:ActiveSyntheticClock) { return [int64]$script:ActiveSyntheticClock.milliseconds }
+    return [int64](& $script:OriginalGetMonotonicMilliseconds)
+}
+
 $testRoot = Join-Path $env:TEMP ('NEXT Stabil D21 P1 {0}' -f ([guid]::NewGuid().ToString('N')))
 $manifestPath = Join-Path $testRoot 'operations\runtime\startup-set.json'
 $powershellPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -87,6 +94,7 @@ function New-FakeStartupState {
     param($Manifest)
     $container = Copy-TestObject $Manifest.containers[0]
     $container | Add-Member -NotePropertyName running -NotePropertyValue $true
+    $container | Add-Member -NotePropertyName state_status -NotePropertyValue 'running'
     $container | Add-Member -NotePropertyName full_id -NotePropertyValue ('d' * 64)
     $hostMap = @{}
     foreach ($service in @($Manifest.host_services | Where-Object { $_.policy -eq 'REQUIRED' })) {
@@ -111,6 +119,11 @@ function New-FakeStartupState {
         desktop_start_status = 'ACCEPTED'
         host_start_status = 'SUCCESS'
         throw_engine = ''
+        container_observe_costs_ms = @(2)
+        container_observe_index = 0
+        container_observes = 0
+        container_start_cost_ms = 2
+        test_clock = [hashtable]@{ milliseconds = [int64]0 }
     }
 }
 
@@ -134,6 +147,12 @@ function New-FakeStartupAdapters {
         param($Expected)
         $service = [string]$Expected.service
         $State.calls.Add('container.observe.' + $service)
+        $costs = @($State.container_observe_costs_ms)
+        $costIndex = [int]$State.container_observe_index
+        $cost = if ($costs.Count -gt $costIndex) { [int]$costs[$costIndex] } else { [int]$costs[-1] }
+        $State.container_observe_index++
+        $State.container_observes++
+        $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + [Math]::Max(0, $cost)
         return @($State.containers[$service])
     }.GetNewClosure()
     $startContainer = {
@@ -141,8 +160,10 @@ function New-FakeStartupAdapters {
         $State.calls.Add('container.start.' + $Name)
         $State.container_starts++
         $State.container_start_targets.Add([string]$Name)
+        $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + [Math]::Max(0, [int]$State.container_start_cost_ms)
         if ($State.container_start_status -eq 'SUCCESS') {
             $State.containers.backend[0].running = $true
+            $State.containers.backend[0].state_status = 'running'
             if ($State.change_container_id_after_start) { $State.containers.backend[0].full_id = 'e' * 64 }
         }
         [pscustomobject]@{ status = $State.container_start_status }
@@ -167,7 +188,10 @@ function New-FakeStartupAdapters {
         $State.calls.Add('readiness.' + [string]$Definition.name)
         [pscustomobject]@{ status = [int]$State.readiness[[string]$Definition.name] }
     }.GetNewClosure()
-    $sleep = { param($Milliseconds) }.GetNewClosure()
+    $sleep = {
+        param($Milliseconds)
+        $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + [Math]::Max(0, [int]$Milliseconds)
+    }.GetNewClosure()
     return [pscustomobject]@{
         GetDockerEnvironment = $getEnvironment
         ObserveEngine = $observeEngine
@@ -185,7 +209,14 @@ function New-FakeStartupAdapters {
 function Invoke-TestPlan {
     param($Manifest, [hashtable]$State)
     Save-TestManifest -Manifest $Manifest
-    return Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters (New-FakeStartupAdapters -State $State) -AllowSyntheticRoot
+    $State.test_clock.milliseconds = [int64]0
+    $script:ActiveSyntheticClock = $State.test_clock
+    try {
+        return Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters (New-FakeStartupAdapters -State $State) -AllowSyntheticRoot
+    }
+    finally {
+        $script:ActiveSyntheticClock = $null
+    }
 }
 
 try {
@@ -242,11 +273,36 @@ try {
 
     $state = New-FakeStartupState $manifest
     $state.containers.backend[0].running = $false
+    $state.containers.backend[0].state_status = 'exited'
     $result = Invoke-TestPlan $manifest $state
-    Assert-Startup ($result.code -eq 'BASE_READY_LIMITED' -and $state.container_starts -eq 1 -and $state.container_start_targets[0] -eq ('d' * 64)) 'stopped matching container starts exact observed full ID once'
+    Assert-Startup ($result.code -eq 'BASE_READY_LIMITED' -and $state.container_starts -eq 1 -and $state.container_start_targets[0] -eq ('d' * 64)) ('stopped matching container starts exact observed full ID once; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress))
+    Assert-Startup ($state.container_observes -eq 2) 'successful fake start performs one required post-start readback'
 
     $state = New-FakeStartupState $manifest
     $state.containers.backend[0].running = $false
+    $state.containers.backend[0].state_status = 'exited'
+    $state.container_observe_costs_ms = @(2, 20)
+    $result = Invoke-TestPlan $manifest $state
+    Assert-Startup ($result.code -eq 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED' -and $state.container_starts -eq 1 -and $state.container_observes -eq 2) ('post-start ready observation arriving after shared deadline is refused without retry; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress) + '; starts=' + $state.container_starts + '; observes=' + $state.container_observes + '; synthetic_ms=' + $state.test_clock.milliseconds)
+
+    $state = New-FakeStartupState $manifest
+    $state.containers.backend[0].running = $false
+    $state.containers.backend[0].state_status = 'exited'
+    $state.container_observe_costs_ms = @(8, 8)
+    $state.container_start_cost_ms = 8
+    $result = Invoke-TestPlan $manifest $state
+    Assert-Startup ($result.code -eq 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED' -and $state.container_starts -eq 1 -and $state.container_observes -eq 2) ('individually bounded suboperations cannot exceed the shared stage budget; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress) + '; starts=' + $state.container_starts + '; observes=' + $state.container_observes)
+
+    $state = New-FakeStartupState $manifest
+    $state.containers.backend[0].running = $false
+    $state.containers.backend[0].state_status = 'exited'
+    $state.container_observe_costs_ms = @(20)
+    $result = Invoke-TestPlan $manifest $state
+    Assert-Startup ($result.code -eq 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED' -and $state.container_starts -eq 0 -and $state.container_observes -eq 1) 'exhausted budget prevents the next operation and any start retry'
+
+    $state = New-FakeStartupState $manifest
+    $state.containers.backend[0].running = $false
+    $state.containers.backend[0].state_status = 'exited'
     $state.change_container_id_after_start = $true
     $result = Invoke-TestPlan $manifest $state
     Assert-Startup ($result.code -eq 'CONTAINER_RUNTIME_ID_CHANGED' -and $state.container_starts -eq 1) 'container replacement between verified start and observation is refused'
@@ -258,7 +314,7 @@ try {
         elseif ($case -eq 'image') { $state.containers.backend[0].image_id = 'sha256:' + ('c' * 64) }
         elseif ($case -eq 'mount') { $state.containers.backend[0].mounts[0].source = (Join-Path $testRoot 'foreign') }
         elseif ($case -eq 'port') { $state.containers.backend[0].ports[0].host_port = 19999 }
-        elseif ($case -eq 'runtime_id') { $state.containers.backend[0].running = $false; $state.containers.backend[0].full_id = 'not-a-full-id' }
+        elseif ($case -eq 'runtime_id') { $state.containers.backend[0].running = $false; $state.containers.backend[0].state_status = 'exited'; $state.containers.backend[0].full_id = 'not-a-full-id' }
         $result = Invoke-TestPlan $manifest $state
         Assert-Startup (-not $result.base_ready -and $state.container_starts -eq 0) ('container identity refusal: ' + $case)
     }
@@ -338,6 +394,7 @@ try {
 
     $state = New-FakeStartupState $manifest
     $state.containers.backend[0].running = $false
+    $state.containers.backend[0].state_status = 'exited'
     $state.container_start_status = 'TIMEOUT'
     $result = Invoke-TestPlan $manifest $state
     Assert-Startup ($result.code -eq 'CONTAINER_START_UNKNOWN' -and $state.container_starts -eq 1) 'timed out start is unknown and not retried'
@@ -418,6 +475,8 @@ try {
     Write-Output ('D21_P1_TEST_PASS assertions={0}' -f $script:Assertions)
 }
 finally {
+    $script:ActiveSyntheticClock = $null
+    Set-Item -Path Function:\Get-MonotonicMilliseconds -Value $script:OriginalGetMonotonicMilliseconds
     if (Test-Path -LiteralPath $testRoot) {
         $resolved = [System.IO.Path]::GetFullPath($testRoot)
         $tempRoot = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'

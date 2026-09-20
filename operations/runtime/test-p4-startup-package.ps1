@@ -11,6 +11,13 @@ function Assert-P4Package {
 $runtimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $runtimeDirectory 'start-host-services.ps1') -DefinitionOnly
 
+$script:OriginalP4GetMonotonicMilliseconds = ${function:Get-MonotonicMilliseconds}
+$script:ActiveP4SyntheticClock = $null
+function Get-MonotonicMilliseconds {
+    if ($null -ne $script:ActiveP4SyntheticClock) { return [int64]$script:ActiveP4SyntheticClock.milliseconds }
+    return [int64](& $script:OriginalP4GetMonotonicMilliseconds)
+}
+
 $token = [guid]::NewGuid().ToString('N')
 $fixtureRoot = Join-Path $env:TEMP ('NEXT Stabil D21 P4 Package {0}' -f $token)
 $installRoot = Join-Path $fixtureRoot 'install'
@@ -205,6 +212,7 @@ function New-P4State {
         postgres_health_mode = 'NORMAL'
         postgres_running_observations = 0
         extra_container_observations = @{ backend = $drillObservations }
+        test_clock = [hashtable]@{ milliseconds = [int64]0 }
     }
 }
 
@@ -219,6 +227,7 @@ function New-P4Adapters {
             param($Expected)
             $service = [string]$Expected.service
             $State.calls.Add('container.observe.' + $service)
+            $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1
             $observed = $State.containers[$service]
             if ($service -eq 'postgres' -and [bool]$observed.running) {
                 $State.postgres_running_observations++
@@ -234,17 +243,19 @@ function New-P4Adapters {
             $service = @($State.containers.Keys | Where-Object { [string]$State.containers[$_].full_id -eq [string]$FullId })[0]
             $State.calls.Add('container.start.' + $service)
             $State.container_starts.Add($service)
+            $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1
             $State.containers[$service].running = $true
             $State.containers[$service].state_status = 'running'
             $State.containers[$service].active_ports = @($State.containers[$service].ports)
             if ($service -eq 'postgres') { $State.containers[$service].health_status = 'starting' }
             [pscustomobject]@{ status = 'SUCCESS'; process_left_running = $false }
         }.GetNewClosure()
-        ObserveHostService = { param($Expected, $Timeout) $State.calls.Add('host.observe.' + [string]$Expected.name); @($State.hosts[[string]$Expected.name]) }.GetNewClosure()
+        ObserveHostService = { param($Expected, $Timeout) $State.calls.Add('host.observe.' + [string]$Expected.name); $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1; @($State.hosts[[string]$Expected.name]) }.GetNewClosure()
         StartHostService = {
             param($Expected, $Timeout)
             $name = [string]$Expected.name
             $State.calls.Add('host.start.' + $name)
+            $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1
             if (-not $State.host_starts.ContainsKey($name)) { $State.host_starts[$name] = 0 }
             $State.host_starts[$name]++
             $ready = Copy-P4Object $Expected
@@ -252,15 +263,236 @@ function New-P4Adapters {
             $State.hosts[$name] = @($ready)
             [pscustomobject]@{ status = 'SUCCESS'; operation_may_have_started = $false }
         }.GetNewClosure()
-        CheckReadiness = { param($Definition) $State.calls.Add('readiness.' + [string]$Definition.name); [pscustomobject]@{ status = [int]$Definition.expected_status } }.GetNewClosure()
-        Sleep = { param($Milliseconds) }.GetNewClosure()
+        CheckReadiness = { param($Definition) $State.calls.Add('readiness.' + [string]$Definition.name); $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1; [pscustomobject]@{ status = [int]$Definition.expected_status } }.GetNewClosure()
+        Sleep = { param($Milliseconds) $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + [Math]::Max(0, [int]$Milliseconds) }.GetNewClosure()
+    }
+}
+
+function New-P4NativeEnvelope {
+    param(
+        [string]$Status,
+        [string]$Stdout = '',
+        [string]$Stderr = '',
+        [int]$ExitCode = 0,
+        [bool]$StdoutTruncated = $false,
+        [bool]$StderrTruncated = $false
+    )
+    return [pscustomobject]@{
+        status = $Status
+        started = $true
+        timed_out = $false
+        exit_code = $ExitCode
+        pid = 5151
+        process_left_running = $false
+        duration_ms = 1
+        stdout = $Stdout
+        stderr = $Stderr
+        stdout_truncated = $StdoutTruncated
+        stderr_truncated = $StderrTruncated
+    }
+}
+
+function New-P4RealAdapterState {
+    param($Manifest, [bool]$Running = $true)
+    $state = New-P4State -Manifest $Manifest -Running $Running
+    $state.raw_host_modes = @{ public_gateway = 'READY'; private_gateway = 'READY'; supervisor = 'ABSENT' }
+    $state.raw_native_calls = New-Object System.Collections.Generic.List[object]
+    $state.raw_host_starts = @{ public_gateway = 0; private_gateway = 0; supervisor = 0 }
+    $state.inspect_stdout_truncated = @{}
+    $state.selector_stdout_truncated = @{}
+    $state.selector_stderr_truncated = @{}
+    $state.selector_override = @{}
+    $state.read_delay_service = ''
+    $state.read_delay_ms = 0
+    return $state
+}
+
+function ConvertTo-P4DockerProjectionJson {
+    param($Observed, [hashtable]$State)
+    $configured = [ordered]@{}
+    $active = [ordered]@{}
+    $portSource = if (Test-StartupProperty -InputObject $Observed -Name 'ports') { @($Observed.ports) } else { @($Observed.configured_ports) }
+    foreach ($port in $portSource) {
+        $key = ([string]$port.container_port) + '/' + ([string]$port.protocol)
+        $binding = [ordered]@{ HostIp = [string]$port.host_ip; HostPort = [string]$port.host_port }
+        $configured[$key] = @($binding)
+        if ([bool]$Observed.running) { $active[$key] = @($binding) }
+    }
+    $mounts = @(@($Observed.mounts) | ForEach-Object {
+        [ordered]@{
+            Type = [string]$_.type
+            Name = $(if ([string]$_.type -eq 'volume') { [string]$_.source } else { '' })
+            Source = $(if ([string]$_.type -eq 'volume') { '' } else { [string]$_.source })
+            Destination = [string]$_.destination
+            RW = -not [bool]$_.read_only
+        }
+    })
+    $health = $null
+    if ([string]$Observed.service -eq 'postgres' -and [bool]$Observed.running) {
+        $State.postgres_running_observations++
+        if ($State.postgres_health_mode -eq 'STUCK' -or $State.postgres_running_observations -eq 1) { $health = 'starting' }
+        else { $health = 'healthy' }
+        $Observed.health_status = $health
+        $State.calls.Add('raw.postgres.health.' + $health)
+    }
+    elseif ([string]$Observed.health_status -in @('healthy', 'starting', 'unhealthy')) { $health = [string]$Observed.health_status }
+    $projection = [ordered]@{
+        id = [string]$Observed.full_id
+        name = '/' + [string]$Observed.container_name
+        image_id = [string]$Observed.image_id
+        compose_project = [string]$Observed.compose_project
+        compose_service = [string]$Observed.service
+        state = [ordered]@{ status = [string]$Observed.state_status; running = [bool]$Observed.running; health = $health }
+        mounts = $mounts
+        configured_ports = $configured
+        active_ports = $active
+    }
+    return ($projection | ConvertTo-Json -Depth 20 -Compress)
+}
+
+function New-P4HostOperationPayload {
+    param($Expected, [string]$Mode)
+    $task = [pscustomobject]@{
+        execute = [string]$Expected.executable
+        arguments = Join-WindowsNativeArguments -ArgumentList @($Expected.arguments | ForEach-Object { [string]$_ })
+        working_directory = [string]$Expected.working_directory
+    }
+    if ($Mode -eq 'ABSENT') { return [pscustomobject]@{ status = 'SUCCESS'; task = $task; processes = @(); listeners = @() } }
+    $processId = 6000 + [int]$Expected.listener_port % 1000
+    $command = Join-WindowsNativeArguments -ArgumentList (@([string]$Expected.executable) + @($Expected.arguments | ForEach-Object { [string]$_ }))
+    return [pscustomobject]@{
+        status = 'SUCCESS'
+        task = $task
+        processes = @([pscustomobject]@{ process_id = $processId; executable_path = [string]$Expected.executable; command_line = $command; creation_date = [datetime]'2026-09-20T00:00:00Z' })
+        listeners = @([pscustomobject]@{ local_address = [string]$Expected.listener_host; local_port = [int]$Expected.listener_port; owning_process = $processId })
+    }
+}
+
+function New-P4RealSystemBoundary {
+    param($Manifest, [hashtable]$State)
+    $invokeNative = {
+        param($FilePath, $Arguments, $Timeout, $MaximumOutput)
+        $joined = @($Arguments) -join ' '
+        $service = ''
+        $targetId = if (@($Arguments).Count -gt 0) { [string]$Arguments[-1] } else { '' }
+        foreach ($candidate in $State.containers.Keys) {
+            if ([string]$State.containers[$candidate].full_id -eq $targetId -or [string]$State.containers[$candidate].image_id -eq $targetId) { $service = [string]$candidate; break }
+        }
+        if ([string]::IsNullOrWhiteSpace($service)) {
+            foreach ($extraService in $State.extra_container_observations.Keys) {
+                if (@($State.extra_container_observations[$extraService] | Where-Object { [string]$_.full_id -eq $targetId }).Count -gt 0) { $service = [string]$extraService; break }
+            }
+        }
+        if ($joined -like '*label=com.docker.compose.service=*') {
+            $serviceFilter = @($Arguments | Where-Object { [string]$_ -like 'label=com.docker.compose.service=*' } | Select-Object -Last 1)
+            if ($serviceFilter.Count -eq 1) { $service = ([string]$serviceFilter[0]).Substring(([string]$serviceFilter[0]).LastIndexOf('=') + 1) }
+        }
+        $State.raw_native_calls.Add([pscustomobject]@{ command = $joined; timeout = [int]$Timeout; service = $service })
+        $nativeCost = 1
+        if ([int]$State.read_delay_ms -gt 0 -and $service -eq [string]$State.read_delay_service -and $joined -notlike '--context desktop-linux-test start*') { $nativeCost = [int]$State.read_delay_ms }
+        $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + [Math]::Max(0, $nativeCost)
+        if ($joined -eq 'context show') { return New-P4NativeEnvelope -Status 'SUCCESS' -Stdout 'desktop-linux-test' }
+        if ($joined -like 'context inspect desktop-linux-test*') { return New-P4NativeEnvelope -Status 'SUCCESS' -Stdout 'npipe:////./pipe/nextStabilSynthetic' }
+        if ($joined -like '--context desktop-linux-test version*') { return New-P4NativeEnvelope -Status 'SUCCESS' -Stdout '27.0.0-synthetic' }
+        if ($joined -like '--context desktop-linux-test inspect --type container --format*') {
+            $observed = $null
+            foreach ($candidate in $State.containers.Values) { if ([string]$candidate.full_id -eq $targetId) { $observed = $candidate; break } }
+            if ($null -eq $observed) {
+                foreach ($extraSet in $State.extra_container_observations.Values) {
+                    foreach ($candidate in @($extraSet)) { if ([string]$candidate.full_id -eq $targetId) { $observed = $candidate; break } }
+                    if ($null -ne $observed) { break }
+                }
+            }
+            if ($null -eq $observed) { return New-P4NativeEnvelope -Status 'NONZERO_EXIT' -Stderr 'Error response from daemon: No such container: synthetic' -ExitCode 1 }
+            return New-P4NativeEnvelope -Status 'SUCCESS' -Stdout (ConvertTo-P4DockerProjectionJson -Observed $observed -State $State) -StdoutTruncated ([bool]$State.inspect_stdout_truncated[$targetId])
+        }
+        if ($joined -like '--context desktop-linux-test image inspect*') {
+            $observed = @()
+            foreach ($candidate in $State.containers.Keys) {
+                if ([string]$State.containers[$candidate].image_id -eq $targetId) { $observed = @($State.containers[$candidate]); break }
+            }
+            if ($observed.Count -eq 0) {
+                foreach ($extraSet in $State.extra_container_observations.Values) {
+                    $extraImage = @($extraSet | Where-Object { [string]$_.image_id -eq $targetId } | Select-Object -First 1)
+                    if ($extraImage.Count -eq 1) { $observed = $extraImage; break }
+                }
+            }
+            if ($observed.Count -eq 0) { return New-P4NativeEnvelope -Status 'NONZERO_EXIT' -Stderr 'Error response from daemon: No such image: synthetic' -ExitCode 1 }
+            $digest = 'synthetic/' + [string]$observed[0].service + '@' + [string]$observed[0].repo_digest
+            return New-P4NativeEnvelope -Status 'SUCCESS' -Stdout (@($digest) | ConvertTo-Json -Compress)
+        }
+        if ($joined -like '--context desktop-linux-test container ls --all --no-trunc*') {
+            $ids = New-Object System.Collections.Generic.List[string]
+            if ($State.containers.ContainsKey($service)) { $ids.Add([string]$State.containers[$service].full_id) }
+            foreach ($extra in @($State.extra_container_observations[$service])) { $ids.Add([string]$extra.full_id) }
+            $text = if ($State.selector_override.ContainsKey($service)) { [string]$State.selector_override[$service] } else { @($ids) -join "`r`n" }
+            $status = if ([string]::IsNullOrWhiteSpace($text)) { 'EMPTY_OUTPUT' } else { 'SUCCESS' }
+            return New-P4NativeEnvelope -Status $status -Stdout $text -StdoutTruncated ([bool]$State.selector_stdout_truncated[$service]) -StderrTruncated ([bool]$State.selector_stderr_truncated[$service])
+        }
+        if ($joined -like '--context desktop-linux-test start*') {
+            $match = @($State.containers.Keys | Where-Object { [string]$State.containers[$_].full_id -eq $targetId })
+            if ($match.Count -ne 1) { return New-P4NativeEnvelope -Status 'NONZERO_EXIT' -Stderr 'synthetic exact start target missing' -ExitCode 1 }
+            $startedService = [string]$match[0]
+            $State.container_starts.Add($startedService)
+            $State.calls.Add('raw.container.start.' + $startedService)
+            $State.containers[$startedService].running = $true
+            $State.containers[$startedService].state_status = 'running'
+            return New-P4NativeEnvelope -Status 'SUCCESS' -Stdout $targetId
+        }
+        throw ('UNEXPECTED_REAL_NATIVE_CALL:' + $joined)
+    }.GetNewClosure()
+    $invokeHost = {
+        param($Operation, $Expected, $Timeout, $MaximumOutput)
+        $name = [string]$Expected.name
+        $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1
+        if ($Operation -eq 'OBSERVE') {
+            $payload = New-P4HostOperationPayload -Expected $Expected -Mode ([string]$State.raw_host_modes[$name])
+            return [pscustomobject]@{ status = 'SUCCESS'; result = $payload; job_left_running = $false }
+        }
+        if ($Operation -eq 'START') {
+            $State.raw_host_starts[$name]++
+            $State.raw_host_modes[$name] = 'READY'
+            return [pscustomobject]@{ status = 'SUCCESS'; result = [pscustomobject]@{ status = 'SUCCESS' }; job_left_running = $false }
+        }
+        throw ('UNEXPECTED_REAL_HOST_OPERATION:' + $Operation)
+    }.GetNewClosure()
+    return [pscustomobject]@{
+        InvokeNative = $invokeNative
+        GetEnvironmentState = { [pscustomobject]@{ docker_host_override = ''; docker_context_override = '' } }
+        ObserveDesktop = { param($ProcessName, $ExpectedPath) throw 'UNEXPECTED_REAL_DESKTOP_OBSERVE' }
+        StartDesktop = { param($ExpectedPath) throw 'UNEXPECTED_REAL_DESKTOP_START' }
+        InvokeHostOperation = $invokeHost
+        InvokeHttp = { param($Uri, $Timeout) $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + 1; [pscustomobject]@{ status = $(if ([string]$Uri -match '/control$') { 404 } else { 200 }) } }.GetNewClosure()
+        Sleep = { param($Milliseconds) $State.test_clock.milliseconds = [int64]$State.test_clock.milliseconds + [Math]::Max(0, [int]$Milliseconds) }.GetNewClosure()
+    }
+}
+
+function Invoke-P4RealAdapterPlan {
+    param($Manifest, [hashtable]$State)
+    Save-P4Manifest $Manifest
+    $boundary = New-P4RealSystemBoundary -Manifest $Manifest -State $State
+    $adapters = New-RealStartupAdapters -Manifest $Manifest -SystemBoundary $boundary
+    $State.test_clock.milliseconds = [int64]0
+    $script:ActiveP4SyntheticClock = $State.test_clock
+    try {
+        return Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters $adapters -AllowSyntheticRoot
+    }
+    finally {
+        $script:ActiveP4SyntheticClock = $null
     }
 }
 
 function Invoke-P4Plan {
     param($Manifest, [hashtable]$State)
     Save-P4Manifest $Manifest
-    return Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-P4Adapters $State) -AllowSyntheticRoot
+    $State.test_clock.milliseconds = [int64]0
+    $script:ActiveP4SyntheticClock = $State.test_clock
+    try {
+        return Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $installRoot -Adapters (New-P4Adapters $State) -AllowSyntheticRoot
+    }
+    finally {
+        $script:ActiveP4SyntheticClock = $null
+    }
 }
 
 try {
@@ -321,6 +553,99 @@ try {
     $activeConflictResult = Invoke-P4Plan $manifest $activeConflictState
     Assert-P4Package ($activeConflictResult.code -eq 'CONTAINER_ROLE_CONFLICT' -and $activeConflictState.container_starts.Count -eq 0) 'active same-role competitor blocks the complete plan'
 
+    # Whole-plan composition with the production validator, parser, real
+    # adapters and phase logic. Only the lowest Docker/host/HTTP boundaries
+    # below are synthetic.
+    $realReadyState = New-P4RealAdapterState -Manifest $manifest
+    $realReadyFirst = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realReadyState
+    $realReadySecond = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realReadyState
+    Assert-P4Package ($realReadyFirst.code -eq 'BASE_READY_LIMITED' -and $realReadySecond.code -eq 'BASE_READY_LIMITED') ('real-adapter 6+4 topology reaches limited readiness twice; first=' + ($realReadyFirst | ConvertTo-Json -Depth 8 -Compress) + ';second=' + ($realReadySecond | ConvertTo-Json -Depth 8 -Compress))
+    Assert-P4Package ($realReadyState.container_starts.Count -eq 0 -and ($realReadyState.raw_host_starts.Values | Measure-Object -Sum).Sum -eq 0) 'real-adapter ready topology performs zero starts'
+    Assert-P4Package (@($realReadyFirst.events | Where-Object { $_.action -eq 'IGNORE_RETAINED_INACTIVE_DRILL' }).Count -eq 4) 'real-adapter plan accounts for all four retained drills'
+
+    $realPrivateState = New-P4RealAdapterState -Manifest $manifest
+    $realPrivateState.raw_host_modes.private_gateway = 'ABSENT'
+    $realPrivateFirst = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realPrivateState
+    $realPrivateSecond = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realPrivateState
+    Assert-P4Package ($realPrivateFirst.code -eq 'BASE_READY_LIMITED' -and $realPrivateSecond.code -eq 'BASE_READY_LIMITED') 'real-adapter private gateway reaches readiness and repeats'
+    Assert-P4Package ($realPrivateState.raw_host_starts.private_gateway -eq 1 -and $realPrivateState.raw_host_starts.supervisor -eq 0) 'real-adapter private gateway starts once and Supervisor never starts'
+
+    $realColdState = New-P4RealAdapterState -Manifest $manifest -Running $false
+    $realCold = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realColdState
+    $realHealthyIndex = @($realColdState.calls).IndexOf('raw.postgres.health.healthy')
+    $realBackendStartIndex = @($realColdState.calls).IndexOf('raw.container.start.backend')
+    Assert-P4Package ($realCold.code -eq 'BASE_READY_LIMITED') ('real-adapter cold fixture reaches limited readiness; actual=' + $realCold.code)
+    Assert-P4Package ($realColdState.container_starts[0] -eq 'postgres' -and $realColdState.container_starts[-1] -eq 'backend') ('real-adapter cold starts pinned PostgreSQL before pinned backend; actual=' + (@($realColdState.container_starts) -join ','))
+    Assert-P4Package ($realHealthyIndex -ge 0 -and $realBackendStartIndex -gt $realHealthyIndex) 'real-adapter backend starts only after PostgreSQL running and healthy'
+
+    foreach ($observationCase in @('A_SELECTOR_TRUNCATED', 'B_INSPECT_TRUNCATED', 'C_EMPTY_SELECTOR_TRUNCATED')) {
+        $incompleteState = New-P4RealAdapterState -Manifest $manifest
+        $incompleteState.containers.backend.running = $false
+        $incompleteState.containers.backend.state_status = 'exited'
+        switch ($observationCase) {
+            'A_SELECTOR_TRUNCATED' { $incompleteState.selector_stdout_truncated.backend = $true; $incompleteState.selector_override.backend = [string]$incompleteState.containers.backend.full_id }
+            'B_INSPECT_TRUNCATED' { $incompleteState.inspect_stdout_truncated[[string]$incompleteState.containers.backend.full_id] = $true }
+            'C_EMPTY_SELECTOR_TRUNCATED' { $incompleteState.selector_stdout_truncated.backend = $true; $incompleteState.selector_override.backend = '' }
+        }
+        $incompleteResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $incompleteState
+        Assert-P4Package ($incompleteResult.code -eq 'ADAPTER_FAILURE' -and $incompleteState.container_starts.Count -eq 0) ('real-adapter incomplete envelope blocks the whole plan: ' + $observationCase + ';actual=' + $incompleteResult.code)
+    }
+
+    $deadlineManifest = Copy-P4Object $manifest
+    $deadlineManifest.timeouts.native_command_ms = 200
+    $deadlineManifest.timeouts.service_stage_ms = 250
+    $deadlineState = New-P4RealAdapterState -Manifest $deadlineManifest
+    $deadlineState.read_delay_service = 'backend'
+    $deadlineState.read_delay_ms = 60
+    $deadlineResult = Invoke-P4RealAdapterPlan -Manifest $deadlineManifest -State $deadlineState
+    $backendBudgets = @($deadlineState.raw_native_calls | Where-Object { $_.service -eq 'backend' } | ForEach-Object { [int]$_.timeout })
+    $deadlineDecreased = $false
+    for ($index = 1; $index -lt $backendBudgets.Count; $index++) { if ($backendBudgets[$index] -lt $backendBudgets[$index - 1]) { $deadlineDecreased = $true; break } }
+    Assert-P4Package ($deadlineResult.code -eq 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED' -and $deadlineState.container_starts.Count -eq 0) ('real-adapter shared deadline blocks the whole plan without start; actual=' + $deadlineResult.code)
+    Assert-P4Package ($deadlineDecreased -and $backendBudgets.Count -lt 7) ('real-adapter stops further backend reads with decreasing budgets; budgets=' + ($backendBudgets -join ','))
+
+    foreach ($stateStatus in @('paused', 'restarting')) {
+        $pinnedState = New-P4RealAdapterState -Manifest $manifest
+        $pinnedState.containers.backend.state_status = $stateStatus
+        $pinnedState.containers.backend.running = $true
+        $pinnedResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $pinnedState
+        Assert-P4Package ($pinnedResult.code -eq 'CONTAINER_STATE_NOT_READY' -and $pinnedState.container_starts.Count -eq 0) ('real-adapter pinned backend state blocks: ' + $stateStatus)
+
+        $postgresState = New-P4RealAdapterState -Manifest $manifest
+        $postgresState.containers.postgres.state_status = $stateStatus
+        $postgresState.containers.postgres.running = $true
+        $postgresState.containers.postgres.health_status = 'healthy'
+        $postgresState.postgres_running_observations = 1
+        $postgresResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $postgresState
+        Assert-P4Package ($postgresResult.code -eq 'CONTAINER_STATE_NOT_READY' -and $postgresState.container_starts.Count -eq 0) ('real-adapter pinned PostgreSQL stale healthy blocks: ' + $stateStatus)
+    }
+
+    $realMissing = New-P4RealAdapterState -Manifest $manifest
+    $realMissing.containers.backend.full_id = 'd' * 64
+    $realMissingResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realMissing
+    Assert-P4Package ($realMissingResult.code -in @('CONTROLLED_DEPLOY_REQUIRED', 'CONTAINER_ROLE_CONFLICT') -and $realMissing.container_starts.Count -eq 0) 'real-adapter missing pinned ID is never adopted or started'
+
+    $realConflict = New-P4RealAdapterState -Manifest $manifest
+    $realForeign = Copy-P4Object $realConflict.containers.backend
+    $realForeign.full_id = 'e' * 64
+    $realForeign.container_name = 'foreign-backend'
+    $realConflict.extra_container_observations.backend += $realForeign
+    $realConflictResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $realConflict
+    Assert-P4Package ($realConflictResult.code -eq 'CONTAINER_ROLE_CONFLICT' -and $realConflict.container_starts.Count -eq 0) 'real-adapter active same-role conflict blocks without start'
+
+    foreach ($driftCase in @('name', 'label', 'image', 'mount', 'port')) {
+        $driftState = New-P4RealAdapterState -Manifest $manifest
+        switch ($driftCase) {
+            'name' { $driftState.containers.backend.container_name = 'foreign-backend' }
+            'label' { $driftState.containers.backend.compose_project = 'foreign-project' }
+            'image' { $driftState.containers.backend.image_id = 'sha256:' + ('9' * 64) }
+            'mount' { $driftState.containers.backend.mounts[0].source = (Join-Path $fixtureRoot 'foreign-backend') }
+            'port' { $driftState.containers.backend.ports[0].host_port = 18001 }
+        }
+        $driftResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $driftState
+        Assert-P4Package ($driftResult.code -eq 'IDENTITY_MISMATCH' -and $driftState.container_starts.Count -eq 0) ('real-adapter drift blocks without start: ' + $driftCase + ';actual=' + ($driftResult | ConvertTo-Json -Depth 8 -Compress))
+    }
+
     $backend = @($manifest.containers | Where-Object { $_.service -eq 'backend' })[0]
     $localExpected = Copy-P4Object $backend
     $localExpected.image_identity_mode = 'LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST'
@@ -343,6 +668,8 @@ try {
     Write-Output ('D21_P4_STARTUP_PACKAGE_TEST_PASS assertions={0}' -f $script:Assertions)
 }
 finally {
+    $script:ActiveP4SyntheticClock = $null
+    Set-Item -Path Function:\Get-MonotonicMilliseconds -Value $script:OriginalP4GetMonotonicMilliseconds
     if (Test-Path -LiteralPath $dataLink) {
         $item = Get-Item -LiteralPath $dataLink -Force
         if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -and $item.FullName -eq $dataLink) { [System.IO.Directory]::Delete($dataLink) }

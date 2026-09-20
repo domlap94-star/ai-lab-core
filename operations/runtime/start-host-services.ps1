@@ -612,22 +612,51 @@ function New-RealStartupAdapters {
         catch { return [pscustomobject]@{ status = 'START_FAILED'; detail = ConvertTo-SafeStartupDiagnostic $_.Exception.Message } }
     }.GetNewClosure()
 
+    $containerNativeTimeout = [int]$commandTimeout
+    $containerNativeOutputLimit = [int]$outputLimit
+    $containerDockerExecutable = [string]$dockerPath
+    $containerSystemBoundary = $SystemBoundary
     $observeContainer = {
-        param($Expected)
+        param($Expected, [int]$ObservationTimeoutMilliseconds = 0)
         $project = [string](Get-StartupProperty -InputObject $Expected -Name 'compose_project')
         $service = [string](Get-StartupProperty -InputObject $Expected -Name 'service')
         $expectedId = [string](Get-StartupProperty -InputObject $Expected -Name 'container_id')
         $format = '{"id":{{json .Id}},"name":{{json .Name}},"image_id":{{json .Image}},"compose_project":{{json (index .Config.Labels "com.docker.compose.project")}},"compose_service":{{json (index .Config.Labels "com.docker.compose.service")}},"state":{"status":{{json .State.Status}},"running":{{json .State.Running}},"health":{{with (index .State "Health")}}{{with (index . "Status")}}{{json .}}{{else}}""{{end}}{{else}}null{{end}}},"mounts":[{{- $first := true -}}{{range .Mounts}}{{if not $first}},{{end}}{"Type":{{json .Type}},"Name":{{json (index . "Name")}},"Source":{{json .Source}},"Destination":{{json .Destination}},"RW":{{json .RW}}}{{$first = false}}{{end}}],"configured_ports":{{json .HostConfig.PortBindings}},"active_ports":{{json .NetworkSettings.Ports}}}'
         $result = New-Object System.Collections.Generic.List[object]
         $imageIdentityCache = @{}
-        $invokeDockerForContainer = $invokeDocker
         $containerContext = [string]$context
         $containerExpected = $Expected
         $containerFormat = [string]$format
         $containerImageIdentityCache = $imageIdentityCache
+        $operationCommandTimeout = [int]$containerNativeTimeout
+        $operationOutputLimit = [int]$containerNativeOutputLimit
+        $operationDockerExecutable = [string]$containerDockerExecutable
+        $operationSystemBoundary = $containerSystemBoundary
+        $observationBudget = if ($ObservationTimeoutMilliseconds -gt 0) { $ObservationTimeoutMilliseconds } else { $operationCommandTimeout }
+        $observationDeadline = (Get-MonotonicMilliseconds) + $observationBudget
+        $invokeDockerObservation = {
+            param([string[]]$Arguments)
+            $remaining = Get-StartupRemainingMilliseconds -Deadline $observationDeadline -MaximumMilliseconds $operationCommandTimeout
+            if ($remaining -le 0) {
+                throw ('CONTAINER_OBSERVATION_DEADLINE_EXCEEDED:before_native_read;budget=' + $observationBudget)
+            }
+            $nativeResult = & $operationSystemBoundary.InvokeNative $operationDockerExecutable $Arguments $remaining $operationOutputLimit
+            if ((Get-MonotonicMilliseconds) -ge $observationDeadline) { throw 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED:after_native_read' }
+            return $nativeResult
+        }.GetNewClosure()
+        $assertCompleteRead = {
+            param($NativeResult, [string]$Operation)
+            $envelope = Test-StartupNativeReadEnvelope -Result $NativeResult
+            if (-not $envelope.complete) {
+                throw ('Docker ' + $Operation + ' observation incomplete: ' + $envelope.code)
+            }
+        }.GetNewClosure()
+        $containerInvokeDocker = $invokeDockerObservation
+        $containerAssertCompleteRead = $assertCompleteRead
         $readContainer = {
             param([string]$Id, [bool]$AllowNotFound)
-            $inspect = & $invokeDockerForContainer @('--context', $containerContext, 'inspect', '--type', 'container', '--format', $containerFormat, $Id)
+            $inspect = & $containerInvokeDocker @('--context', $containerContext, 'inspect', '--type', 'container', '--format', $containerFormat, $Id)
+            & $containerAssertCompleteRead $inspect 'container inspect'
             if ($inspect.status -ne 'SUCCESS') {
                 if ($AllowNotFound -and (Test-StartupDockerContainerNotFoundResult -Result $inspect)) { return $null }
                 throw ('Docker container inspect failed: ' + $inspect.status)
@@ -635,7 +664,8 @@ function New-RealStartupAdapters {
             $observed = ConvertFrom-StartupDockerContainerProjection -Json $inspect.stdout
             $observedImageId = [string](Get-StartupProperty -InputObject $observed -Name 'image_id')
             if (-not $containerImageIdentityCache.ContainsKey($observedImageId)) {
-                $digests = & $invokeDockerForContainer @('--context', $containerContext, 'image', 'inspect', '--format', '{{json .RepoDigests}}', $observedImageId)
+                $digests = & $containerInvokeDocker @('--context', $containerContext, 'image', 'inspect', '--format', '{{json .RepoDigests}}', $observedImageId)
+                & $containerAssertCompleteRead $digests 'image inspect'
                 if ($digests.status -ne 'SUCCESS') { throw ('Docker image identity failed: ' + $digests.status) }
                 $parsedDigests = @($digests.stdout | ConvertFrom-Json -ErrorAction Stop | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) })
                 $containerImageIdentityCache[$observedImageId] = @($parsedDigests | ForEach-Object { [string]$_ })
@@ -659,7 +689,8 @@ function New-RealStartupAdapters {
             if ($null -ne $pinned) { $result.Add($pinned) }
         }
 
-        $ids = & $invokeDocker @('--context', $context, 'container', 'ls', '--all', '--no-trunc', '--filter', ('label=com.docker.compose.project=' + $project), '--filter', ('label=com.docker.compose.service=' + $service), '--format', '{{.ID}}')
+        $ids = & $invokeDockerObservation @('--context', $context, 'container', 'ls', '--all', '--no-trunc', '--filter', ('label=com.docker.compose.project=' + $project), '--filter', ('label=com.docker.compose.service=' + $service), '--format', '{{.ID}}')
+        & $assertCompleteRead $ids 'container conflict list'
         if ($ids.status -notin @('SUCCESS', 'EMPTY_OUTPUT')) { throw ('Docker container conflict observation failed: ' + $ids.status) }
         $selectorIds = @($ids.stdout -split '[\r\n]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
         if (@($selectorIds | Where-Object { $_ -notmatch '^[a-fA-F0-9]{64}$' }).Count -gt 0) { throw 'Docker container conflict selector returned an invalid or truncated ID.' }

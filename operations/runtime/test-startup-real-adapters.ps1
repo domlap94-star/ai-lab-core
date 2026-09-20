@@ -26,6 +26,23 @@ function Copy-AdapterFixture {
     return ($Value | ConvertTo-Json -Depth 20 | ConvertFrom-Json)
 }
 
+function New-AdapterNativeEnvelope {
+    param([string]$Status, [string]$Stdout = '', [string]$Stderr = '', [int]$ExitCode = 0)
+    return [pscustomobject]@{
+        status = $Status
+        started = $true
+        timed_out = $false
+        exit_code = $ExitCode
+        pid = 3131
+        process_left_running = $false
+        duration_ms = 1
+        stdout = $Stdout
+        stderr = $Stderr
+        stdout_truncated = $false
+        stderr_truncated = $false
+    }
+}
+
 function New-AdapterManifest {
     $relativeFiles = [ordered]@{
         compose_config = 'compose.yaml'
@@ -157,6 +174,12 @@ function New-HostCommandBoundary {
 
     $getTask = {
         param($Expected, $BoundaryState)
+        $remainingDelay = [Math]::Max(0, [int]$BoundaryState.cooperative_task_delay_ms)
+        while ($remainingDelay -gt 0) {
+            $slice = [Math]::Min(5, $remainingDelay)
+            Start-Sleep -Milliseconds $slice
+            $remainingDelay -= $slice
+        }
         $mode = if ($BoundaryState.task_modes.ContainsKey([string]$Expected.name)) { [string]$BoundaryState.task_modes[[string]$Expected.name] } else { 'READY' }
         if ($mode -eq 'MISSING') { return $null }
         if ($mode -eq 'MISSING_ERROR') {
@@ -226,6 +249,7 @@ function New-CommandPipelineState {
     $base.listener_modes = @{}
     $base.process_mode = 'RETURN'
     $base.start_mode = 'SUCCESS'
+    $base.cooperative_task_delay_ms = 0
     $base.lower_boundary_calls = New-Object System.Collections.Generic.List[string]
     $base.next_process_id = 5100
     return $base
@@ -277,10 +301,10 @@ function New-RawSystemBoundary {
         param($FilePath, $Arguments, $Timeout, $MaximumOutput)
         $joined = @($Arguments) -join ' '
         $State.calls.Add('native:' + $joined)
-        if ($joined -eq 'context show') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = 'desktop-linux-test'; stderr = ''; process_left_running = $false } }
-        if ($joined -like 'context inspect*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = 'npipe:////./pipe/nextStabilSynthetic'; stderr = ''; process_left_running = $false } }
-        if ($joined -like '--context desktop-linux-test version*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = '28.3.3'; stderr = ''; process_left_running = $false } }
-        if ($joined -like '--context desktop-linux-test container ls --all --no-trunc*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = $State.container_id; stderr = ''; process_left_running = $false } }
+        if ($joined -eq 'context show') { return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout 'desktop-linux-test' }
+        if ($joined -like 'context inspect*') { return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout 'npipe:////./pipe/nextStabilSynthetic' }
+        if ($joined -like '--context desktop-linux-test version*') { return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout '28.3.3' }
+        if ($joined -like '--context desktop-linux-test container ls --all --no-trunc*') { return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout $State.container_id }
         if ($joined -like '--context desktop-linux-test inspect --type container --format*') {
             $configured = ConvertTo-PortJson $State.configured_ports | ConvertFrom-Json
             $active = ConvertTo-PortJson $State.active_ports | ConvertFrom-Json
@@ -295,18 +319,18 @@ function New-RawSystemBoundary {
                 configured_ports = $configured
                 active_ports = $active
             }
-            return [pscustomobject]@{ status = 'SUCCESS'; stdout = ($projection | ConvertTo-Json -Depth 8 -Compress); stderr = ''; process_left_running = $false }
+            return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout ($projection | ConvertTo-Json -Depth 8 -Compress)
         }
         if ($joined -like '--context desktop-linux-test image inspect*') {
-            if ($State.image_identity_status -ne 'SUCCESS') { return [pscustomobject]@{ status = $State.image_identity_status; stdout = ''; stderr = 'synthetic image identity failure'; process_left_running = $false } }
-            return [pscustomobject]@{ status = 'SUCCESS'; stdout = (ConvertTo-Json -InputObject @($State.repo_digests) -Compress); stderr = ''; process_left_running = $false }
+            if ($State.image_identity_status -ne 'SUCCESS') { return New-AdapterNativeEnvelope -Status $State.image_identity_status -Stderr 'synthetic image identity failure' -ExitCode 1 }
+            return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout (ConvertTo-Json -InputObject @($State.repo_digests) -Compress)
         }
         if ($joined -like '--context desktop-linux-test start*') {
             $State.container_start_count++
             $State.container_running = $true
             if ($State.change_container_id_on_start) { $State.container_id = 'e' * 64 }
             $State.active_ports = @([pscustomobject]@{ HostIp = '127.0.0.1'; HostPort = '18000'; key = '8000/tcp' })
-            return [pscustomobject]@{ status = 'SUCCESS'; stdout = 'd21-p1-backend'; stderr = ''; process_left_running = $false }
+            return New-AdapterNativeEnvelope -Status 'SUCCESS' -Stdout 'd21-p1-backend'
         }
         throw ('UNEXPECTED_NATIVE_BOUNDARY:' + $joined)
     }.GetNewClosure()
@@ -640,7 +664,9 @@ try {
 
     $syntheticSuccess = Invoke-BoundedStartupHostOperation -Operation OBSERVE -Expected $public -TimeoutMilliseconds 250 -MaximumOutputCharacters 4096 -SyntheticFixture ([pscustomobject]@{ delay_ms = 0; result = (New-HostPayload $public (New-RawAdapterState $manifest) 'ABSENT') })
     Assert-Adapter ($syntheticSuccess.status -eq 'SUCCESS' -and -not $syntheticSuccess.job_left_running) 'RV05 bounded host job returns one controlled synthetic result'
-    $syntheticTimeout = Invoke-BoundedStartupHostOperation -Operation OBSERVE -Expected $public -TimeoutMilliseconds 100 -MaximumOutputCharacters 4096 -SyntheticFixture ([pscustomobject]@{ delay_ms = 500; result = (New-HostPayload $public (New-RawAdapterState $manifest) 'ABSENT') })
+    $timeoutBoundaryState = New-CommandPipelineState $manifest
+    $timeoutBoundaryState.cooperative_task_delay_ms = 500
+    $syntheticTimeout = Invoke-BoundedStartupHostOperation -Operation OBSERVE -Expected $public -TimeoutMilliseconds 100 -MaximumOutputCharacters 4096 -SyntheticCommandBoundary (New-HostCommandBoundary $timeoutBoundaryState)
     Assert-Adapter ($syntheticTimeout.status -eq 'TIMEOUT' -and -not $syntheticTimeout.job_left_running -and $syntheticTimeout.duration_ms -lt 750) ('RV05 deadline includes bounded cleanup; actual=' + ($syntheticTimeout | ConvertTo-Json -Compress))
     $state = New-RawAdapterState $manifest
     $state.host_delay_ms = 500

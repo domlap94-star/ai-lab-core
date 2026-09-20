@@ -128,6 +128,7 @@ function New-DataJunctionState {
     param($Manifest)
     $container = Copy-TestObject $Manifest.containers[0]
     $container | Add-Member -NotePropertyName running -NotePropertyValue $true
+    $container | Add-Member -NotePropertyName state_status -NotePropertyValue 'running'
     $container | Add-Member -NotePropertyName full_id -NotePropertyValue ('d' * 64)
     $hosts = @{}
     foreach ($service in @($Manifest.host_services | Where-Object { $_.policy -eq 'REQUIRED' })) {
@@ -146,7 +147,14 @@ function New-DataJunctionAdapters {
         ObserveDockerDesktopProcess = { param($Definition) $State.calls.Add('desktop.observe'); @() }.GetNewClosure()
         StartDockerDesktop = { param($Definition) $State.calls.Add('desktop.start'); [pscustomobject]@{ status = 'REFUSED' } }.GetNewClosure()
         ObserveContainer = { param($Expected) $State.calls.Add('container.observe'); @($State.container) }.GetNewClosure()
-        StartExistingContainer = { param($FullId, $Timeout) $State.calls.Add('container.start'); $State.starts++; [pscustomobject]@{ status = 'SUCCESS' } }.GetNewClosure()
+        StartExistingContainer = {
+            param($FullId, $Timeout)
+            $State.calls.Add('container.start')
+            $State.starts++
+            $State.container.running = $true
+            $State.container.state_status = 'running'
+            [pscustomobject]@{ status = 'SUCCESS' }
+        }.GetNewClosure()
         ObserveHostService = { param($Expected, $Timeout) $State.calls.Add('host.observe.' + [string]$Expected.name); if ($State.hosts.ContainsKey([string]$Expected.name)) { @($State.hosts[[string]$Expected.name]) } else { @() } }.GetNewClosure()
         StartHostService = { param($Expected, $Timeout) $State.calls.Add('host.start.' + [string]$Expected.name); [pscustomobject]@{ status = 'SUCCESS' } }.GetNewClosure()
         CheckReadiness = { param($Definition) $State.calls.Add('readiness.' + [string]$Definition.name); [pscustomobject]@{ status = [int]$Definition.expected_status } }.GetNewClosure()

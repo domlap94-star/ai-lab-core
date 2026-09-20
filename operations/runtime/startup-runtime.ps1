@@ -76,6 +76,49 @@ function Get-StartupRemainingMilliseconds {
     return [int][Math]::Min([int64]$MaximumMilliseconds, $remaining)
 }
 
+function Test-StartupNativeReadEnvelope {
+    param([AllowNull()]$Result)
+
+    $required = @(
+        'status', 'started', 'timed_out', 'exit_code', 'process_left_running',
+        'stdout', 'stderr', 'stdout_truncated', 'stderr_truncated'
+    )
+    if ($null -eq $Result) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_ENVELOPE_MISSING'; missing = $required }
+    }
+    $missing = @($required | Where-Object { -not (Test-StartupProperty -InputObject $Result -Name $_) })
+    if ($missing.Count -gt 0) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_METADATA_MISSING'; missing = $missing }
+    }
+    if (-not [bool](Get-StartupProperty -InputObject $Result -Name 'started')) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_NOT_STARTED'; missing = @() }
+    }
+    if ([bool](Get-StartupProperty -InputObject $Result -Name 'timed_out')) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_TIMED_OUT'; missing = @() }
+    }
+    if ([bool](Get-StartupProperty -InputObject $Result -Name 'process_left_running')) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_PROCESS_UNRESOLVED'; missing = @() }
+    }
+    if ([bool](Get-StartupProperty -InputObject $Result -Name 'stdout_truncated') -or
+        [bool](Get-StartupProperty -InputObject $Result -Name 'stderr_truncated')) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_OUTPUT_TRUNCATED'; missing = @() }
+    }
+    $exitCode = Get-StartupProperty -InputObject $Result -Name 'exit_code'
+    if ($null -eq $exitCode) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_EXIT_UNKNOWN'; missing = @() }
+    }
+    $status = [string](Get-StartupProperty -InputObject $Result -Name 'status')
+    if ($status -in @('SUCCESS', 'EMPTY_OUTPUT')) {
+        if ([int]$exitCode -ne 0) {
+            return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_STATUS_EXIT_MISMATCH'; missing = @() }
+        }
+    }
+    elseif ([int]$exitCode -eq 0) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_STATUS_EXIT_MISMATCH'; missing = @() }
+    }
+    return [pscustomobject]@{ complete = $true; code = 'NATIVE_READ_COMPLETE'; missing = @() }
+}
+
 function ConvertTo-SafeStartupDiagnostic {
     param(
         [AllowNull()][object]$Value,
@@ -1219,31 +1262,53 @@ function Wait-StartupExistingContainerReady {
         [Parameter(Mandatory = $true)]$Expected,
         [Parameter(Mandatory = $true)]$Adapters,
         [Parameter(Mandatory = $true)][int]$StageTimeoutMilliseconds,
-        [Parameter(Mandatory = $true)][int]$PollMilliseconds
+        [Parameter(Mandatory = $true)][int]$PollMilliseconds,
+        [int]$CommandTimeoutMilliseconds = 30000,
+        [int64]$Deadline = 0
     )
     $service = [string](Get-StartupProperty -InputObject $Expected -Name 'service')
     $healthRequirement = [string](Get-StartupProperty -InputObject $Expected -Name 'health_requirement')
     if ([string]::IsNullOrWhiteSpace($healthRequirement)) { $healthRequirement = 'RUNNING' }
-    $deadline = (Get-MonotonicMilliseconds) + $StageTimeoutMilliseconds
+    if ($Deadline -le 0) { $Deadline = (Get-MonotonicMilliseconds) + $StageTimeoutMilliseconds }
     do {
-        $matches = @(& $Adapters.ObserveContainer $Expected)
+        $observationBudget = Get-StartupRemainingMilliseconds -Deadline $Deadline -MaximumMilliseconds ([int]::MaxValue)
+        if ($observationBudget -le 0) { break }
+        try {
+            $matches = @(& $Adapters.ObserveContainer $Expected $observationBudget)
+        }
+        catch {
+            if ($_.Exception.Message -match '^CONTAINER_OBSERVATION_DEADLINE_EXCEEDED') {
+                return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; observed = $null }
+            }
+            throw
+        }
+        if ((Get-MonotonicMilliseconds) -ge $Deadline) {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; observed = $null }
+        }
         $selection = Select-StartupApprovedContainerObservation -Expected $Expected -Observations $matches
         if (-not $selection.success) { return [pscustomobject]@{ success = $false; code = $selection.code; component = $service; detail = @('ignored=' + @($selection.ignored).Count, 'conflicts=' + @($selection.conflicts).Count); observed = $null } }
         $observed = $selection.selected
         $identity = Test-ApprovedContainerIdentity -Expected $Expected -Observed $observed
         if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); observed = $observed } }
-        if ([bool](Get-StartupProperty -InputObject $observed -Name 'running')) {
+        $stateStatus = ([string](Get-StartupProperty -InputObject $observed -Name 'state_status')).ToLowerInvariant()
+        if ([bool](Get-StartupProperty -InputObject $observed -Name 'running') -and $stateStatus -eq 'running') {
             if ($healthRequirement -eq 'RUNNING') {
+                if ((Get-MonotonicMilliseconds) -ge $Deadline) {
+                    return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; observed = $null }
+                }
                 return [pscustomobject]@{ success = $true; code = 'CONTAINER_READY'; component = $service; observed = $observed; ignored = @($selection.ignored) }
             }
             if ([string](Get-StartupProperty -InputObject $observed -Name 'health_status') -eq 'healthy') {
+                if ((Get-MonotonicMilliseconds) -ge $Deadline) {
+                    return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; observed = $null }
+                }
                 return [pscustomobject]@{ success = $true; code = 'CONTAINER_HEALTHY'; component = $service; observed = $observed; ignored = @($selection.ignored) }
             }
         }
-        $remaining = Get-StartupRemainingMilliseconds -Deadline $deadline -MaximumMilliseconds $PollMilliseconds
+        $remaining = Get-StartupRemainingMilliseconds -Deadline $Deadline -MaximumMilliseconds $PollMilliseconds
         if ($remaining -le 0) { break }
         & $Adapters.Sleep $remaining
-    } while ((Get-MonotonicMilliseconds) -lt $deadline)
+    } while ((Get-MonotonicMilliseconds) -lt $Deadline)
     $code = if ($healthRequirement -eq 'HEALTHY') { 'CONTAINER_HEALTH_UNKNOWN' } else { 'CONTAINER_NOT_RUNNING_AFTER_START' }
     return [pscustomobject]@{ success = $false; code = $code; component = $service; observed = $null }
 }
@@ -1267,19 +1332,38 @@ function Invoke-StartupExistingContainerPhase {
     foreach ($definition in $orderedContainers) { $containersByService[[string](Get-StartupProperty -InputObject $definition -Name 'service')] = $definition }
     foreach ($expected in $orderedContainers) {
         $service = [string](Get-StartupProperty -InputObject $expected -Name 'service')
-        foreach ($dependencyNameValue in @(Get-StartupProperty -InputObject $expected -Name 'depends_on_healthy')) {
+        $dependencyNames = @(Get-StartupProperty -InputObject $expected -Name 'depends_on_healthy')
+        $stageStarted = Get-MonotonicMilliseconds
+        $stageDeadline = $stageStarted + $StageTimeoutMilliseconds
+        foreach ($dependencyNameValue in $dependencyNames) {
             $dependencyName = [string]$dependencyNameValue
             if ([string]::IsNullOrWhiteSpace($dependencyName)) { continue }
             if (-not $containersByService.ContainsKey($dependencyName)) {
                 return [pscustomobject]@{ success = $false; code = 'CONTAINER_DEPENDENCY_INVALID'; component = $service; events = $events.ToArray() }
             }
-            $dependencyReady = Wait-StartupExistingContainerReady -Expected $containersByService[$dependencyName] -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
+            $dependencyReady = Wait-StartupExistingContainerReady -Expected $containersByService[$dependencyName] -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds -CommandTimeoutMilliseconds $CommandTimeoutMilliseconds -Deadline $stageDeadline
             if (-not $dependencyReady.success) {
                 return [pscustomobject]@{ success = $false; code = $dependencyReady.code; component = $dependencyName; detail = @(Get-StartupProperty -InputObject $dependencyReady -Name 'detail'); events = $events.ToArray() }
             }
             $events.Add([pscustomobject]@{ component = $dependencyName; action = 'DEPENDENCY_HEALTH_CONFIRMED' })
         }
-        $matches = @(& $Adapters.ObserveContainer $expected)
+        $observationRemaining = $stageDeadline - (Get-MonotonicMilliseconds)
+        $observationBudget = if ($observationRemaining -le 0) { 0 } else { [int][Math]::Min([int64][int]::MaxValue, $observationRemaining) }
+        if ($observationBudget -le 0) {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; events = $events.ToArray() }
+        }
+        try {
+            $matches = @(& $Adapters.ObserveContainer $expected $observationBudget)
+        }
+        catch {
+            if ($_.Exception.Message -match '^CONTAINER_OBSERVATION_DEADLINE_EXCEEDED') {
+                return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; events = $events.ToArray() }
+            }
+            throw
+        }
+        if ((Get-MonotonicMilliseconds) -ge $stageDeadline) {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; detail = @('elapsed_ms=' + ((Get-MonotonicMilliseconds) - $stageStarted), 'stage_ms=' + $StageTimeoutMilliseconds); events = $events.ToArray() }
+        }
         $selection = Select-StartupApprovedContainerObservation -Expected $expected -Observations $matches
         if (-not $selection.success) { return [pscustomobject]@{ success = $false; code = $selection.code; component = $service; detail = @('ignored=' + @($selection.ignored).Count, 'conflicts=' + @($selection.conflicts).Count); events = $events.ToArray() } }
         $observed = $selection.selected
@@ -1288,23 +1372,44 @@ function Invoke-StartupExistingContainerPhase {
         }
         $identity = Test-ApprovedContainerIdentity -Expected $expected -Observed $observed
         if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); events = $events.ToArray() } }
-        if ([bool](Get-StartupProperty -InputObject $observed -Name 'running')) {
-            $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
-            if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
+        $stateStatus = ([string](Get-StartupProperty -InputObject $observed -Name 'state_status')).ToLowerInvariant()
+        $isRunning = [bool](Get-StartupProperty -InputObject $observed -Name 'running')
+        if ($isRunning -and $stateStatus -ne 'running') {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_STATE_NOT_READY'; component = $service; detail = @('state_status=' + $stateStatus); events = $events.ToArray() }
+        }
+        if ($isRunning) {
+            $healthRequirement = [string](Get-StartupProperty -InputObject $expected -Name 'health_requirement')
+            if ([string]::IsNullOrWhiteSpace($healthRequirement)) { $healthRequirement = 'RUNNING' }
+            $initialReady = ($healthRequirement -eq 'RUNNING') -or
+                ($healthRequirement -eq 'HEALTHY' -and [string](Get-StartupProperty -InputObject $observed -Name 'health_status') -eq 'healthy')
+            if (-not $initialReady) {
+                $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds -CommandTimeoutMilliseconds $CommandTimeoutMilliseconds -Deadline $stageDeadline
+                if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
+            }
             $events.Add([pscustomobject]@{ component = $service; action = 'PRESERVE_RUNNING' })
             continue
+        }
+        if ($stateStatus -notin @('created', 'exited')) {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_STATE_NOT_READY'; component = $service; detail = @('state_status=' + $stateStatus); events = $events.ToArray() }
         }
         $observedFullId = [string](Get-StartupProperty -InputObject $observed -Name 'full_id')
         if ($observedFullId -notmatch '^[a-fA-F0-9]{64}$') {
             return [pscustomobject]@{ success = $false; code = 'CONTAINER_RUNTIME_ID_INVALID'; component = $service; events = $events.ToArray() }
         }
-        $startResult = & $Adapters.StartExistingContainer $observedFullId $CommandTimeoutMilliseconds
+        $startBudget = Get-StartupRemainingMilliseconds -Deadline $stageDeadline -MaximumMilliseconds $CommandTimeoutMilliseconds
+        if ($startBudget -le 0) {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; events = $events.ToArray() }
+        }
+        $startResult = & $Adapters.StartExistingContainer $observedFullId $startBudget
         $events.Add([pscustomobject]@{ component = $service; action = 'START_EXISTING'; result = [string](Get-StartupProperty -InputObject $startResult -Name 'status') })
         if ((Get-StartupProperty -InputObject $startResult -Name 'status') -ne 'SUCCESS') {
             $code = if ((Get-StartupProperty -InputObject $startResult -Name 'status') -eq 'TIMEOUT') { 'CONTAINER_START_UNKNOWN' } else { 'CONTAINER_START_FAILED' }
             return [pscustomobject]@{ success = $false; code = $code; component = $service; events = $events.ToArray() }
         }
-        $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
+        if ((Get-MonotonicMilliseconds) -ge $stageDeadline) {
+            return [pscustomobject]@{ success = $false; code = 'CONTAINER_START_UNKNOWN'; component = $service; events = $events.ToArray() }
+        }
+        $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds -CommandTimeoutMilliseconds $CommandTimeoutMilliseconds -Deadline $stageDeadline
         if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
         if (-not $observedFullId.Equals([string](Get-StartupProperty -InputObject $ready.observed -Name 'full_id'), [System.StringComparison]::OrdinalIgnoreCase)) {
             return [pscustomobject]@{ success = $false; code = 'CONTAINER_RUNTIME_ID_CHANGED'; component = $service; events = $events.ToArray() }

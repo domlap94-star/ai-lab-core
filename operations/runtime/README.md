@@ -88,6 +88,19 @@ and command lines are never projected. A missing/null Health key becomes
 nonzero exit remains an incomplete observation. A `HEALTHY` dependency such as
 PostgreSQL accepts only the explicit `healthy` status.
 
+Every native container read must also carry a complete bounded-runner envelope:
+started process, resolved exit code, settled process, and explicit stdout/stderr
+truncation flags. `SUCCESS` with truncated output, missing completeness metadata,
+an unresolved process, timeout, or contradictory status/exit data is not a full
+observation and cannot be normalized to an empty selector or an absent object.
+
+Container state is ready only when both `running=true` and the projected,
+case-normalized Docker status is exactly `running`. `paused`, `restarting`,
+`removing`, `dead`, missing, unknown, or an inconsistent boolean/status pair is
+not ready, even when a stale Health value says `healthy`. Automatic start remains
+limited to an identity-verified `created` or `exited` container; the launcher
+does not unpause or restart another state.
+
 The same-role list is a conflict check, not a selection pool. The retained
 R03/A1 Qdrant client drills may be ignored only when their narrow documented
 name pattern, `exited`/not-running state, empty mounts and empty configured and
@@ -96,6 +109,11 @@ stopped container. Any other same-role object, active/paused/restarting object,
 unknown state, name/port conflict or incomplete selector blocks the phase.
 Readiness rechecks and a cold start use the same exact-ID selection, and only
 the already verified pinned full ID can be passed to `docker start`.
+Initial observation, the one exact-ID start, and post-start readiness share one
+monotonic stage deadline. Each native read receives only the remaining budget;
+budget is checked before and after every read and immediately before success.
+Exhaustion prevents further inspection or retry and cannot be reset by entering
+the post-start loop.
 
 ## Machine result
 
