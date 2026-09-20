@@ -3252,3 +3252,15 @@ operation `R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z` has index
 It is `NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW /
 NO_OPERATIONAL_CHANGES`; no UAC, task write, installation, Host retry or host
 rollback occurred or is authorized. Installed run01 and D-22 are unchanged.
+
+**D-23 ANTI_EXCESSIVE_WORK — 2026-09-20.** The owner established the mandatory
+anti-loop policy in the canonical roadmap at `ANTI_EXCESSIVE_WORK`. Before each
+NEXT Stabil review, recommendation or next prompt, Codex and ChatGPT must reread
+roadmap §0, that policy, the active card and the latest relevant checkpoint at
+the reported SHA. New items are classified K0/K1/K2/K3; K2/K3 do not expand a
+frozen acceptance contract, unchanged accepted evidence is not repeated, and a
+third automatic micro-fix after two unresolved repair/review cycles is replaced
+by one consolidated owner decision. Every result/handoff/blocker report carries
+the short canonical footer. This documentation decision changes no product
+status or operational authorization; R04/P4-B resumes at the already prepared
+narrow-update review and D-22 remains unchanged and `NOT_RUN`.

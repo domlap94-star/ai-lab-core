@@ -216,6 +216,15 @@
 
 ## NEXT Stabil — shared roadmap and checkpoint
 
+- D-23 establishes the mandatory `ANTI_EXCESSIVE_WORK` policy in the canonical
+  roadmap. Before every NEXT Stabil review, recommendation or next prompt,
+  reread roadmap §0, `ANTI_EXCESSIVE_WORK`, the active card and latest relevant
+  checkpoint at the reported SHA. Classify new review items as K0/K1/K2/K3;
+  do not add K2/K3 to frozen acceptance criteria or repeat unchanged accepted
+  work. Every result/handoff/blocker report must include the short canonical
+  anti-loop footer with blocking K0/K1, user-visible effect, cycle count and one
+  next action. The roadmap section is authoritative; do not duplicate the full
+  policy here.
 - D-22 sets the first priority only after R04 is finished and owner-accepted:
   approved Excel/Google Sheets are the sole evidence source for historical
   Client field repair, followed by validation, then analysis and linking of

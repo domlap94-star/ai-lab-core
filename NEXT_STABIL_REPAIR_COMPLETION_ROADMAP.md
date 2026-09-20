@@ -28,20 +28,20 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
 | Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 source jest `SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`, a nowy wąski update/recorder `READY_FOR_REVIEW / NO_OPERATIONAL_CHANGES`; cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
-| Checkpoint ID | `R04-20260920T174814Z-D21-P4B-HOST22-NARROW-UPDATE-PREP` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-20T17:48:14Z` |
-| Aktualny wykonawca / sesja | Codex / source, lokalne pliki i testy offline; recorder PS 5.1 `28`, recepta `28/7`, wszystkie exit `0`; Docker/Task/CIM/TCP/HTTP/UAC/Host/install/rollback `0` |
+| Checkpoint ID | `R00-20260920T180714Z-D23-ANTI-EXCESSIVE-WORK` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-20T18:07:14Z` — zapis polityki dokumentacyjnej, bez zmiany runtime |
+| Aktualny wykonawca / sesja | Codex / dokumentacja D-23 i lokalna walidacja; testy produktu `NOT_RUN`; Docker/Task/CIM/TCP/HTTP/UAC/Host/install/rollback `0` |
 | Aktywny pakiet / podetap | `R04 / D-21 / P4-B` — zaakceptowany Host22 source pozostaje NOT_DEPLOYED; source recordera i exact narrow-update package gotowe do niezależnego review; installed run01 pozostaje częściowy, retry/update nieautoryzowane |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; preservation `116 + 87 = 203/203` |
 | Gałąź / SHA kodu objętego sprawdzeniem | Guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`, tree `4ccbc8922051401da1422be0d08f271476c3bab6`, preimage `ddec6ea20e2d755354e742e324d0d9cea5e5802f`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; P2 evidence `f872cf9e548a7ec196289e0c1987b654b1017505`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
-| Ostatnia faktycznie zakończona czynność | Zapisano ograniczony odbiór Host22 i opublikowano source recordera `727eb860c75d3dd7b010b86de3eeaa3d656c69cf`. Przygotowano nieaktywną exact receptę aktualizacji, manifest, trzy Host XML, changeset/rollback i ZIP; instalacji nie zmieniono |
-| Potwierdzone testy bieżącego wykonania | Host22 source zachowuje wcześniejsze `70/57/51/44/41`, candidate+P4 `59` i ZIP binding `18`. Nowy recorder PS 5.1: 28 asercji, 7 własnych child cases, timeout 1/1 settled. Narrow update: 28 asercji/7 scenariuszy, synthetic Host 2, Private `1->0`, Supervisor/container/five-task writes 0. Produkcyjne granice, UAC, install, Host retry, rollback 0 |
+| Ostatnia faktycznie zakończona czynność | Zapisano D-23 i kanoniczną zasadę `ANTI_EXCESSIVE_WORK`; stan i odbiory Host22/run01/D-22 nie zostały zmienione |
+| Potwierdzone testy bieżącego wykonania | Walidacja dokumentacji i referencji; testy produktu `NOT_RUN`, ponieważ kod/runtime nie uległy zmianie. Wcześniejsze dowody Host22 zachowują swoją tożsamość i zakres |
 | Niezacommitowana praca / zabezpieczenie | LOCAL_ONLY `C:\Users\domai\AppData\Local\Temp\P4B-H22-UPD-01`; package index 6 482 B SHA-256 `33BD4FEDA762B0CA247D5840530353FFD5B253F9F333BFCB5EB65EC18BA220E8`; review ZIP 102 833 B SHA-256 `881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6`, roundtrip `24/24`; wcześniejsze pakiety i run01 zachowane |
 | Niezakończone procesy i skutki operacyjne | Własne workery instalatora `50/50`, pooperacyjne read workers rozliczone; Host nie działa. Public Gateway pozostaje działający; sześć kontenerów nie było startowanych/stoppowanych/restartowanych. Brak dowodu pozostawionego własnego procesu |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260920T174814Z-R04-D21-P4B-HOST22-NARROW-UPDATE-PREP.md` |
-| Zakres aktualnej zgody | Host22 source odebrany w ograniczonym zakresie; recorder/update package przygotowane SOURCE/OFFLINE. Brak zgody na update zainstalowanych plików/manifestu, retry Host/Install, UAC, task writes, rollback, logon/reboot, P5 lub R06. D-22 pozostaje `NOT_RUN` |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260920T180714Z-R00-D23-ANTI-EXCESSIVE-WORK.md` |
+| Zakres aktualnej zgody | Wyłącznie dokumentacyjny zapis D-23. Brak zgody na update zainstalowanych plików/manifestu, retry Host/Install, UAC, task writes, rollback, logon/reboot, P5 lub R06. D-22 pozostaje `NOT_RUN` |
 | Blokada / wymagana decyzja | Niezależny review source `727eb860c75d3dd7b010b86de3eeaa3d656c69cf`, recepty/indexu/manifestu/Host XML i ZIP `881C804F...D3C6`; dopiero potem odrębna exact jednorazowa zgoda operacyjna. Installed run01 nadal używa starych hashy i Host jest disabled/no-trigger |
 | Jeden następny bezpieczny krok | Review dokładnego narrow-update package; bez UAC, Host retry, instalacji lub rollbacku. Ewentualne późniejsze dwa warm runs muszą wytworzyć dwa odrębne, kompletne wyniki recordera |
 | Warunek STOP | Brak kolejnego UAC, retry Host/launchera/instalatora, niezależnego rollbacku, logon/reboot, Supervisora, backup/restore, relokacji, P5/R06 |
@@ -58,6 +58,107 @@ Dowód `ROADMAP_SYNCED@<SHA>` znajduje się w raporcie przekazania odpowiedzi Co
 / Git, nie jako obietnica wpisana przed push do checkpointu. W razie braku sieci
 w odpowiedzi podać `LOCAL_ONLY` / `REMOTE_UNVERIFIED`, zachować lokalny commit
 oraz bezpieczną kopię pracy. Następny start zawsze ponownie sprawdza zdalny ref.
+
+<a id="ANTI_EXCESSIVE_WORK"></a>
+### ZASADA ANTY-PĘTLA / ANTI_EXCESSIVE_WORK — obowiązkowa dla Codexa i ChatGPT
+
+Ta zasada jest decyzją właściciela D-23 i obowiązuje od jej publikacji. Nie
+zmienia statusów wykonania ani odbiorów produktu. Jej celem jest domykanie
+uzgodnionego zakresu bez dokładania kolejnych kryteriów tylko dlatego, że można
+znaleźć dalsze ulepszenia.
+
+#### Klasy uwag review
+
+Każda nowa uwaga, dodatkowy test lub propozycja pracy otrzymuje jedną klasę.
+Klasa nie zastępuje `PLANNED`, `NOT_RUN`, `WAITING_APPROVAL` ani `ACCEPTED`.
+Zaplanowany, niewykonany test nie jest automatycznie wadą produktu.
+
+| Klasa | Znaczenie | Wpływ |
+|---|---|---|
+| `K0 — BEZPIECZEŃSTWO` | Konkretny dowód ryzyka utraty/uszkodzenia danych, nieuprawnionego eksportu/startu, obejścia uprawnień, nierozliczonej mutacji albo brak kluczowej przesłanki bezpieczeństwa przed taką operacją | Zatrzymać tylko zależną operację; ustalić minimalny bezpieczny dowód i rozwiązanie, bez ryzykownej reprodukcji na produkcji |
+| `K1 — BLOKER FUNKCJONALNY` | Niespełnione uzgodnione kryterium bieżącego zakresu, np. niewykonalna instalacja, zła instancja, niedziałający start, niespójny manifest lub brak wymaganego dowodu | Naprawić w bieżącym zakresie i wskazać konkretne kryterium oraz minimalny test |
+| `K2 — NIEBLOKUJĄCY PROBLEM` | Potwierdzona niedoskonałość bez wpływu na bezpieczeństwo i kryteria aktualnego kroku albo z zaakceptowanym obejściem | Zapisać w istniejącej właściwej karcie i nie zatrzymywać obecnego kroku |
+| `K3 — ULEPSZENIE / POZA ZAKRESEM` | Refaktoryzacja, kosmetyka, dodatkowy hardening lub nowa funkcja bez wykazanego wpływu na uzgodniony odbiór | Nie implementować przy okazji; co najwyżej krótki backlog |
+
+Nie wolno zmienić uzgodnionego kryterium odbioru na `K2/K3` bez decyzji
+właściciela. Każde `K0/K1` zawiera: `ID | klasa | blokowany krok/kryterium |
+dowód i wersja | skutek | minimalna naprawa/test`. Oddzielać
+`ODTWORZONE`, `POTWIERDZONE_W_KODZIE` i `HIPOTEZA`; wyobrażalny scenariusz bez
+dowodu nie wystarcza do `K0/K1`.
+
+#### Zamrożony kontrakt i punkt zakończenia
+
+Przed zamkniętym zakresem zapisać w istniejącej karcie: cel użytkowy, dozwolone
+zmiany, skończoną listę kryteriów, wymagane dowody i jeden następny krok. Po jej
+zamrożeniu nowe `K2/K3` nie rozszerzają odbioru. Nowe `K0/K1` wymagają nowego
+dowodu i związku z bieżącym celem; poszerzenie zmian wymaga decyzji właściciela.
+Po spełnieniu kryteriów i zamknięciu `K0/K1` rekomendować odbiór właściwego
+podetapu albo wykonać już autoryzowany krok, zamiast otwierać kolejną rundę
+ulepszeń. Odbiór podetapu nie jest odbiorem całego R04, ale pozostałe R04 nie
+unieważnia już odebranego podetapu.
+
+Pierwszy review obejmuje zbiorczo całą zmienioną ścieżkę: wejścia, wykonanie,
+wynik, błędy i zależny rollback. Drugi review sprawdza poprawki i regresje
+wynikające z diffu, nie ponawia ogólnego audytu. Po dwóch cyklach
+`naprawa -> review` bez domknięcia tego samego zakresu zatrzymać automatyczny
+trzeci mikrofiks i przekazać właścicielowi jedną diagnozę procesu, wszystkie
+pozostałe `K0/K1` oraz jeden skonsolidowany zakres. Zmiana nazwy uwagi, pliku,
+commita lub fixture nie zeruje licznika. Licznik stosuje się od D-23; nie
+rekonstruować retrospektywnie dawnych cykli, lecz długą serię R04 domknąć na
+aktualnym kontrakcie.
+
+Zachowywać odbiory i dowody niezmienionych bajtów. Ponowienie wymaga zmiany
+kodu/kontraktu lub istotnych warunków, dowodu regresji albo wymaganej świeżości
+runtime. Błąd formatowania rozliczać z zachowanych danych, bez ponawiania
+operacji hosta. Nie zwiększać timeoutu, nie usuwać asercji ani nie zmieniać
+oczekiwania wyłącznie dla PASS. Nie ponawiać niepewnej mutacji ani nie odnawiać
+zużytej zgody. Brak zgody operacyjnej, niewykonana praca, faktyczna wada i
+ulepszenie są odrębnymi stanami.
+
+#### Obowiązek ChatGPT przed review lub kolejnym promptem
+
+Przed każdą merytoryczną oceną NEXT Stabil ChatGPT ponownie odczytuje przez
+dostępny konektor: §0, ten rozdział `ANTI_EXCESSIVE_WORK`, aktywną kartę i
+najnowszy właściwy checkpoint na raportowanym SHA. Jeden niezmieniony snapshot
+w obrębie jednego review wystarcza. Brak dostępu trzeba ujawnić; pamięć rozmowy
+nie zastępuje odczytu. Odpowiedź wskazuje zwięźle: rzeczywiste `K0/K1`, nowy
+dowód uzasadniający kolejny fix, zachowane odbiory i jedną czynność prowadzącą
+do zakończenia. Gdy nie ma nowego `K0/K1`, nie proponować kolejnego mikrofiksu
+zamiast odbioru właściwego zakresu.
+
+Każdy wynikowy raport, handoff, checkpoint, częściowy wynik i blocker Codexa
+kończy się krótkim blokiem:
+
+> **ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT**
+>
+> Przed oceną tej zwrotki i kolejnym promptem przeczytaj
+> `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`: §0, `ANTI_EXCESSIVE_WORK` oraz
+> aktywną kartę/checkpoint na pełnym SHA raportu.
+>
+> Nie wracaj do odebranych etapów i nie dodawaj `K2/K3` do warunków odbioru.
+> `K0/K1` blokujące ten krok: `<ID + dowód / BRAK>`.
+> Efekt użytkowy i pozostałe kryterium: `<jedno zdanie>`.
+> Cykl `naprawa -> review`: `<n/2>`; następny krok: `<jedna czynność>`.
+
+Raport podaje link do roadmapy przypięty do opublikowanego SHA. `ROADMAP_SYNCED`
+wolno podać dopiero po push/readback; bez publikacji użyć `LOCAL_ONLY`.
+Dokument nie tworzy kolejnego commita tylko po to, by wpisać własny przyszły
+SHA — SHA publikacji znajduje się w odpowiedzi końcowej.
+
+#### Zastosowanie do bieżącego R04 / D-21 / P4-B
+
+| Poziom | Zamrożony stan i kryterium |
+|---|---|
+| Bieżący krok P4/B | Host22 source/offline package jest odebrany. Exact narrow-update/recorder jest `READY_FOR_REVIEW / NOT_AUTHORIZED / NOT_INSTALLED`. Bieżące kryterium to jeden zbiorczy review dokładnego pakietu; po jego odbiorze osobna zgoda może objąć wąski update, pełny zapis dwóch kontrolowanych warm runs i brak startu Supervisora/kontenerów. Brak operacyjnej zgody jest stanem `WAITING_APPROVAL`, nie wadą `K0/K1` |
+| Końcowy odbiór startu R04 | Nadal wymaga faktycznie odebranego jednego startu, powtórzenia bez duplikatów, ustalonego logon/cold-start oraz spełnienia niezmienionych kryteriów jednego rootu/manifestu, danych D:/junctionu, Qdrant/VHD/profile i dowodu harmonogramów backupu w ich właściwym zakresie. Te niewykonane kryteria blokują dopiero odpowiedni końcowy odbiór, nie review źródeł |
+| Późniejsze `K2/K3` | Kosmetyka, refaktoryzacja, dodatkowy hardening i cleanup starych miejsc po wykazaniu braku konsumentów nie rozszerzają bieżącego pakietu. Żadnego obowiązkowego kryterium właściciela — w tym danych D:, junctionu, backupów i jednego startu — nie wolno odroczyć samą zmianą etykiety |
+
+Na moment D-23 nie ma nowego `K0/K1` dla dokumentacyjnego zapisu polityki.
+Nie wykonano nowego audytu produktu. D-22 pozostaje nienaruszone i `NOT_RUN`;
+po zakończeniu i właścicielskim odbiorze R04 nadal obowiązuje kolejność
+`ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE`, wraz
+z zapisanymi zasadami automatycznych klientów, historii zmian, dopasowania po
+e-mailu lub telefonie i istniejącego cyklu n8n 15 minut.
 
 ### 0.2. Rejestr statusów pakietów — źródło bieżącego stanu
 
