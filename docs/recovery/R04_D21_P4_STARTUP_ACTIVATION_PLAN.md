@@ -753,3 +753,38 @@ wyłącznie bezpieczny odczyt opcjonalnego health oraz exact-ID-first wybór
 zatwierdzonego kontenera z fail-closed obsługą prawdziwego konfliktu. Dopiero
 niezależny review/test tych nowych bajtów może poprzedzać nową decyzję
 operacyjną.
+
+## 24. Host 22 — poprawka source i nieaktywny zestaw do review
+
+Source commit `ed961d6980ebebe2e4d351319e2aa909437bc1ec` implementuje
+bezpieczną projekcję Health oraz exact-ID-first wybór kontenera. Brak/null
+Health staje się `NOT_CONFIGURED`; PostgreSQL nadal wymaga jawnego `healthy`.
+Pełny pinned ID jest sprawdzany przed bounded conflict scan. Brak ID nie
+powoduje adopcji po nazwie/labelach. Cztery historyczne stopped drill są
+pomijane wyłącznie po dodatnim rozpoznaniu wąskiego wzorca, stanu `exited` i
+pustych mountów/portów; inne stopped, active, paused, restarting albo unknown
+blokują plan.
+
+Preimage z `e1f8e83d...` wykonał realną starą fazę na pięciu niezależnych
+obserwacjach: `CONTAINER_IDENTITY_AMBIGUOUS`, starty `0`. Końcowa kampania PS
+5.1 przeszła `37/53/51/44/16` asercji, każde stderr `0`, granice produkcji `0`.
+W topologii 6+4 plan osiąga `BASE_READY_LIMITED`; wariant bez Private wykonuje
+dokładnie jeden syntetyczny start i drugi przebieg zero, a cold start czeka na
+PostgreSQL `starting -> healthy` przed backendem.
+
+Nieaktywny candidate zmienia wyłącznie hashe przyszłego launcher/runtime:
+
+| Path | Installed before | Candidate after |
+|---|---|---|
+| `operations/runtime/start-host-services.ps1` | `7BB24450...F33871` | `CF98B7BE...78E55` |
+| `operations/runtime/startup-runtime.ps1` | `349404C3...D68E1ABCF4FA7` | `85A95894...34D85FB` |
+
+Review ZIP `76A8999E...E74DBC` ma roundtrip `10/10`. Candidate pozostaje
+`NOT_APPROVED_FOR_START / NOT_DEPLOYED`. Lista future update jest opisowa,
+nie wykonawcza. Przed ewentualną kolejną próbą właściciel musi osobno odebrać
+te bajty i zatwierdzić wąski update; przyszły Host musi utrwalić JSON
+`code/events/details`, stdout/stderr i exit, zamiast samego LastTaskResult.
+
+Status: `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Stan instalacji run01 pozostaje:
+`PAYLOAD_AND_MANIFEST_INSTALLED / HOST_DISABLED_NO_TRIGGER / WARM_RUNS_0_OF_2`.

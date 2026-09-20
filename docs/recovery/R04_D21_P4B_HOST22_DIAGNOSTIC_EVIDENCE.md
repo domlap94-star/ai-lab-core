@@ -72,3 +72,26 @@ Jedyny następny krok to osobny SOURCE/OFFLINE zakres: bezpieczny odczyt
 opcjonalnego health oraz exact-ID-first wybór zatwierdzonego kontenera, z
 fail-closed wynikiem dla rzeczywistego duplikatu, zmiany ID albo konfliktu.
 Nie ma zgody na retry Host, Install, UAC lub operacyjny rollback.
+
+## Kontynuacja source/offline — 2026-09-20
+
+Wąski zakres został wykonany w source commit
+`ed961d6980ebebe2e4d351319e2aa909437bc1ec`. Zachowany preimage rzeczywistej
+fazy kontenerowej nadal odtwarza `CONTAINER_IDENTITY_AMBIGUOUS`, pięć
+obserwacji i zero startów. Nowa implementacja:
+
+- bezpiecznie rozróżnia brak/null Health jako `NOT_CONFIGURED`, bez uznawania
+  go za `healthy`;
+- wiąże wybór, readiness i syntetyczny cold start z pełnym `container_id`;
+- rozlicza cztery dokładnie rozpoznane stopped drill, lecz blokuje każdy inny
+  konflikt lub niepełną obserwację;
+- nie adoptuje obiektu o podobnej nazwie/labelach przy braku pinned ID.
+
+Końcowa kampania Windows PowerShell 5.1 przeszła zestawy `37/53/51/44/16`
+asercji, wszystkie exit `0`, stderr `0`, realne granice produkcji `0`.
+Szczegóły i hashe znajdują się w
+`docs/recovery/R04_D21_P4B_HOST22_SOURCE_TEST_EVIDENCE.md`.
+
+Status kontynuacji: `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Historyczny run01 i jego brak
+`LAUNCHER_RESULT_DETAIL` pozostają niezmienione; nadal nie ma zgody na retry.

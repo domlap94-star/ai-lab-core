@@ -264,10 +264,15 @@
   `.State.Health` projection and a broad Compose selector matching the approved
   backend plus four retained drill containers. Status is
   `HOST22_DIAGNOSED_READ_ONLY / SOURCE_FIX_REQUIRED / NO_RETRY_AUTHORIZED`.
-  This is not P4/B acceptance. Any continuation requires owner review and a new
-  narrowly defined SOURCE/OFFLINE decision before any later operational
-  decision. No standing permission exists for another UAC, retry, rollback,
-  reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
+  The later owner-authorized SOURCE/OFFLINE continuation produced source commit
+  `ed961d6980ebebe2e4d351319e2aa909437bc1ec`: optional Health is projected
+  safely and runtime selection/readiness/cold start bind to the manifest's full
+  container ID while a bounded conflict scan still rejects real rivals. Final
+  PowerShell 5.1 tests passed with production-boundary calls `0`. Status is
+  `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW / OFFLINE_TESTS_PASS /
+  NOT_DEPLOYED`. This is not P4/B acceptance or permission to update the
+  installed launcher. No standing permission exists for another UAC, retry,
+  rollback, reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

@@ -3182,3 +3182,25 @@ causal reconstruction, not a rewritten historical launcher log. Status is
 Before any retry, a separate SOURCE/OFFLINE scope must make Health projection
 safe and bind selection to the approved exact container ID without silently
 adopting another instance or ignoring a real duplicate/conflict.
+
+**P4/B HOST 22 SOURCE/OFFLINE FIX — 2026-09-20.** The owner-authorized narrow
+continuation produced source commit
+`ed961d6980ebebe2e4d351319e2aa909437bc1ec`. The adapter now emits a small
+safe JSON projection: missing/null Health is `NOT_CONFIGURED`, never
+`healthy`, while missing State, invalid Running, malformed/truncated output,
+timeout and nonzero remain incomplete. The shared phase selects the full
+manifest `container_id` first, verifies the existing identity fields and uses
+the project/service list only as a bounded conflict scan. Four positively
+identified stopped R03/A1 drill clients are accounted for but never selected;
+every other rival or unknown blocks. Readiness and cold-start rechecks use the
+same selection and only the pinned ID can reach the start adapter.
+
+The executable preimage from `e1f8e83d...` returned
+`CONTAINER_IDENTITY_AMBIGUOUS`, count `5`, starts `0`. Final Windows PowerShell
+5.1 suites passed `37/53/51/44/16` assertions with stderr `0` and real
+Docker/Task/CIM/TCP/HTTP/UAC/Host calls `0`. The inactive candidate and review
+ZIP remain `NOT_APPROVED_FOR_START / NOT_DEPLOYED`. The installed run01 bytes,
+Host disabled/no-trigger and warm `0/2` are unchanged. Status:
+`HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW / OFFLINE_TESTS_PASS /
+NOT_DEPLOYED`; a future update and Host retry require separate owner review and
+authorization.
