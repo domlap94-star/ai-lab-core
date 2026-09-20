@@ -270,8 +270,15 @@
   container ID while a bounded conflict scan still rejects real rivals. Final
   PowerShell 5.1 tests passed with production-boundary calls `0`. Status is
   `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW / OFFLINE_TESTS_PASS /
-  NOT_DEPLOYED`. This is not P4/B acceptance or permission to update the
-  installed launcher. No standing permission exists for another UAC, retry,
+  NOT_DEPLOYED`. A further owner-authorized SOURCE/OFFLINE continuation
+  published `b4269ffa7bacc95b4d1441bb196e572a34a4ec43`: native read envelopes
+  now fail closed unless explicitly complete, observation/readiness share one
+  decreasing deadline, and pinned readiness requires exact
+  `state_status=running`. Final PS 5.1 suites passed `51/57/51/44/40` with
+  production-boundary calls `0`. Status is
+  `HOST22_OBSERVATION_COMPLETENESS_DEADLINE_AND_STATE_SOURCE_READY_FOR_REVIEW /
+  OFFLINE_TESTS_PASS / NOT_DEPLOYED`. This is not P4/B acceptance or
+  permission to update the installed launcher. No standing permission exists for another UAC, retry,
   rollback, reboot/logoff, Supervisor, backup/restore, relocation, P5 or R06.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,

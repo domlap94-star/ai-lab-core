@@ -3204,3 +3204,18 @@ Host disabled/no-trigger and warm `0/2` are unchanged. Status:
 `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW / OFFLINE_TESTS_PASS /
 NOT_DEPLOYED`; a future update and Host retry require separate owner review and
 authorization.
+
+**P4/B HOST22 OBSERVATION CONTRACT — 2026-09-20.** A follow-up review of the
+same production path reproduced `RV-H22-OBS-01/02/03`. Source
+`b4269ffa7bacc95b4d1441bb196e572a34a4ec43` requires a complete settled
+native envelope, applies one monotonic deadline to the whole container
+observation/readiness stage and treats a pinned container as ready only when
+both `running=true` and `state_status=running`. Truncated or incomplete output,
+aggregate deadline exhaustion, paused/restarting/removing/dead/unknown states
+and stale PostgreSQL health fail closed without start or retry. Existing
+created/exited cold-start semantics remain available for the exact pinned ID.
+Final Windows PowerShell 5.1 suites passed `51/57/51/44/40` assertions using
+complete lower-boundary fakes; production Docker/Task/CIM/TCP/HTTP/UAC/Host
+calls were `0`. Status is
+`HOST22_OBSERVATION_COMPLETENESS_DEADLINE_AND_STATE_SOURCE_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Installed run01 and D-22 were not changed.

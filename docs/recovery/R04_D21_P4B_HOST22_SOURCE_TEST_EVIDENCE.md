@@ -1,13 +1,15 @@
 # R04 / D-21 / P4-B — Host 22 source/test evidence
 
-Status: `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW /
+Status: `HOST22_OBSERVATION_COMPLETENESS_DEADLINE_AND_STATE_SOURCE_READY_FOR_REVIEW /
 OFFLINE_TESTS_PASS / NOT_DEPLOYED`
 
-Entry HEAD: `e1f8e83d0e205dba5e1ac5366ceb29b87a5c57a1`
+Entry HEAD: `a398e30c5c57c916d330378979798e71937db0cb`
 
-Source commit: `ed961d6980ebebe2e4d351319e2aa909437bc1ec`
+Preimage source commit: `ed961d6980ebebe2e4d351319e2aa909437bc1ec`
 
-Campaign UTC: `2026-09-20T00:26:05.9154727Z–2026-09-20T00:26:35.2501798Z`
+Source commit: `b4269ffa7bacc95b4d1441bb196e572a34a4ec43`
+
+Final campaign UTC: `2026-09-20T14:39:22Z–2026-09-20T14:40:07Z`
 
 ## Fail-before and change
 
@@ -38,6 +40,32 @@ The source change:
   verified pinned full ID can reach the start adapter. A missing pinned ID is
   `CONTROLLED_DEPLOY_REQUIRED`; no label/name fallback exists.
 
+## OBS-01–03 continuation
+
+- `RV-H22-OBS-01` — **REPRODUCED / FIXED**. The preimage accepted a
+  success/exit-zero envelope even when `stdout_truncated=true` or completeness
+  metadata was absent. The common guard now requires an explicitly complete,
+  settled envelope and rejects timeout, nonzero, truncation or missing
+  metadata before parsing or start.
+- `RV-H22-OBS-02` — **REPRODUCED / FIXED**. Individually bounded reads could
+  cumulatively exceed the stage timeout. The container phase now creates one
+  monotonic deadline, passes only the remaining budget to every observation,
+  checks it before and after each native read and again before success/start,
+  and issues no later inspect or start after exhaustion. The package harness
+  uses only the owner-approved deterministic test clock; production timeout
+  values and code paths were not relaxed.
+- `RV-H22-OBS-03` — **REPRODUCED / FIXED**. The preimage could treat a pinned
+  `paused` or `restarting` instance as ready when `Running=true`, including a
+  stale PostgreSQL `healthy` value. Readiness now requires exact
+  `state_status=running`; only controlled `created/exited` states are eligible
+  for the existing cold-start path, and no unpause/restart repair was added.
+
+The final real-adapter regression initially exposed one synthetic RV05 cleanup
+race. That failed iteration is retained LOCAL_ONLY. The test-only command
+boundary was made cooperative so the existing production cleanup contract is
+tested deterministically; the next and final campaign passed without changing
+production timeout semantics.
+
 ## Final offline campaign
 
 All tests ran in Windows PowerShell 5.1 with complete lower-boundary fakes.
@@ -45,23 +73,26 @@ Production-boundary calls were `0`.
 
 | Test | Assertions | Exit | stderr |
 |---|---:|---:|---:|
-| `test-host22-container-observation.ps1` | 37 | 0 | 0 B |
-| `test-start-host-services.ps1` | 53 | 0 | 0 B |
+| `test-host22-container-observation.ps1` | 51 | 0 | 0 B |
+| `test-start-host-services.ps1` | 57 | 0 | 0 B |
 | `test-startup-real-adapters.ps1` | 51 | 0 | 0 B |
 | `test-startup-data-junction.ps1` | 44 | 0 | 0 B |
-| `test-p4-startup-package.ps1` | 16 | 0 | 0 B |
+| `test-p4-startup-package.ps1` | 40 | 0 | 0 B |
 
 The focused test exercises the real `New-RealStartupAdapters`, parser,
-identity validation and container phase. It covers Health missing/null,
-healthy/starting/unhealthy/invalid, missing State, truncated JSON, nonzero and
-timeout; exact-ID ordering and no-adoption; identity mismatches; stopped,
-running, paused, restarting and unreadable competitors; exact-ID cold start;
-and the stricter PostgreSQL `HEALTHY` gate. The package test covers the 6+4
-topology, the one synthetic Private start and repeat without duplication,
-PostgreSQL starting-to-healthy ordering before backend, and blocked dependency
-paths. Supervisor starts remain `0`.
+identity validation and container phase. The continuation reproduced and fixed
+all three review findings: `OBS-01` rejects a successful-looking but truncated
+or incomplete native envelope, `OBS-02` applies one decreasing monotonic
+deadline to the observation/readiness stage, and `OBS-03` requires both
+`running=true` and exact `state_status=running` for the pinned instance.
+Paused, restarting, removing, dead and unknown pinned states cannot inherit
+readiness from a boolean or stale health value. The package test now runs the
+6+4 plan through `New-RealStartupAdapters` with only the lowest boundaries
+faked; it covers the one synthetic Private start and repeat, PostgreSQL
+starting-to-healthy ordering before backend, truncation, aggregate deadline,
+state failures and identity drift. Supervisor starts remain `0`.
 
-Parser validation passed for five touched PowerShell files. JSON, CSV, diff and
+Parser validation passed for seven touched PowerShell files. JSON, CSV, diff and
 secret checks are recorded with the documentation commit. These overlapping
 assertion sets are not reported as a count of application tests.
 
@@ -69,27 +100,29 @@ assertion sets are not reported as a count of application tests.
 
 | Path | Bytes | Raw SHA-256 | Git blob |
 |---|---:|---|---|
-| `operations/runtime/start-host-services.ps1` | 70 697 | `CF98B7BEB2710265509FBA0662857207FC10FCE38E95731004B8A54EFF378E55` | `255d9e132611d657417de045e6780f71e11fdcb0` |
-| `operations/runtime/startup-runtime.ps1` | 75 055 | `85A9589461AAB91643C9B351F4F5A0872AFDB2777056E96ABE299C3F734D85FB` | `46224cf5c21adfb06a274d4ce70c589b75517a8d` |
-| `operations/runtime/test-host22-container-observation.ps1` | 22 879 | `35B6D89F2D21CD6351BE9B29FC6F226A34394D7C4D79DE4364DFD4B4F855F11C` | `609e01e2f6956cd4e72234c29f478ceac754c44b` |
-| `operations/runtime/test-p4-startup-package.ps1` | 23 651 | `C1CA01070D84E1D200A9B636E88735F274E17C79AEB8A790615E594E0676826C` | `ffe3d5eae571b6e7f50dc29339a62475b9a880e0` |
-| `operations/runtime/test-startup-real-adapters.ps1` | 45 325 | `4504F3BFF1390AFF0F412F99E2024FF3D547185D0B9369EA992B03654670F254` | `1124e1c330bf68f02b5df0db2a4f214f3f9ee3ff` |
-| `operations/runtime/README.md` | 9 892 | `67316E25ECCA65F44043F44FE401F40F8A296334E44B572B3AE31CC9201107AF` | `f7657e51c027a41e7463bfe17dbbce1b75645261` |
+| `operations/runtime/start-host-services.ps1` | 72 755 | `1327FADC5BD21DBBE076E5CAD2DF587C6B9B5F274511A99E96E8DDC4FC0BA190` | `5270f8fe4f8939b1bdd612c306681125a14631ee` |
+| `operations/runtime/startup-runtime.ps1` | 82 004 | `ECAF4239A6B6C7CDCE0C521FB6B518A72402262E17A6F0C06242CA852840541E` | `ab78069d56b8e8e6041bb1e285caa74c6c0406f2` |
+| `operations/runtime/test-host22-container-observation.ps1` | 34 699 | `A7DB09E57663F28CF8BC4D622385684DE310E24266B14316017D6ED803CC5D72` | `42c68afe26d81432d3280b0b38f0060ed242c1d6` |
+| `operations/runtime/test-p4-startup-package.ps1` | 45 829 | `3A3E58853D460B72BD1A4459196273C0095A3B42FDF0114D27223E35B6078724` | `9825fbe3deb22a02ad8ebfb0ef16a8eb999a55ee` |
+| `operations/runtime/test-start-host-services.ps1` | 32 255 | `339C282ECDCFC405C35CEE745FB2902169188646A2CE23B6C22AAFBF8D7BAC01` | `3daeff64a5c389fc3f5e9143a42da7d66579c7d7` |
+| `operations/runtime/test-startup-data-junction.ps1` | 28 274 | `35048616FA7F3A71F383383E77A66BE8F1AB68FE261145EBD9895C831C9B7B04` | `0ab43b3d77e0a572b4398e5b3517657c14fab51a` |
+| `operations/runtime/test-startup-real-adapters.ps1` | 45 849 | `6938EAB51D675B5DC7401DE8D22DC11F716A3E5D37CDD91BB537BE2E2012948D` | `ce8ee5e3a81e8299996a99284d561d118d4da385` |
+| `operations/runtime/README.md` | 11 067 | `2569B55EABF3B92B56383070FF95696AC3D4E54F4ED54645386948835E8A4E5E` | `f4360054f80e5784075bbba353f2c2dd33e88088` |
 
 ## Inactive review package
 
-LOCAL_ONLY root:
-`C:\ai-lab-core-staging\recovery\P4B-H22-SRC-01`.
+The requested existing staging parent refused non-elevated creation with
+`Access is denied`. Elevation was not used because this scope permits only
+non-elevated own test processes. The new package is therefore LOCAL_ONLY at:
+`C:\Users\domai\AppData\Local\Temp\P4B-H22-OBS-01`.
 
-- inactive package index: `1 411` bytes, SHA-256
-  `34CD1F8E32A39B530FB55B8C8FDE0C4DA240E5F6A52B3F4CC65500C172B82937`;
-- candidate manifest: `27 353` bytes, SHA-256
-  `1C7B2BA6DB5415CA90475EE26C8A490A648A270624B387B3057151245B8E3B87`;
-- future update changeset: `1 545` bytes, SHA-256
-  `2D01813E7BFE0178854AA72ABBE9E6D2231A1E207602397FB8E37686612C9BDB`;
-- review ZIP: `80 143` bytes, SHA-256
-  `76A8999E9D9BEB3EE87A888E159BB37A8F980093EF7A3DB8ACFCD223F5E74DBC`,
-  roundtrip `10/10`, maximum path length `141`.
+- inactive package index: `3 808` bytes, SHA-256
+  `CE373406DA49B35B01B20F4E8039A5F6F0060C54237C1B2D91193867B83B5763`;
+- inactive candidate manifest: `27 273` bytes, SHA-256
+  `A3B407D44F3595837D828D21839ED25D1D62618D434C7BC0CF0A260640C8B00E`;
+- review ZIP: `102 476` bytes, SHA-256
+  `4EB0706A365C2D46AD7F63047AE2DB253D1841C7E372A45F4F1947CA212ADBD9`,
+  roundtrip `12/12` indexed entries plus the index itself (`13` ZIP entries).
 
 The candidate remains `NOT_APPROVED_FOR_START / NOT_DEPLOYED`. Its only
 runtime changes are the new launcher/runtime bytes and their hash bindings.

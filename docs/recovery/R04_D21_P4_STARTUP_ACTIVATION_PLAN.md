@@ -788,3 +788,26 @@ te bajty i zatwierdzić wąski update; przyszły Host musi utrwalić JSON
 Status: `HOST22_HEALTH_AND_EXACT_ID_SOURCE_READY_FOR_REVIEW /
 OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Stan instalacji run01 pozostaje:
 `PAYLOAD_AND_MANIFEST_INSTALLED / HOST_DISABLED_NO_TRIGGER / WARM_RUNS_0_OF_2`.
+
+## 25. Host22 OBS-01–03 — kompletność, deadline i stan pinned
+
+Kontynuacja na preimage `ed961d6980ebebe2e4d351319e2aa909437bc1ec`
+odtworzyła trzy dodatkowe braki i opublikowała source
+`b4269ffa7bacc95b4d1441bb196e572a34a4ec43`:
+
+- odczyt natywny musi mieć jawną, kompletną kopertę; ucięcie, brak wymaganej
+  metadanej, timeout, nonzero lub pozostawiony proces blokują;
+- initial observation i readiness dzielą jeden malejący monotoniczny deadline,
+  a po jego wyczerpaniu nie ma kolejnego inspectu ani startu;
+- przypięty kontener jest gotowy wyłącznie przy `running=true` i dokładnym
+  `state_status=running`; paused/restarting/removing/dead/unknown nie są
+  gotowe, a PostgreSQL dodatkowo wymaga świeżego `healthy`.
+
+Końcowa kampania Windows PowerShell 5.1 przeszła `51/57/51/44/40` asercji
+dla focused Host22, planu launchera, real adapters, DATA_ONLY i pełnego
+pakietu P4. Produkcyjne granice miały `0` wywołań. Nieaktywny ZIP review ma
+SHA-256 `4EB0706A365C2D46AD7F63047AE2DB253D1841C7E372A45F4F1947CA212ADBD9`,
+a indeks SHA-256
+`CE373406DA49B35B01B20F4E8039A5F6F0060C54237C1B2D91193867B83B5763`.
+Pakiet pozostaje `NOT_APPROVED_FOR_START / NOT_DEPLOYED`; nie jest nową
+zgodą na Host retry, update instalacji ani zmianę run01.
