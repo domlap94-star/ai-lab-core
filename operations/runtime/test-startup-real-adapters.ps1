@@ -280,13 +280,22 @@ function New-RawSystemBoundary {
         if ($joined -eq 'context show') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = 'desktop-linux-test'; stderr = ''; process_left_running = $false } }
         if ($joined -like 'context inspect*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = 'npipe:////./pipe/nextStabilSynthetic'; stderr = ''; process_left_running = $false } }
         if ($joined -like '--context desktop-linux-test version*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = '28.3.3'; stderr = ''; process_left_running = $false } }
-        if ($joined -like '--context desktop-linux-test ps -aq*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = $State.container_id; stderr = ''; process_left_running = $false } }
-        if ($joined -like '--context desktop-linux-test inspect --format*') {
-            $mountJson = @([ordered]@{ Type = 'bind'; Name = ''; Source = (Join-Path $testRoot 'backend'); Destination = '/app'; RW = $false }) | ConvertTo-Json -Depth 5 -Compress
-            $configured = ConvertTo-PortJson $State.configured_ports
-            $active = ConvertTo-PortJson $State.active_ports
-            $line = @($State.container_id, '/d21-p1-backend', 'd21-p1', 'backend', ('sha256:' + ('a' * 64)), ([string]$State.container_running), 'NONE', $mountJson, $configured, $active) -join '|'
-            return [pscustomobject]@{ status = 'SUCCESS'; stdout = $line; stderr = ''; process_left_running = $false }
+        if ($joined -like '--context desktop-linux-test container ls --all --no-trunc*') { return [pscustomobject]@{ status = 'SUCCESS'; stdout = $State.container_id; stderr = ''; process_left_running = $false } }
+        if ($joined -like '--context desktop-linux-test inspect --type container --format*') {
+            $configured = ConvertTo-PortJson $State.configured_ports | ConvertFrom-Json
+            $active = ConvertTo-PortJson $State.active_ports | ConvertFrom-Json
+            $projection = [ordered]@{
+                id = $State.container_id
+                name = '/d21-p1-backend'
+                image_id = 'sha256:' + ('a' * 64)
+                compose_project = 'd21-p1'
+                compose_service = 'backend'
+                state = [ordered]@{ status = if ($State.container_running) { 'running' } else { 'exited' }; running = [bool]$State.container_running; health = $null }
+                mounts = @([ordered]@{ Type = 'bind'; Name = ''; Source = (Join-Path $testRoot 'backend'); Destination = '/app'; RW = $false })
+                configured_ports = $configured
+                active_ports = $active
+            }
+            return [pscustomobject]@{ status = 'SUCCESS'; stdout = ($projection | ConvertTo-Json -Depth 8 -Compress); stderr = ''; process_left_running = $false }
         }
         if ($joined -like '--context desktop-linux-test image inspect*') {
             if ($State.image_identity_status -ne 'SUCCESS') { return [pscustomobject]@{ status = $State.image_identity_status; stdout = ''; stderr = 'synthetic image identity failure'; process_left_running = $false } }

@@ -49,9 +49,11 @@ launcher never creates the junction, target, a replacement directory, a
 volume, or an empty database.
 
 The existing Compose helper exposes `Invoke-ApprovedExistingContainerPhase`
-over the same shared phase used by the launcher. That interface only preserves
-or starts a unique existing container after exact project/service,
-image/digest, mounts and ports match.
+over the same shared phase used by the launcher. For a pinned package the
+shared phase selects the exact 64-hex `container_id` first, then verifies the
+name, project/service labels, image/digest, mounts and configured/active ports.
+It never adopts a different current container by name or label when the pinned
+ID is absent.
 It never creates, pulls, builds or recreates resources. Direct execution of the
 helper now fails closed; there is no `docker compose up` fallback. Replacing the
 installed task and activating the launcher remain later, separately approved
@@ -77,6 +79,23 @@ unknown health cannot be treated as ready. An already running backend is never
 stopped to enforce this check. These fields order and gate only existing,
 identity-verified containers; they do not add Compose create/up/recreate or an
 unbounded dependency scheduler.
+
+Container inspection uses a small JSON projection. The optional Docker
+`State.Health` key is accessed through a safe map lookup and health logs, Env
+and command lines are never projected. A missing/null Health key becomes
+`NOT_CONFIGURED`: valid for a `RUNNING`-only component, never equivalent to
+`healthy`. Missing State, invalid Running, malformed/truncated JSON, timeout or
+nonzero exit remains an incomplete observation. A `HEALTHY` dependency such as
+PostgreSQL accepts only the explicit `healthy` status.
+
+The same-role list is a conflict check, not a selection pool. The retained
+R03/A1 Qdrant client drills may be ignored only when their narrow documented
+name pattern, `exited`/not-running state, empty mounts and empty configured and
+active ports are all positively observed. This does not generalize to every
+stopped container. Any other same-role object, active/paused/restarting object,
+unknown state, name/port conflict or incomplete selector blocks the phase.
+Readiness rechecks and a cold start use the same exact-ID selection, and only
+the already verified pinned full ID can be passed to `docker start`.
 
 ## Machine result
 
@@ -137,6 +156,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-startup-real-adapters.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-startup-data-junction.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-p4-startup-package.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-host22-container-observation.ps1
 ```
 
 The test creates only synthetic files and short `powershell.exe -NoProfile`

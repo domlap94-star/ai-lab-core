@@ -1104,6 +1104,99 @@ function Test-ApprovedContainerIdentity {
     return [pscustomobject]@{ valid = ($errors.Count -eq 0); errors = $errors.ToArray() }
 }
 
+function Test-StartupKnownInactiveDrillObservation {
+    param(
+        [Parameter(Mandatory = $true)]$Expected,
+        [Parameter(Mandatory = $true)]$Observed
+    )
+
+    # This is deliberately narrower than "any stopped container".  These are
+    # the retained R03/A1 Qdrant client drills already present on NEXT Stabil.
+    # An arbitrary stopped container with the same Compose labels remains a
+    # conflict and can never become the selected runtime instance.
+    $fullId = [string](Get-StartupProperty -InputObject $Observed -Name 'full_id')
+    $expectedId = [string](Get-StartupProperty -InputObject $Expected -Name 'container_id')
+    $name = [string](Get-StartupProperty -InputObject $Observed -Name 'container_name')
+    $project = [string](Get-StartupProperty -InputObject $Observed -Name 'compose_project')
+    $service = [string](Get-StartupProperty -InputObject $Observed -Name 'service')
+    $stateStatus = [string](Get-StartupProperty -InputObject $Observed -Name 'state_status')
+    $running = Get-StartupProperty -InputObject $Observed -Name 'running'
+
+    if (-not (Test-StartupContainerId -Value $fullId) -or $fullId.Equals($expectedId, [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    if ($name -notmatch '^next-stabil-r03-a1-drill-[0-9]{8}-a[0-9]+-qdrant-[12]-client$') { return $false }
+    if (-not $project.Equals([string](Get-StartupProperty -InputObject $Expected -Name 'compose_project'), [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    if (-not $service.Equals([string](Get-StartupProperty -InputObject $Expected -Name 'service'), [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    if (-not ($running -is [bool]) -or [bool]$running -or -not $stateStatus.Equals('exited', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    foreach ($requiredEmptyField in @('mounts', 'configured_ports', 'active_ports')) {
+        if (-not (Test-StartupProperty -InputObject $Observed -Name $requiredEmptyField)) { return $false }
+        if (@(Get-StartupProperty -InputObject $Observed -Name $requiredEmptyField).Count -ne 0) { return $false }
+    }
+    return $true
+}
+
+function Select-StartupApprovedContainerObservation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]$Expected,
+        [AllowNull()][object[]]$Observations = @()
+    )
+
+    $items = @($Observations | Where-Object { $null -ne $_ })
+    $expectedId = [string](Get-StartupProperty -InputObject $Expected -Name 'container_id')
+    if ([string]::IsNullOrWhiteSpace($expectedId)) {
+        if ($items.Count -eq 0) { return [pscustomobject]@{ success = $false; code = 'CONTROLLED_DEPLOY_REQUIRED'; selected = $null; ignored = @(); conflicts = @() } }
+        if ($items.Count -ne 1) { return [pscustomobject]@{ success = $false; code = 'CONTAINER_IDENTITY_AMBIGUOUS'; selected = $null; ignored = @(); conflicts = $items } }
+        return [pscustomobject]@{ success = $true; code = 'CONTAINER_SELECTED_LEGACY'; selected = $items[0]; ignored = @(); conflicts = @() }
+    }
+
+    if (-not (Test-StartupContainerId -Value $expectedId)) {
+        return [pscustomobject]@{ success = $false; code = 'CONTAINER_RUNTIME_ID_INVALID'; selected = $null; ignored = @(); conflicts = @() }
+    }
+    $exact = @($items | Where-Object {
+        $observedId = [string](Get-StartupProperty -InputObject $_ -Name 'full_id')
+        -not [string]::IsNullOrWhiteSpace($observedId) -and $observedId.Equals($expectedId, [System.StringComparison]::OrdinalIgnoreCase)
+    })
+    if ($exact.Count -eq 0) {
+        return [pscustomobject]@{ success = $false; code = 'CONTROLLED_DEPLOY_REQUIRED'; selected = $null; ignored = @(); conflicts = $items }
+    }
+    if ($exact.Count -ne 1) {
+        return [pscustomobject]@{ success = $false; code = 'CONTAINER_IDENTITY_AMBIGUOUS'; selected = $null; ignored = @(); conflicts = $exact }
+    }
+
+    $ignored = New-Object System.Collections.Generic.List[object]
+    $conflicts = New-Object System.Collections.Generic.List[object]
+    $unknownConflict = $false
+    foreach ($item in $items) {
+        if ([object]::ReferenceEquals($item, $exact[0])) { continue }
+        $itemId = [string](Get-StartupProperty -InputObject $item -Name 'full_id')
+        if (-not [string]::IsNullOrWhiteSpace($itemId) -and $itemId.Equals($expectedId, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        if (Test-StartupKnownInactiveDrillObservation -Expected $Expected -Observed $item) {
+            $ignored.Add($item)
+            continue
+        }
+        $conflicts.Add($item)
+        $stateStatus = [string](Get-StartupProperty -InputObject $item -Name 'state_status')
+        $runningValue = Get-StartupProperty -InputObject $item -Name 'running'
+        if ([string]::IsNullOrWhiteSpace($stateStatus) -or -not ($runningValue -is [bool])) { $unknownConflict = $true }
+    }
+    if ($conflicts.Count -gt 0) {
+        return [pscustomobject]@{
+            success = $false
+            code = if ($unknownConflict) { 'CONTAINER_ROLE_CONFLICT_UNKNOWN' } else { 'CONTAINER_ROLE_CONFLICT' }
+            selected = $null
+            ignored = $ignored.ToArray()
+            conflicts = $conflicts.ToArray()
+        }
+    }
+    return [pscustomobject]@{
+        success = $true
+        code = 'PINNED_CONTAINER_SELECTED'
+        selected = $exact[0]
+        ignored = $ignored.ToArray()
+        conflicts = @()
+    }
+}
+
 function ConvertTo-StartupHostObservation {
     param([AllowNull()]$RawObservation)
 
@@ -1134,16 +1227,17 @@ function Wait-StartupExistingContainerReady {
     $deadline = (Get-MonotonicMilliseconds) + $StageTimeoutMilliseconds
     do {
         $matches = @(& $Adapters.ObserveContainer $Expected)
-        if ($matches.Count -eq 0) { return [pscustomobject]@{ success = $false; code = 'CONTROLLED_DEPLOY_REQUIRED'; component = $service; observed = $null } }
-        if ($matches.Count -ne 1) { return [pscustomobject]@{ success = $false; code = 'CONTAINER_IDENTITY_AMBIGUOUS'; component = $service; observed = $null } }
-        $identity = Test-ApprovedContainerIdentity -Expected $Expected -Observed $matches[0]
-        if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); observed = $matches[0] } }
-        if ([bool](Get-StartupProperty -InputObject $matches[0] -Name 'running')) {
+        $selection = Select-StartupApprovedContainerObservation -Expected $Expected -Observations $matches
+        if (-not $selection.success) { return [pscustomobject]@{ success = $false; code = $selection.code; component = $service; detail = @('ignored=' + @($selection.ignored).Count, 'conflicts=' + @($selection.conflicts).Count); observed = $null } }
+        $observed = $selection.selected
+        $identity = Test-ApprovedContainerIdentity -Expected $Expected -Observed $observed
+        if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); observed = $observed } }
+        if ([bool](Get-StartupProperty -InputObject $observed -Name 'running')) {
             if ($healthRequirement -eq 'RUNNING') {
-                return [pscustomobject]@{ success = $true; code = 'CONTAINER_READY'; component = $service; observed = $matches[0] }
+                return [pscustomobject]@{ success = $true; code = 'CONTAINER_READY'; component = $service; observed = $observed; ignored = @($selection.ignored) }
             }
-            if ([string](Get-StartupProperty -InputObject $matches[0] -Name 'health_status') -eq 'healthy') {
-                return [pscustomobject]@{ success = $true; code = 'CONTAINER_HEALTHY'; component = $service; observed = $matches[0] }
+            if ([string](Get-StartupProperty -InputObject $observed -Name 'health_status') -eq 'healthy') {
+                return [pscustomobject]@{ success = $true; code = 'CONTAINER_HEALTHY'; component = $service; observed = $observed; ignored = @($selection.ignored) }
             }
         }
         $remaining = Get-StartupRemainingMilliseconds -Deadline $deadline -MaximumMilliseconds $PollMilliseconds
@@ -1186,17 +1280,21 @@ function Invoke-StartupExistingContainerPhase {
             $events.Add([pscustomobject]@{ component = $dependencyName; action = 'DEPENDENCY_HEALTH_CONFIRMED' })
         }
         $matches = @(& $Adapters.ObserveContainer $expected)
-        if ($matches.Count -eq 0) { return [pscustomobject]@{ success = $false; code = 'CONTROLLED_DEPLOY_REQUIRED'; component = $service; events = $events.ToArray() } }
-        if ($matches.Count -ne 1) { return [pscustomobject]@{ success = $false; code = 'CONTAINER_IDENTITY_AMBIGUOUS'; component = $service; events = $events.ToArray() } }
-        $identity = Test-ApprovedContainerIdentity -Expected $expected -Observed $matches[0]
+        $selection = Select-StartupApprovedContainerObservation -Expected $expected -Observations $matches
+        if (-not $selection.success) { return [pscustomobject]@{ success = $false; code = $selection.code; component = $service; detail = @('ignored=' + @($selection.ignored).Count, 'conflicts=' + @($selection.conflicts).Count); events = $events.ToArray() } }
+        $observed = $selection.selected
+        foreach ($ignoredItem in @($selection.ignored)) {
+            $events.Add([pscustomobject]@{ component = $service; action = 'IGNORE_RETAINED_INACTIVE_DRILL'; full_id = [string](Get-StartupProperty -InputObject $ignoredItem -Name 'full_id') })
+        }
+        $identity = Test-ApprovedContainerIdentity -Expected $expected -Observed $observed
         if (-not $identity.valid) { return [pscustomobject]@{ success = $false; code = 'IDENTITY_MISMATCH'; component = $service; detail = @($identity.errors); events = $events.ToArray() } }
-        if ([bool](Get-StartupProperty -InputObject $matches[0] -Name 'running')) {
+        if ([bool](Get-StartupProperty -InputObject $observed -Name 'running')) {
             $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds
             if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
             $events.Add([pscustomobject]@{ component = $service; action = 'PRESERVE_RUNNING' })
             continue
         }
-        $observedFullId = [string](Get-StartupProperty -InputObject $matches[0] -Name 'full_id')
+        $observedFullId = [string](Get-StartupProperty -InputObject $observed -Name 'full_id')
         if ($observedFullId -notmatch '^[a-fA-F0-9]{64}$') {
             return [pscustomobject]@{ success = $false; code = 'CONTAINER_RUNTIME_ID_INVALID'; component = $service; events = $events.ToArray() }
         }

@@ -17,6 +17,7 @@ function ConvertFrom-StartupDockerMounts {
     $parsedItems = $Json | ConvertFrom-Json -ErrorAction Stop
     $result = New-Object System.Collections.Generic.List[object]
     foreach ($item in $parsedItems) {
+        if ($null -eq $item) { continue }
         $type = [string](Get-StartupProperty -InputObject $item -Name 'Type')
         $parsed = [pscustomobject]@{
             source = if ($type -eq 'volume') { [string](Get-StartupProperty -InputObject $item -Name 'Name') } else { [string](Get-StartupProperty -InputObject $item -Name 'Source') }
@@ -47,6 +48,89 @@ function ConvertFrom-StartupDockerPorts {
         }
     }
     return $result.ToArray()
+}
+
+function Test-StartupDockerContainerNotFoundResult {
+    param([Parameter(Mandatory = $true)]$Result)
+
+    if ([string](Get-StartupProperty -InputObject $Result -Name 'status') -notin @('ERROR', 'NONZERO_EXIT')) { return $false }
+    if ([bool](Get-StartupProperty -InputObject $Result -Name 'stderr_truncated')) { return $false }
+    $stderr = [string](Get-StartupProperty -InputObject $Result -Name 'stderr')
+    return $stderr -match '(?i)(no such (container|object)|container .* not found)'
+}
+
+function ConvertFrom-StartupDockerContainerProjection {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Json)
+
+    if ([string]::IsNullOrWhiteSpace($Json)) { throw 'Docker inspect projection was empty.' }
+    try { $projection = $Json | ConvertFrom-Json -ErrorAction Stop }
+    catch { throw 'Docker inspect projection was not valid JSON.' }
+    if (@($projection).Count -ne 1 -or $null -eq $projection) { throw 'Docker inspect projection did not contain exactly one object.' }
+
+    foreach ($required in @('id', 'name', 'image_id', 'compose_project', 'compose_service', 'state', 'mounts', 'configured_ports', 'active_ports')) {
+        if (-not (Test-StartupProperty -InputObject $projection -Name $required)) { throw ('Docker inspect projection field missing: ' + $required) }
+    }
+    $state = Get-StartupProperty -InputObject $projection -Name 'state'
+    if ($null -eq $state) { throw 'Docker inspect projection State was missing.' }
+    foreach ($requiredState in @('status', 'running', 'health')) {
+        if (-not (Test-StartupProperty -InputObject $state -Name $requiredState)) { throw ('Docker inspect projection State field missing: ' + $requiredState) }
+    }
+    $stateStatus = Get-StartupProperty -InputObject $state -Name 'status'
+    $running = Get-StartupProperty -InputObject $state -Name 'running'
+    if (-not ($stateStatus -is [string]) -or [string]::IsNullOrWhiteSpace([string]$stateStatus)) { throw 'Docker inspect projection State.Status was invalid.' }
+    if (-not ($running -is [bool])) { throw 'Docker inspect projection State.Running was invalid.' }
+    if ([string]$stateStatus -notin @('created', 'running', 'paused', 'restarting', 'removing', 'exited', 'dead')) { throw 'Docker inspect projection State.Status was unknown.' }
+    if (([string]$stateStatus -eq 'running' -and -not [bool]$running) -or ([string]$stateStatus -in @('created', 'exited', 'dead') -and [bool]$running)) {
+        throw 'Docker inspect projection State fields were inconsistent.'
+    }
+
+    $healthValue = Get-StartupProperty -InputObject $state -Name 'health'
+    if ($null -eq $healthValue) {
+        $healthStatus = 'NOT_CONFIGURED'
+        $healthObservation = 'NOT_CONFIGURED'
+    }
+    elseif ($healthValue -is [string] -and ([string]$healthValue) -in @('healthy', 'starting', 'unhealthy')) {
+        $healthStatus = [string]$healthValue
+        $healthObservation = 'OBSERVED'
+    }
+    else {
+        $healthStatus = 'UNKNOWN'
+        $healthObservation = 'UNKNOWN'
+    }
+
+    $mountValue = Get-StartupProperty -InputObject $projection -Name 'mounts'
+    $configuredPortValue = Get-StartupProperty -InputObject $projection -Name 'configured_ports'
+    $activePortValue = Get-StartupProperty -InputObject $projection -Name 'active_ports'
+    $mountJson = if ($null -eq $mountValue) {
+        if ($Json -notmatch '"mounts"\s*:\s*\[\s*\]') { throw 'Docker inspect projection mounts were null or invalid.' }
+        '[]'
+    }
+    else { $mountValue | ConvertTo-Json -Depth 8 -Compress }
+    $configuredPortJson = if ($null -eq $configuredPortValue) {
+        if ($Json -notmatch '"configured_ports"\s*:\s*\{\s*\}') { throw 'Docker inspect projection configured ports were null or invalid.' }
+        '{}'
+    }
+    else { $configuredPortValue | ConvertTo-Json -Depth 8 -Compress }
+    $activePortJson = if ($null -eq $activePortValue) {
+        if ($Json -notmatch '"active_ports"\s*:\s*\{\s*\}') { throw 'Docker inspect projection active ports were null or invalid.' }
+        '{}'
+    }
+    else { $activePortValue | ConvertTo-Json -Depth 8 -Compress }
+    return [pscustomobject]@{
+        full_id = [string](Get-StartupProperty -InputObject $projection -Name 'id')
+        container_name = ([string](Get-StartupProperty -InputObject $projection -Name 'name')).TrimStart('/')
+        compose_project = [string](Get-StartupProperty -InputObject $projection -Name 'compose_project')
+        service = [string](Get-StartupProperty -InputObject $projection -Name 'compose_service')
+        image_id = [string](Get-StartupProperty -InputObject $projection -Name 'image_id')
+        running = [bool]$running
+        state_status = ([string]$stateStatus).ToLowerInvariant()
+        health_status = $healthStatus
+        health_observation = $healthObservation
+        mounts = @(ConvertFrom-StartupDockerMounts $mountJson)
+        configured_ports = @(ConvertFrom-StartupDockerPorts $configuredPortJson)
+        active_ports = @(ConvertFrom-StartupDockerPorts $activePortJson)
+    }
 }
 
 function Test-StartupExpectedEmptyResultError {
@@ -532,44 +616,64 @@ function New-RealStartupAdapters {
         param($Expected)
         $project = [string](Get-StartupProperty -InputObject $Expected -Name 'compose_project')
         $service = [string](Get-StartupProperty -InputObject $Expected -Name 'service')
-        $ids = & $invokeDocker @('--context', $context, 'ps', '-aq', '--filter', ('label=com.docker.compose.project=' + $project), '--filter', ('label=com.docker.compose.service=' + $service))
-        if ($ids.status -eq 'EMPTY_OUTPUT') { return @() }
-        if ($ids.status -ne 'SUCCESS') { throw ('Docker container observation failed: ' + $ids.status) }
+        $expectedId = [string](Get-StartupProperty -InputObject $Expected -Name 'container_id')
+        $format = '{"id":{{json .Id}},"name":{{json .Name}},"image_id":{{json .Image}},"compose_project":{{json (index .Config.Labels "com.docker.compose.project")}},"compose_service":{{json (index .Config.Labels "com.docker.compose.service")}},"state":{"status":{{json .State.Status}},"running":{{json .State.Running}},"health":{{with (index .State "Health")}}{{with (index . "Status")}}{{json .}}{{else}}""{{end}}{{else}}null{{end}}},"mounts":[{{- $first := true -}}{{range .Mounts}}{{if not $first}},{{end}}{"Type":{{json .Type}},"Name":{{json (index . "Name")}},"Source":{{json .Source}},"Destination":{{json .Destination}},"RW":{{json .RW}}}{{$first = false}}{{end}}],"configured_ports":{{json .HostConfig.PortBindings}},"active_ports":{{json .NetworkSettings.Ports}}}'
         $result = New-Object System.Collections.Generic.List[object]
-        foreach ($id in @($ids.stdout -split '[\r\n]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
-            $format = '{{.Id}}|{{.Name}}|{{index .Config.Labels "com.docker.compose.project"}}|{{index .Config.Labels "com.docker.compose.service"}}|{{.Image}}|{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}NONE{{end}}|{{json .Mounts}}|{{json .HostConfig.PortBindings}}|{{json .NetworkSettings.Ports}}'
-            $inspect = & $invokeDocker @('--context', $context, 'inspect', '--format', $format, $id.Trim())
-            if ($inspect.status -ne 'SUCCESS') { throw ('Docker inspect failed: ' + $inspect.status) }
-            $parts = $inspect.stdout.Trim() -split '\|', 10
-            if ($parts.Count -ne 10) { throw 'Docker inspect returned an invalid format.' }
-            $digests = & $invokeDocker @('--context', $context, 'image', 'inspect', '--format', '{{json .RepoDigests}}', $parts[4])
-            if ($digests.status -ne 'SUCCESS') { throw ('Docker image identity failed: ' + $digests.status) }
-            $parsedDigests = @($digests.stdout | ConvertFrom-Json -ErrorAction Stop | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) })
-            $repoDigests = @()
-            foreach ($digest in $parsedDigests) { $repoDigests += [string]$digest }
-            $approvedDigest = [string](Get-StartupProperty -InputObject $Expected -Name 'repo_digest')
-            $identityMode = [string](Get-StartupProperty -InputObject $Expected -Name 'image_identity_mode')
+        $imageIdentityCache = @{}
+        $invokeDockerForContainer = $invokeDocker
+        $containerContext = [string]$context
+        $containerExpected = $Expected
+        $containerFormat = [string]$format
+        $containerImageIdentityCache = $imageIdentityCache
+        $readContainer = {
+            param([string]$Id, [bool]$AllowNotFound)
+            $inspect = & $invokeDockerForContainer @('--context', $containerContext, 'inspect', '--type', 'container', '--format', $containerFormat, $Id)
+            if ($inspect.status -ne 'SUCCESS') {
+                if ($AllowNotFound -and (Test-StartupDockerContainerNotFoundResult -Result $inspect)) { return $null }
+                throw ('Docker container inspect failed: ' + $inspect.status)
+            }
+            $observed = ConvertFrom-StartupDockerContainerProjection -Json $inspect.stdout
+            $observedImageId = [string](Get-StartupProperty -InputObject $observed -Name 'image_id')
+            if (-not $containerImageIdentityCache.ContainsKey($observedImageId)) {
+                $digests = & $invokeDockerForContainer @('--context', $containerContext, 'image', 'inspect', '--format', '{{json .RepoDigests}}', $observedImageId)
+                if ($digests.status -ne 'SUCCESS') { throw ('Docker image identity failed: ' + $digests.status) }
+                $parsedDigests = @($digests.stdout | ConvertFrom-Json -ErrorAction Stop | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) })
+                $containerImageIdentityCache[$observedImageId] = @($parsedDigests | ForEach-Object { [string]$_ })
+            }
+            $repoDigests = @($containerImageIdentityCache[$observedImageId])
+            $approvedDigest = [string](Get-StartupProperty -InputObject $containerExpected -Name 'repo_digest')
+            $identityMode = [string](Get-StartupProperty -InputObject $containerExpected -Name 'image_identity_mode')
             if ([string]::IsNullOrWhiteSpace($identityMode)) { $identityMode = 'REPO_DIGEST' }
             $matchedDigest = if ($identityMode -eq 'REPO_DIGEST') {
                 @($repoDigests | Where-Object { ([string]$_).EndsWith($approvedDigest, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1)
             }
-            else {
-                @()
-            }
-            $result.Add([pscustomobject]@{
-                full_id = $parts[0]
-                container_name = $parts[1].TrimStart('/')
-                compose_project = $parts[2]
-                service = $parts[3]
-                image_id = $parts[4]
-                repo_digest = if (@($matchedDigest).Count -eq 1) { $approvedDigest } else { '' }
-                repo_digest_state = if ($repoDigests.Count -eq 0) { 'CONFIRMED_ABSENT' } else { 'OBSERVED' }
-                running = [System.Convert]::ToBoolean($parts[5])
-                health_status = $parts[6]
-                mounts = @(ConvertFrom-StartupDockerMounts $parts[7])
-                configured_ports = @(ConvertFrom-StartupDockerPorts $parts[8])
-                active_ports = @(ConvertFrom-StartupDockerPorts $parts[9])
-            })
+            else { @() }
+            $observed | Add-Member -NotePropertyName repo_digest -NotePropertyValue $(if (@($matchedDigest).Count -eq 1) { $approvedDigest } else { '' })
+            $observed | Add-Member -NotePropertyName repo_digest_state -NotePropertyValue $(if ($repoDigests.Count -eq 0) { 'CONFIRMED_ABSENT' } else { 'OBSERVED' })
+            return $observed
+        }.GetNewClosure()
+
+        $pinned = $null
+        if (-not [string]::IsNullOrWhiteSpace($expectedId)) {
+            $pinned = & $readContainer $expectedId $true
+            if ($null -ne $pinned) { $result.Add($pinned) }
+        }
+
+        $ids = & $invokeDocker @('--context', $context, 'container', 'ls', '--all', '--no-trunc', '--filter', ('label=com.docker.compose.project=' + $project), '--filter', ('label=com.docker.compose.service=' + $service), '--format', '{{.ID}}')
+        if ($ids.status -notin @('SUCCESS', 'EMPTY_OUTPUT')) { throw ('Docker container conflict observation failed: ' + $ids.status) }
+        $selectorIds = @($ids.stdout -split '[\r\n]+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() })
+        if (@($selectorIds | Where-Object { $_ -notmatch '^[a-fA-F0-9]{64}$' }).Count -gt 0) { throw 'Docker container conflict selector returned an invalid or truncated ID.' }
+        $selectorIds = @($selectorIds | Select-Object -Unique)
+        if ($null -ne $pinned -and
+            ([string](Get-StartupProperty -InputObject $pinned -Name 'compose_project')).Equals($project, [System.StringComparison]::OrdinalIgnoreCase) -and
+            ([string](Get-StartupProperty -InputObject $pinned -Name 'service')).Equals($service, [System.StringComparison]::OrdinalIgnoreCase) -and
+            -not @($selectorIds | Where-Object { $_.Equals($expectedId, [System.StringComparison]::OrdinalIgnoreCase) }).Count) {
+            throw 'Docker container conflict selector omitted the pinned container.'
+        }
+        foreach ($id in $selectorIds) {
+            if ($null -ne $pinned -and $id.Equals($expectedId, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+            $observed = & $readContainer $id $false
+            if ($null -ne $observed) { $result.Add($observed) }
         }
         return $result.ToArray()
     }.GetNewClosure()

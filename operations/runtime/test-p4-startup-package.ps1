@@ -157,11 +157,35 @@ function New-P4State {
         $observed = Copy-P4Object $expected
         $observed | Add-Member -NotePropertyName full_id -NotePropertyValue ([string]$expected.container_id)
         $observed | Add-Member -NotePropertyName running -NotePropertyValue $Running
+        $observed | Add-Member -NotePropertyName state_status -NotePropertyValue $(if ($Running) { 'running' } else { 'exited' })
         $observed | Add-Member -NotePropertyName configured_ports -NotePropertyValue @($expected.ports)
         $observed | Add-Member -NotePropertyName active_ports -NotePropertyValue $(if ($Running) { @($expected.ports) } else { @() })
         $observed | Add-Member -NotePropertyName repo_digest_state -NotePropertyValue 'OBSERVED'
         $observed | Add-Member -NotePropertyName health_status -NotePropertyValue $(if ($expected.service -eq 'postgres' -and $Running) { 'healthy' } else { 'NONE' })
         $containers[[string]$expected.service] = $observed
+    }
+    $drillObservations = @()
+    foreach ($drill in @(
+        [pscustomobject]@{ id = ('7' * 64); name = 'next-stabil-r03-a1-drill-20260908-a4-qdrant-2-client' },
+        [pscustomobject]@{ id = ('8' * 64); name = 'next-stabil-r03-a1-drill-20260908-a4-qdrant-1-client' },
+        [pscustomobject]@{ id = ('9' * 64); name = 'next-stabil-r03-a1-drill-20260908-a1-qdrant-2-client' },
+        [pscustomobject]@{ id = ('a' * 64); name = 'next-stabil-r03-a1-drill-20260908-a1-qdrant-1-client' }
+    )) {
+        $drillObservations += [pscustomobject]@{
+            full_id = $drill.id
+            container_name = $drill.name
+            compose_project = 'ai-lab-core'
+            service = 'backend'
+            image_id = 'sha256:' + ('a' * 64)
+            repo_digest = 'sha256:' + ('b' * 64)
+            repo_digest_state = 'OBSERVED'
+            running = $false
+            state_status = 'exited'
+            health_status = 'NOT_CONFIGURED'
+            mounts = @()
+            configured_ports = @()
+            active_ports = @()
+        }
     }
     $hosts = @{}
     foreach ($service in $Manifest.host_services) {
@@ -180,6 +204,7 @@ function New-P4State {
         host_starts = @{}
         postgres_health_mode = 'NORMAL'
         postgres_running_observations = 0
+        extra_container_observations = @{ backend = $drillObservations }
     }
 }
 
@@ -202,7 +227,7 @@ function New-P4Adapters {
                 else { $observed.health_status = 'healthy' }
                 $State.calls.Add(('postgres.health.' + [string]$observed.health_status))
             }
-            @($observed)
+            return @($observed) + @($State.extra_container_observations[$service])
         }.GetNewClosure()
         StartExistingContainer = {
             param($FullId, $Timeout)
@@ -210,6 +235,7 @@ function New-P4Adapters {
             $State.calls.Add('container.start.' + $service)
             $State.container_starts.Add($service)
             $State.containers[$service].running = $true
+            $State.containers[$service].state_status = 'running'
             $State.containers[$service].active_ports = @($State.containers[$service].ports)
             if ($service -eq 'postgres') { $State.containers[$service].health_status = 'starting' }
             [pscustomobject]@{ status = 'SUCCESS'; process_left_running = $false }
@@ -252,8 +278,9 @@ try {
     $readyState = New-P4State $manifest
     $readyResult = Invoke-P4Plan $manifest $readyState
     $readyRepeat = Invoke-P4Plan $manifest $readyState
-    Assert-P4Package ($readyResult.code -eq 'BASE_READY_LIMITED' -and $readyRepeat.code -eq 'BASE_READY_LIMITED') 'six-service package reaches limited readiness twice'
+    Assert-P4Package ($readyResult.code -eq 'BASE_READY_LIMITED' -and $readyRepeat.code -eq 'BASE_READY_LIMITED') ('six-service package reaches limited readiness twice; first=' + ($readyResult | ConvertTo-Json -Depth 8 -Compress) + '; second=' + ($readyRepeat | ConvertTo-Json -Depth 8 -Compress))
     Assert-P4Package ($readyState.container_starts.Count -eq 0 -and $readyState.host_starts.Count -eq 0) 'ready package starts no containers or host services'
+    Assert-P4Package (@($readyResult.events | Where-Object { $_.action -eq 'IGNORE_RETAINED_INACTIVE_DRILL' }).Count -eq 4) 'six-service plan accounts for four retained stopped drills without selecting them'
 
     $privateState = New-P4State $manifest
     $privateState.hosts.private_gateway = @()
@@ -279,12 +306,20 @@ try {
     $wrongIdState.containers.backend.full_id = '9' * 64
     $wrongIdState.containers.backend.running = $false
     $wrongId = Invoke-P4Plan $manifest $wrongIdState
-    Assert-P4Package ($wrongId.code -eq 'IDENTITY_MISMATCH' -and -not (@($wrongIdState.container_starts) -contains 'backend')) 'changed full container ID blocks before start'
+    Assert-P4Package ($wrongId.code -eq 'CONTROLLED_DEPLOY_REQUIRED' -and -not (@($wrongIdState.container_starts) -contains 'backend')) 'missing pinned full container ID blocks without adopting a same-role object'
 
     $wrongNameState = New-P4State $manifest
     $wrongNameState.containers.backend.container_name = 'backend'
     $wrongName = Invoke-P4Plan $manifest $wrongNameState
     Assert-P4Package ($wrongName.code -eq 'IDENTITY_MISMATCH') 'runtime container name is independent from service label'
+
+    $activeConflictState = New-P4State $manifest
+    $activeConflict = Copy-P4Object $activeConflictState.containers.backend
+    $activeConflict.full_id = 'e' * 64
+    $activeConflict.container_name = 'foreign-backend'
+    $activeConflictState.extra_container_observations.backend += $activeConflict
+    $activeConflictResult = Invoke-P4Plan $manifest $activeConflictState
+    Assert-P4Package ($activeConflictResult.code -eq 'CONTAINER_ROLE_CONFLICT' -and $activeConflictState.container_starts.Count -eq 0) 'active same-role competitor blocks the complete plan'
 
     $backend = @($manifest.containers | Where-Object { $_.service -eq 'backend' })[0]
     $localExpected = Copy-P4Object $backend
