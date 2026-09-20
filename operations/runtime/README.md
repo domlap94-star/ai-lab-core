@@ -28,6 +28,15 @@ paired with `BASE_READY_LIMITED`, `base_ready=true`, and
 preserved as a refusal. The recorder does not implement another startup path,
 task, scheduler, deployment action, or fallback manifest.
 
+The recorder never equates a runner exception with a settled child. If the
+owned launcher process was already created, the exception path retains its PID,
+checks or boundedly terminates only that child, and reports `settled=true` only
+after positive process-state evidence. A consumer accepting a warm attempt must
+also bind the marker and result to the same new `attempt_id`, recompute the
+persisted stdout/stderr lengths and SHA-256 values, require a settled exit, and
+validate the structured launcher events. A status label by itself is not a
+complete warm-run result.
+
 `startup-set.example.json` is `NOT_APPROVED / EXAMPLE_ONLY`. Zero hashes and
 example identities are placeholders, not observations and not a candidate set.
 P2 must select, hash, review and separately approve a real set.
@@ -194,6 +203,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-startup-data-junction.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-p4-startup-package.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-host22-container-observation.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File operations/runtime/test-host-evidence-capture.ps1
 ```
 
 The test creates only synthetic files and short `powershell.exe -NoProfile`

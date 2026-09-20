@@ -50,6 +50,7 @@ try {
     $empty = New-SyntheticLauncher -Name 'empty.ps1' -Body "param([string]`$ManifestPath)`nexit 0`n"
     $stderrLauncher = New-SyntheticLauncher -Name 'stderr.ps1' -Body ("param([string]`$ManifestPath)`n[Console]::Error.WriteLine('synthetic warning')`nWrite-Output '$successJson'`nexit 0`n")
     $timeoutLauncher = New-SyntheticLauncher -Name 'timeout.ps1' -Body "param([string]`$ManifestPath)`nStart-Sleep -Milliseconds 1200`nexit 0`n"
+    $runnerErrorLauncher = New-SyntheticLauncher -Name 'runner-error.ps1' -Body "param([string]`$ManifestPath)`nStart-Sleep -Seconds 5`nexit 0`n"
     $longLauncher = New-SyntheticLauncher -Name 'long.ps1' -Body ("param([string]`$ManifestPath)`nWrite-Output ('x' * 300)`nexit 0`n")
 
     $caseSuccess = Invoke-HostEvidenceCapture -Configuration (New-TestConfiguration -Launcher $success -EvidenceName 'success') -AttemptIdFactory { 'attempt-success' }
@@ -78,6 +79,13 @@ try {
     Assert-HostEvidence ($caseTimeout.recorder_status -eq 'LAUNCHER_TIMEOUT_UNKNOWN') 'timeout is unknown'
     Assert-HostEvidence ($caseTimeout.child_settled) 'owned timeout child settled'
     Assert-HostEvidence ($caseTimeout.recorder_exit_code -eq 24) 'timeout recorder failure'
+
+    $runnerErrorConfiguration = New-TestConfiguration -Launcher $runnerErrorLauncher -EvidenceName 'runner-error'
+    $runnerError = Invoke-BoundedHostEvidenceChildProcess -Configuration $runnerErrorConfiguration -AttemptId 'attempt-runner-error' -AfterStartHook { param($ownedProcess) throw 'SYNTHETIC_RUNNER_FAILURE_AFTER_CHILD_START' }
+    Assert-HostEvidence ($runnerError.started) 'runner error records child start'
+    Assert-HostEvidence ($runnerError.settled) 'runner error accounts for owned child before reporting settled'
+    Assert-HostEvidence ($runnerError.process_id -gt 0) 'runner error preserves owned child identity'
+    Assert-HostEvidence ($runnerError.stderr -match '^PROCESS_RUNNER_ERROR:') 'runner error preserves original problem class'
 
     $caseTruncated = Invoke-HostEvidenceCapture -Configuration (New-TestConfiguration -Launcher $longLauncher -EvidenceName 'truncated' -StdoutCap 64) -AttemptIdFactory { 'attempt-truncated' }
     Assert-HostEvidence ($caseTruncated.recorder_status -eq 'LAUNCHER_OUTPUT_TRUNCATED') 'truncation refused'
@@ -116,7 +124,8 @@ try {
         schema = 'NEXT_STABIL_HOST_EVIDENCE_CAPTURE_TEST_V1'
         status = 'PASS'
         assertions = $script:assertions
-        actual_child_process_cases = 7
+        actual_child_process_cases = 8
+        runner_error_children_settled = 1
         timeout_children_settled = 1
         synthetic_boundary_cases = 2
         production_boundaries_called = 0

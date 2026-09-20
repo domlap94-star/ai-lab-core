@@ -124,7 +124,8 @@ function Get-HostEvidenceProductionConfiguration {
 function Invoke-BoundedHostEvidenceChildProcess {
     param(
         [Parameter(Mandatory = $true)]$Configuration,
-        [Parameter(Mandatory = $true)][string]$AttemptId
+        [Parameter(Mandatory = $true)][string]$AttemptId,
+        [scriptblock]$AfterStartHook
     )
 
     $arguments = @(
@@ -150,6 +151,7 @@ function Invoke-BoundedHostEvidenceChildProcess {
         if (-not $started) {
             return [pscustomobject]@{ started = $false; settled = $true; timed_out = $false; exit_code = $null; stdout = ''; stderr = 'PROCESS_START_RETURNED_FALSE'; started_utc = $startedUtc.ToString('o'); finished_utc = [DateTime]::UtcNow.ToString('o'); process_id = $null; arguments = $start.Arguments }
         }
+        if ($null -ne $AfterStartHook) { & $AfterStartHook $process }
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
         $stderrTask = $process.StandardError.ReadToEndAsync()
         $completed = $process.WaitForExit([int]$Configuration.timeout_ms)
@@ -196,7 +198,32 @@ function Invoke-BoundedHostEvidenceChildProcess {
         }
     }
     catch {
-        return [pscustomobject]@{ started = $started; settled = $true; timed_out = $false; exit_code = $null; stdout = ''; stderr = ('PROCESS_RUNNER_ERROR:{0}' -f $_.Exception.GetType().Name); started_utc = $startedUtc.ToString('o'); finished_utc = [DateTime]::UtcNow.ToString('o'); process_id = $null; arguments = $start.Arguments; attempt_id = $AttemptId }
+        $runnerError = 'PROCESS_RUNNER_ERROR:{0}' -f $_.Exception.GetType().Name
+        $settledAfterError = -not $started
+        $exitCodeAfterError = $null
+        $processIdAfterError = $null
+        if ($started) {
+            try { $processIdAfterError = $process.Id } catch {}
+            try { $settledAfterError = [bool]$process.HasExited } catch { $settledAfterError = $false }
+            if (-not $settledAfterError) {
+                try { $process.Kill() } catch { $runnerError += ':CHILD_KILL_FAILED' }
+                try { $settledAfterError = $process.WaitForExit([int]$Configuration.cleanup_timeout_ms) } catch { $settledAfterError = $false }
+            }
+            if ($settledAfterError) { try { $exitCodeAfterError = $process.ExitCode } catch {} }
+        }
+        return [pscustomobject]@{
+            started = $started
+            settled = [bool]$settledAfterError
+            timed_out = $false
+            exit_code = $exitCodeAfterError
+            stdout = ''
+            stderr = $runnerError
+            started_utc = $startedUtc.ToString('o')
+            finished_utc = [DateTime]::UtcNow.ToString('o')
+            process_id = $processIdAfterError
+            arguments = $start.Arguments
+            attempt_id = $AttemptId
+        }
     }
     finally { $process.Dispose() }
 }
