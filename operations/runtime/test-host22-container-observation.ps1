@@ -2,6 +2,7 @@
 param(
     [switch]$PreimageEvidence,
     [switch]$ObservationReviewPreimage,
+    [switch]$FinalConditionsPreimage,
     [string]$PreimageRuntimePath = ''
 )
 
@@ -12,6 +13,14 @@ if ($PreimageEvidence) {
     if ([string]::IsNullOrWhiteSpace($PreimageRuntimePath)) {
         throw 'PREIMAGE_RUNTIME_PATH_REQUIRED'
     }
+    $resolvedPreimageRuntime = (Resolve-Path -LiteralPath $PreimageRuntimePath -ErrorAction Stop).Path
+    . $resolvedPreimageRuntime
+}
+elseif ($FinalConditionsPreimage) {
+    if ([string]::IsNullOrWhiteSpace($PreimageRuntimePath)) {
+        throw 'PREIMAGE_RUNTIME_PATH_REQUIRED'
+    }
+    . (Join-Path $PSScriptRoot 'start-host-services.ps1') -DefinitionOnly
     $resolvedPreimageRuntime = (Resolve-Path -LiteralPath $PreimageRuntimePath -ErrorAction Stop).Path
     . $resolvedPreimageRuntime
 }
@@ -180,6 +189,7 @@ function New-Host22AdapterState {
         selector_stdout_truncated = $false
         selector_stderr_truncated = $false
         selector_metadata_missing = $false
+        selector_metadata_overrides = @{}
         image_stdout_truncated = $false
         read_delay_ms = 0
     }
@@ -213,7 +223,11 @@ function New-Host22SystemBoundary {
             if ([bool]$State.selector_metadata_missing) {
                 return [pscustomobject]@{ status = 'SUCCESS'; started = $true; timed_out = $false; exit_code = 0; process_left_running = $false; stdout = $selectorText; stderr = ''; stderr_truncated = $false }
             }
-            return New-Host22NativeEnvelope -Status 'SUCCESS' -Stdout $selectorText -StdoutTruncated ([bool]$State.selector_stdout_truncated) -StderrTruncated ([bool]$State.selector_stderr_truncated)
+            $selectorEnvelope = New-Host22NativeEnvelope -Status 'SUCCESS' -Stdout $selectorText -StdoutTruncated ([bool]$State.selector_stdout_truncated) -StderrTruncated ([bool]$State.selector_stderr_truncated)
+            foreach ($metadataName in @($State.selector_metadata_overrides.Keys)) {
+                $selectorEnvelope.$metadataName = $State.selector_metadata_overrides[$metadataName]
+            }
+            return $selectorEnvelope
         }
         if ($joined -like '--context desktop-linux-test image inspect*') {
             return New-Host22NativeEnvelope -Status 'SUCCESS' -Stdout (@($State.repo_digests) | ConvertTo-Json -Compress) -StdoutTruncated ([bool]$State.image_stdout_truncated)
@@ -270,6 +284,136 @@ function Invoke-Host22AdapterPhase {
     catch {
         throw ('HOST22_PHASE_EXCEPTION:' + $_.Exception.Message + ';STACK=' + $_.ScriptStackTrace)
     }
+}
+
+$script:Host22OriginalMonotonicClock = ${function:Get-MonotonicMilliseconds}
+$script:Host22SyntheticClock = $null
+function Get-MonotonicMilliseconds {
+    if ($null -ne $script:Host22SyntheticClock) {
+        return [int64]$script:Host22SyntheticClock.milliseconds
+    }
+    return & $script:Host22OriginalMonotonicClock
+}
+
+function New-Host22UntypedEnvelope {
+    return [pscustomobject]@{
+        status = 'SUCCESS'
+        started = $true
+        timed_out = $false
+        exit_code = 0
+        process_left_running = $false
+        stdout = ''
+        stderr = ''
+        stdout_truncated = $false
+        stderr_truncated = $false
+    }
+}
+
+function Invoke-Host22ReadyDeadlineCase {
+    param(
+        [ValidateSet('RUNNING', 'HEALTHY')][string]$Requirement,
+        [int]$AdvanceMilliseconds
+    )
+
+    $expected = New-Host22PreimageExpected
+    if ($Requirement -eq 'HEALTHY') {
+        $expected.service = 'postgres'
+        $expected.container_name = 'postgres'
+        $expected.container_id = 'f' * 64
+        $expected.health_requirement = 'HEALTHY'
+    }
+    $observation = New-Host22PreimageObservation -Id $expected.container_id -Name $expected.container_name -Running $true -StateStatus 'running' -Drill $false
+    $observation.service = $expected.service
+    $clock = [pscustomobject]@{ milliseconds = [int64]0; advanced = $false }
+    $clockForGetter = $clock
+    $advanceForGetter = $AdvanceMilliseconds
+    if ($Requirement -eq 'RUNNING') {
+        [void]$observation.PSObject.Properties.Remove('state_status')
+        $stateGetter = {
+            if (-not $clockForGetter.advanced) {
+                $clockForGetter.milliseconds += [int64]$advanceForGetter
+                $clockForGetter.advanced = $true
+            }
+            return 'running'
+        }.GetNewClosure()
+        $observation | Add-Member -MemberType ScriptProperty -Name state_status -Value $stateGetter
+    }
+    else {
+        [void]$observation.PSObject.Properties.Remove('health_status')
+        $healthGetter = {
+            if (-not $clockForGetter.advanced) {
+                $clockForGetter.milliseconds += [int64]$advanceForGetter
+                $clockForGetter.advanced = $true
+            }
+            return 'healthy'
+        }.GetNewClosure()
+        $observation | Add-Member -MemberType ScriptProperty -Name health_status -Value $healthGetter
+    }
+    $adapters = [pscustomobject]@{
+        ObserveContainer = { param($Definition, $Timeout) @($observation) }.GetNewClosure()
+        StartExistingContainer = { param($FullId, $Timeout) throw 'UNEXPECTED_DEADLINE_CASE_START' }
+        Sleep = { param($Milliseconds) }
+    }
+    $script:Host22SyntheticClock = $clock
+    try {
+        $result = Invoke-StartupExistingContainerPhase -ExpectedContainers @($expected) -Adapters $adapters -CommandTimeoutMilliseconds 20 -StageTimeoutMilliseconds 50 -PollMilliseconds 1
+        return [pscustomobject]@{ result = $result; clock_ms = [int64]$clock.milliseconds }
+    }
+    finally {
+        $script:Host22SyntheticClock = $null
+    }
+}
+
+if ($FinalConditionsPreimage) {
+    $results = New-Object System.Collections.Generic.List[object]
+    $invalidCases = @(
+        [pscustomobject]@{ name = 'stdout_truncated_null'; field = 'stdout_truncated'; value = $null },
+        [pscustomobject]@{ name = 'stderr_truncated_null'; field = 'stderr_truncated'; value = $null },
+        [pscustomobject]@{ name = 'timed_out_null'; field = 'timed_out'; value = $null },
+        [pscustomobject]@{ name = 'process_left_running_null'; field = 'process_left_running'; value = $null },
+        [pscustomobject]@{ name = 'stdout_truncated_empty_string'; field = 'stdout_truncated'; value = '' },
+        [pscustomobject]@{ name = 'timed_out_integer_zero'; field = 'timed_out'; value = 0 },
+        [pscustomobject]@{ name = 'started_nonempty_string'; field = 'started'; value = 'true' },
+        [pscustomobject]@{ name = 'exit_code_string_zero'; field = 'exit_code'; value = '0' },
+        [pscustomobject]@{ name = 'stdout_integer'; field = 'stdout'; value = 0 }
+    )
+    foreach ($case in $invalidCases) {
+        $envelope = New-Host22UntypedEnvelope
+        $envelope.($case.field) = $case.value
+        $validation = Test-StartupNativeReadEnvelope -Result $envelope
+        $results.Add([pscustomobject]@{ finding = 'RV-H22-OBS-01B'; case = $case.name; complete = [bool]$validation.complete; code = [string]$validation.code })
+        if (-not $validation.complete) {
+            throw ('HOST22_OBS01B_PREIMAGE_NOT_REPRODUCED:' + $case.name + ':' + $validation.code)
+        }
+    }
+
+    $nullMetadataState = New-Host22AdapterState
+    $nullMetadataState.selector_ids = @($nullMetadataState.expected.container_id)
+    $nullMetadataState.selector_metadata_overrides['stdout_truncated'] = $null
+    $nullMetadataState.projections[$nullMetadataState.expected.container_id].state.running = $false
+    $nullMetadataState.projections[$nullMetadataState.expected.container_id].state.status = 'exited'
+    $nullMetadataState.projections[$nullMetadataState.expected.container_id].active_ports = [ordered]@{}
+    $nullMetadataResult = Invoke-Host22AdapterPhase -State $nullMetadataState -CommandTimeoutMilliseconds 200 -StageTimeoutMilliseconds 1000
+    $results.Add([pscustomobject]@{ finding = 'RV-H22-OBS-01B'; case = 'REAL_ADAPTER_SELECTOR_NULL_COMPLETENESS'; code = [string]$nullMetadataResult.code; starts = $nullMetadataState.starts.Count })
+    if ($nullMetadataResult.code -ne 'CONTAINERS_READY' -or $nullMetadataState.starts.Count -ne 1) {
+        throw 'HOST22_OBS01B_REAL_ADAPTER_PREIMAGE_NOT_REPRODUCED'
+    }
+
+    foreach ($requirement in @('RUNNING', 'HEALTHY')) {
+        $deadlineCase = Invoke-Host22ReadyDeadlineCase -Requirement $requirement -AdvanceMilliseconds 51
+        $results.Add([pscustomobject]@{ finding = 'RV-H22-OBS-02B'; case = ($requirement + '_READY_AFTER_DEADLINE'); code = [string]$deadlineCase.result.code; clock_ms = $deadlineCase.clock_ms; starts = 0 })
+        if ($deadlineCase.result.code -ne 'CONTAINERS_READY' -or $deadlineCase.clock_ms -ne 51) {
+            throw ('HOST22_OBS02B_PREIMAGE_NOT_REPRODUCED:' + $requirement)
+        }
+    }
+
+    [pscustomobject]@{
+        schema = 'NEXT_STABIL_HOST22_FINAL_CONDITIONS_FAIL_BEFORE_V1'
+        source = 'b4269ffa7bacc95b4d1441bb196e572a34a4ec43'
+        results = $results.ToArray()
+        production_boundary_calls = 0
+    } | ConvertTo-Json -Depth 8
+    exit 0
 }
 
 if ($ObservationReviewPreimage) {
@@ -403,6 +547,39 @@ $truncatedRefused = $false
 try { [void](ConvertFrom-StartupDockerContainerProjection -Json '{"id":') } catch { $truncatedRefused = $_.Exception.Message -match 'not valid JSON' }
 Assert-Host22 $truncatedRefused 'truncated JSON is refused'
 
+# The native read envelope is a typed completeness contract. PowerShell truthy
+# conversions are not evidence that a read completed without truncation or a
+# still-running process.
+$invalidEnvelopeCases = @(
+    [pscustomobject]@{ name = 'stdout_truncated_null'; field = 'stdout_truncated'; value = $null },
+    [pscustomobject]@{ name = 'stderr_truncated_null'; field = 'stderr_truncated'; value = $null },
+    [pscustomobject]@{ name = 'timed_out_null'; field = 'timed_out'; value = $null },
+    [pscustomobject]@{ name = 'process_left_running_null'; field = 'process_left_running'; value = $null },
+    [pscustomobject]@{ name = 'stdout_truncated_empty_string'; field = 'stdout_truncated'; value = '' },
+    [pscustomobject]@{ name = 'timed_out_integer_zero'; field = 'timed_out'; value = 0 },
+    [pscustomobject]@{ name = 'started_nonempty_string'; field = 'started'; value = 'true' },
+    [pscustomobject]@{ name = 'exit_code_string_zero'; field = 'exit_code'; value = '0' },
+    [pscustomobject]@{ name = 'stdout_integer'; field = 'stdout'; value = 0 }
+)
+foreach ($case in $invalidEnvelopeCases) {
+    $envelope = New-Host22UntypedEnvelope
+    $envelope.($case.field) = $case.value
+    $validation = Test-StartupNativeReadEnvelope -Result $envelope
+    Assert-Host22 (-not $validation.complete -and $validation.code -in @('NATIVE_READ_METADATA_INVALID', 'NATIVE_READ_EXIT_UNKNOWN')) ('invalid native metadata is refused: ' + $case.name)
+}
+$completeEnvelope = Test-StartupNativeReadEnvelope -Result (New-Host22UntypedEnvelope)
+Assert-Host22 ($completeEnvelope.complete -and $completeEnvelope.code -eq 'NATIVE_READ_COMPLETE') 'typed complete native envelope is accepted'
+$missingEnvelope = New-Host22UntypedEnvelope
+$missingEnvelope.status = 'NONZERO_EXIT'
+$missingEnvelope.exit_code = [int]1
+$missingEnvelope.stderr = 'Error response from daemon: No such container: synthetic'
+$missingValidation = Test-StartupNativeReadEnvelope -Result $missingEnvelope
+Assert-Host22 ($missingValidation.complete -and $missingValidation.code -eq 'NATIVE_READ_COMPLETE') 'typed complete nonzero missing-instance envelope remains classifiable'
+$emptyEnvelope = New-Host22UntypedEnvelope
+$emptyEnvelope.status = 'EMPTY_OUTPUT'
+$emptyValidation = Test-StartupNativeReadEnvelope -Result $emptyEnvelope
+Assert-Host22 ($emptyValidation.complete -and $emptyValidation.code -eq 'NATIVE_READ_COMPLETE') 'typed complete EMPTY_OUTPUT envelope remains valid'
+
 # Real adapter path: exact inspect first, bounded same-role conflict scan, safe
 # projection parser, common selection and identity validation.
 $probeState = New-Host22AdapterState
@@ -468,7 +645,7 @@ $truncatedAdapterRefused = $false
 try { [void](Invoke-Host22AdapterPhase $truncated) } catch { $truncatedAdapterRefused = $_.Exception.Message -match 'not valid JSON' }
 Assert-Host22 ($truncatedAdapterRefused -and $truncated.starts.Count -eq 0) 'truncated adapter stdout remains invalid'
 
-foreach ($case in @('SELECTOR_STDOUT_TRUNCATED', 'INSPECT_STDOUT_TRUNCATED', 'EMPTY_SELECTOR_TRUNCATED', 'SELECTOR_STDERR_TRUNCATED', 'SELECTOR_METADATA_MISSING')) {
+foreach ($case in @('SELECTOR_STDOUT_TRUNCATED', 'INSPECT_STDOUT_TRUNCATED', 'EMPTY_SELECTOR_TRUNCATED', 'SELECTOR_STDERR_TRUNCATED', 'SELECTOR_METADATA_MISSING', 'SELECTOR_METADATA_NULL')) {
     $incomplete = New-Host22AdapterState
     $incomplete.selector_ids = @($incomplete.expected.container_id)
     $incomplete.projections[$incomplete.expected.container_id].state.running = $false
@@ -480,12 +657,16 @@ foreach ($case in @('SELECTOR_STDOUT_TRUNCATED', 'INSPECT_STDOUT_TRUNCATED', 'EM
         'EMPTY_SELECTOR_TRUNCATED' { $incomplete.selector_stdout_truncated = $true; $incomplete.selector_override = '' }
         'SELECTOR_STDERR_TRUNCATED' { $incomplete.selector_stderr_truncated = $true }
         'SELECTOR_METADATA_MISSING' { $incomplete.selector_metadata_missing = $true }
+        'SELECTOR_METADATA_NULL' { $incomplete.selector_metadata_overrides['stdout_truncated'] = $null }
     }
     $incompleteRefused = $false
     try { [void](Invoke-Host22AdapterPhase -State $incomplete -CommandTimeoutMilliseconds 200 -StageTimeoutMilliseconds 5000) }
     catch {
         $incompleteRefused = if ($case -eq 'SELECTOR_METADATA_MISSING') {
             $_.Exception.Message -match 'NATIVE_READ_METADATA_MISSING'
+        }
+        elseif ($case -eq 'SELECTOR_METADATA_NULL') {
+            $_.Exception.Message -match 'NATIVE_READ_METADATA_INVALID'
         }
         else { $_.Exception.Message -match 'NATIVE_READ_OUTPUT_TRUNCATED' }
     }
@@ -504,6 +685,18 @@ for ($budgetIndex = 1; $budgetIndex -lt $deadlineBudgets.Count; $budgetIndex++) 
 }
 Assert-Host22 ($deadlineResult.code -eq 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED' -and $deadline.starts.Count -eq 0) 'cumulative observation deadline blocks without start'
 Assert-Host22 ($deadline.calls.Count -lt 7 -and $strictlyDecreased) ('remaining native budgets stop further reads; calls=' + $deadline.calls.Count + ';budgets=' + ($deadlineBudgets -join ','))
+
+foreach ($requirement in @('RUNNING', 'HEALTHY')) {
+    foreach ($advance in @(49, 50, 51)) {
+        $boundaryCase = Invoke-Host22ReadyDeadlineCase -Requirement $requirement -AdvanceMilliseconds $advance
+        if ($advance -lt 50) {
+            Assert-Host22 ($boundaryCase.result.code -eq 'CONTAINERS_READY') ($requirement + ' readiness before the shared deadline is accepted')
+        }
+        else {
+            Assert-Host22 ($boundaryCase.result.code -eq 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED' -and @($boundaryCase.result.events | Where-Object { $_.action -eq 'PRESERVE_RUNNING' }).Count -eq 0) ($requirement + ' readiness at/after the shared deadline is refused before PRESERVE_RUNNING: ' + $advance)
+        }
+    }
+}
 
 foreach ($stateStatus in @('paused', 'restarting', 'removing', 'dead')) {
     $pinnedState = New-Host22AdapterState

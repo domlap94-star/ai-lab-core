@@ -93,6 +93,10 @@ started process, resolved exit code, settled process, and explicit stdout/stderr
 truncation flags. `SUCCESS` with truncated output, missing completeness metadata,
 an unresolved process, timeout, or contradictory status/exit data is not a full
 observation and cannot be normalized to an empty selector or an absent object.
+The five completion flags must be actual booleans, the exit code an actual
+integer once the operation is otherwise settled, and status/stdout/stderr actual
+strings. Null, empty-string and truthy-string substitutes are invalid metadata;
+empty stdout/stderr strings themselves remain valid values.
 
 Container state is ready only when both `running=true` and the projected,
 case-normalized Docker status is exactly `running`. `paused`, `restarting`,
@@ -111,7 +115,9 @@ Readiness rechecks and a cold start use the same exact-ID selection, and only
 the already verified pinned full ID can be passed to `docker start`.
 Initial observation, the one exact-ID start, and post-start readiness share one
 monotonic stage deadline. Each native read receives only the remaining budget;
-budget is checked before and after every read and immediately before success.
+budget is checked before and after every read and immediately before every
+positive `PRESERVE_RUNNING`/readiness decision, including an initially ready
+RUNNING or HEALTHY observation.
 Exhaustion prevents further inspection or retry and cannot be reset by entering
 the post-start loop.
 

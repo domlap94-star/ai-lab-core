@@ -90,30 +90,46 @@ function Test-StartupNativeReadEnvelope {
     if ($missing.Count -gt 0) {
         return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_METADATA_MISSING'; missing = $missing }
     }
-    if (-not [bool](Get-StartupProperty -InputObject $Result -Name 'started')) {
+    foreach ($booleanField in @('started', 'timed_out', 'process_left_running', 'stdout_truncated', 'stderr_truncated')) {
+        $booleanValue = Get-StartupProperty -InputObject $Result -Name $booleanField
+        if (-not ($booleanValue -is [bool])) {
+            return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_METADATA_INVALID'; missing = @(); invalid = @($booleanField) }
+        }
+    }
+    foreach ($textField in @('status', 'stdout', 'stderr')) {
+        $textValue = Get-StartupProperty -InputObject $Result -Name $textField
+        if (-not ($textValue -is [string])) {
+            return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_METADATA_INVALID'; missing = @(); invalid = @($textField) }
+        }
+    }
+    $started = Get-StartupProperty -InputObject $Result -Name 'started'
+    $timedOut = Get-StartupProperty -InputObject $Result -Name 'timed_out'
+    $processLeftRunning = Get-StartupProperty -InputObject $Result -Name 'process_left_running'
+    $stdoutTruncated = Get-StartupProperty -InputObject $Result -Name 'stdout_truncated'
+    $stderrTruncated = Get-StartupProperty -InputObject $Result -Name 'stderr_truncated'
+    if (-not $started) {
         return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_NOT_STARTED'; missing = @() }
     }
-    if ([bool](Get-StartupProperty -InputObject $Result -Name 'timed_out')) {
+    if ($timedOut) {
         return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_TIMED_OUT'; missing = @() }
     }
-    if ([bool](Get-StartupProperty -InputObject $Result -Name 'process_left_running')) {
+    if ($processLeftRunning) {
         return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_PROCESS_UNRESOLVED'; missing = @() }
     }
-    if ([bool](Get-StartupProperty -InputObject $Result -Name 'stdout_truncated') -or
-        [bool](Get-StartupProperty -InputObject $Result -Name 'stderr_truncated')) {
+    if ($stdoutTruncated -or $stderrTruncated) {
         return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_OUTPUT_TRUNCATED'; missing = @() }
     }
     $exitCode = Get-StartupProperty -InputObject $Result -Name 'exit_code'
-    if ($null -eq $exitCode) {
-        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_EXIT_UNKNOWN'; missing = @() }
+    if (-not ($exitCode -is [int])) {
+        return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_EXIT_UNKNOWN'; missing = @(); invalid = @('exit_code') }
     }
-    $status = [string](Get-StartupProperty -InputObject $Result -Name 'status')
+    $status = Get-StartupProperty -InputObject $Result -Name 'status'
     if ($status -in @('SUCCESS', 'EMPTY_OUTPUT')) {
-        if ([int]$exitCode -ne 0) {
+        if ($exitCode -ne 0) {
             return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_STATUS_EXIT_MISMATCH'; missing = @() }
         }
     }
-    elseif ([int]$exitCode -eq 0) {
+    elseif ($exitCode -eq 0) {
         return [pscustomobject]@{ complete = $false; code = 'NATIVE_READ_STATUS_EXIT_MISMATCH'; missing = @() }
     }
     return [pscustomobject]@{ complete = $true; code = 'NATIVE_READ_COMPLETE'; missing = @() }
@@ -1385,6 +1401,10 @@ function Invoke-StartupExistingContainerPhase {
             if (-not $initialReady) {
                 $ready = Wait-StartupExistingContainerReady -Expected $expected -Adapters $Adapters -StageTimeoutMilliseconds $StageTimeoutMilliseconds -PollMilliseconds $PollMilliseconds -CommandTimeoutMilliseconds $CommandTimeoutMilliseconds -Deadline $stageDeadline
                 if (-not $ready.success) { return [pscustomobject]@{ success = $false; code = $ready.code; component = $service; detail = @(Get-StartupProperty -InputObject $ready -Name 'detail'); events = $events.ToArray() } }
+            }
+            $readyDecisionTime = Get-MonotonicMilliseconds
+            if ($readyDecisionTime -ge $stageDeadline) {
+                return [pscustomobject]@{ success = $false; code = 'CONTAINER_OBSERVATION_DEADLINE_EXCEEDED'; component = $service; detail = @('elapsed_ms=' + ($readyDecisionTime - $stageStarted), 'stage_ms=' + $StageTimeoutMilliseconds); events = $events.ToArray() }
             }
             $events.Add([pscustomobject]@{ component = $service; action = 'PRESERVE_RUNNING' })
             continue

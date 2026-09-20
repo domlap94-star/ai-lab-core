@@ -1,3 +1,11 @@
+[CmdletBinding()]
+param(
+    [string]$CandidateManifestPath = '',
+    [string]$CandidatePayloadRoot = '',
+    [string]$ExpectedCandidateSourceCommit = '',
+    [switch]$CandidateBindingOnly
+)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 
@@ -10,6 +18,59 @@ function Assert-P4Package {
 
 $runtimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $runtimeDirectory 'start-host-services.ps1') -DefinitionOnly
+
+function Test-P4CandidatePayloadBinding {
+    param(
+        [Parameter(Mandatory = $true)][string]$ManifestPath,
+        [Parameter(Mandatory = $true)][string]$PayloadRoot,
+        [string]$ExpectedSourceCommit = ''
+    )
+
+    $resolvedManifest = (Resolve-Path -LiteralPath $ManifestPath -ErrorAction Stop).Path
+    $resolvedRoot = (Resolve-Path -LiteralPath $PayloadRoot -ErrorAction Stop).Path
+    $manifest = Get-Content -LiteralPath $resolvedManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+    Assert-P4Package ([string]$manifest.approval.status -eq 'NOT_APPROVED' -and -not [bool]$manifest.approval.installation_authorized -and -not [bool]$manifest.approval.startup_authorized) 'candidate remains NOT_APPROVED with installation/startup authorization false'
+    $review = $manifest.p4b_host22_source_review
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedSourceCommit)) {
+        Assert-P4Package ([string]$review.source_commit -eq $ExpectedSourceCommit) 'candidate review binds the exact tested source commit'
+    }
+    $expectedPaths = [ordered]@{
+        startup_launcher = 'operations/runtime/start-host-services.ps1'
+        startup_runtime = 'operations/runtime/startup-runtime.ps1'
+    }
+    $summaries = New-Object System.Collections.Generic.List[object]
+    foreach ($role in $expectedPaths.Keys) {
+        $record = @($manifest.files | Where-Object { [string]$_.role -eq $role })
+        Assert-P4Package ($record.Count -eq 1) ('candidate contains exactly one executable file role: ' + $role)
+        Assert-P4Package ([string]$record[0].path -eq [string]$expectedPaths[$role]) ('candidate executable path is canonical: ' + $role)
+        $payloadPath = [System.IO.Path]::GetFullPath((Join-Path $resolvedRoot ([string]$record[0].path)))
+        $rootPrefix = [System.IO.Path]::GetFullPath($resolvedRoot).TrimEnd('\') + '\'
+        Assert-P4Package ($payloadPath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) ('candidate executable remains below payload root: ' + $role)
+        Assert-P4Package (Test-Path -LiteralPath $payloadPath -PathType Leaf) ('candidate executable exists in payload: ' + $role)
+        $actualHash = Get-StartupSha256 -Path $payloadPath
+        $actualSize = (Get-Item -LiteralPath $payloadPath).Length
+        Assert-P4Package ([string]$record[0].sha256 -eq $actualHash) ('candidate executable SHA-256 matches payload bytes: ' + $role)
+        Assert-P4Package ([int64]$record[0].size_bytes -eq [int64]$actualSize) ('candidate executable size matches payload bytes: ' + $role)
+        $reviewHash = if ($role -eq 'startup_launcher') { [string]$review.candidate_launcher_sha256 } else { [string]$review.candidate_runtime_sha256 }
+        Assert-P4Package ($reviewHash -eq $actualHash) ('candidate executable review reference matches payload bytes: ' + $role)
+        $reviewPayload = @($review.payload | Where-Object { [string]$_.role -eq $role })
+        Assert-P4Package ($reviewPayload.Count -eq 1 -and [string]$reviewPayload[0].path -eq [string]$record[0].path -and [string]$reviewPayload[0].sha256 -eq $actualHash -and [int64]$reviewPayload[0].size_bytes -eq [int64]$actualSize) ('candidate review payload binding is exact: ' + $role)
+        $summaries.Add([pscustomobject]@{ role = $role; path = [string]$record[0].path; size_bytes = [int64]$actualSize; sha256 = $actualHash })
+    }
+    return [pscustomobject]@{ source_commit = [string]$review.source_commit; approval = [string]$manifest.approval.status; files = $summaries.ToArray() }
+}
+
+$candidateBindingSummary = $null
+if (-not [string]::IsNullOrWhiteSpace($CandidateManifestPath) -or -not [string]::IsNullOrWhiteSpace($CandidatePayloadRoot) -or $CandidateBindingOnly) {
+    if ([string]::IsNullOrWhiteSpace($CandidateManifestPath) -or [string]::IsNullOrWhiteSpace($CandidatePayloadRoot)) {
+        throw 'CANDIDATE_BINDING_PATHS_REQUIRED'
+    }
+    $candidateBindingSummary = Test-P4CandidatePayloadBinding -ManifestPath $CandidateManifestPath -PayloadRoot $CandidatePayloadRoot -ExpectedSourceCommit $ExpectedCandidateSourceCommit
+    if ($CandidateBindingOnly) {
+        [pscustomobject]@{ status = 'P4_CANDIDATE_PAYLOAD_BINDING_PASS'; assertions = $script:Assertions; binding = $candidateBindingSummary } | ConvertTo-Json -Depth 8
+        exit 0
+    }
+}
 
 $script:OriginalP4GetMonotonicMilliseconds = ${function:Get-MonotonicMilliseconds}
 $script:ActiveP4SyntheticClock = $null
@@ -301,6 +362,7 @@ function New-P4RealAdapterState {
     $state.inspect_stdout_truncated = @{}
     $state.selector_stdout_truncated = @{}
     $state.selector_stderr_truncated = @{}
+    $state.selector_metadata_overrides = @{}
     $state.selector_override = @{}
     $state.read_delay_service = ''
     $state.read_delay_ms = 0
@@ -427,7 +489,13 @@ function New-P4RealSystemBoundary {
             foreach ($extra in @($State.extra_container_observations[$service])) { $ids.Add([string]$extra.full_id) }
             $text = if ($State.selector_override.ContainsKey($service)) { [string]$State.selector_override[$service] } else { @($ids) -join "`r`n" }
             $status = if ([string]::IsNullOrWhiteSpace($text)) { 'EMPTY_OUTPUT' } else { 'SUCCESS' }
-            return New-P4NativeEnvelope -Status $status -Stdout $text -StdoutTruncated ([bool]$State.selector_stdout_truncated[$service]) -StderrTruncated ([bool]$State.selector_stderr_truncated[$service])
+            $selectorEnvelope = New-P4NativeEnvelope -Status $status -Stdout $text -StdoutTruncated ([bool]$State.selector_stdout_truncated[$service]) -StderrTruncated ([bool]$State.selector_stderr_truncated[$service])
+            if ($State.selector_metadata_overrides.ContainsKey($service)) {
+                foreach ($metadataName in @($State.selector_metadata_overrides[$service].Keys)) {
+                    $selectorEnvelope.$metadataName = $State.selector_metadata_overrides[$service][$metadataName]
+                }
+            }
+            return $selectorEnvelope
         }
         if ($joined -like '--context desktop-linux-test start*') {
             $match = @($State.containers.Keys | Where-Object { [string]$State.containers[$_].full_id -eq $targetId })
@@ -578,7 +646,7 @@ try {
     Assert-P4Package ($realColdState.container_starts[0] -eq 'postgres' -and $realColdState.container_starts[-1] -eq 'backend') ('real-adapter cold starts pinned PostgreSQL before pinned backend; actual=' + (@($realColdState.container_starts) -join ','))
     Assert-P4Package ($realHealthyIndex -ge 0 -and $realBackendStartIndex -gt $realHealthyIndex) 'real-adapter backend starts only after PostgreSQL running and healthy'
 
-    foreach ($observationCase in @('A_SELECTOR_TRUNCATED', 'B_INSPECT_TRUNCATED', 'C_EMPTY_SELECTOR_TRUNCATED')) {
+    foreach ($observationCase in @('A_SELECTOR_TRUNCATED', 'B_INSPECT_TRUNCATED', 'C_EMPTY_SELECTOR_TRUNCATED', 'D_SELECTOR_COMPLETENESS_NULL')) {
         $incompleteState = New-P4RealAdapterState -Manifest $manifest
         $incompleteState.containers.backend.running = $false
         $incompleteState.containers.backend.state_status = 'exited'
@@ -586,6 +654,7 @@ try {
             'A_SELECTOR_TRUNCATED' { $incompleteState.selector_stdout_truncated.backend = $true; $incompleteState.selector_override.backend = [string]$incompleteState.containers.backend.full_id }
             'B_INSPECT_TRUNCATED' { $incompleteState.inspect_stdout_truncated[[string]$incompleteState.containers.backend.full_id] = $true }
             'C_EMPTY_SELECTOR_TRUNCATED' { $incompleteState.selector_stdout_truncated.backend = $true; $incompleteState.selector_override.backend = '' }
+            'D_SELECTOR_COMPLETENESS_NULL' { $incompleteState.selector_metadata_overrides.backend = @{ stdout_truncated = $null } }
         }
         $incompleteResult = Invoke-P4RealAdapterPlan -Manifest $manifest -State $incompleteState
         Assert-P4Package ($incompleteResult.code -eq 'ADAPTER_FAILURE' -and $incompleteState.container_starts.Count -eq 0) ('real-adapter incomplete envelope blocks the whole plan: ' + $observationCase + ';actual=' + $incompleteResult.code)

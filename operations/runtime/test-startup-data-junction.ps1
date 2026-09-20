@@ -11,6 +11,14 @@ function Assert-DataJunction {
 $runtimeDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
 . (Join-Path $runtimeDirectory 'start-host-services.ps1') -DefinitionOnly
 
+$script:OriginalDataJunctionGetMonotonicMilliseconds = ${function:Get-MonotonicMilliseconds}
+$script:DataJunctionSyntheticClock = [int64]0
+function Get-MonotonicMilliseconds {
+    $current = [int64]$script:DataJunctionSyntheticClock
+    $script:DataJunctionSyntheticClock = $current + 1
+    return $current
+}
+
 $token = [guid]::NewGuid().ToString('N')
 $fixtureRoot = Join-Path $env:TEMP ('NEXT Stabil D21 Data Junction {0}' -f $token)
 $installRoot = Join-Path $fixtureRoot 'install'
@@ -363,6 +371,7 @@ try {
     Write-Output ('D21_DATA_JUNCTION_TEST_PASS assertions={0}' -f $script:Assertions)
 }
 finally {
+    Set-Item -Path Function:\Get-MonotonicMilliseconds -Value $script:OriginalDataJunctionGetMonotonicMilliseconds
     $nestedLinkAtTarget = Join-Path $targetRoot 'application\nested-junction'
     if (Test-Path -LiteralPath $nestedLinkAtTarget) {
         $nestedItem = Get-Item -LiteralPath $nestedLinkAtTarget -Force
