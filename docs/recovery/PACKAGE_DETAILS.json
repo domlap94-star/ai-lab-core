@@ -480,7 +480,7 @@
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
       "ps51_self_contained_file_sha256": {
-        "status": "SOURCE_READY_FOR_REVIEW_FOCUSED_OFFLINE_PASS_NOT_DEPLOYED",
+        "status": "SOURCE_AND_OFFLINE_ACCEPTED_NOT_DEPLOYED",
         "scope": "GET_P4B_SHA256_ONLY_SOURCE_LOCAL_FILE_READ_OFFLINE_TEST",
         "preimage_recipe_sha256": "FD8DB2C5491E7A8835CC01734A8A902D67F606F29A4436A68A16096A44CBBCFE",
         "recipe_sha256": "CA6A5DCC4CD472332D32178FD3AEB659A9828FE9A746B02E3FCD188893387157",
@@ -495,15 +495,38 @@
         "payload_bindings": "8_OF_8_UNCHANGED",
         "zip_roundtrip": "87_OF_87",
         "production_boundaries": 0,
-        "live_verifyonly": "NOT_RUN_AUTHORIZATION_REMAINS_CONSUMED",
+        "live_verifyonly": "NOT_RUN_BLOCKED_LOCAL_PREREQUISITE_REVIEW_ZIP_MISSING",
         "installed_run01_changed": false,
+        "stage_b": "BLOCKED_NOT_AUTHORIZED"
+      },
+      "ps51_sha256_acceptance_verifyonly_preflight": {
+        "source_status": "SOURCE_AND_OFFLINE_ACCEPTED_NOT_DEPLOYED",
+        "observed_utc": "2026-09-21T21:16:33.7075929Z",
+        "verifyonly_status": "NOT_RUN_BLOCKED_LOCAL_PREREQUISITE_REVIEW_ZIP_MISSING",
+        "expected_operation_id": "R04-D21-P4B-HOST22-NUP-20260920T200422Z",
+        "recipe_sha256": "CA6A5DCC4CD472332D32178FD3AEB659A9828FE9A746B02E3FCD188893387157",
+        "package_index_sha256": "C2F6A77CC09869E26473BA85B1E21F4A1784E359D423A79A08C6E3086D12B8AA",
+        "review_index_sha256": "A4D2A5DB4BAD4A9DAF93ED76DC36D5902AF799DB24986E9D3FF5A6DC6B1732DE",
+        "expected_review_zip_sha256": "0DE0E072A6030F00159CAFD32CEE73636AC2033B7AFE73F42BD4838BB73414F8",
+        "expected_review_zip_size_bytes": 223585,
+        "top_level_artifacts_matched": "3_OF_4",
+        "payload_bindings_matched": "8_OF_8",
+        "review_zip": "ABSENT_NOT_RECONSTRUCTED",
+        "vfy1_output_root": "ABSENT",
+        "verifyonly_executions": 0,
+        "task_scheduler_reads_writes_starts": 0,
+        "other_production_boundaries": 0,
+        "live_mutations": 0,
+        "installed_run01_changed": false,
+        "http": "NOT_RUN",
+        "fresh_six_container_preflight": "NOT_RUN",
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "INDEPENDENT_REVIEW_ONLY_OF_PS51_SELF_CONTAINED_FILE_SHA256_DIFF_AND_DIRECT_EVIDENCE_NO_LIVE_VERIFYONLY_NO_K2_K3_NO_STAGE_B"
+      "next_action": "OWNER_DECISION_RESTORE_EXACT_REVIEW_ZIP_OR_EXPLICITLY_REBIND_TRANSPORT_BEFORE_ANY_VERIFYONLY_NO_K2_K3_NO_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

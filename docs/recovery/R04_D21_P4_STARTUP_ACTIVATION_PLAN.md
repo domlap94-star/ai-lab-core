@@ -1118,3 +1118,29 @@ SQL, UAC, RunAs, Host i usługi produktu miały wywołania `0`. Historyczny live
 VerifyOnly exit `1` i skonsumowana zgoda pozostają zapisane; nowa operacja nie
 jest automatycznie dozwolona. Jedyny następny krok to niezależny review tego
 diffu i bezpośrednich dowodów, bez K2/K3 i bez Stage B.
+
+## 34. Odbiór helpera i nieuruchomiony VerifyOnly
+
+Właściciel przyjął exact diff `Get-P4BSha256` jako
+`P4B_PS51_SELF_CONTAINED_FILE_SHA256_SOURCE_AND_OFFLINE_ACCEPTED /
+NOT_DEPLOYED` i dopuścił jedno nowe VerifyOnly wyłącznie dla pełnego,
+przypiętego punktu wejścia.
+
+Preflight samowystarczalnym .NET SHA-256 potwierdził:
+
+- receptę `65080` B / `CA6A5DCC4CD472332D32178FD3AEB659A9828FE9A746B02E3FCD188893387157`;
+- package index `10006` B / `C2F6A77CC09869E26473BA85B1E21F4A1784E359D423A79A08C6E3086D12B8AA`;
+- review index `19946` B / `A4D2A5DB4BAD4A9DAF93ED76DC36D5902AF799DB24986E9D3FF5A6DC6B1732DE`;
+- wszystkie `8/8` niepustych payload bindings.
+
+Wymagany exact ZIP `223585` B /
+`0DE0E072A6030F00159CAFD32CEE73636AC2033B7AFE73F42BD4838BB73414F8`
+był nieobecny. Nie zastąpiono go zachowanym roundtripem ani nie utworzono
+nowego archiwum. `vfy1` i `out` nie powstały, proces recepty nie został
+uruchomiony, a Task Scheduler reads/writes/starts oraz wszystkie mutacje
+wynoszą `0`.
+
+Status: `P4B_VERIFYONLY_NOT_RUN /
+BLOCKED_LOCAL_PREREQUISITE_REVIEW_ZIP_MISSING / NO_TASK_READS / NO_MUTATION`.
+Następny krok wymaga jawnej decyzji o dokładnych bajtach transportu; brak
+automatycznego retry, Stage B lub poszukiwania K2/K3.
