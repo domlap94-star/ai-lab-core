@@ -1082,3 +1082,39 @@ Jedyny rekomendowany następny zakres to minimalna SOURCE/OFFLINE zgodność
 PS 5.1: samowystarczalne obliczanie SHA-256 pliku w recepcie, celowany test i
 review. Nowy VerifyOnly wymagałby później osobnej jednorazowej zgody. Stage B,
 UAC i operacje hosta pozostają nieautoryzowane; K2/K3 nie są szukane.
+
+## 33. Samowystarczalny SHA-256 pliku w recepcie PS 5.1
+
+Zatwierdzony zakres SOURCE/OFFLINE zmienił wyłącznie `Get-P4BSha256` w
+LOCAL_ONLY recepcie. Preimage
+`FD8DB2C5491E7A8835CC01734A8A902D67F606F29A4436A68A16096A44CBBCFE`
+korzystał z `Get-FileHash`; pochodna
+`CA6A5DCC4CD472332D32178FD3AEB659A9828FE9A746B02E3FCD188893387157`
+otwiera literalny plik jako read-only stream, wykonuje wbudowany .NET
+`SHA256.ComputeHash` i zwalnia stream/hasher w `finally`. Nie zmieniono
+`Get-P4BTextSha256`, żadnej operacji, deadline'u, bindingu, XML, manifestu ani
+operation ID.
+
+Fresh ordinary-token Windows PowerShell `5.1.26100.8894` z
+`-NoLogo -NoProfile -NonInteractive` przeszedł `35` asercji / `15` focused
+scenariuszy w `4/4` rozliczonych child processes. Preimage trafił w dokładny
+poison-pill `Get-FileHash` raz; finalny helper, package gate i syntetyczne
+VerifyOnly miały wywołania poison `0`. Osiem niezmienionych wejść przeszło,
+podmieniony bajt i brak pliku zostały odrzucone, a rzeczywiste
+`Invoke-P4BNarrowUpdate -Mode VerifyOnly` osiągnęło `VERIFIED_NO_MUTATION` na
+kompletnej syntetycznej granicy i nie otworzyło journal/output. Finalny gate po
+mechanicznej aktualizacji indeksu również przeszedł `8/3`.
+
+Paczka LOCAL_ONLY:
+
+- package index `C2F6A77CC09869E26473BA85B1E21F4A1784E359D423A79A08C6E3086D12B8AA`;
+- review index `A4D2A5DB4BAD4A9DAF93ED76DC36D5902AF799DB24986E9D3FF5A6DC6B1732DE`;
+- ZIP `223585` B / `0DE0E072A6030F00159CAFD32CEE73636AC2033B7AFE73F42BD4838BB73414F8`,
+  roundtrip `87/87`.
+
+Status: `P4B_PS51_SELF_CONTAINED_FILE_SHA256_SOURCE_READY_FOR_REVIEW /
+FOCUSED_OFFLINE_PASS / NOT_DEPLOYED`. Task Scheduler, Docker, CIM, TCP, HTTP,
+SQL, UAC, RunAs, Host i usługi produktu miały wywołania `0`. Historyczny live
+VerifyOnly exit `1` i skonsumowana zgoda pozostają zapisane; nowa operacja nie
+jest automatycznie dozwolona. Jedyny następny krok to niezależny review tego
+diffu i bezpośrednich dowodów, bez K2/K3 i bez Stage B.

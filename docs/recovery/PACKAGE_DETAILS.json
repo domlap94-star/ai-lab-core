@@ -479,11 +479,31 @@
         "installed_run01_changed": false,
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
+      "ps51_self_contained_file_sha256": {
+        "status": "SOURCE_READY_FOR_REVIEW_FOCUSED_OFFLINE_PASS_NOT_DEPLOYED",
+        "scope": "GET_P4B_SHA256_ONLY_SOURCE_LOCAL_FILE_READ_OFFLINE_TEST",
+        "preimage_recipe_sha256": "FD8DB2C5491E7A8835CC01734A8A902D67F606F29A4436A68A16096A44CBBCFE",
+        "recipe_sha256": "CA6A5DCC4CD472332D32178FD3AEB659A9828FE9A746B02E3FCD188893387157",
+        "package_index_sha256": "C2F6A77CC09869E26473BA85B1E21F4A1784E359D423A79A08C6E3086D12B8AA",
+        "review_index_sha256": "A4D2A5DB4BAD4A9DAF93ED76DC36D5902AF799DB24986E9D3FF5A6DC6B1732DE",
+        "review_zip_sha256": "0DE0E072A6030F00159CAFD32CEE73636AC2033B7AFE73F42BD4838BB73414F8",
+        "review_zip_size_bytes": 223585,
+        "powershell_version": "5.1.26100.8894",
+        "focused_tests": "35_ASSERTIONS_15_SCENARIOS_4_OF_4_CHILD_PROCESSES_SETTLED",
+        "final_package_gate": "8_ASSERTIONS_3_SCENARIOS_PASS",
+        "poison_calls": "PREIMAGE_1_FINAL_HELPER_PACKAGE_VERIFYONLY_0",
+        "payload_bindings": "8_OF_8_UNCHANGED",
+        "zip_roundtrip": "87_OF_87",
+        "production_boundaries": 0,
+        "live_verifyonly": "NOT_RUN_AUTHORIZATION_REMAINS_CONSUMED",
+        "installed_run01_changed": false,
+        "stage_b": "BLOCKED_NOT_AUTHORIZED"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_DECISION_MINIMAL_SOURCE_OFFLINE_PS51_SELF_CONTAINED_FILE_SHA256_FIX_AND_REVIEW_BEFORE_ANY_NEW_VERIFYONLY_NO_K2_K3_NO_STAGE_B"
+      "next_action": "INDEPENDENT_REVIEW_ONLY_OF_PS51_SELF_CONTAINED_FILE_SHA256_DIFF_AND_DIRECT_EVIDENCE_NO_LIVE_VERIFYONLY_NO_K2_K3_NO_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },
