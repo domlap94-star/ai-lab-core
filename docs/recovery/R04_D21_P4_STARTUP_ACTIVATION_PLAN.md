@@ -1046,3 +1046,39 @@ nie zostały zmienione. HTTP, live VerifyOnly, Stage B, UAC, Host retry i
 rollback hosta są `NOT_RUN / NOT_AUTHORIZED`. Review D-23 pozostaje `2/2`;
 następny krok to niezależny review wyłącznie tego diffu i jego bezpośrednich
 regresji, bez szukania K2/K3.
+
+## 32. Odbiór ciągłości Host i jedyny VerifyOnly
+
+Właściciel przyjął dokładny diff Host identity continuity jako
+`P4B_STAGEA_HOST_IDENTITY_CONTINUITY_SOURCE_AND_OFFLINE_ACCEPTED /
+NOT_DEPLOYED` i dopuścił jedno niepodniesione VerifyOnly. Integralność top
+hashy `4/4`, bindingów `8/8`, lokalny I/O oraz brak `vfy1/out` przeszły przed
+wykonaniem.
+
+Jedyna próba miała approval ID
+`R04-D21-P4B-HOST-IDENTITY-VERIFYONLY-20260921T171832Z`, użyła dokładnego
+package operation ID `R04-D21-P4B-HOST22-NUP-20260920T200422Z`, recepty
+`FD8DB2C5491E7A8835CC01734A8A902D67F606F29A4436A68A16096A44CBBCFE` i
+indeksu `0BC434D97847836CD54C2D847B23795614F684633013DFDCDA1F76AF7C966CDD`.
+Windows PowerShell 5.1 `-NoProfile` zakończył się exit `1` po `958` ms bez
+timeoutu: `Get-P4BSha256` wywołał nierozpoznany `Get-FileHash` w lokalnej
+walidacji bindingów, przed utworzeniem realnej granicy tasków.
+
+`stdout` ma `0` B / SHA-256
+`E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855`,
+`stderr` ma `653` B / SHA-256
+`9C578DD42036CC78A9087DAC1E6E635D66ABFB3D331267F15BD2685FA3D3F205`.
+`result.json` oraz `out` nie powstały. Summary/index LOCAL_ONLY:
+`2FF083F60445C012A0BABF030B8781A123D7FA0D611936873E00D20F9D0E7D39` /
+`934C384550B5C37383D16C297A8C2CE571347554CD37F313CF8D87BF12CB5957`.
+
+Kod nie dotarł do `ObserveTask`; Task Scheduler reads/writes/starts, journal,
+mutation, changed roles, warm, rollback, Docker/HTTP/CIM/TCP/SQL/UAC/install
+wynoszą `0`. Próby nie ponowiono i zgoda jest zużyta. Status:
+`P4B_VERIFYONLY_BLOCKED_LOCAL_PREREQUISITE_GET_FILE_HASH_UNAVAILABLE /
+NO_TASK_READS / NO_MUTATION`.
+
+Jedyny rekomendowany następny zakres to minimalna SOURCE/OFFLINE zgodność
+PS 5.1: samowystarczalne obliczanie SHA-256 pliku w recepcie, celowany test i
+review. Nowy VerifyOnly wymagałby później osobnej jednorazowej zgody. Stage B,
+UAC i operacje hosta pozostają nieautoryzowane; K2/K3 nie są szukane.

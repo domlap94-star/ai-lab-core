@@ -435,7 +435,7 @@
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
       "stagea_host_identity_continuity": {
-        "status": "SOURCE_READY_FOR_REVIEW_OFFLINE_TESTS_PASS_NOT_DEPLOYED",
+        "status": "SOURCE_AND_OFFLINE_ACCEPTED_NOT_DEPLOYED",
         "finding": "REPRODUCED_FULL_ORCHESTRATION_RAW_ONLY_FRESH_OPERATION_REJECTED_PINNED_COMPARABLE_HOST",
         "preimage_recipe_sha256": "E4D0FA45D29C5B199DF225C41B508E97239A4FFD6AD7785BFB2847BF2873241A",
         "fail_before_sha256": "C7D0D1E95ED4A2F5158B998ACA269BF2DDBA1188DFDF53655B2630F1A590587F",
@@ -456,11 +456,34 @@
         "live_verify_only": "NOT_RUN",
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
+      "host_identity_verifyonly": {
+        "approval_id": "R04-D21-P4B-HOST-IDENTITY-VERIFYONLY-20260921T171832Z",
+        "authorization": "CONSUMED_SINGLE_EXECUTION_NO_RETRY",
+        "status": "BLOCKED_LOCAL_PREREQUISITE_GET_FILE_HASH_UNAVAILABLE",
+        "mode": "VerifyOnly",
+        "started_utc": "2026-09-21T17:19:57.7792425Z",
+        "ended_utc": "2026-09-21T17:19:58.7371776Z",
+        "elapsed_ms": 958,
+        "exit_code": 1,
+        "timed_out": false,
+        "failure": "COMMAND_NOT_FOUND_GET_FILE_HASH_IN_TEST_P4BPACKAGEINDEX_BEFORE_TASK_BOUNDARY",
+        "result_json": "ABSENT",
+        "output_root": "ABSENT",
+        "stdout": "0_BYTES_E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+        "stderr": "653_BYTES_9C578DD42036CC78A9087DAC1E6E635D66ABFB3D331267F15BD2685FA3D3F205",
+        "summary_sha256": "2FF083F60445C012A0BABF030B8781A123D7FA0D611936873E00D20F9D0E7D39",
+        "evidence_index_sha256": "934C384550B5C37383D16C297A8C2CE571347554CD37F313CF8D87BF12CB5957",
+        "task_scheduler_reads_writes_starts": 0,
+        "docker_http_cim_tcp_sql": 0,
+        "mutation_warm_rollback_uac_install": 0,
+        "installed_run01_changed": false,
+        "stage_b": "BLOCKED_NOT_AUTHORIZED"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "INDEPENDENT_REVIEW_ONLY_HOST_IDENTITY_CONTINUITY_DIFF_AND_DIRECT_REGRESSIONS_NO_K2_K3_NO_STAGE_B"
+      "next_action": "OWNER_DECISION_MINIMAL_SOURCE_OFFLINE_PS51_SELF_CONTAINED_FILE_SHA256_FIX_AND_REVIEW_BEFORE_ANY_NEW_VERIFYONLY_NO_K2_K3_NO_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },
