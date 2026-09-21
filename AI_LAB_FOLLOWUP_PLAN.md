@@ -3311,3 +3311,20 @@ Status: `SOURCE_FIX_READY_FOR_VERIFICATION / OFFLINE_PASS / NOT_DEPLOYED`.
 The next action is verification only of this diff and direct regressions, then
 acceptance if PASS. No UAC, installation, Host retry, task write or rollback is
 authorized; D-22 remains unchanged and `NOT_RUN`.
+
+**P4/B NUP-03 OWNER ACCEPTANCE AND STAGE A — 2026-09-21.** The owner accepted
+the exact recipe `DC1295C3...C4A0A`, index `B3B50FD3...07919` and ZIP
+`3ED49CB3...FA09D` only as
+`NUP03_HOST_COMPLETION_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`.
+Package integrity passed `33/33`, ZIP `34/34` and payload bindings `8/8`.
+Exactly one non-elevated VerifyOnly returned exit `22` /
+`TASK_DEPENDENCY_DRIFT` for `NEXT Stabil - Docker Desktop` with mutations and
+warm runs `0`. One bounded read-only projection preserved five conforming
+containers, healthy PostgreSQL and passing Windows/C:/D: thresholds, but the
+real validator rejected backend mounts and the host adapters rejected all
+three gateway/Supervisor identities; Host was Disabled and idle but had one
+trigger and a non-pinned semantic hash. A local formatter contract error
+stopped the projection before HTTP, and no read was repeated for formatting.
+Status is `P4B_STAGE_A_BLOCKED / NO_STAGE_B_AUTHORIZATION_REQUESTED`; owner
+review of this single blocker set is next. No UAC, InstallAndWarm, Host/task
+write, rollback, data operation or D-22 execution occurred or is authorized.

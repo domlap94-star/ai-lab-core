@@ -217,7 +217,7 @@
       "host_state": "DISABLED_NO_TRIGGER",
       "supervisor_state": "INTENTIONALLY_STOPPED_NOT_STARTED",
       "container_identity": "SIX_OF_SIX_UNCHANGED_RUNNING_RESTART_COUNT_ZERO",
-    "next_action": "VERIFY_ONLY_NUP03_HOST_COMPLETION_DIFF_DC1295C3_RECIPE_B3B50FD3_INDEX_3ED49CB3_ZIP_THEN_ACCEPT_IF_PASS_NO_K2_K3_NO_HOST_OPERATION",
+    "next_action": "OWNER_REVIEW_SINGLE_STAGE_A_BLOCKER_SET_NO_STAGE_B_REQUEST_NO_AUTOMATIC_REREAD_OR_FIX",
       "host22_diagnostic": {
         "status": "HOST22_DIAGNOSED_READ_ONLY_SOURCE_FIX_REQUIRED_NO_RETRY_AUTHORIZED",
         "observed_utc": "2026-09-19T23:13:46Z/2026-09-19T23:23:24Z",
@@ -332,12 +332,12 @@
       "separate_owner_operational_approval_required": true
     },
     "host22_nup_review": {
-      "status": "REVIEW_2_OF_2_COMPLETED_NUP01_NUP02_PASS_NUP03_HOST_COMPLETION_SOURCE_FIX_READY_FOR_VERIFICATION_OFFLINE_PASS_NOT_DEPLOYED",
+      "status": "REVIEW_2_OF_2_COMPLETED_NUP01_NUP02_PASS_NUP03_HOST_COMPLETION_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED_NOT_DEPLOYED_STAGE_A_BLOCKED",
       "d23_review_cycle": "REVIEW_2_OF_2_COMPLETED_OWNER_AUTHORIZED_NUP03_COMPLETION",
       "findings": {
         "NUP_01": "PASS_REVIEWED_SCOPE_KEEP",
         "NUP_02": "PASS_REVIEWED_SCOPE_KEEP",
-        "NUP_03": "REPRODUCED_FIRST_WARM_SUCCESS_WHILE_HOST_RUNNING_OWNER_AUTHORIZED_HOST_COMPLETION_FIX_OFFLINE_PASS_AWAITING_DIFF_VERIFICATION"
+        "NUP_03": "REPRODUCED_FIRST_WARM_SUCCESS_WHILE_HOST_RUNNING_SOURCE_OFFLINE_PACKAGE_OWNER_ACCEPTED_STAGE_A_BLOCKED_NO_STAGE_B_AUTHORIZATION"
       },
       "source_commit": "d3435afcfb89d02d91f2db3d1eb55be17fd790bd",
       "operation_id": "R04-D21-P4B-HOST22-NUP-20260920T200422Z",
@@ -368,8 +368,39 @@
       "uac_attempts": 0,
       "installed": false,
       "host_task_retried": false,
-      "new_bytes_accepted": false,
+      "new_bytes_accepted": true,
       "separate_owner_operational_approval_required": true
+    },
+    "nup03_stage_a": {
+      "status": "P4B_STAGE_A_BLOCKED_NO_STAGE_B_AUTHORIZATION_REQUESTED",
+      "observed_utc": "2026-09-21T08:36:13Z/2026-09-21T08:47:15Z",
+      "package_integrity": "INDEX_33_OF_33_ZIP_34_OF_34_PAYLOAD_8_OF_8_PASS",
+      "verify_only": {
+        "executions": 1,
+        "exit_code": 22,
+        "status": "TASK_DEPENDENCY_DRIFT",
+        "blocker": "NEXT Stabil - Docker Desktop",
+        "mutation_started": false,
+        "warm_runs": 0,
+        "rollback": "NOT_NEEDED",
+        "result_sha256": "65D5E7A5BA0D2728AE2240BFB8B5166EFCDA18501AB14BCE783AFC11874E6FD8"
+      },
+      "safe_projection": {
+        "executions": 1,
+        "status": "PARTIAL_LOCAL_FORMATTER_ABORT_NO_RETRY",
+        "five_containers_and_postgres_health": "PASS",
+        "backend": "CONTAINER_IDENTITY_MISMATCH_MOUNTS",
+        "host_services": "PUBLIC_PRIVATE_SUPERVISOR_IDENTITY_MISMATCH",
+        "host_task": "DISABLED_ZERO_INSTANCES_BUT_TRIGGER_ONE_AND_SEMANTIC_HASH_MISMATCH",
+        "resources": "WINDOWS_C_D_THRESHOLDS_PASS_DOCKER_WSL_POOL_AND_SWAP_UNKNOWN",
+        "http": "NOT_RUN",
+        "summary_sha256": "E406F46D965B6B278FB2F4048B1F3B43192EAF1D4C67CFE542007471F63E68B4"
+      },
+      "live_mutations": 0,
+      "uac_attempts": 0,
+      "host_task_starts": 0,
+      "stage_b_authorized": false,
+      "next_action": "OWNER_REVIEW_OF_SINGLE_STAGE_A_BLOCKER_SET"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

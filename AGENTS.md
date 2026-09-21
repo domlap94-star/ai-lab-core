@@ -327,6 +327,17 @@
   this diff and its direct regressions, followed by acceptance if PASS; no new
   K2/K3 search, UAC, installation, Host retry, task write or host rollback is
   authorized.
+- The owner has now accepted that exact NUP-03 completion package only as
+  `NUP03_HOST_COMPLETION_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`.
+  Its single Stage-A `VerifyOnly` returned exit `22` /
+  `TASK_DEPENDENCY_DRIFT` for `NEXT Stabil - Docker Desktop` with no mutation.
+  The one separate bounded projection preserved five conforming containers and
+  healthy PostgreSQL, but found backend mount identity mismatch, three host
+  service identity mismatches and a Host semantic/trigger mismatch; it then
+  stopped on a local formatter contract error before HTTP and was not retried.
+  Status is `P4B_STAGE_A_BLOCKED`; Stage B, UAC, InstallAndWarm, Host/task
+  writes and rollback are not authorized. Review the blocker set before any
+  new scope; do not repair or re-read it automatically and do not add K2/K3.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

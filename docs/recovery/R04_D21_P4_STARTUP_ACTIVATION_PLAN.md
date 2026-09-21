@@ -913,3 +913,26 @@ unsettled `0`. Package index `B3B50FD3...07919`; review ZIP
 NOT_DEPLOYED`. Następna weryfikacja ogranicza się do tego diffu i jego
 bezpośrednich regresji; przy PASS należy rekomendować odbiór zamiast szukać
 nowych K2/K3. Nie ma zgody na operacje hosta.
+
+## 28. NUP-03 package acceptance and Stage-A result
+
+Właściciel przyjął exact package z §27 wyłącznie jako
+`NUP03_HOST_COMPLETION_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED` i
+zezwolił na jeden Stage A. Integrity zakończyło się `33/33` indexed files,
+`34/34` ZIP i `8/8` payload bindings. Exact, non-elevated `VerifyOnly` został
+wykonany raz: exit `22`, `TASK_DEPENDENCY_DRIFT` dla
+`NEXT Stabil - Docker Desktop`, `mutation_started=false`, warm runs `0`,
+rollback `NOT_NEEDED`.
+
+Jedna odrębna projekcja read-only utrwaliła odpowiedzi przed lokalnym błędem
+formattera. PostgreSQL, Qdrant, n8n, Open WebUI i Ollama przeszły exact identity
+i running; PostgreSQL był healthy; progi Windows/C:/D: przeszły. Backend
+odpadł na `CONTAINER_IDENTITY_MISMATCH:mounts`; Public/Private/Supervisor na
+`IDENTITY_MISMATCH`; Host był Disabled i running/queued `0/0`, ale miał jeden
+trigger oraz semantic hash różny od pinned preimage. HTTP pozostał NOT_RUN.
+Odczytów nie ponowiono, aby naprawić tabelę.
+
+Wynik: `P4B_STAGE_A_BLOCKED / NO_STAGE_B_AUTHORIZATION_REQUESTED`. Stage B nie
+może użyć tego preflightu. Dalszy krok to owner review jednego zestawu blokad,
+bez automatycznej adaptacji package, kolejnego re-read, UAC, InstallAndWarm,
+Host startu, task write lub rollbacku.
