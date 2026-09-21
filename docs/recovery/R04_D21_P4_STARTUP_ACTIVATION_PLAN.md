@@ -888,3 +888,28 @@ SHA-256 `0B051C2F...B9EF`, package index `67B32FB8...8222`, review ZIP
 NOT_INSTALLED`; repozytoryjny draft jest `NOT_APPROVED`. D-23 pozostaje `1/2`:
 następny krok to niezależny review tylko tego diffu i regresji, bez UAC,
 instalacji, Host retry albo rollbacku hosta.
+
+Review D-23 `2/2` został następnie zakończony: NUP-01 i NUP-02 zachowują PASS
+w ocenionym zakresie, a właściciel zatwierdził domknięcie jedynego pozostałego
+K1 NUP-03. Celowany fail-before na exact recepcie `0B051C2F...B9EF` wykazał,
+że pierwszy warm zwracał `SUCCESS`, gdy właściwy Host nadal był `Running` z
+jedną instancją; kolejny krok dopiero wtedy odmawiał startu.
+
+LOCAL_ONLY recepta `DC1295C3...C4A0A` po walidacji kompletnego nowego evidence
+wykonuje świeży bounded odczyt exact Host. `Running/Queued` pozostaje w tej
+samej pętli i deadline, a SUCCESS wymaga exact semantic hash oraz pozytywnie
+zerowych running/queued instances. Unknown, foreign lub wyczerpany deadline
+daje bezpieczny wynik niepełny: brak drugiego warm, logon, retry i
+destrukcyjnego rollbacku. Recorder, launcher/runtime Host22, helper, manifest,
+XML-e oraz logika NUP-01/02 są niezmienione.
+
+Końcowa kampania PS 5.1 na finalnych bajtach: `70` asercji / `20` scenariuszy;
+oba Host przechodzą kontrolowane `Running -> Queued -> Ready`, dopiero potem
+odpowiednio drugi start i logon. Private `1 -> 0`, container/Supervisor i pięć
+dependency-task writes `0`, produkcyjne granice `0`, własne procesy `1`,
+unsettled `0`. Package index `B3B50FD3...07919`; review ZIP
+`3ED49CB3...FA09D`, roundtrip `34/34`. Status:
+`NUP03_HOST_COMPLETION_SOURCE_FIX_READY_FOR_VERIFICATION / OFFLINE_PASS /
+NOT_DEPLOYED`. Następna weryfikacja ogranicza się do tego diffu i jego
+bezpośrednich regresji; przy PASS należy rekomendować odbiór zamiast szukać
+nowych K2/K3. Nie ma zgody na operacje hosta.

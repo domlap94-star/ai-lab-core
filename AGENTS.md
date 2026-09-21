@@ -219,9 +219,13 @@
 - D-23 establishes the mandatory `ANTI_EXCESSIVE_WORK` policy in the canonical
   roadmap. Before every NEXT Stabil review, recommendation or next prompt,
   reread roadmap §0, `ANTI_EXCESSIVE_WORK`, the active card and latest relevant
-  checkpoint at the reported SHA. Classify new review items as K0/K1/K2/K3;
-  do not add K2/K3 to frozen acceptance criteria or repeat unchanged accepted
-  work. Every result/handoff/blocker report must include the short canonical
+  checkpoint at the reported SHA. Before proposing a repair ask: what
+  concretely will fail, or what material risk arises if it is not changed, and
+  what evidence proves that? Classify only evidenced material safety or
+  functional/operational impact as K0/K1. Do not repair, test-campaign, block
+  acceptance with, or automatically backlog K2/K3 items whose impact is minor
+  or unproven; do not repeat unchanged accepted work. Every
+  result/handoff/blocker report must include the short canonical
   anti-loop footer with blocking K0/K1, user-visible effect, cycle count and one
   next action. The roadmap section is authoritative; do not duplicate the full
   policy here.
@@ -308,16 +312,21 @@
   with Host disabled/no-trigger and warm `0/2`, and there is no standing UAC,
   update, Host retry, task-write or rollback authorization. D-22 remains
   unchanged and `NOT_RUN`.
-- The first consolidated D-23 review of that narrow update identified only
-  `NUP-01/02/03` (`K0/K0/K1`). Source
+- D-23 review `2/2` of that narrow update is complete. NUP-01 and NUP-02 remain
+  PASS in their reviewed scope. The owner authorized completion of the sole
+  remaining material K1 in NUP-03: a complete recorder result must be followed
+  by a fresh, owned and positively idle Host observation within the same
+  deadline before the next warm run or logon. Source
   `d3435afcfb89d02d91f2db3d1eb55be17fd790bd` and the LOCAL_ONLY derivative
-  are `ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW /
-  OFFLINE_ONLY / NOT_INSTALLED`: bounded mutation settlement, ownership/idle
-  plus file hashes before rollback, and two distinct complete recorder results
-  were exercised in 51 assertions / 16 scenarios with production boundaries
-  `0`. D-23 remains cycle `1/2`; the next action is one independent review of
-  this diff and its regressions, not new K2/K3 work. No UAC, installation,
-  Host retry, task write or host rollback is authorized.
+  preserve the reviewed NUP-01/02 result. The NUP-03 completion recipe
+  `DC1295C3...C4A0A` passed 70 assertions / 20 scenarios with Private `1 -> 0`,
+  container/Supervisor/dependency-task writes `0`, production boundaries `0`
+  and unsettled owned processes `0`. It is
+  `NUP03_HOST_COMPLETION_SOURCE_FIX_READY_FOR_VERIFICATION / OFFLINE_PASS /
+  NOT_DEPLOYED`, not self-accepted. The next action is verification only of
+  this diff and its direct regressions, followed by acceptance if PASS; no new
+  K2/K3 search, UAC, installation, Host retry, task write or host rollback is
+  authorized.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

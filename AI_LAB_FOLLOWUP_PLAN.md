@@ -3284,3 +3284,30 @@ by one consolidated owner decision. Every result/handoff/blocker report carries
 the short canonical footer. This documentation decision changes no product
 status or operational authorization; R04/P4-B resumes at the already prepared
 narrow-update review and D-22 remains unchanged and `NOT_RUN`.
+
+**D-23 MATERIAL IMPACT CLARIFICATION — 2026-09-21.** Before proposing a fix,
+ChatGPT/Codex must answer: what concretely fails or what material risk arises if
+the item is unchanged, and what evidence proves it? Only evidenced material
+safety risk is K0; only an evidenced material functional/operational blocker is
+K1. K2 (minor impact) and K3 (no demonstrated impact/improvement) are not fixed,
+do not block acceptance, do not trigger extra campaigns and do not create an
+automatic backlog. Tool/test/formatter/package defects are fixed minimally only
+when they block required execution or evidence. Prior owner requirements cannot
+be silently downgraded. After frozen criteria and material K0/K1 are closed,
+recommend acceptance or take an already authorized next step; do not start a
+new defect hunt.
+
+**P4/B NUP-03 HOST COMPLETION — 2026-09-21.** D-23 review `2/2` is complete;
+NUP-01 and NUP-02 remain PASS in their reviewed scope. The owner authorized
+completion of the sole remaining K1: after complete recorder evidence, the
+same warm deadline must also contain a fresh, exact and positively idle Host
+observation. Fail-before on recipe `0B051C2F...B9EF` returned first-warm
+`SUCCESS` while Host remained `Running`; the second step was then blocked.
+LOCAL_ONLY recipe `DC1295C3...C4A0A` closes that gap. Final PS 5.1 execution
+passed `70` assertions / `20` scenarios with Host `2`, Private `1 -> 0`,
+container/Supervisor/dependency-task writes `0`, production boundaries `0` and
+unsettled workers `0`. Index `B3B50FD3...07919`, ZIP `3ED49CB3...FA09D`.
+Status: `SOURCE_FIX_READY_FOR_VERIFICATION / OFFLINE_PASS / NOT_DEPLOYED`.
+The next action is verification only of this diff and direct regressions, then
+acceptance if PASS. No UAC, installation, Host retry, task write or rollback is
+authorized; D-22 remains unchanged and `NOT_RUN`.
