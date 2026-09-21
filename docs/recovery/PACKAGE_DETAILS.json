@@ -217,7 +217,7 @@
       "host_state": "DISABLED_NO_TRIGGER",
       "supervisor_state": "INTENTIONALLY_STOPPED_NOT_STARTED",
       "container_identity": "SIX_OF_SIX_UNCHANGED_RUNNING_RESTART_COUNT_ZERO",
-    "next_action": "OWNER_REVIEW_SINGLE_STAGE_A_BLOCKER_SET_NO_STAGE_B_REQUEST_NO_AUTOMATIC_REREAD_OR_FIX",
+      "next_action": "OWNER_DECISION_ONE_CONSOLIDATED_SOURCE_OFFLINE_NORMALIZATION_AND_BOUNDED_READ_ONLY_FOUR_TASK_CAPTURE_NO_STAGE_B",
       "host22_diagnostic": {
         "status": "HOST22_DIAGNOSED_READ_ONLY_SOURCE_FIX_REQUIRED_NO_RETRY_AUTHORIZED",
         "observed_utc": "2026-09-19T23:13:46Z/2026-09-19T23:23:24Z",
@@ -396,11 +396,26 @@
         "http": "NOT_RUN",
         "summary_sha256": "E406F46D965B6B278FB2F4048B1F3B43192EAF1D4C67CFE542007471F63E68B4"
       },
+      "preserved_evidence_reconciliation": {
+        "recorded_utc": "2026-09-21T11:41:01Z",
+        "accidental_original_checkpoint": {
+          "status": "EXACT_UNTRACKED_FILE_REMOVED_AFTER_OWNER_APPROVAL",
+          "size_bytes": 5484,
+          "sha256": "8ABFDCA99E3677A0096AAADCDE46376763FFF7B8B967920B097665EB352F56A5",
+          "evidence_copy": "LOCAL_ONLY_EXACT_BYTES_PRESERVED"
+        },
+        "docker_desktop_task": "CURRENT_STATE_UNRESOLVED_OBSERVED_HASH_NOT_PERSISTED",
+        "backend_mounts": "REPRESENTATION_ONLY_WINDOWS_SEPARATOR_PROVEN",
+        "host_services": "CURRENT_FIELDS_UNRESOLVED_HISTORICAL_ABSOLUTE_VS_RELATIVE_ARGUMENT_REPRESENTATION_SUPPORTED",
+        "host_task": "REPRESENTATION_NORMALIZATION_PROVEN_TRAILING_NEWLINE_AND_EMPTY_TRIGGER_COLLECTION",
+        "formatter": "STATUS_VS_READ_STATUS_CONFIRMED_HTTP_NOT_RUN_NO_RETRY",
+        "recommended_decision": "ONE_CONSOLIDATED_SOURCE_OFFLINE_NORMALIZATION_AND_BOUNDED_READ_ONLY_FOUR_TASK_CAPTURE_THEN_VERIFYONLY_REVIEW"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_REVIEW_OF_SINGLE_STAGE_A_BLOCKER_SET"
+      "next_action": "OWNER_DECISION_ON_ONE_CONSOLIDATED_FOLLOWUP_NO_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

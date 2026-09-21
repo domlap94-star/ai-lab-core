@@ -30,6 +30,16 @@ projekcji potwierdziły 5/6 tożsamości kontenerów i healthy PostgreSQL, lecz
 ujawniły dalsze mismatch backend/host services/Host; HTTP pozostał NOT_RUN po
 lokalnym błędzie formattera, bez retry. Stage B nie ma zgody.
 
+**Rozliczenie dowodów Stage A 2026-09-21:** omyłkowy untracked checkpoint z
+oryginalnego rootu został usunięty po exact-path zgodzie; jego `5484` bajty,
+SHA-256 `8ABFDCA9...56A5`, zachowano LOCAL_ONLY przed usunięciem. Backend mount
+mismatch i Host hash/trigger mismatch są udowodnionymi różnicami reprezentacji,
+nie zmianą zasobu. Docker Desktop drift nie zawiera zapisanego bieżącego hasha,
+a trzy host-service mismatch nie zawierają bieżących pól taska; te dwie grupy
+pozostają nierozstrzygnięte bez nowego odczytu. Formatter pomylił `status` z
+`read_status`; HTTP pozostaje `NOT_RUN`. Rekomendowany jest jeden skonsolidowany
+follow-up źródłowo-diagnostyczny, nie Stage B.
+
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
 ## 0. Bieżący stan i punkt wznowienia — czytać przed pracą
@@ -51,18 +61,18 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Ostatnia aktualizacja operacyjna UTC | `2026-09-21T08:47:15Z` — dokładnie jeden VerifyOnly i jedna częściowa projekcja read-only; brak mutacji |
 | Aktualny wykonawca / sesja | Codex / Stage A read-only i dokumentacja; Docker/Task/CIM/TCP/resource reads wykonane w ograniczonym zakresie; HTTP `NOT_RUN`; UAC/Host/install/rollback/mutacje `0` |
 | Aktywny pakiet / podetap | `R04 / D-21 / P4-B` — NUP-03 package `SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`; `P4B_STAGE_A_BLOCKED` przez exact dependency drift i dalsze identity/preimage mismatch. Bez prośby lub zgody Stage B |
-| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Jeden nowy, omyłkowo utworzony checkpoint w oryginalnym rootcie pozostaje osobno wykazany i oczekuje na jawnie zatwierdzone usunięcie exact-path |
+| Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Omyłkowy untracked checkpoint został po exact zgodzie zachowany bajtowo w LOCAL_ONLY i usunięty; oryginalny index i pozostałe pliki nie zostały zmienione |
 | Gałąź / SHA kodu objętego sprawdzeniem | Guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`, tree `4ccbc8922051401da1422be0d08f271476c3bab6`, preimage `ddec6ea20e2d755354e742e324d0d9cea5e5802f`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; P2 evidence `f872cf9e548a7ec196289e0c1987b654b1017505`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
 | Ostatnia faktycznie zakończona czynność | Sprawdzono package `33/33`, ZIP `34/34`, bindings `8/8`; jeden VerifyOnly zakończył się kontrolowaną odmową `TASK_DEPENDENCY_DRIFT`, a jedna projekcja read-only zachowała częściowe odpowiedzi i została zatrzymana po lokalnym błędzie formattera. Bez retry i bez mutacji |
 | Potwierdzone testy bieżącego wykonania | Package integrity PASS. VerifyOnly exit `22`, mutation `false`. Read-only: PostgreSQL/Qdrant/n8n/Open WebUI/Ollama identity+running PASS, PostgreSQL healthy, resources PASS; backend mounts, trzy host services i Host preimage/trigger BLOCKED; HTTP NOT_RUN |
 | Niezacommitowana praca / zabezpieczenie | Package LOCAL_ONLY bez zmian pod `C:\Users\domai\AppData\Local\Temp\P4B-NUP03-END-01`; nowe bezpieczne dowody pod `C:\Users\domai\AppData\Local\Temp\P4B-NUP-EXEC-01`; Stage-A summary SHA-256 `E406F46D965B6B278FB2F4048B1F3B43192EAF1D4C67CFE542007471F63E68B4` |
-| Niezakończone procesy i skutki operacyjne | Własne procesy zakończone; mutacje/starty `0`. Jedyny przypadkowy zapis to nowy checkpoint w oryginalnym rootcie; formalne exact-path usunięcie zostało odrzucone i wymaga jawnej zgody. Installed run01 bez zmian |
+| Niezakończone procesy i skutki operacyjne | Własne procesy zakończone; mutacje/starty `0`. Omyłkowy checkpoint w oryginalnym rootcie został usunięty po jawnej zgodzie, z kopią `5484` B / `8ABFDCA9...56A5` w istniejącym LOCAL_ONLY evidence root. Installed run01 bez zmian |
 | Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260921T084715Z-R04-D21-P4B-NUP03-STAGE-A-BLOCKED.md` |
 | Zakres aktualnej zgody | Stage A zużyty: dokładnie jeden VerifyOnly, jedna projekcja read-only i dokumentacja. Stage B, UAC, InstallAndWarm, task writes, Host start/retry i rollback nieautoryzowane. D-22 pozostaje `NOT_RUN` |
-| Blokada / wymagana decyzja | `P4B-STAGEA-GATE`: exact VerifyOnly odmówił na Docker Desktop task drift; zachowany adapter readback wykazał backend/host-service/Host mismatches, a HTTP pozostaje nieodczytane po błędzie formattera. Brak PASS Stage A |
-| Jeden następny bezpieczny krok | Właścicielski review jednego zestawu blokad Stage A i decyzja o dalszym wąskim zakresie; bez automatycznego fixa, re-read, UAC lub Stage B |
+| Blokada / wymagana decyzja | `P4B-STAGEA-GATE`: backend mount i Host preimage/trigger są rozliczone jako representation-only; bieżący hash/XML Docker Desktop i bieżące per-field dane trzech tasków host services nie zostały zachowane. Formatter `status/read_status` jest rozliczony lokalnie, HTTP pozostaje NOT_RUN. Brak PASS Stage A |
+| Jeden następny bezpieczny krok | Jedna decyzja o skonsolidowanym follow-up: source/offline normalizacja dwóch udowodnionych różnic oraz jeden bounded read-only capture nierozstrzygniętych czterech tasków; potem VerifyOnly review. Bez UAC lub Stage B |
 | Warunek STOP | Brak kolejnego UAC, retry Host/launchera/instalatora, niezależnego rollbacku, logon/reboot, Supervisora, backup/restore, relokacji, P5/R06 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -177,7 +187,7 @@ SHA — SHA publikacji znajduje się w odpowiedzi końcowej.
 
 | Poziom | Zamrożony stan i kryterium |
 |---|---|
-| Bieżący krok P4/B | Host22 source/offline i exact NUP-03 completion package są odebrane wyłącznie SOURCE/OFFLINE / NOT_DEPLOYED. Review D-23 `2/2` i PASS NUP-01/02 są zachowane. Stage A nie osiągnął PASS: exact VerifyOnly wykazał task dependency drift, a częściowa read-only projection dalsze identity/preimage mismatch. Zależny Stage B jest `BLOCKED`, nie `WAITING_APPROVAL`, i nie wolno prosić o jego zgodę przed owner review tych dowodów. Brak nowej rundy K2/K3 |
+| Bieżący krok P4/B | Host22 source/offline i exact NUP-03 completion package są odebrane wyłącznie SOURCE/OFFLINE / NOT_DEPLOYED. Review D-23 `2/2` i PASS NUP-01/02 są zachowane. Stage A nie osiągnął PASS. Backend mount i Host mismatch są representation-only; Docker Desktop i trzy taski host services pozostają field-level unresolved. Zależny Stage B jest `BLOCKED`, nie `WAITING_APPROVAL`; brak nowej rundy K2/K3 |
 | Końcowy odbiór startu R04 | Nadal wymaga faktycznie odebranego jednego startu, powtórzenia bez duplikatów, ustalonego logon/cold-start oraz spełnienia niezmienionych kryteriów jednego rootu/manifestu, danych D:/junctionu, Qdrant/VHD/profile i dowodu harmonogramów backupu w ich właściwym zakresie. Te niewykonane kryteria blokują dopiero odpowiedni końcowy odbiór, nie review źródeł |
 | Późniejsze `K2/K3` | Kosmetyka, refaktoryzacja, dodatkowy hardening i cleanup starych miejsc po wykazaniu braku konsumentów nie rozszerzają bieżącego pakietu. Żadnego obowiązkowego kryterium właściciela — w tym danych D:, junctionu, backupów i jednego startu — nie wolno odroczyć samą zmianą etykiety |
 

@@ -936,3 +936,30 @@ Wynik: `P4B_STAGE_A_BLOCKED / NO_STAGE_B_AUTHORIZATION_REQUESTED`. Stage B nie
 może użyć tego preflightu. Dalszy krok to owner review jednego zestawu blokad,
 bez automatycznej adaptacji package, kolejnego re-read, UAC, InstallAndWarm,
 Host startu, task write lub rollbacku.
+
+## 29. Stage-A preserved-evidence reconciliation
+
+Omyłkowy untracked checkpoint w oryginalnym rootcie został po jawnej zgodzie
+zweryfikowany jako zwykły plik `5484` B, SHA-256
+`8ABFDCA99E3677A0096AAADCDE46376763FFF7B8B967920B097665EB352F56A5`.
+Exact bytes zachowano LOCAL_ONLY pod istniejącym Stage-A evidence root, po czym
+usunięto wyłącznie zatwierdzoną ścieżkę. Recovery checkpoint pozostał.
+
+Zbiorcze rozliczenie bez nowych odczytów hosta:
+
+- backend mount mismatch jest udowodnioną różnicą separatorów Windows;
+  ID/image/name/labels/ports/destinations/RO są zgodne;
+- Host XML po normalizacji końca linii jest identyczny z preimage, a zapisany
+  XML ma `<Triggers />`; hash i `trigger_count=1` są różnicami normalizacji;
+- VerifyOnly nie zachował bieżącego hasha/XML Docker Desktop, więc nie dowodzi,
+  czy zasób się zmienił, baseline jest stary, czy zawiodła reprezentacja;
+- trzy wyniki host services zachowały tylko `IDENTITY_MISMATCH`. Historyczny
+  snapshot pokazuje absolute quoted script arguments zamiast manifest-relative,
+  ale bieżące per-field wartości Stage A nie zostały utrwalone;
+- formatter czytał `status`, podczas gdy collector zapisał `read_status`.
+  Zachowany resources response jest kompletny; HTTP pozostaje `NOT_RUN`.
+
+Jedna rekomendowana decyzja: skonsolidować w kolejnym, osobno zatwierdzonym
+zakresie source/offline dwie normalizacje oraz jeden bounded read-only capture
+Docker Desktop i trzech tasków host services, a następnie powtórzyć review
+VerifyOnly. Nie zatwierdzać Stage B na obecnym materiale.

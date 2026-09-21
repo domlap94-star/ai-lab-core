@@ -88,19 +88,50 @@ UAC, `InstallAndWarm`, Host runs, service/container starts, rollback, SQL,
 backup, restore, data/junction changes, P5, R06 and D-22 execution were `0`.
 Installed run01 was not changed.
 
-One documentation-path error occurred: the patch tool first created this new
-checkpoint at
+One documentation-path error occurred: the patch tool first created an earlier
+version of this checkpoint at
 `C:\ai-lab-core\docs\recovery\checkpoints\20260921T084715Z-R04-D21-P4B-NUP03-STAGE-A-BLOCKED.md`
 instead of in the recovery worktree. No existing file was overwritten. The
-identical checkpoint was then written to the correct recovery path. The formal
-request to remove only the accidental original-root file was rejected with the
-non-secret reason that no trusted deletion approval exists outside recovery.
-The file therefore remains pending an explicit owner-approved exact-path
-removal; no alternate deletion channel was used.
+initial deletion request was rejected because no trusted approval existed.
+After the owner explicitly approved that exact path, the file was verified as
+a plain untracked file, `5484` bytes, SHA-256
+`8ABFDCA99E3677A0096AAADCDE46376763FFF7B8B967920B097665EB352F56A5`.
+Its only differences from this later canonical checkpoint were the earlier
+summary hash and absence of the incident note. Exact bytes were preserved at
+`C:\Users\domai\AppData\Local\Temp\P4B-NUP-EXEC-01\incident-original-root-checkpoint-predelete.md`
+with the same size/hash, then only the approved original-root path was removed.
+The canonical recovery checkpoint remains present; the original repo index and
+all other files were untouched.
 
-Next step: owner review of this Stage-A blocker set. Do not request or execute
-Stage B on this evidence, and do not repeat the consumed reads merely to obtain
-a different formatting result.
+## Preserved-evidence reconciliation — 2026-09-21
+
+No host operation was repeated. The following classifications use only the
+Stage-A files, the accepted package and already preserved 2026-09-19 task
+snapshot.
+
+| Gate | Expected | Preserved observation | Concrete difference | Classification | Minimum owner decision before a dependent retry |
+|---|---|---|---|---|---|
+| Docker Desktop task | Semantic hash `D30FB298D937E5B9EF9B2ACCBCE0CD1A65E4FF5D747EF1E1A3987D75963E436E` | VerifyOnly stored only `TASK_DEPENDENCY_DRIFT` and the exact task name; it did not persist the current hash/XML. The 2026-09-19 post-run snapshot had matched `D30F...436E` | Equality failed on 2026-09-21, but the differing current value is absent | `CURRENT_STATE_UNRESOLVED`; not proof of a task change, stale baseline or representation issue | Authorize one exact, safe task-definition/hash projection with stable normalization; do not re-pin or write the task from this result |
+| Backend mounts | `C:\ai-lab-core\backend -> /app:ro` and `C:\ai-lab-core\data -> /data:rw` | Same pinned ID/image/name/labels/ports/state; sources recorded as `C:/ai-lab-core/backend` and `C:/ai-lab-core/data` with the same destinations/types/RO flags | Windows separator representation only | `REPRESENTATION_ONLY_PROVEN`; no backend/container drift shown | Authorize a source/offline canonical Windows bind-source comparison plus focused regression; do not change the manifest or mount |
+| Public, Private, Supervisor task identity | Exact task/executable/CWD and scripts from the manifest | Stage A stored only `CONFLICT / IDENTITY_MISMATCH` with no lower per-field task payload. The preserved 2026-09-19 snapshot has the same task names, Node executable and CWD, but absolute quoted script arguments instead of manifest-relative arguments | Current exact differing field was not preserved; historical evidence shows an argument-representation mismatch that can explain, but does not prove, the Stage-A result | `CURRENT_FIELD_UNRESOLVED / HISTORICAL_REPRESENTATION_MISMATCH_SUPPORTED`; no actor or runtime change proven | Authorize one safe three-task action projection; if it confirms only the known absolute/relative script representation, separately approve a source/offline canonical script-binding comparison |
+| Host preimage/trigger | Hash `0EBD4DA250ADB2D033FCACF04B8ED41166FAA5DFF76A83C4C61A6C0120CDB702`, Disabled, no trigger, idle | Hash `85C4C8176398B1D7C211684C119A6AE47426005F47E78252FF7F85336C2AF0F9`, Disabled, `trigger_count=1`, running/queued `0/0`; stored XML contains `<Triggers />` | Package text has one trailing newline that the exported XML lacks; after newline normalization both hashes are `7BBBCF100F20A90A564EBD532CE3247CD8FF20AA75F4C0B48978AB8ACACB90FA`. The count conflicts with the stored empty XML | `REPRESENTATION_NORMALIZATION_PROVEN`; no foreign definition or active trigger shown by the saved XML | Authorize a source/offline normalized XML identity and empty-trigger collection fix plus regression; do not register or modify Host |
+
+The formatter failure is also resolved from preserved files: the collector
+response uses `read_status`, while the projection wrapper read `status` under
+StrictMode. The complete resource response remains usable; the wrapper aborted
+before HTTP. HTTP therefore remains `NOT_RUN`, with no inferred result and no
+repeat read.
+
+Single recommended decision: authorize one consolidated follow-up containing
+only (a) source/offline normalization for backend Windows bind sources and Host
+XML/empty-trigger projection, and (b) one bounded read-only per-field capture
+for Docker Desktop plus the three gateway/Supervisor tasks. Rebuild and review
+the VerifyOnly evidence after that. Do not authorize Stage B on the current
+evidence.
+
+Next step: owner decision on the single consolidated follow-up above. Do not
+request or execute Stage B on this evidence, and do not repeat the consumed
+reads merely to obtain a different formatting result.
 
 > **ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT**
 >
@@ -109,8 +140,9 @@ a different formatting result.
 > kartę R04 i ten checkpoint na pełnym SHA publikacji.
 >
 > Zachowaj odbiory NUP-01/02, Host22 i source/offline NUP-03. Nie dodawaj K2/K3.
-> K0/K1 blokujący ten krok: `P4B-STAGEA-GATE` — exact `VerifyOnly` zwrócił
-> `TASK_DEPENDENCY_DRIFT`, a zachowana real-adapter projection wykazała dalsze
-> identity/preimage mismatches; Stage B nie ma bezpiecznego PASS. Cykl review
-> `2/2` pozostaje zakończony. Następny krok: jedna decyzja właściciela po review
-> blokad; brak zgody na UAC lub operację hosta.
+> K0/K1 blokujący ten krok: `P4B-STAGEA-GATE` — backend mount i Host mismatch
+> są representation-only, lecz bieżący hash Docker Desktop i bieżące per-field
+> dane trzech tasków host services nie zostały utrwalone. Stage B nie ma
+> bezpiecznego PASS. Cykl review `2/2` pozostaje zakończony. Następny krok:
+> jedna decyzja właściciela o skonsolidowanym follow-up; brak zgody na UAC lub
+> operację hosta.
