@@ -1008,3 +1008,41 @@ Host disabled/no-trigger, warm `0/2`, Private start `0` i Supervisor
 `BLOCKED / NOT_AUTHORIZED`; następny krok to właścicielski review tego diffu i
 czterech zapisanych definicji przed ewentualną osobną decyzją o jednym
 VerifyOnly.
+
+## 31. P4B-STAGEA-GATE — ciągłość tożsamości Host
+
+Na zachowanym preimage recepty SHA-256
+`E4D0FA45D29C5B199DF225C41B508E97239A4FFD6AD7785BFB2847BF2873241A`
+pełna orkiestracja odtworzyła materialny K1. Preflight akceptował zapisany raw
+XML Host przez przypięty comparable hash, ale świeże Register/Start/Rollback
+wymagały wyłącznie raw hash docelowego XML. Operacja zatrzymywała się po
+czterech własnych zmianach fixture, przed leaf Register i przed warm runem.
+Fail-before ma SHA-256
+`C7D0D1E95ED4A2F5158B998ACA269BF2DDBA1188DFDF53655B2630F1A590587F`.
+
+Pochodna LOCAL_ONLY używa jednej wspólnej kontroli własności Host: obserwowany
+raw hash albo comparable hash musi odpowiadać dokładnie przypiętemu stanowi
+preimage/disabled/on-demand/logon. Nie zastępuje to kontroli action, principal,
+trigger, enabled, bezczynności ani pending-operation. Obcy raw+comparable,
+obca action/trigger/principal, UNKNOWN, Running lub Queued nadal blokują zapis
+i cleanup. Rollback sprawdza tę samą własność oraz własne hashe pliku i backupu.
+
+Końcowa rzeczywista orkiestracja z dolnymi atrapami: `91` asercji / `26`
+scenariuszy PASS, Host starts `2`, Private `1 -> 0`, container/Supervisor/
+unapproved/dependency-task writes `0`, własne procesy `1/1`, unsettled `0`,
+granice produkcyjne `0`. Wynik ma SHA-256
+`9E51AB3B63B8DBC065F5B8B9300F4E517CAC25E96FEBC01B9D1C2BDB9E0954E2`.
+Finalna recepta/index/ZIP:
+
+- `FD8DB2C5491E7A8835CC01734A8A902D67F606F29A4436A68A16096A44CBBCFE`;
+- `0BC434D97847836CD54C2D847B23795614F684633013DFDCDA1F76AF7C966CDD`;
+- `F0BE2DB31081458890873325DE8448C1D65F8ED57CF20C5D724F66A64FB88298`
+  (`184681` B, roundtrip `52/52`).
+
+Status:
+`P4B_STAGEA_HOST_IDENTITY_CONTINUITY_SOURCE_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED`. Historyczny run01 i wynik VerifyOnly `22`
+nie zostały zmienione. HTTP, live VerifyOnly, Stage B, UAC, Host retry i
+rollback hosta są `NOT_RUN / NOT_AUTHORIZED`. Review D-23 pozostaje `2/2`;
+następny krok to niezależny review wyłącznie tego diffu i jego bezpośrednich
+regresji, bez szukania K2/K3.

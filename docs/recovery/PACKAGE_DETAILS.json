@@ -434,11 +434,33 @@
         "live_verify_only": "NOT_RUN",
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
+      "stagea_host_identity_continuity": {
+        "status": "SOURCE_READY_FOR_REVIEW_OFFLINE_TESTS_PASS_NOT_DEPLOYED",
+        "finding": "REPRODUCED_FULL_ORCHESTRATION_RAW_ONLY_FRESH_OPERATION_REJECTED_PINNED_COMPARABLE_HOST",
+        "preimage_recipe_sha256": "E4D0FA45D29C5B199DF225C41B508E97239A4FFD6AD7785BFB2847BF2873241A",
+        "fail_before_sha256": "C7D0D1E95ED4A2F5158B998ACA269BF2DDBA1188DFDF53655B2630F1A590587F",
+        "recipe_sha256": "FD8DB2C5491E7A8835CC01734A8A902D67F606F29A4436A68A16096A44CBBCFE",
+        "test_sha256": "75BDB800C58D54993C23970634FDE9B960BF5CDEB361524A6F26F752E09CAD79",
+        "package_index_sha256": "0BC434D97847836CD54C2D847B23795614F684633013DFDCDA1F76AF7C966CDD",
+        "final_result_sha256": "9E51AB3B63B8DBC065F5B8B9300F4E517CAC25E96FEBC01B9D1C2BDB9E0954E2",
+        "review_index_sha256": "7630D7A18FD59D93D7DC8B278C983124769B9B002879F73B25D4E0BFF6FB0D3A",
+        "review_zip_sha256": "F0BE2DB31081458890873325DE8448C1D65F8ED57CF20C5D724F66A64FB88298",
+        "review_zip_size_bytes": 184681,
+        "offline_tests": "91_ASSERTIONS_26_SCENARIOS_PASS_PS51_PARSER_PASS_PAYLOAD_BINDINGS_8_OF_8_ZIP_52_OF_52",
+        "host_starts": 2,
+        "private_starts": "ONE_THEN_ZERO",
+        "container_supervisor_unapproved_dependency_task_writes": 0,
+        "owned_processes": "ONE_OF_ONE_SETTLED",
+        "production_boundaries": 0,
+        "review_cycle": "D23_REVIEW_2_OF_2_REMAINS_COMPLETED",
+        "live_verify_only": "NOT_RUN",
+        "stage_b": "BLOCKED_NOT_AUTHORIZED"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_REVIEW_EXACT_DIFF_AND_FOUR_CAPTURED_TASKS_BEFORE_ANY_SEPARATE_VERIFYONLY_DECISION_NO_STAGE_B"
+      "next_action": "INDEPENDENT_REVIEW_ONLY_HOST_IDENTITY_CONTINUITY_DIFF_AND_DIRECT_REGRESSIONS_NO_K2_K3_NO_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },
