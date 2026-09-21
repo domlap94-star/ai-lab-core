@@ -963,3 +963,48 @@ Jedna rekomendowana decyzja: skonsolidować w kolejnym, osobno zatwierdzonym
 zakresie source/offline dwie normalizacje oraz jeden bounded read-only capture
 Docker Desktop i trzech tasków host services, a następnie powtórzyć review
 VerifyOnly. Nie zatwierdzać Stage B na obecnym materiale.
+
+## 30. P4B-STAGEA-GATE — skonsolidowana normalizacja i four-task capture
+
+Owner-authorized zakres opublikował source
+`e8ad5e27bc8515e6536b5fc8696608b3d9c6e7de` na base
+`17b81b5f46850ebf585c40724ab457a52cfce5c4` i wykonał dokładnie jeden
+niepodniesiony odczyt definicji czterech tasków: Docker Desktop, Public Gateway,
+Private Gateway i Supervisor. Okno `2026-09-21T13:17:28.4962441Z`–
+`2026-09-21T13:17:32.5441094Z` zakończyło się `4/4 OBSERVED`, `4/4
+NORMALIZED_MATCH` i `4/4` rozliczonych child processes; zapisów i startów tasków
+nie było. Bezpieczny wynik ma `9994` B i SHA-256
+`5D9906509E5F54D6D92EE44682EAC887659F9CA9A63F0AE724C1A2946B410028`.
+
+Rozliczone reguły są celowo wąskie:
+
+- absolutny Windows bind source normalizuje wyłącznie separatory; destination,
+  type, RO/RW, pełny ID, image i liczba mountów pozostają niezależnymi guardami;
+- dependency/Host XML zachowuje raw hash i używa osobnego comparable hash po
+  normalizacji EOL oraz końcowego separatora poza XML; elementy triggerów są
+  liczone po bezpiecznym parsowaniu właściwej przestrzeni nazw;
+- akcja usługi hosta musi zachować exact executable i CWD, dokładnie jeden
+  zatwierdzony code token pod canonical rootem oraz wszystkie pozostałe
+  argumenty. Relative/absolute i cytowanie tej samej ścieżki nie tworzą driftu;
+  inny skrypt, root, CWD albo nadmiarowe argumenty nadal blokują.
+
+Końcowe PS 5.1: focused Stage-A gate `41` asercji, regresje
+`57/51/44/41`, NUP orchestration `75` asercji / `20` scenariuszy; production
+boundaries w testach `0`. Zestawy nakładają się i nie są liczbą unikalnych
+testów aplikacji. Status:
+`P4B_STAGEA_GATE_NORMALIZATION_SOURCE_READY_FOR_REVIEW / OFFLINE_TESTS_PASS /
+NOT_DEPLOYED`.
+
+Nieaktywny package index ma SHA-256
+`F74BD6286FCAFB4591378A09C4E6E7B0FA7D9714A9E2C660A20BE99E3DEA5BD2`,
+review index `F21EE086C2801D3BC895EA0116AE635292E17947B89B8ABA2429B368348CEB04`,
+a ZIP po roundtripie `40/40` ma `150237` B i SHA-256
+`F9850E9BC3CBA376ABE509955E83831AE986536C76134322713BF005E4619A3B`.
+
+Historyczny VerifyOnly exit `22` nie został przepisany na PASS. `HTTP`, świeży
+six-container preflight i live VerifyOnly są `NOT_RUN`. Zainstalowany run01,
+Host disabled/no-trigger, warm `0/2`, Private start `0` i Supervisor
+`INTENTIONALLY_STOPPED` pozostają bez zmian. Stage B jest
+`BLOCKED / NOT_AUTHORIZED`; następny krok to właścicielski review tego diffu i
+czterech zapisanych definicji przed ewentualną osobną decyzją o jednym
+VerifyOnly.

@@ -3328,3 +3328,17 @@ stopped the projection before HTTP, and no read was repeated for formatting.
 Status is `P4B_STAGE_A_BLOCKED / NO_STAGE_B_AUTHORIZATION_REQUESTED`; owner
 review of this single blocker set is next. No UAC, InstallAndWarm, Host/task
 write, rollback, data operation or D-22 execution occurred or is authorized.
+
+**P4/B STAGEA-GATE NORMALIZATION — 2026-09-21.** Source
+`e8ad5e27bc8515e6536b5fc8696608b3d9c6e7de` in one consolidated owner scope
+added only the evidenced representation guards and ran exactly one
+non-elevated read-only capture for Docker Desktop, Public Gateway, Private
+Gateway and Supervisor. It returned `4/4 OBSERVED / 4/4 NORMALIZED_MATCH`,
+with task writes/starts `0`. The candidate launcher/runtime hashes are
+`B4143A69...C7892` / `959768E2...0732`; focused and required offline
+regressions passed. This is `SOURCE_READY_FOR_REVIEW / NOT_DEPLOYED`, not a
+replacement for the historical VerifyOnly exit `22`. HTTP, a fresh
+six-container preflight and live VerifyOnly are `NOT_RUN`; Stage B remains
+`BLOCKED / NOT_AUTHORIZED`. The sole next step is owner review of this diff and
+the four persisted definitions before any separate decision about one later
+VerifyOnly. D-23 review stays `2/2`; D-22 remains unchanged and `NOT_RUN`.

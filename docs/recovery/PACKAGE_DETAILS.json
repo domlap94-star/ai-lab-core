@@ -411,11 +411,34 @@
         "formatter": "STATUS_VS_READ_STATUS_CONFIRMED_HTTP_NOT_RUN_NO_RETRY",
         "recommended_decision": "ONE_CONSOLIDATED_SOURCE_OFFLINE_NORMALIZATION_AND_BOUNDED_READ_ONLY_FOUR_TASK_CAPTURE_THEN_VERIFYONLY_REVIEW"
       },
+      "stagea_gate_normalization": {
+        "status": "SOURCE_READY_FOR_REVIEW_OFFLINE_TESTS_PASS_NOT_DEPLOYED",
+        "source_base": "17b81b5f46850ebf585c40724ab457a52cfce5c4",
+        "source_commit": "e8ad5e27bc8515e6536b5fc8696608b3d9c6e7de",
+        "capture_window_utc": "2026-09-21T13:17:28.4962441Z/2026-09-21T13:17:32.5441094Z",
+        "capture": "FOUR_OF_FOUR_OBSERVED_FOUR_OF_FOUR_NORMALIZED_MATCH_NO_WRITES_NO_STARTS",
+        "capture_safe_result_sha256": "5D9906509E5F54D6D92EE44682EAC887659F9CA9A63F0AE724C1A2946B410028",
+        "backend_mounts": "WINDOWS_ABSOLUTE_BIND_SOURCE_SEPARATOR_ONLY",
+        "docker_desktop_task": "RAW_DIFFERENT_COMPARABLE_XML_MATCH",
+        "host_service_actions": "QUOTED_ABSOLUTE_AND_RELATIVE_SAME_APPROVED_SCRIPT_MATCH_EXACT_CWD_ROOT",
+        "host_task": "PRESERVED_XML_COMPARABLE_MATCH_EMPTY_TRIGGER_CHILD_COUNT_ZERO",
+        "candidate_launcher_sha256": "B4143A6934E6723E3293A6D5A4806A4F01D34CB53037C6417B16830BD4EC7892",
+        "candidate_runtime_sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732",
+        "package_index_sha256": "F74BD6286FCAFB4591378A09C4E6E7B0FA7D9714A9E2C660A20BE99E3DEA5BD2",
+        "review_index_sha256": "F21EE086C2801D3BC895EA0116AE635292E17947B89B8ABA2429B368348CEB04",
+        "review_zip_sha256": "F9850E9BC3CBA376ABE509955E83831AE986536C76134322713BF005E4619A3B",
+        "review_zip_size_bytes": 150237,
+        "offline_tests": "FOCUSED_41_REGRESSIONS_57_51_44_41_NUP_75_ASSERTIONS_20_SCENARIOS_PASS",
+        "http": "NOT_RUN",
+        "fresh_six_container_preflight": "NOT_RUN",
+        "live_verify_only": "NOT_RUN",
+        "stage_b": "BLOCKED_NOT_AUTHORIZED"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_DECISION_ON_ONE_CONSOLIDATED_FOLLOWUP_NO_STAGE_B"
+      "next_action": "OWNER_REVIEW_EXACT_DIFF_AND_FOUR_CAPTURED_TASKS_BEFORE_ANY_SEPARATE_VERIFYONLY_DECISION_NO_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

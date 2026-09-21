@@ -335,9 +335,17 @@
   healthy PostgreSQL, but found backend mount identity mismatch, three host
   service identity mismatches and a Host semantic/trigger mismatch; it then
   stopped on a local formatter contract error before HTTP and was not retried.
-  Status is `P4B_STAGE_A_BLOCKED`; Stage B, UAC, InstallAndWarm, Host/task
-  writes and rollback are not authorized. Review the blocker set before any
-  new scope; do not repair or re-read it automatically and do not add K2/K3.
+  The later consolidated P4B-STAGEA-GATE scope performed exactly one fresh
+  read-only capture of Docker Desktop, Public Gateway, Private Gateway and
+  Supervisor: `4/4 OBSERVED / 4/4 NORMALIZED_MATCH`, with task writes/starts
+  `0`. The backend bind separator, Host XML/empty triggers, Docker Desktop XML
+  serialization and three host action representations now have a narrow
+  source/offline normalization in source
+  `e8ad5e27bc8515e6536b5fc8696608b3d9c6e7de` and direct regressions. Status is
+  `P4B_STAGEA_GATE_NORMALIZATION_SOURCE_READY_FOR_REVIEW / NOT_DEPLOYED`;
+  HTTP, fresh six-container preflight and live VerifyOnly remain `NOT_RUN`.
+  Stage B, UAC, InstallAndWarm, Host/task writes and rollback are not
+  authorized. Review only this diff and saved capture; do not add K2/K3.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.
