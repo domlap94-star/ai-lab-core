@@ -1076,10 +1076,15 @@ function Test-StartupSetManifest {
 
 function ConvertTo-StartupComparableMount {
     param([Parameter(Mandatory = $true)]$Mount)
+    $mountType = ([string](Get-StartupProperty -InputObject $Mount -Name 'type')).ToLowerInvariant()
+    $mountSource = [string](Get-StartupProperty -InputObject $Mount -Name 'source')
+    if ($mountType -eq 'bind' -and $mountSource -match '^[A-Za-z]:[\\/]') {
+        $mountSource = $mountSource.Replace('/', '\')
+    }
     return ('{0}|{1}|{2}|{3}' -f
-        ([string](Get-StartupProperty -InputObject $Mount -Name 'source')).ToLowerInvariant(),
+        $mountSource.ToLowerInvariant(),
         ([string](Get-StartupProperty -InputObject $Mount -Name 'destination')).ToLowerInvariant(),
-        ([string](Get-StartupProperty -InputObject $Mount -Name 'type')).ToLowerInvariant(),
+        $mountType,
         [bool](Get-StartupProperty -InputObject $Mount -Name 'read_only'))
 }
 

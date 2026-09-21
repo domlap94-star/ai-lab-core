@@ -50,6 +50,13 @@ The manifest validator also binds each host-service `script_ref` to the one
 code-file argument actually selected by that service action. A task action
 that consistently points at another in-root file (or at recovery/staging)
 cannot make an internally inconsistent manifest valid.
+Runtime task identity parses the observed Windows argument string and resolves
+the single approved code argument against the exact approved working directory.
+The same in-root script is therefore identical whether Task Scheduler exports
+that token as a quoted absolute path or the manifest stores it as a relative
+path. The executable, working directory, token count, every non-code argument,
+script role and canonical-root boundary remain exact; another script, extra
+argument, different CWD or recovery/staging path is still a refusal.
 
 `data_topology` is the only reparse-point exception. Version
 `NEXT_STABIL_DATA_TOPOLOGY_V1` permits the exact directory junction
@@ -69,6 +76,10 @@ metadata, another target/type, an unknown contract, a nested
 reparse point or a path-boundary trick refuses startup before adapters. The
 launcher never creates the junction, target, a replacement directory, a
 volume, or an empty database.
+For Docker `bind` identity only, an absolute Windows source such as
+`C:\ai-lab-core\data` is compared equivalently to the same drive path rendered
+with `/`. Linux destinations, volume names, mount type, RO/RW and path
+boundaries are not slash-normalized.
 
 The existing Compose helper exposes `Invoke-ApprovedExistingContainerPhase`
 over the same shared phase used by the launcher. For a pinned package the

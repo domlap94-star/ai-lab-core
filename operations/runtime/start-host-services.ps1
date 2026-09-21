@@ -216,6 +216,63 @@ function ConvertFrom-StartupWindowsCommandLine {
     return [pscustomobject]@{ valid = ($arguments.Count -gt 0); arguments = $arguments.ToArray() }
 }
 
+function Test-StartupTaskActionIdentity {
+    param(
+        [Parameter(Mandatory = $true)][string]$ExpectedExecutable,
+        [Parameter(Mandatory = $true)][string[]]$ExpectedArguments,
+        [Parameter(Mandatory = $true)][string]$ExpectedWorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$ObservedExecutable,
+        [AllowEmptyString()][string]$ObservedArgumentString,
+        [Parameter(Mandatory = $true)][string]$ObservedWorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$ApprovedRoot,
+        [Parameter(Mandatory = $true)][scriptblock]$ArgumentParser
+    )
+
+    if (-not $ExpectedExecutable.Equals($ObservedExecutable, [System.StringComparison]::OrdinalIgnoreCase) -or
+        -not $ExpectedWorkingDirectory.Equals($ObservedWorkingDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+    $parsed = & $ArgumentParser $ObservedArgumentString
+    if ($null -eq $parsed -or -not [bool]$parsed.valid) { return $false }
+    $observedArguments = @($parsed.arguments | ForEach-Object { [string]$_ })
+    if ($ExpectedArguments.Count -ne $observedArguments.Count) { return $false }
+
+    $codeIndexes = @()
+    for ($index = 0; $index -lt $ExpectedArguments.Count; $index++) {
+        if ([string]$ExpectedArguments[$index] -match '(?i)\.(c?js|mjs|ps1|py)$') { $codeIndexes += $index }
+    }
+    if ($codeIndexes.Count -ne 1) { return $false }
+    $codeIndex = [int]$codeIndexes[0]
+    try {
+        $root = [IO.Path]::GetFullPath($ApprovedRoot).TrimEnd('\')
+        $expectedCodePath = if ([IO.Path]::IsPathRooted($ExpectedArguments[$codeIndex])) {
+            [IO.Path]::GetFullPath($ExpectedArguments[$codeIndex])
+        }
+        else {
+            [IO.Path]::GetFullPath((Join-Path $ExpectedWorkingDirectory $ExpectedArguments[$codeIndex]))
+        }
+        $observedCodePath = if ([IO.Path]::IsPathRooted($observedArguments[$codeIndex])) {
+            [IO.Path]::GetFullPath($observedArguments[$codeIndex])
+        }
+        else {
+            [IO.Path]::GetFullPath((Join-Path $ObservedWorkingDirectory $observedArguments[$codeIndex]))
+        }
+        $rootPrefix = $root + '\'
+        if (-not $expectedCodePath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+            -not $observedCodePath.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+            -not $expectedCodePath.Equals($observedCodePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $false
+        }
+    }
+    catch { return $false }
+
+    for ($index = 0; $index -lt $ExpectedArguments.Count; $index++) {
+        if ($index -eq $codeIndex) { continue }
+        if (-not ([string]$ExpectedArguments[$index]).Equals([string]$observedArguments[$index], [System.StringComparison]::Ordinal)) { return $false }
+    }
+    return $true
+}
+
 function Invoke-BoundedStartupHostOperation {
     [CmdletBinding()]
     param(
@@ -257,19 +314,23 @@ function Invoke-BoundedStartupHostOperation {
     }
 
     $expectedArguments = @((Get-StartupProperty -InputObject $Expected -Name 'arguments') | ForEach-Object { [string]$_ })
+    $expectedApprovedRoot = [string](Get-StartupProperty -InputObject $Expected -Name 'approved_root')
+    if ([string]::IsNullOrWhiteSpace($expectedApprovedRoot)) { $expectedApprovedRoot = [string]$script:NextStabilCanonicalRoot }
     $expectedData = [pscustomobject]@{
         name = [string](Get-StartupProperty -InputObject $Expected -Name 'name')
         task_name = [string](Get-StartupProperty -InputObject $Expected -Name 'task_name')
         task_path = [string](Get-StartupProperty -InputObject $Expected -Name 'task_path')
         executable = [string](Get-StartupProperty -InputObject $Expected -Name 'executable')
+        arguments = $expectedArguments
         argument_string = Join-WindowsNativeArguments -ArgumentList $expectedArguments
         working_directory = [string](Get-StartupProperty -InputObject $Expected -Name 'working_directory')
+        approved_root = $expectedApprovedRoot
         process_name = [System.IO.Path]::GetFileName([string](Get-StartupProperty -InputObject $Expected -Name 'executable'))
         listener_port = [int](Get-StartupProperty -InputObject $Expected -Name 'listener_port')
     }
 
     $worker = {
-        param($SelectedOperation, $SelectedExpected, $TestFixture, $TestCommands)
+        param($SelectedOperation, $SelectedExpected, $TestFixture, $TestCommands, $TaskIdentityMatcher, $ArgumentParser)
         $ErrorActionPreference = 'Stop'
         Set-StrictMode -Version 2.0
 
@@ -327,10 +388,15 @@ function Invoke-BoundedStartupHostOperation {
             arguments = [string]$action.Arguments
             working_directory = [string]$action.WorkingDirectory
         }
-        $taskMatches =
-            $taskData.execute.Equals([string]$SelectedExpected.executable, [System.StringComparison]::OrdinalIgnoreCase) -and
-            $taskData.arguments.Equals([string]$SelectedExpected.argument_string, [System.StringComparison]::Ordinal) -and
-            $taskData.working_directory.Equals([string]$SelectedExpected.working_directory, [System.StringComparison]::OrdinalIgnoreCase)
+        $taskMatches = & $TaskIdentityMatcher `
+            -ExpectedExecutable ([string]$SelectedExpected.executable) `
+            -ExpectedArguments @($SelectedExpected.arguments | ForEach-Object { [string]$_ }) `
+            -ExpectedWorkingDirectory ([string]$SelectedExpected.working_directory) `
+            -ObservedExecutable $taskData.execute `
+            -ObservedArgumentString $taskData.arguments `
+            -ObservedWorkingDirectory $taskData.working_directory `
+            -ApprovedRoot ([string]$SelectedExpected.approved_root) `
+            -ArgumentParser $ArgumentParser
         if (-not $taskMatches) {
             return [pscustomobject]@{ status = 'IDENTITY_MISMATCH'; task = $taskData; processes = @(); listeners = @(); lower_boundary_calls = $testCalls.ToArray() }
         }
@@ -413,6 +479,8 @@ function Invoke-BoundedStartupHostOperation {
         [void]$powerShell.AddArgument($expectedData)
         [void]$powerShell.AddArgument($SyntheticFixture)
         [void]$powerShell.AddArgument($SyntheticCommandBoundary)
+        [void]$powerShell.AddArgument(${function:Test-StartupTaskActionIdentity})
+        [void]$powerShell.AddArgument(${function:ConvertFrom-StartupWindowsCommandLine})
         $async = $powerShell.BeginInvoke()
 
         $cleanupReserve = [Math]::Min(250, [Math]::Max(25, [int][Math]::Floor($TimeoutMilliseconds / 4.0)))
@@ -514,6 +582,8 @@ function New-RealStartupAdapters {
     )
 
     $timeouts = Get-StartupProperty -InputObject $Manifest -Name 'timeouts'
+    $manifestRoot = [string](Get-StartupProperty -InputObject $Manifest -Name 'root')
+    $approvedRoot = if ([string]::IsNullOrWhiteSpace($manifestRoot)) { [string]$script:NextStabilCanonicalRoot } else { $manifestRoot }
     $commandTimeout = [int](Get-StartupProperty -InputObject $timeouts -Name 'native_command_ms')
     $outputLimit = [int](Get-StartupProperty -InputObject $timeouts -Name 'max_output_chars')
     $dockerDefinition = Get-StartupProperty -InputObject $Manifest -Name 'docker'
@@ -720,7 +790,19 @@ function New-RealStartupAdapters {
         if ([int]$Timeout -lt 25) {
             return [pscustomobject]@{ observation_status = 'UNKNOWN'; matches = @(); detail = 'DEADLINE_EXHAUSTED' }
         }
-        $operation = & $SystemBoundary.InvokeHostOperation 'OBSERVE' $Expected $Timeout $outputLimit
+        $operationExpected = [pscustomobject]@{
+            name = [string](Get-StartupProperty -InputObject $Expected -Name 'name')
+            launch_kind = [string](Get-StartupProperty -InputObject $Expected -Name 'launch_kind')
+            task_name = [string](Get-StartupProperty -InputObject $Expected -Name 'task_name')
+            task_path = [string](Get-StartupProperty -InputObject $Expected -Name 'task_path')
+            executable = [string](Get-StartupProperty -InputObject $Expected -Name 'executable')
+            arguments = @((Get-StartupProperty -InputObject $Expected -Name 'arguments') | ForEach-Object { [string]$_ })
+            working_directory = [string](Get-StartupProperty -InputObject $Expected -Name 'working_directory')
+            listener_host = [string](Get-StartupProperty -InputObject $Expected -Name 'listener_host')
+            listener_port = [int](Get-StartupProperty -InputObject $Expected -Name 'listener_port')
+            approved_root = $approvedRoot
+        }
+        $operation = & $SystemBoundary.InvokeHostOperation 'OBSERVE' $operationExpected $Timeout $outputLimit
         if ((Get-StartupProperty -InputObject $operation -Name 'status') -ne 'SUCCESS') {
             return [pscustomobject]@{ observation_status = 'UNKNOWN'; matches = @(); detail = [string](Get-StartupProperty -InputObject $operation -Name 'status') }
         }
@@ -738,13 +820,18 @@ function New-RealStartupAdapters {
 
         $expectedExecutable = [string](Get-StartupProperty -InputObject $Expected -Name 'executable')
         $expectedArguments = @((Get-StartupProperty -InputObject $Expected -Name 'arguments') | ForEach-Object { [string]$_ })
-        $expectedArgumentString = Join-WindowsNativeArguments -ArgumentList $expectedArguments
         $expectedWorkingDirectory = [string](Get-StartupProperty -InputObject $Expected -Name 'working_directory')
         $task = Get-StartupProperty -InputObject $payload -Name 'task'
         if ($null -eq $task -or
-            -not ([string](Get-StartupProperty -InputObject $task -Name 'execute')).Equals($expectedExecutable, [System.StringComparison]::OrdinalIgnoreCase) -or
-            -not ([string](Get-StartupProperty -InputObject $task -Name 'arguments')).Equals($expectedArgumentString, [System.StringComparison]::Ordinal) -or
-            -not ([string](Get-StartupProperty -InputObject $task -Name 'working_directory')).Equals($expectedWorkingDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+            -not (Test-StartupTaskActionIdentity `
+                -ExpectedExecutable $expectedExecutable `
+                -ExpectedArguments $expectedArguments `
+                -ExpectedWorkingDirectory $expectedWorkingDirectory `
+                -ObservedExecutable ([string](Get-StartupProperty -InputObject $task -Name 'execute')) `
+                -ObservedArgumentString ([string](Get-StartupProperty -InputObject $task -Name 'arguments')) `
+                -ObservedWorkingDirectory ([string](Get-StartupProperty -InputObject $task -Name 'working_directory')) `
+                -ApprovedRoot $approvedRoot `
+                -ArgumentParser ${function:ConvertFrom-StartupWindowsCommandLine})) {
             return [pscustomobject]@{ observation_status = 'CONFLICT'; matches = @(); detail = 'TASK_IDENTITY_MISMATCH' }
         }
 
@@ -877,7 +964,19 @@ function New-RealStartupAdapters {
         if ([int]$Timeout -lt 25) {
             return [pscustomobject]@{ status = 'TIMEOUT'; operation_may_have_started = $false; job_left_running = $false }
         }
-        $operation = & $SystemBoundary.InvokeHostOperation 'START' $Expected $Timeout $outputLimit
+        $operationExpected = [pscustomobject]@{
+            name = [string](Get-StartupProperty -InputObject $Expected -Name 'name')
+            launch_kind = [string](Get-StartupProperty -InputObject $Expected -Name 'launch_kind')
+            task_name = [string](Get-StartupProperty -InputObject $Expected -Name 'task_name')
+            task_path = [string](Get-StartupProperty -InputObject $Expected -Name 'task_path')
+            executable = [string](Get-StartupProperty -InputObject $Expected -Name 'executable')
+            arguments = @((Get-StartupProperty -InputObject $Expected -Name 'arguments') | ForEach-Object { [string]$_ })
+            working_directory = [string](Get-StartupProperty -InputObject $Expected -Name 'working_directory')
+            listener_host = [string](Get-StartupProperty -InputObject $Expected -Name 'listener_host')
+            listener_port = [int](Get-StartupProperty -InputObject $Expected -Name 'listener_port')
+            approved_root = $approvedRoot
+        }
+        $operation = & $SystemBoundary.InvokeHostOperation 'START' $operationExpected $Timeout $outputLimit
         $operationStatus = [string](Get-StartupProperty -InputObject $operation -Name 'status')
         if ($operationStatus -eq 'TIMEOUT') {
             return [pscustomobject]@{ status = 'TIMEOUT'; operation_may_have_started = $true; job_left_running = [bool](Get-StartupProperty -InputObject $operation -Name 'job_left_running') }
