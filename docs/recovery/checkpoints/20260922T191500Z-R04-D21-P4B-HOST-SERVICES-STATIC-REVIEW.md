@@ -1,9 +1,10 @@
 # R04 / D-21 / P4-B — host-services static security-review material
 
 - entry HEAD: `1b36cf679828a8283cdbca1e77aeaa4c8757f724`
-- scope: `SOURCE / LOCAL FILE READ / STATIC SECURITY-REVIEW PREPARATION`
-- status: `STATIC_SECURITY_REVIEW_MATERIAL_PREPARED / NOT_EXECUTED /
-  REFUSAL_SOURCE_NOT_ATTRIBUTED / APPROVAL_PATH_NOT_ESTABLISHED /
+- owner decision base HEAD: `09834d928017032f0e29c62163e04d8af3c52274`
+- scope: `SOURCE / LOCAL FILE READ / STATIC SECURITY-REVIEW DECISION RECORDING`
+- status: `STATIC_SOURCE_REVIEW_ACCEPTED / NOT_EXECUTED / NOT_AV_CLEARANCE /
+  REFUSAL_SOURCE_NOT_ATTRIBUTED / FORMAL_APPROVAL_PATH_NOT_AVAILABLE_IN_SESSION /
   STAGE_B_BLOCKED_NOT_AUTHORIZED`
 
 ## Preserved history
@@ -47,24 +48,48 @@ Secret scan found only descriptive occurrences of `authorization` and
 `credentials`; credential material found: `0`. This is not a claim that the
 candidate is safe, a false positive, or security-approved.
 
+## Owner static acceptance and formal boundary
+
+The owner accepted the static review of the exact candidate
+`4DCFE146ED51A8F68FECEB8DCB10FD1A873F4D88CC0892EDC372574B8B7890F9`
+only as `STATIC_SOURCE_REVIEW_ACCEPTED / NOT_EXECUTED / NOT_AV_CLEARANCE`.
+Read-only .NET SHA-256 checks on the decision base confirmed the candidate,
+the `7042`-byte ZIP and the two pinned dependencies without invoking the
+candidate or a PowerShell parser.
+
+No Bitdefender, ATD, antivirus or endpoint-protection approval mechanism is
+available among the tools exposed to this session. Sandbox command approval is
+not an antivirus clearance and was not used as a substitute. Consequently the
+candidate was not submitted to a protection-layer decision and was not run.
+There is no `FALSE_POSITIVE_CONFIRMED` finding.
+
+If a real formal clearance is later obtained, execution still requires a new
+current owner confirmation binding the exact candidate hash, the three-role
+read-only scope and output
+`C:\ai-lab-core-recovery\build\P4B-HS-REVIEW-01\o1\host.json`. The exact future
+executable remains Windows PowerShell 5.1 with `-NoLogo -NoProfile
+-NonInteractive -File` and `-OutputPath`, under the already specified bounded
+runner. None of those execution steps are authorized or performed here.
+
 ## Effects and decision
 
 PowerShell processes, wrapper executions, Task/CIM/TCP/Docker/HTTP reads,
 workers, task writes, starts, UAC, install, warm runs and rollback: `0`.
 Public/Private/Supervisor remain `NOT_OBSERVED`. Installed run01 is unchanged.
 
-Next decision: identify the responsible protection layer and use its documented
-review mechanism for these exact candidate bytes, followed by a separate current
-owner authorization if execution is to be considered. No protection change,
-exception, retry, alternate channel or Stage B is authorized here.
+Only missing approval: a formal decision by the responsible protection layer
+on these exact candidate bytes. The required mechanism is not available in the
+current session. After a real clearance, a separate current owner authorization
+would still be required. No protection change, exception, retry, alternate
+channel or Stage B is authorized here.
 
 ## ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT
 
 Before evaluation and the next prompt, read roadmap §0,
 `ANTI_EXCESSIVE_WORK`, the active R04 card and this checkpoint from the full
 published SHA. Preserve D-23 review `2/2` and all accepted stages. K0/K1:
-`P4B-PREFLIGHT-HOST-RUNNER — exact new review bytes are available, but the
-responsible refusal layer/formal approval path is not established and no
-authoritative PS5.1 host-service observations exist.` Effect: Stage B remains
-blocked without a new execution authorization. Next step: one security review
-decision on the exact candidate; do not add K2/K3 or retry the host operation.
+`P4B-PREFLIGHT-HOST-RUNNER — static review of the exact new bytes is owner-
+accepted, but no formal protection-layer clearance or authoritative PS5.1
+host-service observations exist.` Effect: Stage B remains blocked. Next step:
+one formal protection-layer decision on the exact candidate; do not add K2/K3,
+retry the host operation or treat sandbox approval as AV clearance.
