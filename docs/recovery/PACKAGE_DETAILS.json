@@ -580,11 +580,30 @@
         "uac_install_warm_runs_rollback": 0,
         "stage_b_confirmation_eligible": false
       },
+      "host_services_ps51_readback_attempt": {
+        "status": "NOT_RUN_FORMAL_ANTIVIRUS_BLOCK_BEFORE_PROCESS",
+        "authorized_scope": "PUBLIC_PRIVATE_SUPERVISOR_OBSERVE_ONLY",
+        "wrapper_path_local_only": "C:\\Users\\domai\\AppData\\Local\\Temp\\P4B-WIN-01\\hs51\\observe-host-services.ps1",
+        "wrapper_size_bytes": 17386,
+        "wrapper_sha256": "02ACD6700BD6551491F41907C1A9F5FB7C125ECB7C49577F8B58A96E2AB57F56",
+        "ps51_parser": "PASS",
+        "intended_executable": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+        "actual_process_identity": "NOT_OBSERVED_PROCESS_NOT_STARTED",
+        "formal_refusal": "This script contains malicious content and has been blocked by your antivirus software.",
+        "task_cim_tcp_reads": 0,
+        "workers_started": 0,
+        "public_gateway": "NOT_OBSERVED",
+        "private_gateway": "NOT_OBSERVED",
+        "supervisor": "NOT_OBSERVED",
+        "retry": 0,
+        "channel_changed": false,
+        "stage_b_confirmation_eligible": false
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_DECISION_FOR_ONE_PS51_HOST_SERVICES_ONLY_REPLACEMENT_READ_NO_REPEAT_VERIFYONLY_DOCKER_HTTP_OR_RESOURCES"
+      "next_action": "OWNER_SECURITY_REVIEW_FORMAL_ANTIVIRUS_REFUSAL_NO_AUTOMATIC_RETRY_OR_ALTERNATE_CHANNEL"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

@@ -1214,3 +1214,29 @@ STAGE_B_BLOCKED_NOT_AUTHORIZED`. Jedyny rekomendowany następny krok to decyzja
 o jednym PS5.1 host-services-only replacement read, bez powtórzenia VerifyOnly,
 Docker, HTTP lub resource gate. Zdanie zgody na Stage B nie jest jeszcze
 przedstawiane.
+
+## 37. PS5.1 host-services-only read formally blocked before process start
+
+The owner authorized exactly one replacement read for Public Gateway, Private
+Gateway and Supervisor using
+`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`. A closed
+LOCAL_ONLY wrapper was prepared at
+`C:\Users\domai\AppData\Local\Temp\P4B-WIN-01\hs51\observe-host-services.ps1`.
+It has `17386` B, SHA-256
+`02ACD6700BD6551491F41907C1A9F5FB7C125ECB7C49577F8B58A96E2AB57F56` and passed
+the Windows PowerShell 5.1 static parser.
+
+The exact launch was formally rejected before process start with
+`This script contains malicious content and has been blocked by your antivirus
+software.`. No engine identity, campaign result/failure, runner metadata,
+stdout/stderr or sentinel was created. Therefore Task/CIM/TCP reads and workers
+are `0`, and Public/Private/Supervisor are each `NOT_OBSERVED`. No retry,
+alternate execution channel, Docker/HTTP/resource repeat, UAC, Stage B,
+installation, warm run or rollback occurred.
+
+Status:
+`P4B_HOST_SERVICES_PS51_READBACK_NOT_RUN /
+FORMAL_ANTIVIRUS_BLOCK_BEFORE_PROCESS / STAGE_B_BLOCKED_NOT_AUTHORIZED`.
+The preserved VerifyOnly and earlier package/container/HTTP/Windows evidence are
+unchanged. One next decision is owner/security review of the prescribed approval
+path for the exact wrapper bytes; no automatic retry is authorized.

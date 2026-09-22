@@ -349,9 +349,21 @@
   HTTP and Windows/disk gates, but its host-service observations ran under
   PowerShell `7.6.5` instead of required Windows PowerShell 5.1 and are not an
   authoritative production state. Stage B, UAC, InstallAndWarm, Host/task
-  writes and rollback remain unauthorized. The only proposed next step is one
-  owner-authorized PS5.1 host-services-only replacement read, without repeating
+  writes and rollback remain unauthorized. At that checkpoint, the only proposed
+  next step was one owner-authorized PS5.1 host-services-only replacement
+  read, without repeating
   VerifyOnly, Docker, HTTP or resource gates and without adding K2/K3.
+- The one owner-authorized Windows PowerShell 5.1 host-services-only replacement
+  read was formally blocked by antivirus before the process started:
+  `P4B_HOST_SERVICES_PS51_READBACK_NOT_RUN /
+  FORMAL_ANTIVIRUS_BLOCK_BEFORE_PROCESS`. The exact LOCAL_ONLY wrapper is
+  `17386` B / SHA-256
+  `02ACD6700BD6551491F41907C1A9F5FB7C125ECB7C49577F8B58A96E2AB57F56`
+  and passed PS5.1 parsing, but Task/CIM/TCP reads and workers were `0` and
+  Public/Private/Supervisor remain `NOT_OBSERVED`. Do not retry, switch execution
+  channels, or request Stage B automatically. Stage B remains blocked and
+  unauthorized pending an owner/security decision through the prescribed
+  approval path; D-23 remains `2/2` and D-22 remains `NOT_RUN`.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

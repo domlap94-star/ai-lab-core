@@ -3357,3 +3357,15 @@ warm runs and rollback were `0`. Stage B remains blocked and unauthorized. The
 only proposed next decision is one PS5.1 host-services-only replacement read,
 without repeating VerifyOnly, Docker, HTTP or resource gates. D-23 remains
 `2/2`; D-22 remains unchanged and `NOT_RUN`.
+
+**P4/B PS5.1 HOST-SERVICES READ — FORMAL BLOCK, 2026-09-22.** The one
+owner-authorized replacement read used a LOCAL_ONLY wrapper (`17386` B /
+`02ACD6700BD6551491F41907C1A9F5FB7C125ECB7C49577F8B58A96E2AB57F56`) that
+passed the Windows PowerShell 5.1 parser. Its exact launch was rejected before
+process start with `This script contains malicious content and has been blocked
+by your antivirus software.`. Task/CIM/TCP reads and owned workers were `0`;
+Public, Private and Supervisor are `NOT_OBSERVED`. No retry, alternate channel,
+UAC, install or mutation occurred. Earlier VerifyOnly/package/container/HTTP/
+Windows evidence remains preserved, but Stage B is `BLOCKED / NOT_AUTHORIZED`.
+The only next decision is owner/security review of the prescribed approval path
+for those exact wrapper bytes; D-23 stays `2/2` and D-22 stays `NOT_RUN`.
