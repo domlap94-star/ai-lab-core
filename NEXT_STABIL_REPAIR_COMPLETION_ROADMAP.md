@@ -73,6 +73,19 @@ engine/campaign/runner outputy, Task/CIM/TCP reads i workers wynoszą `0`, a
 Public/Private/Supervisor pozostają `NOT_OBSERVED`. Nie wykonano retry ani
 zmiany kanału. Status: `P4B_HOST_SERVICES_PS51_READBACK_NOT_RUN /
 FORMAL_ANTIVIRUS_BLOCK_BEFORE_PROCESS / STAGE_B_BLOCKED_NOT_AUTHORIZED`.
+
+**Statyczny materiał bezpieczeństwa 2026-09-22:** późniejszy exact-path odczyt
+historycznego wrappera potwierdził `ERROR_FILE_NOT_FOUND`; nie szukano go szerzej
+i nie odtwarzano jego bajtów. Powstał nowy, jawny i nieaktywny kandydat
+`build/P4B-HS-REVIEW-01/observe-host-services.candidate.ps1`: `7940` B /
+`4DCFE146ED51A8F68FECEB8DCB10FD1A873F4D88CC0892EDC372574B8B7890F9`.
+Wiąże zaakceptowane launcher/runtime `B414...7892` / `9597...0732`, wystawia
+wyłącznie trzy operacje `OBSERVE`, a wszystkie pozostałe dolne granice jawnie
+odmawiają. Kandydat nie został uruchomiony ani sparsowany przez PowerShell.
+Właściciel oświadczył, że wyjątek NEXT Stabil istniał wcześniej w Bitdefender
+ATD; nie jest to nowy odczyt konfiguracji ani dowód źródła odmowy. Status:
+`STATIC_SECURITY_REVIEW_MATERIAL_PREPARED / REFUSAL_SOURCE_NOT_ATTRIBUTED /
+APPROVAL_PATH_NOT_ESTABLISHED / NOT_EXECUTED`; Stage B nadal bez zgody.
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
 ## 0. Bieżący stan i punkt wznowienia — czytać przed pracą
@@ -89,23 +102,23 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory SOURCE/OFFLINE / NOT_DEPLOYED, a D-23 review `2/2` jest zakończony. Exact ZIP i pojedynczy VerifyOnly zachowują PASS, a wcześniejszy read-only preflight zachowuje package/container/HTTP/Windows evidence. Jednorazowa próba dokładnego PS5.1 host-services-only read została formalnie zablokowana przez ochronę antywirusową przed startem procesu: Task/CIM/TCP reads `0`, workers `0`, Public/Private/Supervisor `NOT_OBSERVED`. Stage B pozostaje `BLOCKED / NOT_AUTHORIZED`. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
-| Checkpoint ID | `R04-20260922T151816Z-D21-P4B-HOST-SERVICES-PS51-FORMAL-BLOCK` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-22T15:18:16.1903470Z` — potwierdzono formalną blokadę przed startem procesu; nie wykonano odczytu Task/CIM/TCP |
-| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED PS5.1 HOST-SERVICES-ONLY READ. Utworzono i sparsowano lokalny wrapper; jego jedyne wywołanie zostało zablokowane przed startem procesu. Host reads/writes/starts, Docker/HTTP/resources retry, UAC, install i rollback: `0` |
-| Aktywny pakiet / podetap | `R04 / D-21 / P4-B` — VerifyOnly accepted read-only; runtime preflight zachowany; PS5.1 host-services replacement read `NOT_RUN / FORMAL_ANTIVIRUS_BLOCK_BEFORE_PROCESS`; Stage B bez zgody |
+| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory SOURCE/OFFLINE / NOT_DEPLOYED, a D-23 review `2/2` jest zakończony. Exact ZIP i pojedynczy VerifyOnly zachowują PASS, a wcześniejszy read-only preflight zachowuje package/container/HTTP/Windows evidence. Jednorazowa próba dokładnego PS5.1 host-services-only read została formalnie zablokowana przed procesem. Historyczny wrapper jest nieobecny; nowy jawny kandydat do statycznego security review jest dostępny, ale nieuruchomiony i bez ustalonej ścieżki formalnej akceptacji. Task/CIM/TCP reads `0`, workers `0`, Public/Private/Supervisor `NOT_OBSERVED`. Stage B pozostaje `BLOCKED / NOT_AUTHORIZED`. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
+| Checkpoint ID | `R04-20260922T191500Z-D21-P4B-HOST-SERVICES-STATIC-REVIEW` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-22T19:15:00Z` — przygotowano wyłącznie nowy statyczny materiał review; bez wykonania wrappera i bez odczytu Task/CIM/TCP |
+| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED SOURCE + LOCAL FILE READ + STATIC SECURITY-REVIEW PREPARATION. Utworzono nieaktywny kandydat, indeks, wniosek i ZIP. PowerShell, host reads/writes/starts, Docker/HTTP, UAC, install i rollback: `0` |
+| Aktywny pakiet / podetap | `R04 / D-21 / P4-B` — nowy host-services-only candidate `STATIC_REVIEW_PREPARED / NOT_EXECUTED`; historyczna odmowa zachowana; Stage B bez zgody |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Omyłkowy untracked checkpoint został po exact zgodzie zachowany bajtowo w LOCAL_ONLY i usunięty; oryginalny index i pozostałe pliki nie zostały zmienione |
 | Gałąź / SHA kodu objętego sprawdzeniem | Guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`, tree `4ccbc8922051401da1422be0d08f271476c3bab6`, preimage `ddec6ea20e2d755354e742e324d0d9cea5e5802f`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; P2 evidence `f872cf9e548a7ec196289e0c1987b654b1017505`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
-| Ostatnia faktycznie zakończona czynność | Lokalny wrapper `observe-host-services.ps1` został utworzony i przeszedł parser PS5.1; próba uruchomienia exact PS5.1 została formalnie zatrzymana przez antywirus przed procesem, bez kontaktu z Task/CIM/TCP |
-| Potwierdzone testy bieżącego wykonania | Zachowany VerifyOnly i wcześniejsze package/container/HTTP/Windows wyniki pozostają ważne. Nowy wrapper: `17386` B / SHA-256 `02ACD6700BD6551491F41907C1A9F5FB7C125ECB7C49577F8B58A96E2AB57F56`, parser Windows PowerShell 5.1 PASS. Proces/engine identity i trzy obserwacje: `NOT_OBSERVED_PROCESS_NOT_STARTED` |
-| Niezacommitowana praca / zabezpieczenie | LOCAL_ONLY `C:\Users\domai\AppData\Local\Temp\P4B-WIN-01\hs51\observe-host-services.ps1`: `17386` B / SHA-256 `02ACD6700BD6551491F41907C1A9F5FB7C125ECB7C49577F8B58A96E2AB57F56`. Brak engine/campaign/runner outputów, sentinel i przyszły `apply` nie istnieją |
+| Ostatnia faktycznie zakończona czynność | Potwierdzono brak historycznego wrappera bez dalszego poszukiwania; przygotowano nowy jawny kandydat i mały statyczny pakiet security review, bez uruchomienia PowerShella lub granic hosta |
+| Potwierdzone testy bieżącego wykonania | Zwykłe odczyty hashów: launcher/runtime zgodne z `B414...7892` / `9597...0732`; kandydat `7940` B / `4DCFE146...90F9`; ZIP zawiera dokładnie 4 jawne pliki. Skan sekretów: wyłącznie opisowe trafienia `authorization/credentials`, dane uwierzytelniające `0`. Testy wykonawcze i parser PowerShell: `NOT_RUN_BY_SCOPE` |
+| Niezacommitowana praca / zabezpieczenie | Nieaktywny ignored/local review root `C:\ai-lab-core-recovery\build\P4B-HS-REVIEW-01`; kandydat, indeks, wniosek, hashe i ZIP. Historyczny wrapper w `P4B-WIN-01\hs51` pozostaje `ERROR_FILE_NOT_FOUND`; nie rekonstruowano go |
 | Niezakończone procesy i skutki operacyjne | Proces PS5.1 nie został uruchomiony; własne workers `0`. Task/CIM/TCP reads `0`; writes/starts, Docker/HTTP/resource repeats, UAC, install, warm runs i rollback `0`. Installed run01 pozostaje bez zmian |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260922T151816Z-R04-D21-P4B-HOST-SERVICES-PS51-FORMAL-BLOCK.md` |
-| Zakres aktualnej zgody | Jednorazowa zgoda na PS5.1 host-services-only read została skonsumowana przez formalnie zablokowane wywołanie. Nie ma zgody na retry, zmianę kanału, Stage B, UAC, instalację, Host/task write/start lub rollback. D-22 `NOT_RUN` |
-| Blokada / wymagana decyzja | Formalna ochrona odmówiła uruchomienia exact wrappera komunikatem `This script contains malicious content and has been blocked by your antivirus software.` przed startem procesu. Public/Private/Supervisor pozostają `NOT_OBSERVED`; brak autorytatywnego PS5.1 gate blokuje Stage B |
-| Jeden następny bezpieczny krok | Właścicielska/decyzja bezpieczeństwa o przewidzianej ścieżce zatwierdzenia dokładnych bajtów wrappera albo rezygnacji z odczytu; bez automatycznego retry i bez alternatywnego kanału |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260922T191500Z-R04-D21-P4B-HOST-SERVICES-STATIC-REVIEW.md` |
+| Zakres aktualnej zgody | Zgoda objęła wyłącznie SOURCE / LOCAL FILE READ / STATIC SECURITY-REVIEW PREPARATION. Kandydat nie ma zgody na wykonanie. Nie ma zgody na retry, zmianę ochrony/kanału, Stage B, UAC, instalację, Host/task write/start lub rollback. D-22 `NOT_RUN` |
+| Blokada / wymagana decyzja | Nowe dokładne bajty są dostępne do review, lecz warstwa wcześniejszej odmowy i jej formalna ścieżka akceptacji pozostają nieustalone. Public/Private/Supervisor są `NOT_OBSERVED`; brak autorytatywnego PS5.1 gate nadal blokuje Stage B |
+| Jeden następny bezpieczny krok | Security/owner review dokładnego kandydata i ustalenie udokumentowanej ścieżki formalnej akceptacji; dopiero potem osobna bieżąca zgoda na wykonanie. Bez automatycznego retry, wyjątków lub alternatywnego kanału |
 | Warunek STOP | Brak kolejnego UAC, retry Host/launchera/instalatora, niezależnego rollbacku, logon/reboot, Supervisora, backup/restore, relokacji, P5/R06 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik

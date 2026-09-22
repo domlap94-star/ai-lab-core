@@ -599,11 +599,31 @@
         "channel_changed": false,
         "stage_b_confirmation_eligible": false
       },
+      "host_services_static_security_review": {
+        "status": "STATIC_SECURITY_REVIEW_MATERIAL_PREPARED_NOT_EXECUTED",
+        "entry_head": "1b36cf679828a8283cdbca1e77aeaa4c8757f724",
+        "historical_wrapper": "ERROR_FILE_NOT_FOUND_NOT_RECONSTRUCTED",
+        "historical_refusal": "This script contains malicious content and has been blocked by your antivirus software.",
+        "refusal_source": "NOT_ATTRIBUTED",
+        "owner_atd_statement": "EXISTING_NEXT_STABIL_EXCEPTION_REPORTED_BY_OWNER_NOT_OBSERVED",
+        "candidate_path_local_only": "C:\\ai-lab-core-recovery\\build\\P4B-HS-REVIEW-01\\observe-host-services.candidate.ps1",
+        "candidate_size_bytes": 7940,
+        "candidate_sha256": "4DCFE146ED51A8F68FECEB8DCB10FD1A873F4D88CC0892EDC372574B8B7890F9",
+        "review_zip_size_bytes": 7042,
+        "review_zip_sha256": "D176B9689CE8576576B001699E06BCD1174FAAFFFB41CC1CC57CF2D2FCB35CFE",
+        "accepted_launcher_sha256": "B4143A6934E6723E3293A6D5A4806A4F01D34CB53037C6417B16830BD4EC7892",
+        "accepted_runtime_sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732",
+        "authorized_future_operations": "NONE_REVIEW_ONLY",
+        "task_cim_tcp_reads": 0,
+        "wrapper_executions": 0,
+        "stage_b_confirmation_eligible": false,
+        "approval_path": "NOT_ESTABLISHED"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_SECURITY_REVIEW_FORMAL_ANTIVIRUS_REFUSAL_NO_AUTOMATIC_RETRY_OR_ALTERNATE_CHANNEL"
+      "next_action": "OWNER_SECURITY_REVIEW_EXACT_STATIC_CANDIDATE_AND_FORMAL_APPROVAL_PATH_NO_EXECUTION_AUTHORIZED"
     },
     "supersedes_current_execution_note_and_preflight": true
     },
