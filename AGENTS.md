@@ -342,10 +342,16 @@
   serialization and three host action representations now have a narrow
   source/offline normalization in source
   `e8ad5e27bc8515e6536b5fc8696608b3d9c6e7de` and direct regressions. Status is
-  `P4B_STAGEA_GATE_NORMALIZATION_SOURCE_READY_FOR_REVIEW / NOT_DEPLOYED`;
-  HTTP, fresh six-container preflight and live VerifyOnly remain `NOT_RUN`.
-  Stage B, UAC, InstallAndWarm, Host/task writes and rollback are not
-  authorized. Review only this diff and saved capture; do not add K2/K3.
+  `P4B_STAGEA_GATE_NORMALIZATION_SOURCE_READY_FOR_REVIEW / NOT_DEPLOYED`.
+  The exact VerifyOnly was later accepted only as
+  `P4B_VERIFYONLY_TASK_AND_FILE_EVIDENCE_ACCEPTED / READ_ONLY_SCOPE`. One fresh
+  read-only preflight confirmed the frozen package, `6/6` pinned containers,
+  HTTP and Windows/disk gates, but its host-service observations ran under
+  PowerShell `7.6.5` instead of required Windows PowerShell 5.1 and are not an
+  authoritative production state. Stage B, UAC, InstallAndWarm, Host/task
+  writes and rollback remain unauthorized. The only proposed next step is one
+  owner-authorized PS5.1 host-services-only replacement read, without repeating
+  VerifyOnly, Docker, HTTP or resource gates and without adding K2/K3.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

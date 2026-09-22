@@ -556,11 +556,35 @@
         "metadata_sha256": "13782432D1408162806FE8900EA357453973D4FD1CF43DF110CEB7004138F9F4",
         "stage_b": "BLOCKED_NOT_AUTHORIZED"
       },
+      "stageb_readonly_preflight": {
+        "status": "READ_ONLY_PREFLIGHT_PARTIAL_REQUIRED_HOST_SERVICE_LAYER_NOT_VALIDATED_STAGE_B_BLOCKED_NOT_AUTHORIZED",
+        "decision_window_id": "R04-D21-P4B-STAGEB-PREFLIGHT-20260922T094610Z",
+        "entry_evidence_sha": "9370984f2d7437092928d566a866ee38c3bbcd1d",
+        "verifyonly_acceptance": "P4B_VERIFYONLY_TASK_AND_FILE_EVIDENCE_ACCEPTED_READ_ONLY_SCOPE",
+        "package_gate": "TOP_LEVEL_4_OF_4_PAYLOAD_BINDINGS_8_OF_8",
+        "containers": "6_OF_6_PINNED_IDENTITY_STATE_MOUNTS_PORTS_NETWORK_DIGEST_PASS",
+        "postgresql": "RUNNING_HEALTHY",
+        "http": "BACKEND_HEALTH_200_VERSION_200_GATEWAY_HEALTH_200_PUBLIC_CONTROL_404_CONTROL_HEALTH_404",
+        "windows_and_disks": "PASS",
+        "docker_wsl_pool_available": "UNKNOWN",
+        "current_swap_used": "UNKNOWN",
+        "host_services": "NOT_VALIDATED_NONAUTHORITATIVE_POWERSHELL_7_6_5_RUNNER",
+        "nonauthoritative_observations": "PUBLIC_CONFLICT_PRIVATE_UNKNOWN_SUPERVISOR_UNKNOWN_NOT_ADOPTED_AS_PRODUCT_STATE",
+        "future_output_root": "C:\\Users\\domai\\AppData\\Local\\Temp\\P4B-WIN-01\\apply",
+        "future_output_root_created": false,
+        "evidence_file_count": 52,
+        "evidence_total_bytes": 85924,
+        "summary_sha256": "A609F946A792452A4F48013797CF7C00725B2DDF8DC343CF5AFF24BDC22E0FCF",
+        "evidence_index_sha256": "1FD975C40C1DFF1A4844063C5429B8DAFD8DB3F567A6185AA5357D88871DD9E7",
+        "docker_task_host_service_writes_or_starts": 0,
+        "uac_install_warm_runs_rollback": 0,
+        "stage_b_confirmation_eligible": false
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_REVIEW_EXACT_VERIFYONLY_RESULT_BEFORE_ANY_SEPARATE_STAGE_B_DECISION_NO_K2_K3"
+      "next_action": "OWNER_DECISION_FOR_ONE_PS51_HOST_SERVICES_ONLY_REPLACEMENT_READ_NO_REPEAT_VERIFYONLY_DOCKER_HTTP_OR_RESOURCES"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

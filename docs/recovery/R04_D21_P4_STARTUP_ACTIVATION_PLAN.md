@@ -1177,3 +1177,40 @@ six-container preflight pozostają `NOT_RUN`; historyczny run01 jest bez zmian.
 Stage B, UAC, instalacja, Host retry, warm runs i rollback nadal są
 `NOT_AUTHORIZED`. Następny krok to właścicielski review tego dokładnego wyniku,
 bez K2/K3.
+
+## 36. VerifyOnly accepted read-only; Stage-B runtime preflight partial
+
+Właściciel przyjął exact próbę `R04-D21-P4B-VERIFYONLY-ZIP-RESTORED-20260922T074412Z`
+wyłącznie jako `P4B_VERIFYONLY_TASK_AND_FILE_EVIDENCE_ACCEPTED / READ_ONLY_SCOPE`.
+Nie zmienia to stanu Stage A/P4-B/R04 i nie udziela zgody na UAC, instalację,
+Host lub task writes.
+
+Jedno okno `R04-D21-P4B-STAGEB-PREFLIGHT-20260922T094610Z` wykonało wyłącznie
+odczyty. Zamrożona paczka przeszła `4/4` top-level oraz `8/8` payload bindings;
+przyszły `OutputRoot` `C:\Users\domai\AppData\Local\Temp\P4B-WIN-01\apply`
+pozostał nieutworzony. Exact kampania potwierdziła `6/6` przypiętych kontenerów,
+PostgreSQL `running+healthy`, wymagane identity/image/digest/name/label/mount/port/network
+oraz HTTP `200/200/200/404/404`. Bramki Windows RAM/commit i wolnego miejsca C:/D:
+przeszły; dostępna pula Docker/WSL oraz bieżące użycie swap pozostają `UNKNOWN`.
+
+Warstwa host-services nie uzyskała wiarygodnego wyniku. Jej trzy obserwacje
+wykonały się pod PowerShell `7.6.5`, mimo że kontrakt tej operacji wymaga Windows
+PowerShell `5.1`. Zapisane Public `CONFLICT / PORT_OWNERSHIP_CONFLICT` oraz Private
+i Supervisor `UNKNOWN / OBSERVATION_UNKNOWN` są dlatego dowodem błędu runnera
+kampanii, nie przyjętym bieżącym stanem produktu. Poprawny runner zasobów został
+później wskazany jako `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`,
+ale zgodnie z zakazem retry odczytu host-services nie powtórzono.
+
+Skutki: Docker/task/Host/service writes lub starts, UAC, install, warm runs,
+rollback, SQL i zmiany danych `0`. Historyczny run01, Host disabled/no-trigger,
+warm `0/2` i Supervisor `INTENTIONALLY_STOPPED` nie zostały zmienione ani świeżo
+potwierdzone przez tę wadliwą warstwę. Dowody LOCAL_ONLY:
+`preflight-summary.json` `9721` B / `A609F946A792452A4F48013797CF7C00725B2DDF8DC343CF5AFF24BDC22E0FCF`
+oraz `evidence-index.json` `8624` B /
+`1FD975C40C1DFF1A4844063C5429B8DAFD8DB3F567A6185AA5357D88871DD9E7`.
+
+Status: `READ_ONLY_PREFLIGHT_PARTIAL / REQUIRED_HOST_SERVICE_LAYER_NOT_VALIDATED /
+STAGE_B_BLOCKED_NOT_AUTHORIZED`. Jedyny rekomendowany następny krok to decyzja
+o jednym PS5.1 host-services-only replacement read, bez powtórzenia VerifyOnly,
+Docker, HTTP lub resource gate. Zdanie zgody na Stage B nie jest jeszcze
+przedstawiane.

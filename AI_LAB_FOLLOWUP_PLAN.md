@@ -3342,3 +3342,18 @@ six-container preflight and live VerifyOnly are `NOT_RUN`; Stage B remains
 `BLOCKED / NOT_AUTHORIZED`. The sole next step is owner review of this diff and
 the four persisted definitions before any separate decision about one later
 VerifyOnly. D-23 review stays `2/2`; D-22 remains unchanged and `NOT_RUN`.
+
+**P4/B VERIFYONLY ACCEPTANCE + STAGE-B READ-ONLY PREFLIGHT — 2026-09-22.** The
+owner accepted attempt `R04-D21-P4B-VERIFYONLY-ZIP-RESTORED-20260922T074412Z`
+only as `P4B_VERIFYONLY_TASK_AND_FILE_EVIDENCE_ACCEPTED / READ_ONLY_SCOPE`.
+One bounded read-only preflight then confirmed package `4/4 + 8/8`, all six
+pinned containers, healthy PostgreSQL, HTTP `200/200/200/404/404` and Windows/
+disk gates. Docker/WSL pool availability and current swap use remain `UNKNOWN`.
+The host-service observations are not authoritative because they ran under
+PowerShell `7.6.5`, not required Windows PowerShell 5.1; their Public
+`CONFLICT` and Private/Supervisor `UNKNOWN` results are not adopted as current
+product state. Production mutations, task/Host/service starts, UAC, install,
+warm runs and rollback were `0`. Stage B remains blocked and unauthorized. The
+only proposed next decision is one PS5.1 host-services-only replacement read,
+without repeating VerifyOnly, Docker, HTTP or resource gates. D-23 remains
+`2/2`; D-22 remains unchanged and `NOT_RUN`.
