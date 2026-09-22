@@ -1144,3 +1144,36 @@ Status: `P4B_VERIFYONLY_NOT_RUN /
 BLOCKED_LOCAL_PREREQUISITE_REVIEW_ZIP_MISSING / NO_TASK_READS / NO_MUTATION`.
 Następny krok wymaga jawnej decyzji o dokładnych bajtach transportu; brak
 automatycznego retry, Stage B lub poszukiwania K2/K3.
+
+## 35. Exact ZIP przywrócony i pojedynczy VerifyOnly
+
+Właściciel dostarczył oryginalny ZIP. Plik źródłowy
+`G:\Mój dysk\cad\R04-D21-P4B-PS51-SHA256-REVIEW-20260921T192345Z.zip`
+oraz nieistniejący wcześniej cel pod `P4B-SHA-01` mają dokładnie `223585` B i
+SHA-256 `0DE0E072A6030F00159CAFD32CEE73636AC2033B7AFE73F42BD4838BB73414F8`.
+Kopię wykonano bez overwrite, przepakowania i zmiany istniejącego katalogu
+`package`. Końcowa bramka pakietu: top-level `4/4`, bindings `8/8`, operation ID
+`R04-D21-P4B-HOST22-NUP-20260920T200422Z`.
+
+Jedyny nowy, niepodniesiony Windows PowerShell 5.1 `VerifyOnly` trwał
+`55349.381 ms`, zakończył się exit `0`, bez timeoutu i z rozliczonym procesem
+oraz strumieniami. Wynik to `VERIFIED_NO_MUTATION`: `mutation_started=false`,
+`pending_mutation=false`, puste `changed_roles` i `warm_runs`,
+`journal=NOT_OPENED`, `rollback=NOT_NEEDED`, pięć tasków zależnych bez zmian i
+helper bez zmiany. Recepta wykonała ograniczone odczyty pięciu tasków
+zależnych oraz Host; task writes/starts i wszystkie mutacje wyniosły `0`.
+
+`stdout` i `result.json` mają po `544` B / SHA-256
+`F0A51E55F354B97CDE9E4AC31C6FA61C078334A27661BA354B35D69DA20ED5A6`;
+`stderr` ma `0` B / SHA-256 pustego pliku
+`E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855`;
+metadane procesu mają `2156` B / SHA-256
+`13782432D1408162806FE8900EA357453973D4FD1CF43DF110CEB7004138F9F4`.
+Dowody pozostają LOCAL_ONLY w `P4B-SHA-01\vfy1`.
+
+Status: `EXACT_REVIEW_ZIP_RESTORED_FROM_OWNER_SUPPLIED_IDENTICAL_BYTES /
+P4B_VERIFYONLY_PASS / CURRENT_READ_ONLY_TASK_AND_FILE_EVIDENCE`. HTTP i fresh
+six-container preflight pozostają `NOT_RUN`; historyczny run01 jest bez zmian.
+Stage B, UAC, instalacja, Host retry, warm runs i rollback nadal są
+`NOT_AUTHORIZED`. Następny krok to właścicielski review tego dokładnego wyniku,
+bez K2/K3.
