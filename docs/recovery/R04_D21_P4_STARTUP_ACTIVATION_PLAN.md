@@ -1240,3 +1240,62 @@ FORMAL_ANTIVIRUS_BLOCK_BEFORE_PROCESS / STAGE_B_BLOCKED_NOT_AUTHORIZED`.
 The preserved VerifyOnly and earlier package/container/HTTP/Windows evidence are
 unchanged. One next decision is owner/security review of the prescribed approval
 path for the exact wrapper bytes; no automatic retry is authorized.
+
+## 38. Przyczyna wyników host-services — jedna diagnostyka bez retry
+
+Zachowany exact observer i `o1\host.json` pozostają niezmienione (`2561` B,
+SHA-256 `DA2274B770CBD5351BAB0B4A51B884739DD4CA49CA3D28FC32BA60533FE23CB8`).
+Owner-authorized diagnostyka przyczyny wykonała jedną kampanię pod exact
+`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`, wersja
+`5.1.26100.8894`, PID parenta `41000`, w oknie
+`2026-09-23T09:44:36.8356178Z`–`2026-09-23T09:44:49.2008688Z` (`12364 ms`).
+Osiem ograniczonych liści zakończyło się bez timeoutu, wszystkie dzieci zostały
+rozliczone; starts/task writes/Docker/HTTP reads wynoszą `0`.
+
+Przed kontaktem z hostem parser PS5.1 przeszedł, a kolektor zaliczył offline
+`5` przypadków / `20` asercji: wynik, pusty wynik, dokładny `ObjectNotFound`,
+access denied i niepełne dane, wszystkie przez rzeczywisty zapis i ponowne
+parsowanie. Pierwszy test harnessu zatrzymał się przed I/O, ponieważ import
+biblioteki wyzerował parametr output; minimalna korekta bindingu jest zachowana
+lokalnie i nie dotyczy produktu.
+
+| Rola | Poprzedni wynik | Pierwszy udokumentowany liść/predykat | Expected -> observed | Klasyfikacja |
+|---|---|---|---|---|
+| Public Gateway | `CONFLICT / PORT_OWNERSHIP_CONFLICT` | `ObserveHostService.foreignListener` (wynika jednoznacznie z wyboru detail w zaakceptowanym kodzie) | exact process PID + `127.0.0.1:8789` -> bieżący listener `127.0.0.1:8789`, PID `41784`, ale bieżący exact-process/token match nieutrwalony | `POTWIERDZONE_W_KODZIE`; głębsza przyczyna `UNKNOWN` |
+| Private Gateway | `UNKNOWN / OBSERVATION_UNKNOWN` | `Test-ExpectedEmptyResultError=false` w catch `GET_NET_TCP_LISTENER` | pusty/no-match listener rozpoznany dla portu `8788` -> `ObjectNotFound`, FQID `CmdletizationQuery_NotFound,Get-NetTCPConnection`, lecz niepusty `TargetObject` nie równy `8788` | `ODTWORZONE` |
+| Supervisor | `UNKNOWN / OBSERVATION_UNKNOWN` | `Test-ExpectedEmptyResultError=false` w catch `GET_NET_TCP_LISTENER` | pusty/no-match listener rozpoznany dla portu `8787` -> ten sam FQID/category i ten sam bezpieczny hash nieportowego `TargetObject`, nie równy `8787` | `ODTWORZONE` |
+
+Brak listenera Private/Supervisor nie został przepisany na brak procesu. Jeden
+snapshot `node.exe` oraz trzy exact task reads faktycznie dotarły do liści, lecz
+ich bezpieczna projekcja zakończyła się lokalnym `CommandNotFoundException`, bo
+funkcje z zaakceptowanego launchera zostały zaimportowane do zbyt wąskiego
+zakresu. Obiekty nie zostały utrwalone; nie ma bufora do ponownego formatowania.
+Zgodnie z `no retry` żadnego task/CIM/TCP read nie powtórzono.
+
+Minimalny diff do przyszłej decyzji dla odtworzonej wady nie może mapować
+dowolnego `ObjectNotFound` na `ABSENT`. Bezpieczny wariant source/offline to
+udany bounded snapshot `Get-NetTCPConnection -State Listen` i lokalny filtr
+dokładnego portu; błąd snapshotu nadal daje `UNKNOWN`. Dla Public istniejący
+kod rozstrzyga `actualCodePath`, ale później porównuje surowy code token z
+manifestowym tokenem. Historyczny dowód wspiera hipotezę absolute-vs-relative,
+lecz bieżący PID bez CreationDate/token projection nie jest dowodem tej samej
+instancji. Warunkowy diff procesu — normalizowany code token przy exact
+pozostałych argumentach — nie jest jeszcze autoryzowany ani zastosowany.
+
+LOCAL_ONLY: collector `45774` B /
+`CB3CF6F1C084A250769FEB4B252F6A850D183D4D84C32EE1CBAE3FF7C5300E8D`, test
+`5276` B / `AE880F521EADED3E4FCCD3E5A52AC17020B5DF310FC3AA8C3968214E7406C818`,
+offline summary `319` B /
+`01BBA9A104877BB7ED1E2EFDA496483C6974E28CDA9873CC86A16AD472337EAC`, live
+summary `6600` B /
+`2B829198A0811397D79B6E09DB391E29AEE6A5E79BDBEB517A9FBBE0830D21B3`.
+
+Status:
+`P4B_HOST_SERVICE_CAUSE_DIAG_PARTIAL /
+PRIVATE_SUPERVISOR_LISTENER_EMPTY_NORMALIZATION_REPRODUCED /
+PUBLIC_PROCESS_TOKEN_EVIDENCE_UNRESOLVED / NO_RETRY /
+STAGE_B_BLOCKED_NOT_AUTHORIZED`. Jedyny następny krok do decyzji to dokładnie
+jedna poprawiona process-only projekcja PID `41784` (CreationDate, executable,
+bezpieczne token comparison), bez powtarzania tasków/listenerów. Dopiero ten
+wynik może domknąć jeden skonsolidowany source/offline diff; nie ma zgody na
+Stage B, UAC, start, task write ani produktową poprawkę.
