@@ -337,3 +337,50 @@ OFFLINE_ONLY / NOT_INSTALLED`. D-23 remains review cycle `1/2`; the next action
 is one independent review of this exact diff and its regressions. It is not
 P4/B acceptance and authorizes no live preflight, UAC, update, Host retry or
 host rollback.
+
+## Canonical process token and complete listener snapshot — 2026-09-23
+
+The preserved process-only evidence proved that Public Gateway PID `41784`
+used the approved executable and exactly two arguments, with the same canonical
+script represented as an absolute token instead of the manifest's relative
+token. The preserved Private/Supervisor evidence independently reproduced that
+`Get-NetTCPConnection -LocalPort` no-match errors carried a provider target
+that was not the scalar requested port. The unchanged adapter therefore
+returned a false Public conflict and `UNKNOWN` for both empty listener cases.
+
+Source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` makes only the authorized
+observation changes:
+
+- the single process code token is compared by its resolved path below the
+  approved root; executable, token count and every non-code argument retain
+  their previous exact comparisons;
+- the bounded worker obtains one complete
+  `Get-NetTCPConnection -State Listen -ErrorAction Stop` snapshot without
+  `-LocalPort`, filters the requested port locally and treats only a successful
+  complete snapshot with no match as confirmed listener absence;
+- provider exceptions, timeout and incomplete observation remain `UNKNOWN`.
+
+The real-adapter harness now supplies one untrimmed listener snapshot to the
+production worker and refuses an unexpected port selector at the fake leaf.
+It covers absolute-observed/relative-expected canonical script identity, a
+different script owning the port, extra arguments, complete no-port snapshot,
+provider `ObjectNotFound`, access/provider failure, timeout and the existing
+one-start/repeat path. Windows PowerShell 5.1 results on final bytes:
+
+| Scope | Assertions | Exit |
+|---|---:|---:|
+| production adapter + complete plan through lower-boundary fakes | 53 | 0 |
+| direct startup-plan regression | 57 | 0 |
+
+Parser and `git diff --check` passed. Production Docker, Task Scheduler, CIM,
+TCP, HTTP, UAC, service start/write and installation calls were `0`. The
+launcher is `79010` B / SHA-256
+`686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66`.
+The repository candidate is an inactive derivative with approval
+`NOT_APPROVED`; installed run01 remains on its historical bytes with Host
+disabled/no-trigger and warm runs `0/2`.
+
+Status:
+`HOST_SERVICE_PROCESS_AND_LISTENER_OBSERVATION_SOURCE_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / NOT_DEPLOYED / STAGE_B_NOT_AUTHORIZED`. D-23 remains
+review `2/2`; prior Host22/NUP acceptances are not reopened.

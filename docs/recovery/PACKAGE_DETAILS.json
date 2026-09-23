@@ -708,11 +708,29 @@
         "stage_b_authorized": false,
         "next_action": "OWNER_DECISION_ONE_CONSOLIDATED_SOURCE_OFFLINE_CANONICAL_CODE_TOKEN_AND_BOUNDED_LISTENER_SNAPSHOT_FIX"
       },
+      "host_service_observation_source_and_remaining_r04_plan": {
+        "status": "HOST_SERVICE_PROCESS_AND_LISTENER_OBSERVATION_SOURCE_READY_FOR_REVIEW_OFFLINE_TESTS_PASS_NOT_DEPLOYED",
+        "source_commit": "49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc",
+        "launcher_sha256": "686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66",
+        "launcher_size_bytes": 79010,
+        "inactive_set_id": "R04-D21-P4A-HOST-OBS-SOURCE-20260923T153332Z",
+        "inactive_manifest_sha256": "967E9C2C17D7E512B11F0B8D4E9847DD3D2C18138958DBD5D5ED5AA92F400457",
+        "inactive_manifest_size_bytes": 30818,
+        "approval": "NOT_APPROVED",
+        "process_contract": "CANONICAL_COMPARISON_ONLY_FOR_SINGLE_CODE_TOKEN_EXACT_EXECUTABLE_COUNT_AND_OTHER_ARGUMENTS_APPROVED_ROOT_REQUIRED",
+        "listener_contract": "COMPLETE_BOUNDED_ALL_LISTENERS_SNAPSHOT_LOCAL_EXACT_PORT_FILTER_ERRORS_TIMEOUT_INCOMPLETE_UNKNOWN",
+        "powershell_51_tests": "REAL_ADAPTER_AND_FULL_PLAN_53_ASSERTIONS_PASS_DIRECT_PLAN_57_ASSERTIONS_PASS",
+        "production_boundaries": 0,
+        "installed_run01_changed": false,
+        "d23_review_cycle": "2_OF_2_PRESERVED",
+        "remaining_r04_plan": "WARM_USABLE_CRM_WEB_THEN_ONE_ENTRY_LOGON_COLD_THEN_DATA_D_AND_BACKUP_PROOF_THEN_COMPATIBILITY_ACCEPTANCE",
+        "next_window": "R04_P4B_USABLE_WARM_REQUIRES_NEW_OWNER_APPROVAL_AND_SEPARATE_CURRENT_CONFIRMATION_BEFORE_UAC"
+      },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_DECISION_ONE_CONSOLIDATED_SOURCE_OFFLINE_CANONICAL_CODE_TOKEN_AND_BOUNDED_LISTENER_SNAPSHOT_FIX_NO_STAGE_B"
+      "next_action": "OWNER_REVIEW_SOURCE_AND_COMPLETE_PLAN_THEN_ONE_COHERENT_R04_P4B_USABLE_WARM_WINDOW_NO_STAGE_B_AUTHORIZED"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

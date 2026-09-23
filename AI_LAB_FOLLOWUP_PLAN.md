@@ -3375,3 +3375,27 @@ UAC, install or mutation occurred. Earlier VerifyOnly/package/container/HTTP/
 Windows evidence remains preserved, but Stage B is `BLOCKED / NOT_AUTHORIZED`.
 The only next decision is owner/security review of the prescribed approval path
 for those exact wrapper bytes; D-23 stays `2/2` and D-22 stays `NOT_RUN`.
+
+**P4/B HOST-SERVICE OBSERVATION SOURCE COMPLETION + REMAINING R04 PLAN —
+2026-09-23.** Source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc`
+closes the two evidenced PS5.1 observation defects without contacting the
+host. The service script token is compared canonically inside the approved
+root while executable identity, argument count and every other argument stay
+exact. TCP observation takes one bounded complete `Listen` snapshot and then
+filters the requested port locally; a complete snapshot without the port is
+known absence, while provider failure, timeout or incomplete output remains
+`UNKNOWN`. Final PS5.1 suites passed `53` real-adapter and `57` plan
+assertions. The candidate manifest remains `NOT_APPROVED_FOR_START`; source is
+`NOT_DEPLOYED`, installed run01 remains on its historical bytes, Host remains
+disabled/no-trigger and warm runs remain `0/2`.
+
+The remaining R04 delivery path is recorded as four coherent owner-gated
+windows rather than further per-helper review: (1) exact narrow update plus
+two warm runs, yielding a usable CRM/Web segment through the existing separate
+UI shortcut; (2) one-entry/`OPEN_AFTER_BASE_READY` completion and logon/cold
+proof; (3) D: active-data and scheduled-backup evidence/remaining relocation
+decisions; (4) supported Web/Windows/Android compatibility evidence and final
+owner acceptance. The immediate next decision, after review of the published
+source and inactive bindings, is only window (1). It requires a fresh explicit
+operational authorization before host reads, UAC, installation or starts.
+D-22 remains unchanged and `NOT_RUN` until R04 is completed and accepted.

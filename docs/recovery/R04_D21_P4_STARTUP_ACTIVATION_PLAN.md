@@ -1372,3 +1372,59 @@ porównanie tylko code tokenu przy zachowaniu exact executable, liczby tokenów,
 pozostałych argumentów i odrzucenia extras oraz udany bounded snapshot
 listenerów z lokalnym filtrem exact port; błędy providera/odczytu nadal muszą
 dawać `UNKNOWN`.
+
+## 40. Domknięcie obserwacji source i następne spójne okno
+
+Właścicielsko zatwierdzona praca SOURCE/OFFLINE opublikowała source
+`49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc`. Proces usługi porównuje
+kanonicznie wyłącznie jeden token kodu poniżej approved root, zachowując exact
+executable, liczbę tokenów i pozostałe argumenty. Listener collection wykonuje
+bounded pełny snapshot `Get-NetTCPConnection -State Listen -ErrorAction Stop`
+bez `-LocalPort` i dopiero lokalnie filtruje exact port. Poprawny snapshot bez
+portu potwierdza brak listenera; wyjątek/timeout/niekompletność pozostają
+`UNKNOWN`.
+
+Finalne Windows PowerShell 5.1 testy na tych bajtach:
+
+- production real-adapter + cały plan przez kompletne dolne atrapy: `53`
+  asercje, exit `0`;
+- bezpośrednia regresja startup planu: `57` asercji, exit `0`;
+- parser zmienionych `.ps1`: PASS; live Docker/Task/CIM/TCP/HTTP/UAC/start/write
+  boundaries: `0`.
+
+Nowy launcher ma `79010` B i SHA-256
+`686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66`.
+Runtime `959768E2...B0732`, recorder `D21A3E6B...452A` i helper
+`91C763F5...7EC` są niezmienione. Repozytoryjny draft otrzymał nowe set ID
+`R04-D21-P4A-HOST-OBS-SOURCE-20260923T153332Z` i ma `30818` B / SHA-256
+`967E9C2C17D7E512B11F0B8D4E9847DD3D2C18138958DBD5D5ED5AA92F400457`;
+jego `approval.status` nadal jest `NOT_APPROVED`.
+
+To nie aktualizuje installed run01. Zamrożona recepta
+`CA6A5DCC...87157` i jej index `C2F6A77C...2B8AA` opisują wcześniejsze bajty,
+więc pozostają dowodem historycznym i nie mogą być użyte do nowej mutacji.
+Następne spójne okno `R04-P4B-USABLE-WARM` ma w jednym zakresie:
+
+1. utworzyć jedną nieaktywną pochodną exact package/recepty wiążącą nowy
+   launcher i manifest, bez zmian helpera ani pięciu dependency tasks;
+2. wykonać jeden świeży bounded preflight pakietu, sześciu pinned kontenerów,
+   usług hosta, HTTP i zasobów blisko granicy mutacji;
+3. zatrzymać się przy dowolnym materialnym drifcie; przy PASS przedstawić jedno
+   bieżące potwierdzenie właściciela obejmujące exact index/output i jeden UAC;
+4. dopiero po tym potwierdzeniu zaktualizować cztery przypięte pliki + istniejący
+   Host, wykonać dwa recorder-backed warm runs z Private `1 -> 0`, potwierdzić
+   Host idle po każdej próbie i dopiero wtedy włączyć jeden trigger logon;
+5. zachować sześć kontenerów bez start/stop/recreate, Supervisor
+   `INTENTIONALLY_STOPPED`, dziewięć flag false, junction i backup schedules.
+
+Sukces tego okna daje samodzielnie użyteczny warm CRM/Web przez zachowany
+oddzielny skrót klienta. Nie spełnia jeszcze jednego wejścia użytkownika,
+logon/cold-start ani całego R04. `OPEN_AFTER_BASE_READY` pozostaje następną
+minimalną implementacją przed odbiorem jednego wejścia; dane D:/backup proof i
+compatibility mają kolejne spójne okna zapisane w
+`R04_SINGLE_ROOT_STARTUP_PLAN.md`. To plan wymagający przyszłej zgody, nie
+autoryzacja Stage B.
+
+Status: `HOST_SERVICE_PROCESS_AND_LISTENER_OBSERVATION_SOURCE_READY_FOR_REVIEW /
+OFFLINE_TESTS_PASS / INACTIVE_CANDIDATE_BOUND / NOT_DEPLOYED /
+STAGE_B_NOT_AUTHORIZED`.

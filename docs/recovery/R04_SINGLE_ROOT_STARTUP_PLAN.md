@@ -358,3 +358,50 @@ jest przypiętym `APPROVED_FOR_START` wejściem zużytej operacji. Stan nie ozna
 ukończonego jednego startu. Przed dalszą diagnostyką lub mutacją wymagane są
 owner review i nowa decyzja; automatyczny retry lub kolejny rollback są
 zabronione.
+
+## 8. Pełna droga od run01 do używalnego segmentu i zamknięcia R04
+
+Poniższa sekwencja jest jednym planem kompletnego rezultatu R04 zgodnie z D-23.
+Nie cofa odebranych P1/P2/DATA_ONLY/P3/P4-A/Host22/NUP ani zaakceptowanego
+VerifyOnly. Rozdziela pierwszy samodzielnie użyteczny segment od pełnego
+zamknięcia, ale nie usuwa żadnego obowiązkowego kryterium właściciela.
+
+Stan wejściowy planu:
+
+- P3 backend pozostaje przyjęty w ograniczonym runtime scope, a dziewięć flag
+  pozostaje `false` według zachowanego readbacku;
+- installed run01 nadal ma historyczne launcher/runtime/helper/manifest, Host
+  disabled/no-trigger i warm `0/2`;
+- source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` z launcherem
+  `686F4EC8...14B66` domyka wykazane porównanie tokenu procesu i snapshot
+  listenerów, lecz jest `READY_FOR_REVIEW / NOT_DEPLOYED`;
+- repozytoryjny kandydat `R04-D21-P4A-HOST-OBS-SOURCE-20260923T153332Z`
+  pozostaje `NOT_APPROVED`; zamrożona recepta `CA6A5DCC...87157` nie wiąże
+  nowych bajtów i nie może zostać użyta bez pochodnej.
+
+| Kolejność / rezultat użytkowy | Zależność i zachowany dowód | Brakująca praca | Wymagana przyszła zgoda | Adekwatne sprawdzenie | Bezpieczny STOP / rollback |
+|---|---|---|---|---|---|
+| **A. Używalny CRM/Web — warm segment**: jeden Host uruchamia wymagany base set; drugi run nie duplikuje zasobów; użytkownik otwiera zachowany oddzielny skrót UI | Odbiory P1/P4-A/Host22/NUP; VerifyOnly task/file PASS; P3 backend; source `49c3f64c...` offline PASS | Zbudować i zweryfikować jedną pochodną exact package wiążącą nowy launcher, niezmienione runtime/recorder/helper i nowy manifest; wykonać świeży bounded preflight blisko mutacji; po osobnym bieżącym potwierdzeniu zaktualizować wyłącznie cztery przypięte pliki + Host; dwa warm runs `Private 1 -> 0`; dopiero potem jeden trigger logon | Jedno okno przygotowanie+preflight oraz osobna bieżąca odpowiedź właściciela przed jednym UAC/Stage B; zgoda musi jawnie przyjąć partial/pending behavior i brak retry | Exact package/hash/identity, 6 pinned containers, PostgreSQL healthy, Public/Private/Supervisor, HTTP/control boundary, dwa kompletne recorder results, Host idle po każdej próbie, zero container/Supervisor starts | Przed mutacją: STOP. Po znanym błędzie: tylko przejrzany SAFE_INACTIVE; pending handoff zachowuje pliki i zabrania konkurującego retry/rollback. Nie zatrzymywać działających usług |
+| **B. Jedno wejście + logon/cold-start**: użytkownik nie musi osobno uruchamiać stosu i klienta | Segment A stabilny; obecny `NEXT Stabil.lnk` otwiera tylko klienta; P1 jawnie nie implementuje `OPEN_AFTER_BASE_READY` | Odczytać dokładną bieżącą akcję klienta bez sekretów, zaprojektować minimalne `OPEN_AFTER_BASE_READY`, wykonać source/offline workflow test, związać nowe bajty; następnie jeden manualny test wejścia i jeden kontrolowany logon/cold-start | Source/offline approval, potem osobne okno operacyjne obejmujące zmianę wejścia/tasku i jawny logoff/reboot; nie łączyć z nieprzejrzaną instalacją | Base ready przed otwarciem klienta; repeat bez duplikatu; jeden logon trigger; UI/API Web działa; public `/control*` pozostaje 404; Supervisor nadal stopped | Zachować działający skrót klienta do odbioru nowego wejścia. Przy niepewnym starcie nie ponawiać i nie przywracać legacy Compose/Supervisor triggerów |
+| **C. Aktywne dane D: i backup**: ciężki przyrost NEXT Stabil nie trafia trwale na C:, istniejące harmonogramy mają własny dowód działania | Zatwierdzony junction i pięć DATA_ONLY bindings; P3 punkt danych z zapisanymi ograniczeniami; harmonogramy pozostają nietknięte | Jedna ograniczona kampania metadanych rozstrzyga Qdrant volume/backing, Docker/WSL VHD i write layers, tablespaces/WAL, logi/cache/modele oraz profile/state workerów; klasyfikuje `KEEP/RELOCATE/UNKNOWN`. Osobno potwierdza task -> runner -> wynik harmonogramu i wykonuje najwyżej jeden jawnie zatwierdzony kontrolowany scheduled-backup proof, bez nowego systemu i bez pełnego restore drill | Read-only metadata approval; dopiero po konkretnej mapie osobna zgoda na exact relokacje i okno backup proof. R03 escrow jest potrzebne do pełnej recovery readiness, nie do samego warm CRM/Web | Fizyczna lokalizacja i przyrost, zachowanie exact data identity, brak fallbacku na C:, task result/log z czasem i artefaktem; nie liczyć aliasu junctionu jako drugiej kopii | Dane już na D: = KEEP. Relokacja tylko z preimage/rollback i zatrzymaniem właściwego konsumenta; UNKNOWN nie daje przeniesienia. Backup failure nie uruchamia restore ani drugiego schedulera |
+| **D. Zgodny zestaw aplikacji / release**: Web-first potwierdza wspólne API, a wspierane Windows/Android mają uczciwą macierz zgodności | D-17 Web-first; przyjęty backend P3; zachowane dotychczasowe Web/Windows/Android artefakty i hashe | Utworzyć component compatibility manifest: backend/source/image, API/schema, `/version` stable/minimum/debug, Web/Windows/Android build/hash/podpis. Sprawdzić Web wspólnego workflow; Windows/Android budować lub ponawiać tylko gdy zmieniony target/kontrakt albo brakuje wymaganego artefaktu | Source/build approval dla rzeczywiście zmienionego targetu; osobna release/install approval. Brak automatycznej publikacji | Kompatybilność aktualnego stable klienta, additive/versioned API, właściwy candidate, public boundary, natywne lifecycle/uprawnienia dla Androida gdy ten target jest odbierany | Zachować poprzedni kompatybilny, podpisany/hashowany zestaw. Nie podnosić minimum dla pozornego PASS; brak zgodności zatrzymuje promocję, nie cofa danych |
+| **E. Odbiór R04**: wspólny start/repeat/logon/cold, spójna instalacja, dane D:, backup proof i compatibility są razem rozliczone | Wyniki A–D oraz zapisane ograniczenia R03/R05 | Jedno podsumowanie dowodów i owner review; bez nowego wyszukiwania K2/K3 | Właścicielski odbiór R04; nie nadaje go agent | Zamrożone kryteria, exact SHA/artefakty, status każdego obowiązkowego gate | Nie wykonywać P5 cleanup przed odbiorem i okresem stabilnej pracy; zachować rollback/refy i historyczne evidence |
+
+### Najmniejszy zestaw spójnych przyszłych okien
+
+1. `R04-P4B-USABLE-WARM`: przygotowanie exact pochodnej, jeden świeży preflight
+   i — dopiero po osobnym bieżącym potwierdzeniu — jeden UAC, wąska aktualizacja,
+   dwa warm runs oraz logon trigger. To najszybsza droga do używalnego CRM/Web,
+   ale z oddzielnym skrótem UI i bez deklaracji jednego kliknięcia.
+2. `R04-ONE-ENTRY-COLD`: minimalne source/review `OPEN_AFTER_BASE_READY`, potem
+   manual entry oraz jeden logon/cold-start w osobno zatwierdzonym oknie.
+3. `R04-DATA-BACKUP`: jedno bounded rozpoznanie brakujących lokalizacji i
+   harmonogramów; relokacje lub kontrolowany backup dopiero po wskazaniu exact
+   obiektów i osobnym potwierdzeniu mutacji.
+4. `R04-COMPATIBILITY-ACCEPTANCE`: component manifest i adekwatne Web-first /
+   Windows / Android checks bez blanketowych rebuildów; następnie owner review
+   całego R04.
+
+P5/R24 cleanup pozostaje późniejszy i nie blokuje pierwszego używalnego
+segmentu. D-22 pozostaje `NOT_RUN` do zakończenia i właścicielskiego odbioru
+R04. Żadne z powyższych okien nie jest autoryzowane przez ten plan.
