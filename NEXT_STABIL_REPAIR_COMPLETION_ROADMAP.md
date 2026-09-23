@@ -145,6 +145,17 @@ mikro-pauz. Materialne K0/K1 i zgody operacyjne pozostają. Jeden szczegółowy
 audyt implementacji/coverage/edge/hardening/K2/K3 wykonuje R23 po ukończeniu
 prac funkcjonalnych. Zmiana jest wyłącznie dokumentacyjna: nie autoryzuje
 source, testów wykonywalnych, CI, Stage B ani operacji produkcyjnych.
+
+**R04-P4B-USABLE-WARM 2026-09-23 — paczka nieaktywna, preflight formalnie
+zablokowany:** właściciel odebrał source
+`49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` wyłącznie jako
+`SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. LOCAL_ONLY window
+`R04-D21-P4B-USABLE-WARM-20260923T170936Z` ma receptę
+`74E5664F...B7D6D`, indeks `6F379DC5...64698` i `8/8` zgodnych bindingów;
+manifest `E139CEC5...357F0` pozostaje `NOT_APPROVED`. Formalna ścieżka
+zatwierdzenia odrzuciła nowy ordinary-token `VerifyOnly` przed startem procesu.
+Nie wykonano Task/Docker/CIM/TCP/HTTP reads, UAC, mutacji ani warm runu; nie
+zastosowano obejścia. `Stage B = NOT_ELIGIBLE / NOT_AUTHORIZED`.
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
 ## 0. Bieżący stan i punkt wznowienia — czytać przed pracą
@@ -161,23 +172,23 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory, a D-23 review `2/2` jest zakończony. Source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` domyka udowodnione Public canonical code-token i Private/Supervisor listener-snapshot paths: PS5.1 real-adapter/plan `53` i plan regression `57` PASS, produkcyjne granice `0`. Kandydat pozostaje `NOT_APPROVED / NOT_DEPLOYED`; installed run01 i Stage B bez zmian. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
-| Checkpoint ID | `R04-D21-20260923T153332Z-REMAINING-PLAN-HOST-OBS-SOURCE` |
-| Ostatnia aktualizacja operacyjna UTC | Brak nowej czynności operacyjnej. Ostatni zachowany odczyt runtime pozostaje `2026-09-23T11:55:13.0319978Z`–`2026-09-23T11:55:14.3740950Z`; bieżąca zmiana jest wyłącznie SOURCE/OFFLINE i dokumentacyjna |
-| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED SOURCE + OFFLINE TEST + COMPLETE R04 PLAN. Granice produkcyjne: `0` |
-| Aktywny pakiet / podetap | R04/D-21/P4-B — kompletna droga pozostałego R04 oraz domknięcie dwóch wykazanych obserwacji usług; `READY_FOR_REVIEW / NOT_DEPLOYED` |
+| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory, a D-23 review `2/2` jest zakończony. Source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` jest teraz `SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. Nieaktywna pochodna USABLE-WARM przeszła lokalną integralność `8/8`, lecz manifest pozostaje `NOT_APPROVED`; formalna ścieżka zatrzymała live read-only preflight przed startem procesu. Installed run01 bez zmian; Stage B `NOT_ELIGIBLE / NOT_AUTHORIZED`. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
+| Checkpoint ID | `R04-D21-P4B-USABLE-WARM-20260923T170936Z` |
+| Ostatnia aktualizacja operacyjna UTC | Nie wykonano czynności operacyjnej. Próba rozpoczęcia exact `VerifyOnly` została formalnie odrzucona przed startem procesu; Task/Docker/CIM/TCP/HTTP reads, UAC, mutacje i warm runs `0` |
+| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED INACTIVE PACKAGE + READ-ONLY PREFLIGHT, zatrzymany na formalnej bramce wykonania |
+| Aktywny pakiet / podetap | R04/D-21/P4-B — `USABLE_WARM_INACTIVE_PACKAGE_LOCAL_INTEGRITY_PASS / LIVE_PREFLIGHT_BLOCKED_NOT_RUN / NOT_DEPLOYED` |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Omyłkowy untracked checkpoint został po exact zgodzie zachowany bajtowo w LOCAL_ONLY i usunięty; oryginalny index i pozostałe pliki nie zostały zmienione |
 | Gałąź / SHA kodu objętego sprawdzeniem | Host-service observation source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc`, launcher raw SHA-256 `686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66`; guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
-| Ostatnia faktycznie zakończona czynność | Opublikowano minimalny source/test diff obserwacji usług; zapisano pełną drogę od run01 do używalnego warm CRM/Web i pełnego R04 oraz związano nieaktywny draft z nowym launcherem |
-| Potwierdzone testy bieżącego wykonania | Windows PowerShell 5.1: real adapter + cały plan przez dolne atrapy `53` asercje PASS; bezpośredni startup-plan `57` PASS; parser zmienionych PS1 PASS. Dokumenty/JSON/CSV/referencje/diff/sekrety są walidowane w końcowym przebiegu |
-| Niezacommitowana praca / zabezpieczenie | Po source commicie wyłącznie jawna dokumentacja i nieaktywny draft w `C:\ai-lab-core-recovery`; historyczne LOCAL_ONLY evidence i run01 bez zmian |
-| Niezakończone procesy i skutki operacyjne | Brak nowych procesów produktu i skutków operacyjnych. Docker/Task/CIM/TCP/HTTP/UAC/Host/start/rollback `0`; installed run01 bez zmian |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260923T153332Z-R04-D21-REMAINING-PLAN-HOST-OBS-SOURCE.md` |
-| Zakres aktualnej zgody | Source/offline wyłącznie dla kanonicznego tokenu procesu i pełnego listener snapshotu, syntetyczne testy, pełny plan R04, nieaktywny draft i dokumentacja. Bez live host/CI/Stage B; D-22 `NOT_RUN` |
-| Blokada / wymagana decyzja | Nowy source i draft wymagają owner review. Installed run01 ma starsze bajty, Host disabled/no-trigger i warm `0/2`. Exact derivative package, świeży preflight oraz osobne bieżące potwierdzenie przed jednym UAC/Stage B nie są jeszcze autoryzowane |
-| Jeden następny bezpieczny krok | Właściciel może zatwierdzić jedno spójne okno `R04-P4B-USABLE-WARM`: exact derivative + fresh preflight, a dopiero po osobnym bieżącym potwierdzeniu jeden UAC, wąska aktualizacja i dwa warm runs |
+| Ostatnia faktycznie zakończona czynność | Przygotowano jedną nieaktywną pochodną USABLE-WARM i potwierdzono jej lokalną integralność `8/8`; live preflight nie wystartował z powodu formalnej odmowy |
+| Potwierdzone testy bieżącego wykonania | Windows PowerShell 5.1 package integrity: `8/8` bindingów, JSON/XML/PS1 parser PASS, recepta różni się od przyjętego preimage wyłącznie OperationId. Wcześniejsze `53/57` source tests pozostają przypięte i nie były powtarzane |
+| Niezacommitowana praca / zabezpieczenie | LOCAL_ONLY `C:\Users\domai\AppData\Local\Temp\P4B-UW-01`; zarezerwowany `apply` nie istnieje. Repo zawiera wyłącznie jawne dokumenty bieżącego wyniku |
+| Niezakończone procesy i skutki operacyjne | Brak procesu VerifyOnly i procesów produktu. Docker/Task/CIM/TCP/HTTP/UAC/Host/start/rollback `0`; installed run01 bez zmian |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260923T172032Z-R04-D21-P4B-USABLE-WARM-PREFLIGHT-BLOCKED.md` |
+| Zakres aktualnej zgody | Źródło jest odebrane SOURCE/OFFLINE; utworzono wyłącznie nieaktywną paczkę i lokalne dowody. Formalna odmowa zakończyła live preflight; brak zgody na obejście, UAC lub Stage B |
+| Blokada / wymagana decyzja | Formalny mechanizm nie uznał zgody dla live odczytu nowego okna i nie dopuścił przygotowania `APPROVED_FOR_START`. Manifest jest `NOT_APPROVED`, live gate nie ma bieżącego dowodu i Stage B nie kwalifikuje się do potwierdzenia |
+| Jeden następny bezpieczny krok | W przewidzianej ścieżce zatwierdzić exact read-only preflight okna `R04-D21-P4B-USABLE-WARM-20260923T170936Z`; każda późniejsza zmiana statusu exact manifestu wymaga osobnego jawnego objęcia zgodą |
 | Warunek STOP | Brak kolejnego UAC, retry Host/launchera/instalatora, niezależnego rollbacku, logon/reboot, Supervisora, backup/restore, relokacji, P5/R06 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik

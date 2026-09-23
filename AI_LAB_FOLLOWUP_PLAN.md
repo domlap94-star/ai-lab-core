@@ -3399,3 +3399,18 @@ owner acceptance. The immediate next decision, after review of the published
 source and inactive bindings, is only window (1). It requires a fresh explicit
 operational authorization before host reads, UAC, installation or starts.
 D-22 remains unchanged and `NOT_RUN` until R04 is completed and accepted.
+
+**P4/B USABLE-WARM INACTIVE PACKAGE + FORMAL PREFLIGHT BLOCK — 2026-09-23.**
+The owner accepted source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc`
+only as `SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. A single LOCAL_ONLY
+derivative for `R04-D21-P4B-USABLE-WARM-20260923T170936Z` binds launcher
+`686F4EC8...14B66`, unchanged runtime/recorder/XML and a `NOT_APPROVED`
+candidate manifest. Windows PowerShell 5.1 local integrity passed `8/8`
+bindings and JSON/XML/PS1 parsing; the package index is
+`6F379DC5...64698` and recipe is `74E5664F...B7D6D`. The prescribed execution
+approval path then rejected the exact ordinary-token `VerifyOnly` before
+process start. No Task/Docker/CIM/TCP/HTTP read, UAC, mutation, Host start or
+warm run occurred. The refusal was not bypassed. Stage B is
+`NOT_ELIGIBLE / NOT_AUTHORIZED`; any future manifest approval and exact live
+preflight require an explicit recognized decision. D-23 remains `2/2`; D-22
+remains `NOT_RUN`.

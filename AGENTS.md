@@ -372,6 +372,16 @@
   channels, or request Stage B automatically. Stage B remains blocked and
   unauthorized pending an owner/security decision through the prescribed
   approval path; D-23 remains `2/2` and D-22 remains `NOT_RUN`.
+- On 2026-09-23 the owner accepted host-service observation source
+  `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` only as
+  `SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. Window
+  `R04-D21-P4B-USABLE-WARM-20260923T170936Z` has a LOCAL_ONLY inactive package
+  whose 8/8 bindings and PS5.1 parsers pass, but its manifest remains
+  `NOT_APPROVED`. The prescribed approval path rejected the new window's live
+  read-only `VerifyOnly` before process start. Do not retry through another
+  channel, ask for UAC, install, start Host, or infer current Docker/task/HTTP
+  state. Stage B is not eligible or authorized; D-23 stays `2/2` and D-22
+  stays `NOT_RUN`.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

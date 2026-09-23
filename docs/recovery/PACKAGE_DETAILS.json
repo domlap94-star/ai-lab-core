@@ -709,7 +709,7 @@
         "next_action": "OWNER_DECISION_ONE_CONSOLIDATED_SOURCE_OFFLINE_CANONICAL_CODE_TOKEN_AND_BOUNDED_LISTENER_SNAPSHOT_FIX"
       },
       "host_service_observation_source_and_remaining_r04_plan": {
-        "status": "HOST_SERVICE_PROCESS_AND_LISTENER_OBSERVATION_SOURCE_READY_FOR_REVIEW_OFFLINE_TESTS_PASS_NOT_DEPLOYED",
+        "status": "HOST_SERVICE_PROCESS_AND_LISTENER_OBSERVATION_SOURCE_ACCEPTED_OFFLINE_TESTS_PASS_NOT_DEPLOYED",
         "source_commit": "49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc",
         "launcher_sha256": "686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66",
         "launcher_size_bytes": 79010,
@@ -724,13 +724,33 @@
         "installed_run01_changed": false,
         "d23_review_cycle": "2_OF_2_PRESERVED",
         "remaining_r04_plan": "WARM_USABLE_CRM_WEB_THEN_ONE_ENTRY_LOGON_COLD_THEN_DATA_D_AND_BACKUP_PROOF_THEN_COMPATIBILITY_ACCEPTANCE",
-        "next_window": "R04_P4B_USABLE_WARM_REQUIRES_NEW_OWNER_APPROVAL_AND_SEPARATE_CURRENT_CONFIRMATION_BEFORE_UAC"
+        "next_window": "R04_P4B_USABLE_WARM_OWNER_AUTHORIZED_PREPARATION_LIVE_PREFLIGHT_FORMALLY_BLOCKED"
+      },
+      "usable_warm_preflight": {
+        "status": "INACTIVE_PACKAGE_LOCAL_INTEGRITY_PASS_LIVE_READ_ONLY_PREFLIGHT_FORMALLY_BLOCKED_NOT_RUN_STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED",
+        "window_id": "R04-D21-P4B-USABLE-WARM-20260923T170936Z",
+        "entry_evidence_head": "3afe74be23ad6bbd413b4c90d3153bdccaaef0dc",
+        "accepted_source": "49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc",
+        "recipe_sha256": "74E5664F50CCAE9E641BC076390CE17A769C2E6F1D6F109FB6990C80220B7D6D",
+        "package_index_sha256": "6F379DC5330D902CEC30F72E5B4C2CD190FC923AF195B275FF9FF7BA56D64698",
+        "launcher_sha256": "686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66",
+        "runtime_sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732",
+        "recorder_sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
+        "manifest_sha256": "E139CEC5E8011EF38A6A641DF7E68399F968ACF5350E216179395E895C8357F0",
+        "manifest_status": "NOT_APPROVED",
+        "payload_bindings": "8_OF_8_PASS_PS51",
+        "reserved_output_root": "C:\\Users\\domai\\AppData\\Local\\Temp\\P4B-UW-01\\apply",
+        "reserved_output_root_created": false,
+        "formal_verifyonly_result": "REJECTED_BEFORE_PROCESS_START_NO_RETRY_NO_ALTERNATE_CHANNEL",
+        "task_docker_cim_tcp_http_reads": 0,
+        "task_writes_starts_uac_install_warm_rollback": 0,
+        "installed_run01_changed": false
       },
       "live_mutations": 0,
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_REVIEW_SOURCE_AND_COMPLETE_PLAN_THEN_ONE_COHERENT_R04_P4B_USABLE_WARM_WINDOW_NO_STAGE_B_AUTHORIZED"
+      "next_action": "PRESCRIBED_APPROVAL_PATH_FOR_EXACT_READ_ONLY_USABLE_WARM_PREFLIGHT_AND_SEPARATE_EXPLICIT_MANIFEST_APPROVAL_BEFORE_ANY_STAGE_B"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

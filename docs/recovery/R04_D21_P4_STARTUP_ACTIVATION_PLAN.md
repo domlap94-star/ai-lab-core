@@ -1428,3 +1428,41 @@ autoryzacja Stage B.
 Status: `HOST_SERVICE_PROCESS_AND_LISTENER_OBSERVATION_SOURCE_READY_FOR_REVIEW /
 OFFLINE_TESTS_PASS / INACTIVE_CANDIDATE_BOUND / NOT_DEPLOYED /
 STAGE_B_NOT_AUTHORIZED`.
+
+## 41. USABLE-WARM — nieaktywna pochodna i formalna blokada preflightu
+
+Właściciel przyjął source
+`49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` wyłącznie jako
+`SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. Dla window
+`R04-D21-P4B-USABLE-WARM-20260923T170936Z` utworzono jeden LOCAL_ONLY root
+`C:\Users\domai\AppData\Local\Temp\P4B-UW-01`. Recepta
+`74E5664F50CCAE9E641BC076390CE17A769C2E6F1D6F109FB6990C80220B7D6D`
+różni się od odebranej `CA6A5DCC...87157` tylko dokładnym OperationId. Indeks
+ma SHA-256 `6F379DC5330D902CEC30F72E5B4C2CD190FC923AF195B275FF9FF7BA56D64698`.
+Launcher/runtime/recorder mają odpowiednio `686F4EC8...14B66`,
+`959768E2...B0732`, `D21A3E6...452A`; cztery XML-e i helper pozostają KEEP.
+
+Candidate manifest `31584` B /
+`E139CEC5E8011EF38A6A641DF7E68399F968ACF5350E216179395E895C8357F0`
+ma `approval.status=NOT_APPROVED`, a oba pola authorization są `false`.
+Próba utworzenia wariantu `APPROVED_FOR_START` została formalnie odrzucona,
+ponieważ bieżąca faza obejmowała paczkę nieaktywną, nie aktywację. Odrzucenia
+nie obchodzono.
+
+Lokalna kontrola Windows PowerShell 5.1 przeszła `8/8` bindingów, JSON/XML/PS1
+parser oraz exact recipe-ID-only diff. Historyczny XML preimage zachowano bez
+zmian; pierwszy lokalny parser otworzył go błędnie według deklaracji encoding,
+a poprawiony test użył tej samej bezpiecznej ścieżki tekst/StringReader co
+recepta i przeszedł.
+
+Exact ordinary-token `VerifyOnly` został następnie odrzucony przez formalną
+ścieżkę zatwierdzenia przed startem procesu: nowa paczka miała odczytać live
+task/system state, a mechanizm nie uznał bieżącej autoryzacji okna. Nie wykonano
+alternatywnego runnera ani pozostałych odczytów. Task Scheduler reads/writes/
+starts, Docker/CIM/TCP/HTTP reads, UAC, instalacja, Host start, warm run i
+rollback wynoszą `0`. Zarezerwowany `...\P4B-UW-01\apply` pozostaje nieobecny.
+
+Status: `P4B_USABLE_WARM_INACTIVE_PACKAGE_LOCAL_INTEGRITY_PASS /
+LIVE_READ_ONLY_PREFLIGHT_FORMALLY_BLOCKED_NOT_RUN / MANIFEST_NOT_APPROVED /
+STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED`. Nie przedstawiamy zdania zgody na UAC,
+ponieważ wymagane bramki bieżącego runtime nie zostały wykonane.
