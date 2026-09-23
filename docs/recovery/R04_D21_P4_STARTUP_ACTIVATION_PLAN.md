@@ -1299,3 +1299,64 @@ jedna poprawiona process-only projekcja PID `41784` (CreationDate, executable,
 bezpieczne token comparison), bez powtarzania tasków/listenerów. Dopiero ten
 wynik może domknąć jeden skonsolidowany source/offline diff; nie ma zgody na
 Stage B, UAC, start, task write ani produktową poprawkę.
+
+## 39. Public Gateway PID 41784 — process-only rozstrzygnięcie reprezentacji
+
+Po owner-authorized przygotowaniu projekcja i harness przeszły pod exact Windows
+PowerShell 5.1 `10/10` przypadków i `113` asercji. Testy objęły relative/absolute
+code token, inny executable, dodatkowy argument, brak CommandLine,
+ExecutablePath lub CreationDate, pusty wynik, access denied oraz awarię
+formattera po utrwaleniu podstawowej projekcji. Produkcyjne zapytania procesu w
+tej kampanii offline wyniosły `0`, a dzieci `10/10` zostały rozliczone.
+
+Następnie wykonano dokładnie jedno
+`Get-CimInstance -ClassName Win32_Process -Filter 'ProcessId = 41784'` pod
+`C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` 5.1, zwykłym
+tokenem. Okno procesu: `2026-09-23T11:55:13.0319978Z`–
+`2026-09-23T11:55:14.3740950Z`; PID dziecka `44112`, exit `0`, timeout `false`,
+retry `0`. Odczyty task/listener/innego PID i starts/writes wyniosły `0`.
+CommandLine przetworzono tylko w pamięci; w dowodzie pozostała wyłącznie
+bezpieczna projekcja.
+
+| Warunek | Expected | Observed | Wynik |
+|---|---|---|---|
+| PID / proces | `41784`, jeden rekord | `41784`, `node.exe`, `OBSERVED_COMPLETE` | MATCH |
+| Executable | `C:\Program Files\nodejs\node.exe` | ta sama ścieżka | MATCH |
+| Code token | `operations/gateway/public_web_server.cjs` | `C:\ai-lab-core\operations\gateway\public_web_server.cjs` | RAW MISMATCH |
+| Rozwiązana ścieżka kodu | kanoniczny skrypt Public Gateway | ten sam kanoniczny skrypt | MATCH |
+| Argumenty | dokładnie dwa tokeny, bez extras | `argv_count=2`, reszta zgodna, extras `false` | MATCH |
+| CreationDate | wymagany poprawny czas | `2026-09-14T17:09:01.3918090Z` | OBSERVED |
+
+Historyczny listener `127.0.0.1:8789`, PID `41784`, został odczytany
+`2026-09-23T09:44:45.3839234Z`. CreationDate poprzedza ten odczyt i późniejsze
+zapytanie procesu, więc istnieje udowodniona czasowa ciągłość tej instancji.
+Ponieważ w tej operacji TCP nie był ponownie odczytany, nie jest to świeży
+dowód bieżącego ownership portu.
+
+Replay na zachowanych, bezpiecznych danych wywołał niezmienione
+`New-RealStartupAdapters` i `ObserveHostService`, z wszystkimi granicami
+systemowymi zastąpionymi odmowami/fixture. Wynik pozostał `CONFLICT /
+PORT_OWNERSHIP_CONFLICT`, `match_count=0`, external boundaries i starts/writes
+`0`. Pierwszy warunek odrzucający to
+`RAW_CODE_TOKEN_MISMATCH_AFTER_RESOLVED_PATH_MATCH`: zaakceptowany kod wylicza
+poprawny `actualCodePath`, lecz później wymaga literalnej równości tokenu.
+Public nie jest więc udowodnionym obcym procesem; odtworzono wadę reprezentacji.
+
+LOCAL_ONLY: test summary `5140` B /
+`CBF4F4CFB12E51265E283257D558EE9BF342F0BAF31AA2A2FA0761CA770468BE`, live
+result `1377` B /
+`3FACBFE6C078201860552E1CF1A32D4C8196B594A889587C22C7F1DC56DF0D7E`, adapter
+replay `1016` B /
+`10FE95CE3E91A4D9FA8A3BAC4CD42E46AFEC7D6807261BB11E621BAB585692A0`, analysis
+`3021` B /
+`88A789F69178B42B86770E13AEE909C2225A7092FDADC897FAD2D680F2B1AD56`.
+
+Status:
+`PUBLIC_GATEWAY_REPRESENTATION_DIFFERENCE_PROVEN /
+PRIVATE_SUPERVISOR_LISTENER_EMPTY_NORMALIZATION_REPRODUCED /
+SOURCE_FIX_NOT_AUTHORIZED / STAGE_B_BLOCKED_NOT_AUTHORIZED`. Minimalny następny
+zakres do jednej decyzji to skonsolidowany SOURCE/OFFLINE diff: kanoniczne
+porównanie tylko code tokenu przy zachowaniu exact executable, liczby tokenów,
+pozostałych argumentów i odrzucenia extras oraz udany bounded snapshot
+listenerów z lokalnym filtrem exact port; błędy providera/odczytu nadal muszą
+dawać `UNKNOWN`.
