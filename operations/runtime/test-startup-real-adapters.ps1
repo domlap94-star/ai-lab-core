@@ -206,25 +206,22 @@ function New-HostCommandBoundary {
         return @($BoundaryState.shared_processes)
     }
     $getListeners = {
-        param($Expected, $BoundaryState)
-        $mode = if ($BoundaryState.listener_modes.ContainsKey([string]$Expected.name)) { [string]$BoundaryState.listener_modes[[string]$Expected.name] } else { 'RETURN' }
+        param($BoundaryState)
+        if ($args.Count -ne 0) { throw 'SYNTHETIC_LISTENER_BOUNDARY_MUST_NOT_RECEIVE_A_PORT_SELECTOR' }
+        $mode = [string]$BoundaryState.listener_mode
         if ($mode -eq 'NOT_FOUND') {
             $exception = New-Object System.Management.Automation.ItemNotFoundException 'synthetic listener query found no match'
             $record = New-Object System.Management.Automation.ErrorRecord(
                 $exception,
                 'CmdletizationQuery_NotFound_LocalPort,Get-NetTCPConnection',
                 [System.Management.Automation.ErrorCategory]::ObjectNotFound,
-                ([int]$Expected.listener_port)
+                'synthetic-provider-target'
             )
             throw $record
         }
         if ($mode -eq 'ACCESS_DENIED') { throw [System.UnauthorizedAccessException]::new('synthetic TCP access denied') }
         if ($mode -eq 'PROVIDER_ERROR') { throw [System.InvalidOperationException]::new('synthetic TCP provider error') }
-        $matches = New-Object System.Collections.Generic.List[object]
-        foreach ($listener in @($BoundaryState.shared_listeners)) {
-            if ([int]$listener.LocalPort -eq [int]$Expected.listener_port) { $matches.Add($listener) }
-        }
-        return $matches.ToArray()
+        return @($BoundaryState.shared_listeners)
     }
     $startTask = {
         param($Expected, $BoundaryState)
@@ -246,7 +243,7 @@ function New-CommandPipelineState {
     $base.shared_processes = @()
     $base.shared_listeners = @()
     $base.task_modes = @{}
-    $base.listener_modes = @{}
+    $base.listener_mode = 'RETURN'
     $base.process_mode = 'RETURN'
     $base.start_mode = 'SUCCESS'
     $base.cooperative_task_delay_ms = 0
@@ -280,7 +277,7 @@ function New-CommandPipelineSystemBoundary {
             $newProcessId = [int]$State.next_process_id
             $State.shared_processes += New-SharedProcessRecord -Service $Expected -ProcessId $newProcessId -AdditionalArguments @()
             $State.shared_listeners += New-SharedListenerRecord -Service $Expected -ProcessId $newProcessId
-            $State.listener_modes[$name] = 'RETURN'
+            $State.listener_mode = 'RETURN'
         }
         return $operationResult
     }.GetNewClosure()
@@ -481,16 +478,19 @@ try {
         (New-SharedProcessRecord -Service $private -ProcessId 4102 -AdditionalArguments @()),
         (New-SharedProcessRecord -Service $otherService -ProcessId 4103 -AdditionalArguments @())
     )
+    $state.shared_processes[0].CommandLine = Join-WindowsNativeArguments -ArgumentList @(
+        [string]$public.executable,
+        [System.IO.Path]::GetFullPath((Join-Path ([string]$public.working_directory) ([string]$public.arguments[0])))
+    )
     $state.shared_listeners = @(
         (New-SharedListenerRecord -Service $public -ProcessId 4101),
         (New-SharedListenerRecord -Service $private -ProcessId 4102)
     )
-    $state.listener_modes.supervisor = 'NOT_FOUND'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
-    Assert-Adapter ($result.code -eq 'BASE_READY_LIMITED' -and $result.supervisor_status -eq 'INTENTIONALLY_STOPPED') ('RV03-POSITIVE-01 shared node process image is classified by exact script and port ownership; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress) + '; calls=' + (@($state.calls) -join ',') + '; lower=' + (@($state.lower_boundary_calls) -join ','))
+    Assert-Adapter ($result.code -eq 'BASE_READY_LIMITED' -and $result.supervisor_status -eq 'INTENTIONALLY_STOPPED') ('RV03-POSITIVE-01 shared node process image is classified by canonical script and port ownership, including absolute observed versus relative expected code token; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress) + '; calls=' + (@($state.calls) -join ',') + '; lower=' + (@($state.lower_boundary_calls) -join ','))
     Assert-Adapter ($state.host_start_count.Count -eq 0) 'RV03-POSITIVE-01 public/private coexistence preserves both services and starts nothing'
     Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -match '^OBSERVE:(public_gateway|private_gateway|supervisor):GET_PROCESSES$' }).Count -eq 3) 'RV03-POSITIVE-01 every service observes the same untrimmed global process set through the worker branch'
-    Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -eq 'OBSERVE:supervisor:GET_LISTENERS' }).Count -eq 1) 'RV03-POSITIVE-02 structured no-listener result executes and normalizes in the worker branch'
+    Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -eq 'OBSERVE:supervisor:GET_LISTENERS' }).Count -eq 1) 'RV03-POSITIVE-02 one complete global listener snapshot is locally filtered to confirmed absence for Supervisor'
 
     $state = New-CommandPipelineState $commandManifest
     $state.shared_processes = @(
@@ -498,8 +498,6 @@ try {
         (New-SharedProcessRecord -Service $otherService -ProcessId 4203 -AdditionalArguments @())
     )
     $state.shared_listeners = @((New-SharedListenerRecord -Service $private -ProcessId 4202))
-    $state.listener_modes.public_gateway = 'NOT_FOUND'
-    $state.listener_modes.supervisor = 'NOT_FOUND'
     $firstMissingPublic = Invoke-CommandPipelinePlan $commandManifest $state
     $secondMissingPublic = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($firstMissingPublic.code -eq 'BASE_READY_LIMITED' -and $secondMissingPublic.code -eq 'BASE_READY_LIMITED') 'RV03-POSITIVE-01 missing public gateway reaches START_ONCE/readiness and remains ready on the next plan'
@@ -507,9 +505,14 @@ try {
     Assert-Adapter (@($state.lower_boundary_calls | Where-Object { $_ -eq 'START:public_gateway:START_TASK' }).Count -eq 1) 'RV03-POSITIVE-01 the one start passes through the real internal START command branch'
 
     $state = New-CommandPipelineState $commandManifest
+    $state.shared_processes = @((New-SharedProcessRecord -Service $otherService -ProcessId 4250 -AdditionalArguments @()))
+    $state.shared_listeners = @((New-SharedListenerRecord -Service $public -ProcessId 4250))
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'HOST_SERVICE_IDENTITY_MISMATCH' -and $state.host_start_count.Count -eq 0) 'RV03 a different script owning the approved service port remains a conflict and is never adopted'
+
+    $state = New-CommandPipelineState $commandManifest
     $state.shared_processes = @((New-SharedProcessRecord -Service $public -ProcessId 4301 -AdditionalArguments @('--foreign')))
     $state.shared_listeners = @()
-    $state.listener_modes.supervisor = 'NOT_FOUND'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($result.code -eq 'HOST_SERVICE_IDENTITY_MISMATCH' -and $state.host_start_count.Count -eq 0) 'RV03 same approved script with additional argument remains a conflict'
 
@@ -518,7 +521,6 @@ try {
     $prefixedProcess.CommandLine = Join-WindowsNativeArguments -ArgumentList @([string]$public.executable, '--foreign', [string]$public.arguments[0])
     $state.shared_processes = @($prefixedProcess)
     $state.shared_listeners = @()
-    $state.listener_modes.supervisor = 'NOT_FOUND'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($result.code -eq 'HOST_SERVICE_IDENTITY_MISMATCH' -and $state.host_start_count.Count -eq 0) 'RV03 same approved script with an unapproved prefix argument remains a conflict'
 
@@ -528,15 +530,12 @@ try {
         (New-SharedProcessRecord -Service $public -ProcessId 4402 -AdditionalArguments @())
     )
     $state.shared_listeners = @((New-SharedListenerRecord -Service $public -ProcessId 4401))
-    $state.listener_modes.supervisor = 'NOT_FOUND'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($result.code -eq 'HOST_SERVICE_AMBIGUOUS' -and $state.host_start_count.Count -eq 0) 'RV03 duplicate exact processes remain ambiguous and cannot be started'
 
     $state = New-CommandPipelineState $commandManifest
     $state.shared_processes = @((New-SharedProcessRecord -Service $public -ProcessId 4501 -AdditionalArguments @()))
     $state.shared_listeners = @()
-    $state.listener_modes.supervisor = 'NOT_FOUND'
-    $state.listener_modes.public_gateway = 'NOT_FOUND'
     $presentWithoutListenerAdapters = New-RealStartupAdapters -Manifest $commandManifest -SystemBoundary (New-CommandPipelineSystemBoundary $state)
     $presentWithoutListener = ConvertTo-StartupHostObservation (& $presentWithoutListenerAdapters.ObserveHostService $public 1000)
     Assert-Adapter ($presentWithoutListener.status -eq 'PRESENT' -and -not $presentWithoutListener.matches[0].listener_ready) 'RV03-POSITIVE-02 exact process with confirmed absent listener remains PRESENT/not-ready'
@@ -554,9 +553,14 @@ try {
     Assert-Adapter ($result.code -eq 'CONTROLLED_DEPLOY_REQUIRED' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 structural scheduled-task no-match requires controlled install and starts nothing'
 
     $state = New-CommandPipelineState $commandManifest
-    $state.listener_modes.supervisor = 'ACCESS_DENIED'
+    $state.listener_mode = 'ACCESS_DENIED'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 listener access denial remains UNKNOWN and starts nothing'
+
+    $state = New-CommandPipelineState $commandManifest
+    $state.listener_mode = 'NOT_FOUND'
+    $result = Invoke-CommandPipelinePlan $commandManifest $state
+    Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 provider ObjectNotFound from the complete listener snapshot remains UNKNOWN and is not normalized to absence'
 
     $state = New-CommandPipelineState $commandManifest
     $state.task_modes.supervisor = 'ACCESS_DENIED'
@@ -571,13 +575,12 @@ try {
     }
 
     $state = New-CommandPipelineState $commandManifest
-    $state.listener_modes.supervisor = 'PROVIDER_ERROR'
+    $state.listener_mode = 'PROVIDER_ERROR'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 listener provider error remains UNKNOWN and starts nothing'
 
     $state = New-CommandPipelineState $commandManifest
     $state.shared_processes = @([pscustomobject]@{ ProcessId = 4601; ExecutablePath = ''; CommandLine = ''; CreationDate = [datetime]'2026-09-15T12:34:56Z' })
-    $state.listener_modes.supervisor = 'NOT_FOUND'
     $result = Invoke-CommandPipelinePlan $commandManifest $state
     Assert-Adapter ($result.code -eq 'SUPERVISOR_STATE_UNKNOWN' -and $state.host_start_count.Count -eq 0) 'RV03-POSITIVE-02 incomplete process identity remains UNKNOWN and starts nothing'
 

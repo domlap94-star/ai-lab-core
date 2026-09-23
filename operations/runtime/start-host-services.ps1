@@ -343,9 +343,6 @@ function Invoke-BoundedStartupHostOperation {
             if ($Query -ceq 'GET_SCHEDULED_TASK') {
                 return $targetMatches -and $errorId -match '^CmdletizationQuery_NotFound(?:_[A-Za-z0-9]+)*,Get-ScheduledTask$'
             }
-            if ($Query -ceq 'GET_NET_TCP_LISTENER') {
-                return $targetMatches -and $errorId -match '^CmdletizationQuery_NotFound(?:_[A-Za-z0-9]+)*,Get-NetTCPConnection$'
-            }
             return $false
         }
 
@@ -444,22 +441,18 @@ function Invoke-BoundedStartupHostOperation {
             if ($null -ne $TestCommands) {
                 $testCalls.Add('GET_LISTENERS')
                 $listenerCommand = $TestCommands.PSObject.Properties['GetListeners'].Value
-                $rawListeners = @(& $listenerCommand $SelectedExpected $TestCommands.PSObject.Properties['State'].Value)
+                $rawListeners = @(& $listenerCommand $TestCommands.PSObject.Properties['State'].Value)
             }
             else {
-                $rawListeners = @(Get-NetTCPConnection -State Listen -LocalPort ([int]$SelectedExpected.listener_port) -ErrorAction Stop)
+                $rawListeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop)
             }
         }
         catch {
-            if (Test-ExpectedEmptyResultError -ErrorRecord $_ -Query 'GET_NET_TCP_LISTENER' -ExpectedTarget $SelectedExpected.listener_port) {
-                $rawListeners = @()
-                $normalizedEmptyResult = 'GET_NET_TCP_LISTENER'
-            }
-            else {
-                return [pscustomobject]@{ status = 'OBSERVATION_UNKNOWN'; task = $taskData; processes = $processes; listeners = @(); lower_boundary_calls = $testCalls.ToArray() }
-            }
+            return [pscustomobject]@{ status = 'OBSERVATION_UNKNOWN'; task = $taskData; processes = $processes; listeners = @(); lower_boundary_calls = $testCalls.ToArray() }
         }
-        $listeners = @($rawListeners | ForEach-Object {
+        $listeners = @($rawListeners | Where-Object {
+            [int]$_.LocalPort -eq [int]$SelectedExpected.listener_port
+        } | ForEach-Object {
             [pscustomobject]@{
                 local_address = [string]$_.LocalAddress
                 local_port = [int]$_.LocalPort
@@ -498,7 +491,6 @@ function Invoke-BoundedStartupHostOperation {
                 $workerStatus = [string](Get-StartupProperty -InputObject $items[0] -Name 'status')
                 $normalizedEmptyResult = [string](Get-StartupProperty -InputObject $items[0] -Name 'normalized_empty_result')
                 $caughtErrorWasFailClosed = ($workerStatus -eq 'OBSERVATION_UNKNOWN' -or $workerStatus -eq 'START_UNKNOWN' -or
-                    ($workerStatus -eq 'SUCCESS' -and $normalizedEmptyResult -eq 'GET_NET_TCP_LISTENER') -or
                     ($workerStatus -eq 'CONTROLLED_DEPLOY_REQUIRED' -and $normalizedEmptyResult -eq 'GET_SCHEDULED_TASK'))
             }
             if ($items.Count -ne 1 -or ($powerShell.HadErrors -and -not $caughtErrorWasFailClosed)) {
@@ -849,12 +841,18 @@ function New-RealStartupAdapters {
         }
         $codeArgumentIndex = $codeArgumentIndexes[0]
         $expectedTokens = @($expectedExecutable) + $expectedArguments
+        $approvedCodeRoot = try { [System.IO.Path]::GetFullPath($approvedRoot).TrimEnd('\') }
+        catch { return [pscustomobject]@{ observation_status = 'UNKNOWN'; matches = @(); detail = 'APPROVED_ROOT_INVALID' } }
+        $approvedCodeRootPrefix = $approvedCodeRoot + '\'
         $expectedCodePath = try {
             $codeArgument = $expectedArguments[$codeArgumentIndex]
             if ([System.IO.Path]::IsPathRooted($codeArgument)) { [System.IO.Path]::GetFullPath($codeArgument) }
             else { [System.IO.Path]::GetFullPath((Join-Path $expectedWorkingDirectory $codeArgument)) }
         }
         catch { return [pscustomobject]@{ observation_status = 'UNKNOWN'; matches = @(); detail = 'EXPECTED_CODE_ARGUMENT_INVALID' } }
+        if (-not $expectedCodePath.StartsWith($approvedCodeRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return [pscustomobject]@{ observation_status = 'UNKNOWN'; matches = @(); detail = 'EXPECTED_CODE_ARGUMENT_OUTSIDE_APPROVED_ROOT' }
+        }
         foreach ($process in $processes) {
             $actualExecutable = [string](Get-StartupProperty -InputObject $process -Name 'executable_path')
             $actualCommandLine = ([string](Get-StartupProperty -InputObject $process -Name 'command_line')).Trim()
@@ -875,7 +873,8 @@ function New-RealStartupAdapters {
             }
             catch { $null }
             if ($null -eq $actualCodePath) { $unknownProcessEvidence = $true; continue }
-            $referencesExpectedCode = $actualCodePath.Equals($expectedCodePath, [System.StringComparison]::OrdinalIgnoreCase)
+            $actualCodeWithinApprovedRoot = $actualCodePath.StartsWith($approvedCodeRootPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+            $referencesExpectedCode = $actualCodeWithinApprovedRoot -and $actualCodePath.Equals($expectedCodePath, [System.StringComparison]::OrdinalIgnoreCase)
             if (-not $referencesExpectedCode) {
                 for ($actualTokenIndex = 1; $actualTokenIndex -lt $actualTokens.Count; $actualTokenIndex++) {
                     $candidatePath = try {
@@ -892,7 +891,11 @@ function New-RealStartupAdapters {
             $allTokensMatch = ($actualTokens.Count -eq $expectedTokens.Count)
             if ($allTokensMatch) {
                 for ($tokenIndex = 0; $tokenIndex -lt $expectedTokens.Count; $tokenIndex++) {
-                    $comparison = if ($tokenIndex -eq 0 -or $tokenIndex -eq (1 + $codeArgumentIndex)) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+                    if ($tokenIndex -eq (1 + $codeArgumentIndex)) {
+                        if (-not $referencesExpectedCode) { $allTokensMatch = $false; break }
+                        continue
+                    }
+                    $comparison = if ($tokenIndex -eq 0) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
                     if (-not $actualTokens[$tokenIndex].Equals([string]$expectedTokens[$tokenIndex], $comparison)) { $allTokensMatch = $false; break }
                 }
             }

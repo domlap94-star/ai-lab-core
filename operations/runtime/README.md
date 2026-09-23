@@ -56,13 +56,15 @@ The manifest validator also binds each host-service `script_ref` to the one
 code-file argument actually selected by that service action. A task action
 that consistently points at another in-root file (or at recovery/staging)
 cannot make an internally inconsistent manifest valid.
-Runtime task identity parses the observed Windows argument string and resolves
-the single approved code argument against the exact approved working directory.
-The same in-root script is therefore identical whether Task Scheduler exports
-that token as a quoted absolute path or the manifest stores it as a relative
-path. The executable, working directory, token count, every non-code argument,
-script role and canonical-root boundary remain exact; another script, extra
-argument, different CWD or recovery/staging path is still a refusal.
+Runtime task and process identity parse the observed Windows argument string and
+resolve the single approved code argument against the exact approved working
+directory. The same in-root script is therefore identical whether Task
+Scheduler or the running process reports that token as a quoted absolute path
+or the manifest stores it as a relative path. Only that code token receives
+canonical path comparison. The executable, working directory, token count,
+every non-code argument, script role and canonical-root boundary remain exact;
+another script, extra argument, different CWD or recovery/staging path is still
+a refusal.
 
 `data_topology` is the only reparse-point exception. Version
 `NEXT_STABIL_DATA_TOPOLOGY_V1` permits the exact directory junction
@@ -198,17 +200,18 @@ operation before a system cmdlet can be selected.
 Container identity distinguishes configured `HostConfig.PortBindings` from
 active `NetworkSettings.Ports`: a stopped container must retain the approved
 configuration before its one exact-ID start, and a running container must then
-show the approved active mapping. Host observation examines all listeners on
-the required port independently of process matching, rejects wildcard/foreign
-owners and extra command-line arguments for the approved script. Multiple
-services may share one interpreter such as `node.exe`: an unambiguously
-different script that does not own the required port is not a conflict, while
-the approved script with changed arguments, duplicate matching processes, or a
-foreign port owner remains blocking. Only the documented structural no-match
-results for `Get-Process` and the listener query become confirmed absence;
-access denial, unavailable modules/providers, incomplete evidence and unknown
-errors remain `UNKNOWN`. An exact process without its listener is present but
-not ready and is never duplicated.
+show the approved active mapping. Host observation takes one complete bounded
+`Get-NetTCPConnection -State Listen` snapshot without a port selector and then
+filters the exact port locally. A successful complete snapshot with no matching
+port proves listener absence; timeout, provider/read failure or incomplete
+evidence remains `UNKNOWN`. The filtered result is evaluated independently of
+process matching and rejects wildcard/foreign owners. Multiple services may
+share one interpreter such as `node.exe`: an unambiguously different script
+that does not own the required port is not a conflict, while the approved script
+with changed arguments, duplicate matching processes, or a foreign port owner
+remains blocking. Only the documented structural no-match result for
+`Get-Process` becomes confirmed process absence. An exact process without its
+listener is present but not ready and is never duplicated.
 
 ## P1 verification
 
