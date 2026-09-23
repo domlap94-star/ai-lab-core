@@ -136,6 +136,15 @@ PORT_OWNERSHIP_CONFLICT`. Status:
 `PUBLIC_GATEWAY_REPRESENTATION_DIFFERENCE_PROVEN /
 PRIVATE_SUPERVISOR_LISTENER_EMPTY_NORMALIZATION_REPRODUCED /
 SOURCE_FIX_NOT_AUTHORIZED / STAGE_B_BLOCKED_NOT_AUTHORIZED`.
+
+**D-23 DELIVERY FIRST 2026-09-23:** właściciel zastąpił regułę małych chunków
+i blanketowych testów polityką `COMPLETE_SCOPE_BEFORE_REVIEW`. Jednostką
+wykonania i odbioru jest kompletny rezultat funkcjonalny lub jawnie uzgodniony
+samodzielnie użyteczny segment; checkpointy i etapy techniczne nie wymuszają
+mikro-pauz. Materialne K0/K1 i zgody operacyjne pozostają. Jeden szczegółowy
+audyt implementacji/coverage/edge/hardening/K2/K3 wykonuje R23 po ukończeniu
+prac funkcjonalnych. Zmiana jest wyłącznie dokumentacyjna: nie autoryzuje
+source, testów wykonywalnych, CI, Stage B ani operacji produkcyjnych.
 Wersja 1.1 nie dodaje pakietów produktu. Rozszerza R00 o kontrolowaną publikację planu i checkpointy. Jednorazowe metadane dostarczonego pliku nie są deklaracją bieżącego stanu repo; aktualny stan jest w §0.
 
 ## 0. Bieżący stan i punkt wznowienia — czytać przed pracą
@@ -153,22 +162,22 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
 | Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory SOURCE/OFFLINE / NOT_DEPLOYED, a D-23 review `2/2` jest zakończony. Exact ZIP i pojedynczy VerifyOnly zachowują PASS, a wcześniejszy read-only preflight zachowuje package/container/HTTP/Windows evidence. Exact observer zachowuje Public `CONFLICT`, Private/Supervisor `UNKNOWN`. Private/Supervisor listener-empty normalization oraz Public absolute-vs-relative code-token representation są odtworzone/udowodnione; niezmieniony adapter nadal odmawia. Nie ma runtime PASS ani autoryzacji poprawki. Stage B pozostaje `BLOCKED / NOT_AUTHORIZED`. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
-| Checkpoint ID | `R04-20260923T120440Z-D21-P4B-PUBLIC-PROCESS` |
-| Ostatnia aktualizacja operacyjna UTC | `2026-09-23T11:55:13.0319978Z`–`2026-09-23T11:55:14.3740950Z` — dokładnie jedno process-only zapytanie PS5.1 dla PID `41784`; bez retry i bez innych granic systemowych |
-| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED PROCESS-ONLY READ. Child PID `44112`, exit `0`, timeout `false`, query count `1`; task/listener/other-process reads oraz starts/writes `0`. Offline replay niezmienionego adaptera nie kontaktował hosta |
-| Aktywny pakiet / podetap | `R04 / D-21 / P4-B` — `PUBLIC_GATEWAY_REPRESENTATION_DIFFERENCE_PROVEN / PRIVATE_SUPERVISOR_LISTENER_EMPTY_NORMALIZATION_REPRODUCED / SOURCE_FIX_NOT_AUTHORIZED`; Stage B bez zgody |
+| Checkpoint ID | `D23-20260923T140944Z-DELIVERY-FIRST` |
+| Ostatnia aktualizacja operacyjna UTC | Brak nowej czynności operacyjnej. Ostatni zachowany odczyt runtime pozostaje `2026-09-23T11:55:13.0319978Z`–`2026-09-23T11:55:14.3740950Z`; bieżąca zmiana jest wyłącznie dokumentacyjna |
+| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED DOCUMENTATION ONLY. Zmiany kodu, testy wykonywalne, CI i granice produkcyjne: `0` |
+| Aktywny pakiet / podetap | D-23 `DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW` — synchronizacja aktywnych instrukcji, R04/R23 i rejestrów; techniczny stan R04 bez zmiany |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Omyłkowy untracked checkpoint został po exact zgodzie zachowany bajtowo w LOCAL_ONLY i usunięty; oryginalny index i pozostałe pliki nie zostały zmienione |
 | Gałąź / SHA kodu objętego sprawdzeniem | Guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`, tree `4ccbc8922051401da1422be0d08f271476c3bab6`, preimage `ddec6ea20e2d755354e742e324d0d9cea5e5802f`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; P2 evidence `f872cf9e548a7ec196289e0c1987b654b1017505`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
-| Ostatnia faktycznie zakończona czynność | Po offline `10/10` / `113` wykonano dokładnie jedno process-only zapytanie PID `41784`, zapisano bezpieczną projekcję, skorelowano CreationDate z historycznym listenerem i odtworzono wynik niezmienionego adaptera wyłącznie z zachowanych danych |
-| Potwierdzone testy bieżącego wykonania | PS5.1 parser PASS; process projection offline `10` przypadków / `113` asercji / production process queries `0`; child processes `10/10` rozliczone. Jedno live query exit `0`, timeout `false`; adapter replay `CONFLICT / PORT_OWNERSHIP_CONFLICT`, external boundaries `0` |
-| Niezacommitowana praca / zabezpieczenie | Ignored/local root `C:\ai-lab-core-recovery\build\P4B-HS-REVIEW-01\p1-20260923T113704Z`; `160` plików / `167513` B. Test summary `5140` B / `CBF4F4CF...468BE`, analysis `3021` B / `88A789F6...AD56`, live result `1377` B / `3FACBFE6...DF0D7`, adapter replay `1016` B / `10FE95CE...92A0`. Pełna CommandLine i surowe dane nie trafiają do Git |
-| Niezakończone procesy i skutki operacyjne | Live child i wszystkie offline child processes zakończone; retry `0`. Task/listener/other-process reads, starts/writes, UAC, install, warm runs i rollback `0`. Installed run01 pozostaje bez zmian |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260923T120440Z-R04-D21-P4B-PUBLIC-PROCESS.md` |
-| Zakres aktualnej zgody | Process-only zgoda została wykorzystana. Bez retry i bez poprawki produktu. Nie ma zgody na kolejne task/CIM/TCP/HTTP/Docker reads, Stage B, UAC, instalację, Host/task write/start lub rollback. D-22 `NOT_RUN` |
-| Blokada / wymagana decyzja | Public: relative-vs-absolute representation jest udowodniona, lecz zaakceptowany kod nadal porównuje surowy code token; Private/Supervisor: odtworzona normalizacja listener-empty nadal daje UNKNOWN. To dwa warunki jednego przyszłego diffu SOURCE/OFFLINE, nie zgoda na zmianę teraz |
-| Jeden następny bezpieczny krok | Jedna decyzja właściciela o skonsolidowanym SOURCE/OFFLINE diffie: kanoniczne porównanie wyłącznie code tokenu z zachowaniem exact exe/liczby/pozostałych argumentów oraz bounded snapshot listenerów z lokalnym filtrem portu i UNKNOWN przy błędzie; następnie ograniczone testy obu warunków |
+| Ostatnia faktycznie zakończona czynność | Zapisano D-23 `DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW` w aktywnym łańcuchu instrukcji; nie wykonano ani nie powtórzono operacji R04 |
+| Potwierdzone testy bieżącego wykonania | Tylko walidacja zmienionej dokumentacji, JSON/CSV/referencji, diffu i sekretów; testy produktu/runtime/CI `NOT_RUN` zgodnie z zakresem |
+| Niezacommitowana praca / zabezpieczenie | Wyłącznie jawne pliki dokumentacyjne w `C:\ai-lab-core-recovery`; historyczne LOCAL_ONLY evidence i run01 bez zmian |
+| Niezakończone procesy i skutki operacyjne | Brak nowych procesów produktu i skutków operacyjnych. Docker/Task/CIM/TCP/HTTP/UAC/Host/start/rollback `0`; installed run01 bez zmian |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260923T140944Z-D23-DELIVERY-FIRST.md` |
+| Zakres aktualnej zgody | Wyłącznie dokumentacyjna synchronizacja D-23, aktywnych instrukcji, R04/R23 i rejestrów. Bez code/test/CI/runtime i bez zgody Stage B. D-22 `NOT_RUN` |
+| Blokada / wymagana decyzja | D-23 nie usuwa materialnych bramek R04 ani wymaganych zgód. Dwie udowodnione wady obserwacji pozostają elementami kompletnego pozostałego wyniku R04, bez bieżącej autoryzacji source |
+| Jeden następny bezpieczny krok | Przygotować i przedstawić jeden pełny plan/zakres dokończenia pozostałego R04 wraz z materialnymi zależnościami i potrzebnymi zgodami, zamiast następnego mikro-zlecenia pojedynczego helpera |
 | Warunek STOP | Brak kolejnego UAC, retry Host/launchera/instalatora, niezależnego rollbacku, logon/reboot, Supervisora, backup/restore, relokacji, P5/R06 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -191,6 +200,43 @@ Ta zasada jest decyzją właściciela D-23 i obowiązuje od jej publikacji. Nie
 zmienia statusów wykonania ani odbiorów produktu. Jej celem jest domykanie
 uzgodnionego zakresu bez dokładania kolejnych kryteriów tylko dlatego, że można
 znaleźć dalsze ulepszenia.
+
+<a id="COMPLETE_SCOPE_BEFORE_REVIEW"></a>
+#### DELIVERY FIRST / COMPLETE_SCOPE_BEFORE_REVIEW
+
+Jednostką planowania, wykonania i formalnego odbioru jest kompletny uzgodniony
+rezultat funkcjonalny albo jawnie uzgodniony, samodzielnie użyteczny segment.
+Nie są nią pojedyncze helpery, hashe, testy, odczyty, ZIP-y, commity ani
+checkpointy. Plan przed pracą obejmuje cały rezultat, zależności, kryteria,
+testy, operacyjne bramki i rollback. W granicach bieżącej zgody Codex wykonuje
+kolejne potrzebne etapy techniczne bez mikro-pauz i mikro-promptów aż do
+kompletnego wyniku lub rzeczywistego blokera.
+
+Rozróżniamy dwa poziomy kontroli:
+
+1. **Weryfikacja dostarczenia zakresu** — podczas Rxx sprawdzamy pełny dotknięty
+   workflow, materialną poprawność danych i bezpieczeństwa, kluczowe integracje
+   oraz bezpośrednie regresje. Testy dobiera się do zmiany i dowodu ryzyka; nie
+   uruchamia się blanketowych pełnych kampanii backendu/Fluttera po każdym
+   technicznym podkroku.
+2. **Szczegółowy audyt końcowy** — jeden szeroki audyt implementacji, pokrycia,
+   przypadków brzegowych, hardeningu, martwego kodu oraz nieblokujących K2/K3
+   wykonuje R23 po ukończeniu prac funkcjonalnych. Tego audytu nie duplikuje się
+   w każdym wcześniejszym pakiecie.
+
+Materialne K0/K1 i faktyczne bramki zgody pozostają obowiązujące. Blokują tylko
+zależną ryzykowną operację; bezpieczna, niezależna część już autoryzowanego
+kompletnego zakresu trwa dalej. K2/K3 nie są poprawiane „przy okazji”, nie
+blokują odbioru i nie tworzą automatycznych zadań. Checkpoint dokumentuje stan,
+dowody i możliwość wznowienia, ale sam nie jest obowiązkową pauzą, odbiorem ani
+nową zgodą.
+
+Raport opisuje wynik użytkowy, materialne K0/K1, przeprowadzone adekwatne testy,
+pozostałe realne bramki i jedną drogę do kompletnego wyniku — nie przedstawia
+liczby plików, asercji lub artefaktów jako samodzielnego sukcesu funkcjonalnego.
+W razie sprzeczności z dawną regułą małych chunków lub testów po każdym
+podkroku obowiązuje niniejsze D-23. Historia wcześniejszych odbiorów i dowodów
+pozostaje nienaruszona.
 
 #### Klasy uwag review
 
@@ -226,10 +272,11 @@ Przed zamkniętym zakresem zapisać w istniejącej karcie: cel użytkowy, dozwol
 zmiany, skończoną listę kryteriów, wymagane dowody i jeden następny krok. Po jej
 zamrożeniu nowe `K2/K3` nie rozszerzają odbioru. Nowe `K0/K1` wymagają nowego
 dowodu i związku z bieżącym celem; poszerzenie zmian wymaga decyzji właściciela.
-Po spełnieniu kryteriów i zamknięciu `K0/K1` rekomendować odbiór właściwego
-podetapu albo wykonać już autoryzowany krok, zamiast otwierać kolejną rundę
-ulepszeń. Odbiór podetapu nie jest odbiorem całego R04, ale pozostałe R04 nie
-unieważnia już odebranego podetapu.
+Po spełnieniu kryteriów i zamknięciu `K0/K1` rekomendować odbiór kompletnego
+rezultatu lub wcześniej jawnie uzgodnionego, samodzielnie użytecznego segmentu
+albo wykonać już autoryzowany krok, zamiast otwierać kolejną rundę ulepszeń.
+Techniczny podetap pozostaje dowodem i historią, a nie automatyczną formalną
+jednostką odbioru. Wcześniejsze jawne odbiory zachowują ważność.
 
 Pierwszy review obejmuje zbiorczo całą zmienioną ścieżkę: wejścia, wykonanie,
 wynik, błędy i zależny rollback. Drugi review sprawdza poprawki i regresje
@@ -283,15 +330,14 @@ SHA — SHA publikacji znajduje się w odpowiedzi końcowej.
 
 | Poziom | Zamrożony stan i kryterium |
 |---|---|
-| Bieżący krok P4/B | Host22/NUP i D-23 `2/2` zachowują odbiory. VerifyOnly i wcześniejszy package/container/HTTP/Windows preflight pozostają zachowane. Jedyna PS5.1 host-services replacement próba została zablokowana przez antywirus przed procesem; reads/workers `0`, trzy role `NOT_OBSERVED`. Stage B `BLOCKED / NOT_AUTHORIZED`; bez retry, K2/K3 lub zmiany kanału |
-| Końcowy odbiór startu R04 | Nadal wymaga faktycznie odebranego jednego startu, powtórzenia bez duplikatów, ustalonego logon/cold-start oraz spełnienia niezmienionych kryteriów jednego rootu/manifestu, danych D:/junctionu, Qdrant/VHD/profile i dowodu harmonogramów backupu w ich właściwym zakresie. Te niewykonane kryteria blokują dopiero odpowiedni końcowy odbiór, nie review źródeł |
+| Bieżący krok P4/B | Host22/NUP i D-23 `2/2` zachowują odbiory. Dwie udowodnione wady obserwacji usług hosta są materialnymi elementami pozostałego R04, nie odrębnymi produktami do mikro-odbioru. Ta zmiana polityki nie autoryzuje ich poprawki, Stage B ani żadnej operacji hosta |
+| Kompletny pozostały wynik R04 | Jeden wspólny start i repeat bez duplikatów; odebrany logon/cold-start; kanoniczne ścieżki, manifest i tożsamości; rozliczone pozostałe ciężkie dane na D: z jawnym Qdrant/VHD/profile; zachowane i zweryfikowane w swoim zakresie harmonogramy backupu; zgodność wspieranych artefaktów/release. Techniczne P1–P4/Host22/NUP są dowodami wewnątrz tego wyniku |
 | Późniejsze `K2/K3` | Kosmetyka, refaktoryzacja, dodatkowy hardening i cleanup starych miejsc po wykazaniu braku konsumentów nie rozszerzają bieżącego pakietu. Żadnego obowiązkowego kryterium właściciela — w tym danych D:, junctionu, backupów i jednego startu — nie wolno odroczyć samą zmianą etykiety |
 
-Na moment tego checkpointu materialnym blockerem zależnego Stage B jest wyłącznie
-brak autorytatywnej, bieżącej warstwy host-services w wymaganym Windows
-PowerShell 5.1. VerifyOnly, kontenery, HTTP i zasoby zachowują osobne pozytywne
-dowody i nie są automatycznie ponawiane. To nie otwiera review NUP-01/02/03,
-nie dowodzi awarii usług i nie upoważnia do operacji hosta. D-22 pozostaje
+Następny plan R04 ma obejmować cały powyższy pozostały rezultat oraz wymagane
+zgody, zamiast kolejnego mikro-zlecenia pojedynczego artefaktu. Nie otwiera to
+review NUP-01/02/03, nie dowodzi awarii usług i nie upoważnia do poprawki
+source, Stage B ani operacji hosta. D-22 pozostaje
 nienaruszone i `NOT_RUN`;
 po zakończeniu i właścicielskim odbiorze R04 nadal obowiązuje kolejność
 `ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE`, wraz
@@ -310,7 +356,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
 | R03 | WAITING_APPROVAL | `R03-20260909T064442Z-A4-ACCEPTANCE` / A4 ACCEPTED | Właściciel zaakceptował A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206`: `DATA_RESTORE_VERIFIED_FOR_MANIFEST_8F20A784`. Cały R03 nadal `WAITING_ESCROW_DECISION`; credentials, recovery key, aplikacja, pełne RTO, cleanup i rollout pozostają niezatwierdzone/niewykonane |
-| R04 | IN_PROGRESS | `R04-20260922T151816Z-D21-P4B-HOST-SERVICES-PS51-FORMAL-BLOCK` / P4-B PARTIAL + VERIFYONLY ACCEPTED READ-ONLY + HOST READ FORMALLY BLOCKED | P3/P4-A, Host22 i NUP-01/02/03 odbiory zachowane. Exact ZIP/package, VerifyOnly i wcześniejsze container/HTTP/Windows wyniki są zachowane. Exact PS5.1 wrapper `17386` B / `02ACD670...7F56` przeszedł parser, lecz jego jedyne uruchomienie zostało formalnie zablokowane przez antywirus przed procesem. Task/CIM/TCP reads i workers `0`; Public/Private/Supervisor `NOT_OBSERVED`; run01 bez zmian, Host historycznie disabled/no-trigger, warm `0/2`, Supervisor historycznie `INTENTIONALLY_STOPPED`. `STAGE_B_BLOCKED_NOT_AUTHORIZED`. Następny krok: owner/security review przewidzianej ścieżki zgody dla exact wrapper bytes; bez retry lub alternatywnego kanału. Qdrant/VHD/profile, UI, backup proof, live logon/reboot i P4-B/P5 pozostają otwarte |
+| R04 | IN_PROGRESS | `D23-20260923T140944Z-DELIVERY-FIRST` / DOCUMENTATION POLICY APPLIED; R04 TECHNICAL STATE PRESERVED | P3/P4-A, Host22 i NUP-01/02/03 odbiory zachowane. Exact ZIP/package, VerifyOnly i wcześniejsze container/HTTP/Windows wyniki są zachowane. Exact PS5.1 wrapper `17386` B / `02ACD670...7F56` przeszedł parser, lecz jego jedyne uruchomienie zostało formalnie zablokowane przez antywirus przed procesem. Task/CIM/TCP reads i workers `0`; Public/Private/Supervisor `NOT_OBSERVED`; run01 bez zmian, Host historycznie disabled/no-trigger, warm `0/2`, Supervisor historycznie `INTENTIONALLY_STOPPED`. `STAGE_B_BLOCKED_NOT_AUTHORIZED`. D-23 wymaga jednego pełnego planu dokończenia pozostałego R04 zamiast kolejnego mikro-zlecenia; nie udziela zgody na source, Stage B ani operacje hosta. Qdrant/VHD/profile, UI, backup proof, live logon/reboot i P4-B/P5 pozostają otwarte |
 | R05 | IN_PROGRESS | `R05-20260914T184044Z-A4-BACKEND-TESTS` / A4 OWNER ACCEPTED SOURCE ONLY | Właściciel zaakceptował A4 source `04ab5e58cf86896ffd946cabffde13367d343f53` i evidence `8620871711321a42e62291e52865b5a668a4955d` jako `SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`. A1/A2/A3 zachowują wąskie odbiory. Supervisor jest `INTENTIONALLY_STOPPED`; operator Web runtime, Temporary Chat, remote upload, locally_redacted generation i external end-to-end pozostają `NOT_VERIFIED` |
 | R06 | PLANNED | — | — |
 | R07 | PLANNED | — | — |
@@ -422,9 +468,18 @@ Najważniejsze korekty przed wykonaniem: powiązania ID z REPAIR_INPUT poprawion
 
 ## 5. Organizacja pracy, statusy i bramki
 
-**Jeden aktywny pakiet wykonawczy naraz.** Właściciel zleca Rxx; Codex wykonuje ten pakiet, a ChatGPT ocenia dowody. Zamknięcie kodu nie jest automatycznym release. Dopuszczalne jest wybranie niezależnej lokalnej poprawki podczas oczekiwania na osobną decyzję operacyjną — wyłącznie po jawnej zmianie wskazanego pakietu, nie z inicjatywy agenta.
+**Jeden aktywny kompletny zakres wykonawczy naraz.** Właściciel zleca Rxx lub
+jawnie uzgodniony samodzielnie użyteczny segment; Codex wykonuje go do wyniku
+albo rzeczywistego blokera, a ChatGPT ocenia cały rezultat. Zamknięcie kodu nie
+jest automatycznym release. Dopuszczalne jest kontynuowanie bezpiecznej,
+niezależnej części tego samego uprawnionego zakresu podczas oczekiwania na
+osobną decyzję operacyjną; przejście do innego pakietu wymaga decyzji.
 
-Pakiet może składać się z małych Rxx.a/Rxx.b/Rxx.c (np. konkretne metody R17), ale wszystkie pozostają w tym planie. Nie narzucamy sztucznego limitu 2–3 plików, gdy poprawka wymaga kompletnego testu/API/UI; nie dopuszczamy też pakietu „napraw wszystko”. Zakres wynika z jednego zachowania i zależności.
+Pakiet może mieć techniczne etapy Rxx.a/Rxx.b/Rxx.c, ale nie są one
+automatycznie osobnymi jednostkami odbioru ani obowiązkowymi pauzami. Nie
+narzucamy limitu 2–3 plików, gdy kompletne zachowanie wymaga testu/API/UI; nie
+dopuszczamy też nieograniczonego „napraw wszystko”. Zakres wynika z jednego
+pełnego celu użytkowego i jego materialnych zależności.
 
 | Status | Co oznacza |
 |---|---|
@@ -443,9 +498,10 @@ Każde zamknięcie wymaga: requirement/FND IDs, commit + dirty state, listy dok�
 
 ### Wspólny checkpoint i synchronizacja
 
-Obowiązuje §0. Jeden aktywny pakiet i jeden autor zmian naraz. Przy rozpoczęciu,
-znaczącym podetapie, wyniku testu, zmianie blokady, przed pauzą i na zakończenie
-aktualizujemy checkpoint; nie po każdej komendzie i nie według fikcyjnego timera.
+Obowiązuje §0. Jeden aktywny zakres i jeden autor zmian naraz. Checkpoint
+aktualizujemy przy materialnej zmianie stanu, realnym blokerze, przed faktyczną
+pauzą i na końcu rezultatu; nie po każdej komendzie lub technicznym podkroku.
+Checkpoint nie wymusza pauzy ani nowej zgody.
 Mały bezpieczny checkpoint dokumentacji może zostać zatwierdzony/pchnięty mimo
 niezakończonych lub negatywnych testów aplikacji: opisuje je zgodnie z prawdą,
 a nie commituję wadliwego kodu jako PASS. Zgoda nie obejmuje samowolnego source
@@ -469,7 +525,12 @@ Zakazy bazowe: `git add .`, `git clean`, `reset --hard`, force push, `flutter cl
 
 ### Bez zamkniętej pętli audytów
 
-Nowy problem musi mieć wersję, konkretny wpływ i test rozstrzygający. Hipoteza nie jest naprawiana jak potwierdzony bug. Zamknięty pakiet otwieramy tylko dla odtworzonej regresji lub istotnego nowego dowodu dotyczącego jego warunku odbioru. Usprawnienie niewpływające na kryterium trafia do jawnego backlogu — nie resetuje projektu.
+Nowy problem musi mieć wersję, konkretny wpływ i test rozstrzygający. Hipoteza
+nie jest naprawiana jak potwierdzony bug. Zamknięty rezultat otwieramy tylko
+dla odtworzonej regresji lub istotnego nowego dowodu dotyczącego jego warunku
+odbioru. Usprawnienie niewpływające na kryterium nie jest automatycznie
+naprawiane ani zamieniane w backlog. Jeżeli jest istotne dla końcowej jakości,
+rozlicza je jeden szczegółowy audyt R23 — nie resetuje ono bieżącego projektu.
 
 ## 6. Kamienie odbioru i kolejność
 
@@ -765,13 +826,21 @@ Kryteria poniżej są obowiązkowe wraz z odpowiednimi pozycjami `docs/recovery/
 
 **Typ:** FIX / VERIFY · **Status:** patrz §0.2 · **Zależności:** R00, R02
 
-**Cel:** Testować i uruchamiać ten sam zatwierdzony zestaw bez utraty pracy lokalnej.
+**Cel:** Dostarczyć i odebrać jeden zgodny zestaw: wspólny start/repeat/logon,
+kanoniczne komponenty, dane D:/backup schedules i release compatibility, bez
+utraty pracy lokalnej.
 
 **Odpowiedzialność za wymagania:** M-003, M-004, M-065, M-072, F-023, F-034.
 
 **Pozostałe powiązania:** M-015, M-057, M-064, F-022, F-024, F-031. **Ustalenia:** FND-004, FND-006, FND-013, FND-014, FND-015, FND-016, FND-023, FND-028.
 
 **Zakres wykonania**
+
+Pozostały R04 jest jednym kompletnym wynikiem zgodnie z D-23. Host22/NUP,
+obserwacja usług, manifest, aktywacja, cold/logon, dane i zgodność wydania są
+etapami i dowodami tego rezultatu; nie wymagają mikro-odbioru każdego helpera.
+Jawne zgody na source, instalację, task writes, live start i dane pozostają
+niezmienione.
 
 1. Z clean base main zbudować kontrolowaną gałąź integracyjną. Ocenić pięć commitów rescue i lokalne różnice; przyjąć tylko potrzebne, przejrzane zmiany. Bez ślepego merge całego dirty repo.
 2. Manifest łączy backend commit/image, API/schema, Web/Windows/Android build/hash/podpis, Supervisor, analysis/vision workers i efektywną niesekretną konfigurację.
@@ -1545,7 +1614,8 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 
 **Typ:** VERIFY / RELEASE · **Status:** patrz §0.2 · **Zależności:** R03, R04, R11, R12, R13, R14, R16, R17, R18, R19, R20, R21, R22
 
-**Cel:** Udowodnić działanie całego uzgodnionego produktu jako narzędzia pracy właściciela.
+**Cel:** Wykonać jeden szczegółowy audyt końcowy i udowodnić działanie całego
+uzgodnionego produktu jako narzędzia pracy właściciela.
 
 **Odpowiedzialność za wymagania:** M-001, M-061, M-071, M-073.
 
@@ -1553,17 +1623,23 @@ remote upload i external end-to-end pozostają `NOT_VERIFIED`.
 
 **Zakres wykonania**
 
-1. Zrealizować workflow §42: klient → lokalizacja/wizja/zdjęcia → dokumenty → intelligence/index → analiza z KB/Visual → podobne realizacje → obliczenie → oferta approved → umowa approved → historia.
-2. Zamrozić release manifest i wykonać właściwe pełne regresje oraz aktualny restore drill dla tego schema/artefaktów. Stary restore PASS nie pokrywa automatycznie nowych ofert/umów.
-3. Rozstrzygnąć każdy z 108 wpisów oraz dodatkowe podkryteria: ACCEPTED albo jawna podpisana decyzja scope. NOT_VERIFIED/OWNER_DECISION nie są ukrytym PASS.
-4. Promocja source, deploy, migracja, aktualizacja aplikacji i praca na prawdziwych danych mają oddzielne zgody i log. Nie promować całego rescue dlatego, że jeden podpakiet przeszedł.
-5. Wykonać ograniczony canary prawdziwej pracy po zgodzie i monitoring; progi czasowe/zasobowe z pomiarów, nie fikcyjne terminy zakończenia.
+1. Po zakończeniu prac funkcjonalnych wykonać jedyny szeroki audyt końcowy:
+   implementacja całej aplikacji, pokrycie, przypadki brzegowe, hardening,
+   martwy kod i zgromadzone nieblokujące K2/K3. Nie duplikować tego audytu w
+   każdym wcześniejszym Rxx.
+2. Zrealizować workflow §42: klient → lokalizacja/wizja/zdjęcia → dokumenty → intelligence/index → analiza z KB/Visual → podobne realizacje → obliczenie → oferta approved → umowa approved → historia.
+3. Zamrozić release manifest i wykonać właściwe pełne regresje oraz aktualny restore drill dla tego schema/artefaktów. Stary restore PASS nie pokrywa automatycznie nowych ofert/umów.
+4. Rozstrzygnąć każdy z 108 wpisów oraz dodatkowe podkryteria: ACCEPTED albo jawna podpisana decyzja scope. NOT_VERIFIED/OWNER_DECISION nie są ukrytym PASS.
+5. Promocja source, deploy, migracja, aktualizacja aplikacji i praca na prawdziwych danych mają oddzielne zgody i log. Nie promować całego rescue dlatego, że jeden podpakiet przeszedł.
+6. Wykonać ograniczony canary prawdziwej pracy po zgodzie i monitoring; progi czasowe/zasobowe z pomiarów, nie fikcyjne terminy zakończenia.
 
 **Sprawdzenia i dowody**
 
 - Przepływ biznesowy daje poprawne artefakty, źródła i wersje; człowiek zatwierdza wyniki wysokiego ryzyka.
 - Brak otwartego P0 i potwierdzonego krytycznego błędu poprawności w wydawanym zakresie; niepewne materiały fail-closed bez niszczenia użyteczności pozytywnych przypadków.
 - Aktualny stable i wspierane klienty działają; release/rollback i restore są odtwarzalne.
+- Jeden końcowy raport rozlicza szeroki audit code/coverage/edge/hardening/K2/K3;
+  brak wcześniejszego duplikowania tej kampanii w pakietach funkcjonalnych.
 
 **Warunek zamknięcia:** Kamień K2: odebrany zakres operacyjny. „Pełny Masterplan” wolno napisać tylko przy spełnieniu wszystkich wymaganych pozycji albo z jawnym opisem zatwierdzonej zmiany specyfikacji.
 

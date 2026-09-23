@@ -110,22 +110,28 @@ Gmail/Sheets/n8n, modele, import, korekta, merge/delete i deploy pozostają
 
 ## Global execution rules
 
-Każdy FOLLOW-UP CHUNK:
+Obowiązuje D-23 `DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW`. Jednostką
+planowania, wykonania i formalnego odbioru jest kompletny uzgodniony rezultat
+funkcjonalny albo jawnie uzgodniony, samodzielnie użyteczny segment — nie
+pojedynczy helper, hash, test, ZIP, odczyt lub techniczny checkpoint. Plan ma od
+razu obejmować pełny zakres, a w ramach udzielonej zgody wykonanie przechodzi
+ciągle przez potrzebne etapy techniczne aż do wyniku lub rzeczywistego
+blokera. Checkpoint zapisuje stan i możliwość bezpiecznego wznowienia; sam nie
+jest obowiązkową pauzą ani nową bramką odbioru.
 
-1. Zaczyna się od:
-   - Git pre-flight,
-   - audytu istniejącej implementacji,
-   - live DB/runtime audit,
-   - ustalenia, czy migracja jest potrzebna.
-2. Kończy się:
-   - focused tests,
-   - odpowiednią pełną regresją,
-   - Flutter analyze,
-   - Flutter full tests, jeśli frontend był zmieniany,
-   - data-safety report,
-   - commit + push,
-   - osobnym release promptem, jeśli release jest potrzebny.
-3. Bez osobnego approval nie może wykonywać:
+W toku implementacji wykonujemy preflight i testy adekwatne do zmienionego
+workflow, integralności danych, bezpieczeństwa oraz bezpośrednich regresji.
+Nie wymagamy blanketowych pełnych kampanii backendu/Fluttera po każdym
+technicznym podkroku. Jeden szeroki audyt implementacji, pokrycia, przypadków
+brzegowych, hardeningu i ewentualnych K2/K3 należy do końcowego R23 po
+ukończeniu prac funkcjonalnych.
+
+Jawny gate zgody zatrzymuje wyłącznie zależną ryzykowną operację. Pozostała
+bezpieczna i już autoryzowana część kompletnego zakresu jest kontynuowana. Nie
+wolno przeskakiwać do innego pakietu ani rozszerzać zgody, ale techniczne
+podziały nie tworzą automatycznie mikro-promptów i osobnych odbiorów.
+
+Bez osobnego approval zakres nie może wykonywać:
    - destructive business writes,
    - historical cleanup,
    - Qdrant rebuild/backfill,
@@ -136,18 +142,18 @@ Każdy FOLLOW-UP CHUNK:
    - credential rotation,
    - destructive retention,
    - arbitrary production cleanup.
-4. Migracje przechodzą kolejno przez:
+Migracje przechodzą kolejno przez:
    - design,
    - isolated upgrade/downgrade,
    - report,
    - human gate,
    - apply.
-5. Nowe automaty muszą być:
+Nowe automaty muszą być:
    - auditable,
    - idempotent,
    - bounded,
    - fail-closed dla write.
-6. Zabronione polecenia/praktyki:
+Zabronione polecenia/praktyki:
    - `git add .`,
    - `flutter clean`,
    - `docker system prune`,

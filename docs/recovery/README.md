@@ -35,6 +35,9 @@ walidację i zapisz kiedy/na jakim SHA ją wykonano.
 przekazania (UTC, pakiet, source SHA, testy, wyniki, zgody, pozostała praca),
 nie raw logi, sekrety, dane firmy albo backup. Nie twórz kopii całej roadmapy
 w checkpointach. §0 wskazuje najnowszy; historyczne są dowodem, nie poleceniem.
+Zgodnie z D-23 checkpoint jest zapisem stanu i punktem bezpiecznego wznowienia,
+nie obowiązkową pauzą, mikro-odbiorem ani nową zgodą. W granicach aktualnej
+autoryzacji praca trwa do kompletnego rezultatu lub rzeczywistego blokera.
 
 Prompty instalowane przez R00: `prompts/R00_BASELINE.md` i `prompts/RESUME.md`.
 `R00_BASELINE.md` jest po akceptacji R00 historycznym materiałem wejściowym,

@@ -16,15 +16,19 @@ notatkę przekazania. Sprawdź zmiany od checkpointu, dostępność lokalnej kop
 WIP oraz rzeczywisty wynik ostatniej operacji. Nagły crash nie dowodzi ani
 zakończenia, ani braku skutków. Nie powtarzaj migracji, wysyłki czy apply w ciemno.
 
-Wykonaj tylko wskazany pozostały podetap w zakresie uprzednio udokumentowanej
-zgody. Samo „wznów” nie zatwierdza nowego pakietu, usunięcia roadmap, migracji,
-deploy, zmian danych, secrets/escrow, modeli ani live testów. Przy
-WAITING_APPROVAL/BLOCKED lub nieweryfikowalnej zgodzie podaj konkretną bramkę
-i zatrzymaj wykonanie tej operacji, bez kolejnego pełnego audytu.
+Wznów cały pozostały, uprzednio autoryzowany kompletny rezultat albo jawnie
+uzgodniony samodzielnie użyteczny segment. Techniczny podetap lub checkpoint nie
+jest obowiązkową pauzą ani osobnym mikro-odbiorem. Samo „wznów” nie zatwierdza
+nowego pakietu, usunięcia roadmap, migracji, deploy, zmian danych,
+secrets/escrow, modeli ani live testów. Przy `WAITING_APPROVAL`/`BLOCKED` lub
+nieweryfikowalnej zgodzie zatrzymaj zależną operację i podaj konkretną bramkę;
+kontynuuj bezpieczną, niezależną część istniejącej zgody bez kolejnego pełnego
+audytu.
 
-Zachowaj Qwen 9B, KB i Temporary Chat. Nie twórz nowej roadmapy. Po znaczącym
-podetapie i przed końcem sesji zaktualizuj istniejący checkpoint oraz pochodne
-statusy; zabezpiecz niezacommitowaną pracę. Bezpieczny doc commit/push na
+Zachowaj Qwen 9B, KB i Temporary Chat. Nie twórz nowej roadmapy. Przy zmianie
+stanu, realnym blokerze i na końcu kompletnego zakresu aktualizuj istniejący
+checkpoint oraz pochodne statusy; sam zapis checkpointu nie wymusza pauzy.
+Zabezpiecz niezacommitowaną pracę. Bezpieczny doc commit/push na
 wskazaną gałąź jest elementem bieżącego przekazania, source tylko według
 zgody pakietu. Sprawdź remote i podaj ROADMAP_SYNCED@SHA albo LOCAL_ONLY,
 aktualny etap, wynik, blokadę i jeden następny krok. Nie oznaczaj sam ACCEPTED.

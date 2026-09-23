@@ -14,6 +14,9 @@ implementację zakończoną. Aktualna kolejność, statusy i punkt wznowienia s�
 wyłącznie w §0 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` na gałęzi
 `recovery/next-stabil-repair-completion`. `AI_LAB_FOLLOWUP_PLAN.md` zachowuje
 uzupełnienia, decyzje i wszystkie zabezpieczenia.
+Masterplan określa CO ma zostać dostarczone; D-23
+`DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW` określa JAK prowadzić wykonanie
+i odbiór bez mnożenia mikroetapów.
 
 Data aktualizacji:
 2026-08-19
@@ -4625,9 +4628,11 @@ READ-ONLY CRM AUDIT 2026-08-14:
 - Gmail sources linked to clients: 4095.
 
 Historyczny podział wykonania pozostaje odtwarzalny z historii Git. Bieżąca
-kolejność małych, testowalnych pakietów i aktualny checkpoint znajdują się w
-NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md; uzupełnienia, decyzje i zabezpieczenia
-pozostają w AI_LAB_FOLLOWUP_PLAN.md.
+kolejność kompletnych rezultatów funkcjonalnych lub jawnie uzgodnionych,
+samodzielnie użytecznych segmentów i aktualny checkpoint znajdują się w
+NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md. Wewnętrzne etapy techniczne pozostają
+testowalne, lecz nie są automatycznie osobnymi jednostkami odbioru;
+uzupełnienia, decyzje i zabezpieczenia pozostają w AI_LAB_FOLLOWUP_PLAN.md.
 
 ================================================================================
 END RECONCILIATION 2026-08-14 — CHUNK 0

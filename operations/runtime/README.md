@@ -1,5 +1,11 @@
 # NEXT Stabil single-start source (D21-P1)
 
+Zasady prowadzenia pracy nad tym zakresem wynikają z D-23
+`DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW`: techniczne poprawki, harnessy
+i pakiety są elementami jednego kompletnego wyniku R04, a nie osobnymi
+produktami do mikro-odbioru. Nie zmienia to żadnej granicy bezpieczeństwa ani
+zgody operacyjnej opisanej poniżej.
+
 This directory contains the source-only, offline-tested candidate for the one
 future host entrypoint. It is not installed under `C:\ai-lab-core`, is not
 registered in Task Scheduler, and is not approved for a live start.

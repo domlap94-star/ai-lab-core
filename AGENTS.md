@@ -8,8 +8,11 @@
   resume state. The three roadmaps retired by R01 remain recoverable in Git
   history but are not active instructions and must not be used to select or
   resume a package.
-- Work in one small, reviewable, testable chunk at a time. Update the execution
-  plan after every completed chunk.
+- Apply D-23 `DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW`: plan and deliver
+  the complete authorized functional result, or an explicitly agreed
+  independently useful segment, before formal review. Technical subdivisions,
+  helpers, hashes, tests, packages and checkpoints are evidence inside that
+  result, not automatic acceptance units or mandatory pauses.
 - Supported Flutter targets are Windows, Android, and Web. Do not restore iOS
   or macOS support.
 - Preserve the public/private boundary: public gateway `127.0.0.1:8789` may
@@ -209,26 +212,31 @@
 - Flutter SDK: `C:\FlutterSDK-New\flutter`.
 - Do not run `flutter clean`.
 - Read and write repository text as UTF-8 without BOM when practical.
-- After every chunk run relevant backend tests, API auth tests, Flutter
-  `analyze`/`test` when applicable, `git diff --check`, and `git status --short`.
+- Match verification to the affected workflow and demonstrated material risk.
+  During delivery, run focused tests plus direct regressions needed for the
+  complete authorized result. Reserve broad implementation/coverage/hardening
+  review and K2/K3 cleanup for the single final whole-application audit in R23;
+  do not run blanket backend/Flutter suites after every technical subdivision.
+  Always run repository hygiene appropriate to changed files, including
+  `git diff --check` and `git status --short`.
 - Never use `git add .`; stage explicit paths only.
-- Do not commit a chunk whose acceptance criteria or required tests fail.
+- Do not commit a result whose acceptance criteria or required tests fail.
 
 ## NEXT Stabil — shared roadmap and checkpoint
 
-- D-23 establishes the mandatory `ANTI_EXCESSIVE_WORK` policy in the canonical
-  roadmap. Before every NEXT Stabil review, recommendation or next prompt,
-  reread roadmap §0, `ANTI_EXCESSIVE_WORK`, the active card and latest relevant
-  checkpoint at the reported SHA. Before proposing a repair ask: what
-  concretely will fail, or what material risk arises if it is not changed, and
-  what evidence proves that? Classify only evidenced material safety or
-  functional/operational impact as K0/K1. Do not repair, test-campaign, block
-  acceptance with, or automatically backlog K2/K3 items whose impact is minor
-  or unproven; do not repeat unchanged accepted work. Every
-  result/handoff/blocker report must include the short canonical
-  anti-loop footer with blocking K0/K1, user-visible effect, cycle count and one
-  next action. The roadmap section is authoritative; do not duplicate the full
-  policy here.
+- D-23 establishes the mandatory `DELIVERY_FIRST /
+  COMPLETE_SCOPE_BEFORE_REVIEW` and `ANTI_EXCESSIVE_WORK` policy in the
+  canonical roadmap. Before a NEXT Stabil review or recommendation, reread
+  roadmap §0, that policy, the active card and latest relevant checkpoint at
+  the reported SHA. Continue through authorized technical stages until the
+  complete agreed result or a real approval/safety blocker; a checkpoint records
+  state but does not itself require a pause. Before proposing a repair ask what
+  concretely will fail, or what material risk arises, and what evidence proves
+  it. Only evidenced material K0/K1 issues interrupt delivery. K2/K3 items do
+  not block acceptance, trigger extra campaigns or create automatic backlog;
+  they belong, if relevant, to the single final R23 audit. Every result/handoff/
+  blocker report keeps the short canonical footer. The roadmap section is
+  authoritative; do not duplicate the full policy here.
 - D-22 sets the first priority only after R04 is finished and owner-accepted:
   approved Excel/Google Sheets are the sole evidence source for historical
   Client field repair, followed by validation, then analysis and linking of

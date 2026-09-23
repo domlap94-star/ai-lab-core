@@ -177,8 +177,9 @@
       "R00",
       "R02"
     ],
-    "goal": "Testować i uruchamiać ten sam zatwierdzony zestaw bez utraty pracy lokalnej.",
+    "goal": "Dostarczyć i odebrać jeden zgodny zestaw: wspólny start/repeat/logon, kanoniczne komponenty, dane D:/backup schedules i release compatibility, bez utraty pracy lokalnej.",
     "scope": [
+      "D-23 COMPLETE_SCOPE_BEFORE_REVIEW: pozostały R04 jest jednym kompletnym rezultatem; P1–P4, Host22/NUP, manifest, aktywacja, cold/logon, dane i zgodność wydania są etapami i dowodami, nie automatycznymi mikro-odbiorami. Jawne zgody operacyjne pozostają wymagane.",
       "Z clean base main zbudować kontrolowaną gałąź integracyjną. Ocenić pięć commitów rescue i lokalne różnice; przyjąć tylko potrzebne, przejrzane zmiany. Bez ślepego merge całego dirty repo.",
       "Manifest łączy backend commit/image, API/schema, Web/Windows/Android build/hash/podpis, Supervisor, analysis/vision workers i efektywną niesekretną konfigurację.",
     "Historyczna reguła przed D-21 dopuszczała odrębne odtwarzalne deployment roots. D-21 zastępuje ją dla stanu docelowego: SINGLE_INSTALL_ROOT=C:\\ai-lab-core, jeden idempotentny start i owner-approved ACTIVE_DATA_ONLY junction C:\\ai-lab-core\\data -> D:\\ai-lab-data. P1/P2/DATA_ONLY/guard zachowują wąskie odbiory NOT_DEPLOYED. Punkt E:\\ai-lab-backup\\20260917T082022Z, manifest 2759D684710FB857DBCD0D985B5C480857122E3B139B9DDC362BFF4903895597, ma ROLLBACK_POINT_DATA_EVIDENCE_ACCEPTED_WITH_RECORDED_LIMITATIONS; provenance, procedural deviations i COMPONENT_WINDOWS_RECORDED_NON_TRANSACTIONAL pozostają jawne. Dla OP_ID R04-D21-P3-CORE-SWITCH-20260917T141404Z wykonano jedno backend-only przełączenie source 0ee0ea50943578e6e552aae23ce1688595ddc262 z dokładnego payloadu i override. Właściciel przyjął wynik jako CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE: runtime bytes 592/592, schema i pending 18/16/1 zachowane, rollback nieużyty. Późniejszy readback bieżącej instancji potwierdził CONTAINER_ENV_OBSERVED 11/11, BACKEND_PROCESS_ENV_OBSERVED 11/11 i 9/9 przełączników false; jest to CURRENT_READ_ONLY_EVIDENCE bez bezpośredniego odczytu obiektu Settings. Pełna delta pozostaje DELTA_NOT_FULLY_OBSERVED. P4-A kontynuacja odtworzyła i naprawiła w source brak pełnego container-ID binding oraz brak PostgreSQL health-gate; kampania offline jest READY_FOR_REVIEW. Readback 2/6 potwierdził backend/PostgreSQL. Następna ograniczona kampania wykazała DRAFT_TRANSCRIPTION_ERROR_PROVEN dla Qdrant/n8n/Open WebUI/Ollama: bieżące pełne ID, image ID i RepoDigests dokładnie odpowiadają zachowanemu pierwotnemu runtime inventory. Nieaktywny draft i nowy indeks wiążą identity 6/6, ale pozostają NOT_APPROVED / NOT_INSTALLED. Globalny manifest, Qdrant backing, OPEN_AFTER_BASE_READY, relokacja, task install, full startup/reboot/restore i P4-B/P5 wymagają dalszych zgód. Produkcja nie może wykonywać recovery/staging/test WIP.",
@@ -1721,8 +1722,9 @@
       "R21",
       "R22"
     ],
-    "goal": "Udowodnić działanie całego uzgodnionego produktu jako narzędzia pracy właściciela.",
+    "goal": "Wykonać jeden szczegółowy audyt końcowy i udowodnić działanie całego uzgodnionego produktu jako narzędzia pracy właściciela.",
     "scope": [
+      "Po zakończeniu prac funkcjonalnych wykonać jedyny szeroki audyt końcowy: implementacja całej aplikacji, pokrycie, przypadki brzegowe, hardening, martwy kod i nieblokujące K2/K3; nie duplikować tej kampanii w każdym wcześniejszym Rxx.",
       "Zrealizować workflow §42: klient → lokalizacja/wizja/zdjęcia → dokumenty → intelligence/index → analiza z KB/Visual → podobne realizacje → obliczenie → oferta approved → umowa approved → historia.",
       "Zamrozić release manifest i wykonać właściwe pełne regresje oraz aktualny restore drill dla tego schema/artefaktów. Stary restore PASS nie pokrywa automatycznie nowych ofert/umów.",
       "Rozstrzygnąć każdy z 108 wpisów oraz dodatkowe podkryteria: ACCEPTED albo jawna podpisana decyzja scope. NOT_VERIFIED/OWNER_DECISION nie są ukrytym PASS.",
@@ -1732,7 +1734,8 @@
     "checks": [
       "Przepływ biznesowy daje poprawne artefakty, źródła i wersje; człowiek zatwierdza wyniki wysokiego ryzyka.",
       "Brak otwartego P0 i potwierdzonego krytycznego błędu poprawności w wydawanym zakresie; niepewne materiały fail-closed bez niszczenia użyteczności pozytywnych przypadków.",
-      "Aktualny stable i wspierane klienty działają; release/rollback i restore są odtwarzalne."
+      "Aktualny stable i wspierane klienty działają; release/rollback i restore są odtwarzalne.",
+      "Jeden końcowy raport rozlicza szeroki audit code/coverage/edge/hardening/K2/K3; wcześniejsze pakiety pozostają przy adekwatnych testach workflow i bezpośrednich regresjach."
     ],
     "done": "Kamień K2: odebrany zakres operacyjny. „Pełny Masterplan” wolno napisać tylko przy spełnieniu wszystkich wymaganych pozycji albo z jawnym opisem zatwierdzonej zmiany specyfikacji.",
     "impact": "Wydanie i normalne operacje po zgodzie; migracje wyłącznie przygotowane w wcześniejszych pakietach.",

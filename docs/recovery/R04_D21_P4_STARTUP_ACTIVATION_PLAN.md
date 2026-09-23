@@ -9,6 +9,16 @@ DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`, P3 backend
 source `0ee0ea50943578e6e552aae23ce1688595ddc262`; kontynuacja P4/A source
 `8756314f51a76091a483cfc9b677a05c7f67f315`.
 
+## 0. Bieżąca zasada dokończenia
+
+D-23 `DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW` traktuje P4-A/P4-B,
+Host22, NUP i ich dowody jako techniczne elementy jednego pozostałego wyniku
+R04, nie serię produktów wymagających mikro-odbioru. Rezultat obejmuje wspólny
+start i repeat bez duplikatów, logon/cold-start, kanoniczne ścieżki i
+tożsamości, pozostałe ciężkie dane na D:, harmonogramy backupu i zgodność
+wydania. Zasada nie zatwierdza instalacji, Stage B, task writes ani live startu;
+te operacje nadal wymagają właściwej jawnej zgody.
+
 ## 1. Granica i przyjęty stan P3
 
 Właściciel przyjął `P3 CORE_BACKEND_SOURCE_SWITCH_ACCEPTED /
@@ -167,7 +177,7 @@ Staging zawiera też pięć nieaktywnych draftów `after`: taski Docker Desktop 
 Docker Compose bez triggerów i z `Enabled=false`; taski Public/Private/Supervisor
 bez triggerów, nadal `Enabled=true`. Żaden XML nie został zaimportowany.
 
-## 7. Sekwencja P4-B — NOT_EXECUTED / REQUIRES_SEPARATE_APPROVAL
+## 7. Sekwencja techniczna P4-B w kompletnym wyniku R04
 
 1. Zweryfikować brak driftu pełnych identyfikatorów i zachować rollback XML,
    wrappera i skrótu. Efekt: wyłącznie punkt cofnięcia. Rollback: nie dotyczy.
@@ -197,8 +207,10 @@ bez triggerów, nadal `Enabled=true`. Żaden XML nie został zaimportowany.
    duplikatów, Docker ready/not-ready, intentional stop Supervisora, port
    conflict, image/mount mismatch, `/control` boundary, logon/reboot i rollback.
 
-Każdy krok jest `NOT_EXECUTED / REQUIRES_SEPARATE_APPROVAL`. Nieaktywne XML w
-stagingu nie zostało zaimportowane.
+Sekwencja nie tworzy obowiązkowego mikro-odbioru po każdym kroku. Wszystkie
+opisane, lecz jeszcze nieautoryzowane mutacje pozostają `NOT_EXECUTED /
+NOT_AUTHORIZED`; przyszła zgoda może objąć spójne okno wykonawcze. Nieaktywne
+XML w stagingu nie zostało zaimportowane.
 
 ## 8. Rollback i ryzyka
 

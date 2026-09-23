@@ -11,6 +11,14 @@ PAYLOAD_AND_MANIFEST_INSTALLED_HOST_DISABLED_NO_TRIGGER_WARM_RUNS_0_OF_2`
 `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md`. Ten dokument jest załącznikiem
 wykonawczym D-21, a nie drugą roadmapą.
 
+Zgodnie z D-23 `DELIVERY_FIRST / COMPLETE_SCOPE_BEFORE_REVIEW` pozostała praca
+R04 jest jednym rezultatem: wspólny start i powtórzenie bez duplikatów,
+logon/cold-start, kanoniczne ścieżki i tożsamości, rozliczenie pozostałych
+ciężkich danych na D:, zachowanie harmonogramów backupu oraz kompatybilność
+wydania. P1–P4 i ich checkpointy są etapami technicznymi i dowodami tego
+wyniku, nie automatycznie osobnymi jednostkami odbioru. Nadal obowiązują jawne
+zgody na ryzykowne operacje.
+
 ## 1. Wynik inventory
 
 Ograniczony odczyt wykonano 2026-09-15, bez uruchamiania launcherów, usług,
@@ -143,10 +151,11 @@ Engine już gotowy, Engine niegotowy, usługę celowo wyłączoną, konflikt por
 błędny mount/wersję, zachowanie `/control*`, reboot hosta w osobnym oknie oraz
 rollback. Wszystkie te scenariusze są obecnie `NOT_RUN`.
 
-## 4. Pakiety przyszłego wykonania
+## 4. Techniczne etapy kompletnego wyniku R04
 
-Każde polecenie operacyjne w tej sekcji ma status
-`NOT_EXECUTED / REQUIRES_SEPARATE_APPROVAL`.
+Lista zachowuje historię i kolejność techniczną. Nie ustanawia mikro-odbiorów.
+Każde nadal nieautoryzowane polecenie operacyjne wymaga jawnej zgody; pełna
+zgoda może objąć spójne okno kilku etapów, lecz nie wynika z samego planu.
 
 ### D21-P1 — źródło launchera i testy offline (pierwszy minimalny pakiet)
 
