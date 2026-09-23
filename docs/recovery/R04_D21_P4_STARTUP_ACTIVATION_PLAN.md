@@ -1466,3 +1466,40 @@ Status: `P4B_USABLE_WARM_INACTIVE_PACKAGE_LOCAL_INTEGRITY_PASS /
 LIVE_READ_ONLY_PREFLIGHT_FORMALLY_BLOCKED_NOT_RUN / MANIFEST_NOT_APPROVED /
 STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED`. Nie przedstawiamy zdania zgody na UAC,
 ponieważ wymagane bramki bieżącego runtime nie zostały wykonane.
+
+## 42. USABLE-WARM — nowa exact zgoda, ponowna formalna odmowa
+
+Właściciel udzielił następnie nowej, jednoznacznej zgody na dokładnie jeden
+skonsolidowany read-only preflight tego samego window
+`R04-D21-P4B-USABLE-WARM-20260923T170936Z`. Nie zmieniono recepty, indeksu,
+payloadu, manifestu ani zarezerwowanego outputu. Nowy niekolidujący katalog
+`...\P4B-UW-01\preflight\campaign01` nie jest reparse pointem; sentinel,
+limit ścieżek i lokalny PS5.1 gate przeszły. Recepta
+`74E5664F50CCAE9E641BC076390CE17A769C2E6F1D6F109FB6990C80220B7D6D`, indeks
+`6F379DC5330D902CEC30F72E5B4C2CD190FC923AF195B275FF9FF7BA56D64698`
+oraz wszystkie `8/8` bindingów odpowiadają zamrożonym wartościom. Candidate
+manifest nadal ma `NOT_APPROVED`, a każde pole authorization indeksu pozostaje
+false.
+
+Dokładna próba Windows PowerShell 5.1 `-Mode VerifyOnly` została przedłożona
+przez przewidzianą formalną ścieżkę. Mechanizm odrzucił ją przed
+`CreateProcess`, podając, że live Task/system read dla nowego okna nie ma
+rozpoznanej bieżącej zgody. Mimo jawnej decyzji właściciela odmowy nie
+obchodzono: retry `0`, alternate runner `false`, output/result absent. Zgodnie
+z zamrożonym warunkiem STOP nie wykonano następnych warstw kampanii. Task/
+Docker/CIM/TCP/HTTP/resource reads, task writes/starts, UAC, InstallAndWarm,
+Host start, warm runs i rollback wynoszą `0`.
+
+Niesekretny LOCAL_ONLY rekord formalnej odmowy:
+`C:\Users\domai\AppData\Local\Temp\P4B-UW-01\preflight\campaign01\formal-refusal.json`,
+`1998` B, SHA-256
+`D9A547A45147DD60249EDBFA2FC295F181386F56D8E1F08D2AE148D385E64AFE`.
+Zarezerwowany `...\P4B-UW-01\apply` nadal nie istnieje. Nie przygotowano
+projektu approval transition ani zdania zgody Stage B, ponieważ wymagane
+runtime gates nie mają wyniku.
+
+Status: `P4B_USABLE_WARM_READ_ONLY_PREFLIGHT_FORMALLY_REFUSED_NOT_RUN /
+PACKAGE_LOCAL_INTEGRITY_8_OF_8 / MANIFEST_NOT_APPROVED /
+STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED`. Jedyny zależny następny krok to
+rozstrzygnięcie formalnej zdolności wykonania exact zatwierdzonej operacji;
+obecnej kampanii nie ponawiać i nie przechodzić do UAC/Stage B.

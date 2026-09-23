@@ -382,6 +382,16 @@
   channel, ask for UAC, install, start Host, or infer current Docker/task/HTTP
   state. Stage B is not eligible or authorized; D-23 stays `2/2` and D-22
   stays `NOT_RUN`.
+- The owner then supplied a new exact current authorization for one consolidated
+  read-only preflight of that same USABLE-WARM window. Local PS5.1 integrity
+  again passed `8/8`, but the prescribed execution mechanism still rejected
+  exact `VerifyOnly` before `CreateProcess`, reporting that authorization was
+  not recognized for live Task/system reads. No retry or alternate runner was
+  used; Task/Docker/CIM/TCP/HTTP/resource reads and all mutations remain `0`.
+  Manifest approval and index authorization remain false, so do not infer
+  runtime readiness or request UAC/Stage B. The next action is only resolution
+  of the formal execution path for the exact already-authorized read-only
+  operation; D-23 remains `2/2` and D-22 remains `NOT_RUN`.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

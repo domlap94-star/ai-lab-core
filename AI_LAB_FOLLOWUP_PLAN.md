@@ -3414,3 +3414,17 @@ warm run occurred. The refusal was not bypassed. Stage B is
 `NOT_ELIGIBLE / NOT_AUTHORIZED`; any future manifest approval and exact live
 preflight require an explicit recognized decision. D-23 remains `2/2`; D-22
 remains `NOT_RUN`.
+
+**P4/B USABLE-WARM EXACT READ-ONLY AUTHORIZATION + FORMAL REFUSAL —
+2026-09-23.** The owner explicitly authorized one consolidated read-only
+preflight of window `R04-D21-P4B-USABLE-WARM-20260923T170936Z`. Local Windows
+PowerShell 5.1 checks again confirmed recipe `74E5664F...B7D6D`, index
+`6F379DC5...64698`, parsers, collision guards and `8/8` bindings. The
+prescribed mechanism nevertheless rejected exact `VerifyOnly` before
+`CreateProcess`, stating that current authorization was not recognized for
+live Task/system reads. The rejection was not bypassed or retried; all Task,
+Docker, CIM, TCP, HTTP and resource reads plus UAC, mutations and warm runs are
+`0`. The `NOT_APPROVED` manifest and false authorization fields were not
+changed. Stage B remains `NOT_ELIGIBLE / NOT_AUTHORIZED`; resolve only the
+formal execution path for this exact operation before any new operational
+step. D-23 remains `2/2`; D-22 remains `NOT_RUN`.

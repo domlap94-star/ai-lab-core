@@ -172,23 +172,23 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory, a D-23 review `2/2` jest zakończony. Source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` jest teraz `SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. Nieaktywna pochodna USABLE-WARM przeszła lokalną integralność `8/8`, lecz manifest pozostaje `NOT_APPROVED`; formalna ścieżka zatrzymała live read-only preflight przed startem procesu. Installed run01 bez zmian; Stage B `NOT_ELIGIBLE / NOT_AUTHORIZED`. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
+| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. P4/B pozostaje `PARTIAL_AFTER_FAILURE / HOST_TASK_FAILED_22 / SAFE_INACTIVE_PARTIAL_UNKNOWN`; Host22 i NUP-01/02/03 zachowują odbiory, a D-23 review `2/2` jest zakończony. Source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc` jest `SOURCE_AND_OFFLINE_ACCEPTED / NOT_DEPLOYED`. Właściciel udzielił nowej exact zgody na jeden skonsolidowany read-only preflight USABLE-WARM, lecz formalna ścieżka ponownie odrzuciła dokładny `VerifyOnly` przed `CreateProcess`; nie wykonano pozostałych odczytów. Manifest pozostaje `NOT_APPROVED`, installed run01 bez zmian, a Stage B `NOT_ELIGIBLE / NOT_AUTHORIZED`. Cały R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
 | Checkpoint ID | `R04-D21-P4B-USABLE-WARM-20260923T170936Z` |
-| Ostatnia aktualizacja operacyjna UTC | Nie wykonano czynności operacyjnej. Próba rozpoczęcia exact `VerifyOnly` została formalnie odrzucona przed startem procesu; Task/Docker/CIM/TCP/HTTP reads, UAC, mutacje i warm runs `0` |
-| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED INACTIVE PACKAGE + READ-ONLY PREFLIGHT, zatrzymany na formalnej bramce wykonania |
-| Aktywny pakiet / podetap | R04/D-21/P4-B — `USABLE_WARM_INACTIVE_PACKAGE_LOCAL_INTEGRITY_PASS / LIVE_PREFLIGHT_BLOCKED_NOT_RUN / NOT_DEPLOYED` |
+| Ostatnia aktualizacja operacyjna UTC | `2026-09-23T18:48:05.6626725Z`: po nowej exact zgodzie właściciela lokalna bramka PS5.1 ponownie potwierdziła `8/8`, po czym formalny mechanizm odrzucił dokładny `VerifyOnly` przed `CreateProcess`. Task/Docker/CIM/TCP/HTTP/resource reads, UAC, mutacje i warm runs `0` |
+| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED CONSOLIDATED READ-ONLY PREFLIGHT, zatrzymany na ponownej formalnej odmowie przed procesem |
+| Aktywny pakiet / podetap | R04/D-21/P4-B — `USABLE_WARM_READ_ONLY_PREFLIGHT_FORMALLY_REFUSED_NOT_RUN / PACKAGE_LOCAL_INTEGRITY_8_OF_8 / NOT_DEPLOYED` |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Omyłkowy untracked checkpoint został po exact zgodzie zachowany bajtowo w LOCAL_ONLY i usunięty; oryginalny index i pozostałe pliki nie zostały zmienione |
 | Gałąź / SHA kodu objętego sprawdzeniem | Host-service observation source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc`, launcher raw SHA-256 `686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66`; guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
 | Źródła runtime / release / DB | Backend `686ac376...c854`, image `sha256:6342b36f...d63702`, source `0ee0ea5...`, `/app=C:/ai-lab-core/backend:ro`, `/data=C:/ai-lab-core/data:rw`; pozostałe pięć kontenerów zachowane. P4-A draft wiąże 6/6 bieżących pełnych ID, image ID, RepoDigests i mountów; Qdrant physical backing pozostaje `UNKNOWN`. Public Gateway działał; Supervisor `INTENTIONALLY_STOPPED` |
-| Ostatnia faktycznie zakończona czynność | Przygotowano jedną nieaktywną pochodną USABLE-WARM i potwierdzono jej lokalną integralność `8/8`; live preflight nie wystartował z powodu formalnej odmowy |
-| Potwierdzone testy bieżącego wykonania | Windows PowerShell 5.1 package integrity: `8/8` bindingów, JSON/XML/PS1 parser PASS, recepta różni się od przyjętego preimage wyłącznie OperationId. Wcześniejsze `53/57` source tests pozostają przypięte i nie były powtarzane |
-| Niezacommitowana praca / zabezpieczenie | LOCAL_ONLY `C:\Users\domai\AppData\Local\Temp\P4B-UW-01`; zarezerwowany `apply` nie istnieje. Repo zawiera wyłącznie jawne dokumenty bieżącego wyniku |
-| Niezakończone procesy i skutki operacyjne | Brak procesu VerifyOnly i procesów produktu. Docker/Task/CIM/TCP/HTTP/UAC/Host/start/rollback `0`; installed run01 bez zmian |
-| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260923T172032Z-R04-D21-P4B-USABLE-WARM-PREFLIGHT-BLOCKED.md` |
-| Zakres aktualnej zgody | Źródło jest odebrane SOURCE/OFFLINE; utworzono wyłącznie nieaktywną paczkę i lokalne dowody. Formalna odmowa zakończyła live preflight; brak zgody na obejście, UAC lub Stage B |
-| Blokada / wymagana decyzja | Formalny mechanizm nie uznał zgody dla live odczytu nowego okna i nie dopuścił przygotowania `APPROVED_FOR_START`. Manifest jest `NOT_APPROVED`, live gate nie ma bieżącego dowodu i Stage B nie kwalifikuje się do potwierdzenia |
-| Jeden następny bezpieczny krok | W przewidzianej ścieżce zatwierdzić exact read-only preflight okna `R04-D21-P4B-USABLE-WARM-20260923T170936Z`; każda późniejsza zmiana statusu exact manifestu wymaga osobnego jawnego objęcia zgodą |
+| Ostatnia faktycznie zakończona czynność | Utworzono nowy, niekolidujący katalog dowodowy `campaign01`, potwierdzono exact package/index/recipe i `8/8` bindingów na PS5.1, zapisano odmowę `D9A547A4...64AFE`; żaden proces VerifyOnly ani odczyt hosta nie wystartował |
+| Potwierdzone testy bieżącego wykonania | Windows PowerShell 5.1 local package gate: `8/8` bindingów, JSON/XML/PS1 parser PASS, sentinel/path/reparse/output-collision PASS. To nie jest runtime preflight. Wcześniejsze `53/57` source tests pozostają przypięte i nie były powtarzane |
+| Niezacommitowana praca / zabezpieczenie | LOCAL_ONLY `C:\Users\domai\AppData\Local\Temp\P4B-UW-01\preflight\campaign01`; `formal-refusal.json` ma `1998` B / SHA-256 `D9A547A45147DD60249EDBFA2FC295F181386F56D8E1F08D2AE148D385E64AFE`. Zarezerwowany `apply` nie istnieje |
+| Niezakończone procesy i skutki operacyjne | Proces VerifyOnly nie został utworzony. Task/Docker/CIM/TCP/HTTP/resource reads, task writes/starts, UAC, InstallAndWarm, Host/start/rollback i warm runs `0`; installed run01 bez zmian |
+| Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260923T184805Z-R04-D21-P4B-USABLE-WARM-PREFLIGHT-FORMAL-REFUSAL.md` |
+| Zakres aktualnej zgody | Właściciel jawnie zatwierdził exact skonsolidowany read-only preflight, ale formalna ścieżka nadal nie dopuściła procesu. Zgodnie z decyzją nie użyto retry, alternate runnera ani późniejszych odczytów; UAC i Stage B pozostają poza zgodą |
+| Blokada / wymagana decyzja | Mechanizm wykonawczy odrzucił exact `VerifyOnly` jako live Task/system read mimo wskazanej bieżącej zgody. Manifest i indeks pozostały niezmienione (`NOT_APPROVED`, wszystkie authorization false), więc bramki runtime są niewykonane i zdania zgody Stage B nie wolno przedstawić |
+| Jeden następny bezpieczny krok | Rozstrzygnąć formalną zdolność wykonania dokładnie tej zatwierdzonej operacji w przewidzianym mechanizmie; nie ponawiać obecnej kampanii i nie przechodzić do Stage B na podstawie samej lokalnej integralności |
 | Warunek STOP | Brak kolejnego UAC, retry Host/launchera/instalatora, niezależnego rollbacku, logon/reboot, Supervisora, backup/restore, relokacji, P5/R06 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -886,6 +886,20 @@ dane i backupy nie zostały zmienione. Pełna droga do zamknięcia R04 jest
 zamrożona w `R04_SINGLE_ROOT_STARTUP_PLAN.md` §8; pierwszym przyszłym
 samodzielnie użytecznym segmentem jest `R04-P4B-USABLE-WARM`, wymagający nowej
 zgody i osobnego bieżącego potwierdzenia przed UAC/Stage B.
+3s. Właściciel następnie jawnie zatwierdził dokładnie jeden skonsolidowany
+read-only preflight istniejącego okna
+`R04-D21-P4B-USABLE-WARM-20260923T170936Z`. Lokalna kontrola PS5.1 ponownie
+potwierdziła receptę `74E5664F...B7D6D`, indeks `6F379DC5...64698`, `8/8`
+bindingów, parsery i brak kolizji `verifyonly`/`apply`. Przewidziana formalna
+ścieżka odrzuciła jednak exact `VerifyOnly` przed `CreateProcess`, twierdząc, że
+brak rozpoznanej bieżącej zgody na live Task/system read. Nie użyto retry ani
+alternatywnego runnera i zgodnie z warunkiem STOP nie wykonano Docker/CIM/TCP/
+HTTP/resource reads. Bezpieczny rekord odmowy ma `1998` B / SHA-256
+`D9A547A45147DD60249EDBFA2FC295F181386F56D8E1F08D2AE148D385E64AFE`.
+Manifest nadal ma `NOT_APPROVED`, indeks authorization pozostaje false,
+`apply` nie istnieje, installed run01 i wszystkie usługi są nietknięte. Status
+`P4B_USABLE_WARM_READ_ONLY_PREFLIGHT_FORMALLY_REFUSED_NOT_RUN /
+STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED`; brak podstaw do zdania zgody na UAC.
 4. Naprawić kontrakt /version/stable/minimum/debug i zgodność starych klientów. Nie zrównywać sztucznie różnych numerów API/schema/app; muszą tworzyć poprawną macierz zgodności.
 5. Przygotować odtwarzalny build Windows i aktualny build testowy Android z zatwierdzonym certyfikatem; nie publikować ani zużywać numeru release bez osobnej zgody.
 6. D-17 kieruje bieżący odbiór wspólnego API i logiki najpierw przez Web. Android pozostaje wspieranym, nieodebranym targetem; wąski viewport Web nie zastępuje natywnego lifecycle, uprawnień, aparatu/GPS, transportu ani podpisu Androida.
