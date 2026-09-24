@@ -3539,3 +3539,21 @@ Disabled/no-trigger/idle Host, unchanged six container identities, Public ready,
 Private/Supervisor absent and the same HTTP results. Task writes/starts, service
 starts, warm runs, logon and CRM/Web were `0`; no retry or SAFE_INACTIVE was
 performed. D-23 remains `2/2`; D-22 remains `NOT_RUN`.
+
+**P4/B USABLE-WARM DEPENDENCY CONTINUATION — 2026-09-24.** A LOCAL_ONLY
+derivative fixed the single import-visibility mechanism by exposing only
+top-level functions from the exact pinned runtime/launcher to real adapters in
+the fresh continuation process. PS5.1 passed the full path in `11` scenarios /
+`57` assertions with production boundaries `0`. One real ordinary-token
+preflight passed installed files `4/4`, pinned containers `6/6`, PostgreSQL
+healthy, Public present, Private/Supervisor absent and HTTP `200/200/200/404`;
+Docker/WSL pool and swap remain accepted UNKNOWN, not PASS. After current owner
+presence confirmation, one UAC/PID `37316` ended exit `22`. The first Host
+on-demand registration was handed off but its post-check returned
+`TASK_POSTCHECK_NOT_CONFIRMED`, producing
+`PARTIAL_PENDING_OPERATION_UNKNOWN`. One allowed readback found Host
+Ready/enabled/no-trigger/idle, but its semantic/comparable hashes differ from
+the pinned on-demand target. Warm runs remain `0/2`; Private start, logon and
+CRM/Web are `NOT_RUN`; SAFE_INACTIVE was not attempted because the mutation is
+unsettled. The UAC is consumed and there is no retry or rollback authorization.
+D-23 remains `2/2`; D-22 remains `NOT_RUN`.

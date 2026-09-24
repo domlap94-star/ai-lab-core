@@ -1822,3 +1822,59 @@ Status: `P4B_USABLE_WARM_PARAM_FIX_OFFLINE_PASS /
 OPERATION_PREFLIGHT_BLOCKED_RUNTIME_IMPORT_VISIBILITY /
 NO_MUTATION / WARM_RUNS_0_OF_2 / LOGON_NOT_CONFIGURED /
 CRM_WEB_NOT_OPENED / UAC_CONSUMED`.
+
+## 51. USABLE-WARM — dependency import naprawiony, Host register nierozliczony
+
+LOCAL_ONLY pochodna kontynuacji udostępnia rzeczywistym adapterom wyłącznie
+top-level funkcje z dokładnych, hash-pinned plików runtime i launchera. Nie
+zmienia zainstalowanych czterech plików, manifestu ani produktu. Finalne bajty:
+
+- continuation `34754` B / SHA-256
+  `5F7F807A092133A76280671948DEB3088B6DA4B7BE326C81369752EDBA780BE4`;
+- continuation index `3903` B / SHA-256
+  `08DB292BEA197C43FF4178F9F256912D6B881A8F9D21F9D8D80B22A1E6EC7446`;
+- harness `38453` B / SHA-256
+  `98D76DF69760CC3C8CA86E9AD5A08FD6559F31259A7DBFCD9CDCA9E468DBE455`;
+- offline result `812` B / SHA-256
+  `8A5F6890DEC9AF06F03897AFC98980B369B482DAA1C39EDE8704B2C0769336DE`.
+
+Windows PowerShell 5.1 przeszedł pełną ścieżkę wejścia w `11` scenariuszach i
+`57` asercjach przy `production_boundaries=0`. Test wykonał rzeczywisty runtime
+probe, rzeczywiste adaptery i parsery oraz oddzielny proces launchera recordera;
+podstawione były wyłącznie dolne granice systemowe. Realny ordinary-token
+read-only preflight zapisał `READ_ONLY_PREFLIGHT_PASS`: pliki `4/4`, kontenery
+`6/6`, PostgreSQL healthy, Public Gateway present, Private/Supervisor absent i
+HTTP `200/200/200/404`. Dowód ma `9345` B / SHA-256
+`F95787D4DE2FF1D83E1232EC2F4D8010033B59460246030C877FFCD7865A5CC3`.
+
+Po bieżącym potwierdzeniu właściciela wykorzystano jeden UAC. Elevated PID
+`37316` działał od `2026-09-24T17:08:34.8844697Z` do
+`2026-09-24T17:09:32.0591739Z` i zakończył się exit `22`. Recepta zapisała:
+
+- `result.json`: `966` B / SHA-256
+  `C943F95CC27CDD6A0BC2A01969453EE77CEED4822A522F2135A87B2B847F478E`;
+- `mutation-journal.jsonl`: `1168` B / SHA-256
+  `F908C2332408652E31F70B954E3663E30741D7C5EF8AF31D5687CC887DBF935B`.
+
+Wynik to `PARTIAL_PENDING_OPERATION_UNKNOWN`: intencja rejestracji Host
+on-demand została trwale zapisana i przekazana, lecz post-check zakończył się
+`TASK_POSTCHECK_NOT_CONFIRMED`; `possible_effect=true`, `settled=false`, worker
+`WORKER_SETTLED`. Warm runs, Host start, Private start, logon i CRM/Web nie
+zostały wykonane. SAFE_INACTIVE pozostał
+`NOT_ATTEMPTED_PENDING_OPERATION`, zgodnie z guardem przeciw konkurującym
+zapisom i destrukcyjnemu rollbackowi.
+
+Jeden dozwolony readback o `2026-09-24T17:10:22.0479770Z` wykazał Host
+`Ready`, enabled, trigger_count `0`, Running/Queued `0`, semantic hash
+`66ECF75806986BE7624FBC2430D14AEEC6D79BE4C348A29E072018E1F00BB938` i
+comparable hash
+`171956207D309EC3B5241835F158BA5129A1685DF5FF57E4A650A0C94212BA92`.
+To nie jest przypięta tożsamość wariantu on-demand, więc odczyt nie rozlicza
+mutacji jako sukcesu i nie pozwala na warm run, kolejny zapis ani rollback.
+
+Status: `DEPENDENCY_FIX_OFFLINE_PASS / READ_ONLY_PREFLIGHT_PASS /
+PARTIAL_PENDING_OPERATION_UNKNOWN / HOST_ENABLED_NO_TRIGGER_IDENTITY_MISMATCH /
+WARM_RUNS_0_OF_2 / LOGON_NOT_CONFIGURED / CRM_WEB_NOT_OPENED /
+UAC_CONSUMED_NO_RETRY`. R04 pozostaje `IN_PROGRESS`; D-23 `2/2`, D-22
+`NOT_RUN`. Następny krok wymaga osobnej decyzji właściciela po review dokładnego
+bieżącego stanu Host; nie jest autoryzowany w tym oknie.

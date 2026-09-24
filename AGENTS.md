@@ -475,3 +475,14 @@
   Warm runs remain `0/2`; logon and CRM/Web are `NOT_RUN`. This UAC is consumed:
   do not infer success from exit `0`, retry, start Host, register logon or run
   SAFE_INACTIVE without a new explicit owner decision.
+- The next owner-authorized LOCAL_ONLY dependency-import derivative passed the
+  complete PS5.1 path (`11` scenarios, `57` assertions, production boundaries
+  `0`) and a real ordinary-token preflight (`4/4` files, `6/6` containers,
+  PostgreSQL healthy, Public present, Private/Supervisor absent, HTTP
+  `200/200/200/404`). Its single UAC is consumed. The first Host on-demand
+  registration ended `PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED`; no warm
+  run followed. One allowed readback found Host Ready/enabled/no-trigger/idle,
+  but with hashes different from the pinned on-demand definition. Preserve the
+  journal and files; do not retry registration, start Host, configure logon or
+  run SAFE_INACTIVE/rollback without a new exact owner decision. Warm runs stay
+  `0/2`, CRM/Web is `NOT_RUN`, D-23 remains `2/2`, and D-22 remains `NOT_RUN`.
