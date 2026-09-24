@@ -1638,3 +1638,34 @@ oraz trzy exact preimages. Zgoda i UAC są zużyte. Bez nowej decyzji obowiązuj
 STOP przed retry, rejestracją/startem Host, rollbackiem, warm runami i innymi
 operacjami. Jedyny proponowany następny zakres to dokładny read-only odczyt
 Host task/state tej próby, bez ponowienia pełnego preflightu.
+
+## 46. USABLE-WARM — rozliczenie rzeczywistego stanu Host po partial
+
+Jedna późniejsza kampania READ-ONLY wykonała pod Windows PowerShell 5.1
+dokładnie jeden bounded odczyt `\NEXT Stabil - Host`. Wynik jest
+`Disabled`, `Enabled=false`, `Triggers=0`, bez stanu `Running/Queued`;
+LastRunTime `2026-09-19T21:07:53Z`, LastTaskResult `22`. Action, CWD,
+principal, LogonType, ustawienia IgnoreNew/PT15M i brak triggerów odpowiadają
+przypiętemu disabled XML. `RunLevel` nie występuje jawnie w wyeksportowanym
+XML i pozostaje `NOT_AVAILABLE` jako odczyt pola.
+
+Raw/comparable identity nie przeszła: current
+`AA989DF63F264770C85C7FC63753FE21D708677CE0BD47A0CBEE592F45EFAA08` /
+`E3147E8F756802E7EEE4F2EBE872452439D51AC0AECE25F5A8AC0474366D0BA7`
+versus disabled expected
+`B1CE9C862E575E59EAA00EBAB0F85D262C573DADE6BB7B4130038626A0197E06` /
+`E8F1A517654C10CE59B28860FE65B1FE8A7518229DE504B4FD662620D6333EA0`.
+Po istniejącej normalizacji EOL dokładna różnica to wyłącznie wielkość trzech
+liter w deklaracji XML: `utf-16` versus `UTF-16`. Nie dodano nowej
+normalizacji ani nie nadpisano oczekiwań. Historyczne outputy zawierają tylko
+`TASK_POSTCHECK_NOT_CONFIRMED`, a pierwotna obserwacja jest `NOT_CAPTURED`,
+więc historyczny `PARTIAL_PENDING_OPERATION_UNKNOWN` pozostaje bez zmian.
+
+Kontynuacja nie może użyć całego `InstallAndWarm`, ponieważ jego preimage już
+nie istnieje. Wymagany kolejny zakres to jedna właścicielsko zatwierdzona,
+wąska kontynuacja: exact current disabled representation jako zamknięty
+pre-state -> przypięty on-demand Host -> dwa recorder-backed warm runs
+`Private 1 -> 0` z potwierdzonym zakończeniem Host -> przypięty logon Host ->
+krótki test CRM/Web. Czterech plików nie kopiować ponownie i nie rejestrować
+ponownie wariantu disabled. Ta sekcja jest planem; task writes/starts, UAC,
+warm runs, logon i CRM/Web w kampanii rozliczeniowej wyniosły `0`.

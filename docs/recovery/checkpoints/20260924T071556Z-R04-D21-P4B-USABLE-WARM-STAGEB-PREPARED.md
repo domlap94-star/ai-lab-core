@@ -3,7 +3,8 @@
 - UTC: `2026-09-24T07:15:56.7002666Z`
 - Window decision ID: `R04-D21-P4B-USABLE-WARM-STAGEB-20260924T071556Z`
 - Package OperationId: `R04-D21-P4B-USABLE-WARM-20260923T170936Z` (unchanged)
-- Scope: `LOCAL_ONLY / OFFLINE VALIDATION`; no host operation
+- Initial preparation scope: `LOCAL_ONLY / OFFLINE VALIDATION`; no host
+  operation in that initial phase. Later authorized phases are recorded below.
 
 ## Prepared exact bytes
 
@@ -96,3 +97,105 @@ niepotwierdzony; nie wolno retry, competing write, startu ani zewnętrznego
 rollbacku. Status checkpointu po aktualizacji:
 `P4B_USABLE_WARM_STAGE_B_PARTIAL_PENDING_OPERATION_UNKNOWN /
 FOUR_FILES_INSTALLED / WARM_RUNS_0_OF_2 / READY_FOR_OWNER_REVIEW`.
+
+## Późniejsze rozliczenie READ-ONLY dokładnie jednego taska Host
+
+Jedna nowa zgoda odczytowa objęła wyłącznie `\NEXT Stabil - Host`. Kampania
+Windows PowerShell `5.1.26100.8894`, zwykły token, trwała od
+`2026-09-24T08:10:30.0437471Z` do `2026-09-24T08:10:39.2325694Z` i wykonała
+dokładnie jeden bounded `OBSERVE_TASK`. Koperta zakończyła się
+`SUCCESS / HOST_OPERATION_CONFIRMED / WORKER_SETTLED`, `possible_effect=false`;
+task writes, task starts, UAC, warm runs i wszystkie inne granice produkcyjne
+wyniosły `0`.
+
+Dwa wcześniejsze wywołania wrappera zakończyły się lokalnie przed utworzeniem
+procesu kampanii i przed kontaktem z Task Scheduler: pierwsze na wymaganiu
+`UseShellExecute=false`, drugie na kolizji nazwy lokalnej zmiennej
+`OutputRoot`. Katalog wynikowy nie istniał po żadnym z nich. Nie są liczone
+jako odczyty; faktyczny bounded task read wykonano dokładnie raz.
+
+### A. Dowód historyczny
+
+`result.json` i `mutation-journal.jsonl` zachowują wyłącznie
+`PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED / possible_effect=true /
+settled=false / WORKER_SETTLED`. Nie zawierają pierwotnej odpowiedzi
+post-checku ani jego obserwacji XML. Historyczny szczegół jest zatem
+`NOT_CAPTURED`; późniejszy odczyt nie zmienia historycznego wyniku
+`PARTIAL_PENDING_OPERATION_UNKNOWN`.
+
+### B. Świeża obserwacja
+
+- `State=Disabled`, `Enabled=false`, `Triggers=0`;
+- observer wyprowadził `running_instances=0` i `queued_instances=0` z tego
+  samego `State`; nie są to niezależne pomiary instancji;
+- action: `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` z
+  argumentem `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass
+  -File "C:\ai-lab-core\operations\runtime\invoke-host-with-evidence.ps1"`;
+- `WorkingDirectory=C:\ai-lab-core`, principal
+  `S-1-5-21-712169069-4165966233-3173903118-1001`,
+  `LogonType=InteractiveToken`; element `RunLevel` jest nieobecny w odczytanym
+  XML i pozostaje `NOT_AVAILABLE`, zamiast domniemanego odczytu
+  `LeastPrivilege`;
+- `MultipleInstancesPolicy=IgnoreNew`, `ExecutionTimeLimit=PT15M`;
+- `LastRunTime=2026-09-19T21:07:53Z`, `LastTaskResult=22`.
+
+Odczytany XML ma semantic SHA-256
+`AA989DF63F264770C85C7FC63753FE21D708677CE0BD47A0CBEE592F45EFAA08` i
+comparable SHA-256
+`E3147E8F756802E7EEE4F2EBE872452439D51AC0AECE25F5A8AC0474366D0BA7`.
+Nie odpowiada więc przypiętym hashom disabled
+`B1CE9C862E575E59EAA00EBAB0F85D262C573DADE6BB7B4130038626A0197E06` /
+`E8F1A517654C10CE59B28860FE65B1FE8A7518229DE504B4FD662620D6333EA0`
+ani preimage. Dokładne porównanie decoded text po istniejącej normalizacji
+wyłącznie EOL wykazało tę samą długość `1452` i tylko trzy różne znaki na
+pozycjach `30..32`: deklaracja `encoding="utf-16"` w przypiętym disabled XML
+versus `encoding="UTF-16"` w eksporcie taska. Wszystkie projekcje pól taska są
+identyczne z disabled XML. Preimage nie jest obecny: poza innym opisem używał
+bezpośrednio `start-host-services.ps1 -ManifestPath ...`, podczas gdy bieżący
+task wskazuje recorder.
+
+Dowody LOCAL_ONLY znajdują się w
+`C:\Users\domai\AppData\Local\Temp\P4B-UW-01\host-reconcile01`:
+`campaign-result.json` `7461` B /
+`A09D9574A80AD8FF5F4B76EA9C926DF0B45DCAF1C7170A18B23FBC567F8D78D1`,
+raw observation `3190` B /
+`7710BDDAD600A7CC2694A70129EFD5392FBF8306CD878F70A6D44653E36E3135`
+oraz artifact index `1027` B /
+`5D4FD66E09E187BF70F430B702276EBBD5DDE77C268B9BF29619D42E926D15FC`.
+
+### C. Granica wiedzy i jedna propozycja dokończenia
+
+Nowa obserwacja dowodzi bieżącej semantyki disabled/no-trigger/idle oraz
+representation-only mismatch deklaracji XML. Nie dowodzi, jaki dokładnie XML
+zwrócił historyczny post-check o `07:39:41Z`; przyczyna tamtej odmowy pozostaje
+`NOT_CAPTURED`. Ponieważ istniejący raw/comparable guard nie akceptuje
+bieżących hashów, nie wolno wznowić całego `InstallAndWarm` ani samoczynnie
+przyjąć nowego hasha.
+
+Jedyny proponowany następny zakres wymaga nowej zgody i wąskiej metody
+kontynuacji od dokładnie zaobserwowanego stanu: uznać bieżącą parę hashów tylko
+jako przypięty pre-state tej jednej operacji, ponownie potwierdzić exact
+disabled/no-trigger/idle oraz cztery już zainstalowane hashe, zarejestrować
+wyłącznie przypięty wariant on-demand Host, wykonać dwa odrębne
+recorder-backed warm runs (`Private 1 -> 0`), po każdym potwierdzić zakończenie
+właściwego Host, dopiero potem zastosować przypięty logon XML i wykonać krótki
+test CRM/Web zachowanym skrótem. Bez ponownej rejestracji disabled, kopiowania
+czterech plików, pełnego `InstallAndWarm`, zmian dependency tasks, kontenerów
+lub Supervisora.
+
+Status rozliczenia: `P4B_HOST_RECONCILIATION_READ_ONLY_COMPLETE /
+DISABLED_NO_TRIGGER_IDLE_SEMANTICS_CONFIRMED /
+EXACT_HASH_REPRESENTATION_MISMATCH / HISTORICAL_POSTCHECK_NOT_CAPTURED /
+NO_MUTATION`.
+
+## ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT
+
+Przed oceną i kolejnym promptem przeczytaj roadmapę na SHA publikacji: §0,
+`ANTI_EXCESSIVE_WORK`, aktywną kartę R04 i ten checkpoint. Zachowaj odbiory;
+nie dodawaj K2/K3. K0: `BRAK`. K1: istniejący exact hash guard odrzuca
+zaobserwowaną disabled reprezentację wyłącznie z powodu `utf-16`/`UTF-16`, co
+blokuje bezpieczne przejście do on-demand; dowód to bieżący raw XML i hash pair,
+bez domniemania historycznej odpowiedzi. Efekt: nie powtarzać disabled register
+ani czterech kopii; przyszła zgoda może objąć tylko zamkniętą kontynuację
+exact-current -> on-demand -> dwa warm runs -> logon -> CRM/Web. Cykl review
+pozostaje `2/2`; brak zgody na task write/start, UAC lub dalszy live read.

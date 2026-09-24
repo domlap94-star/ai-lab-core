@@ -430,10 +430,17 @@
 - The one authorized USABLE-WARM Stage B attempt is consumed. It installed the
   four exact files, then ended `PARTIAL_PENDING_OPERATION_UNKNOWN` on the
   `NEXT Stabil - Host` disabled registration post-check; warm runs and logon
-  were not reached. Do not retry InstallAndWarm, re-register Host, start it, or
-  perform an external rollback. Preserve the files, journal, and rollback
-  copies until the owner decides whether to authorize one read-only Host-state
-  reconciliation. Do not repeat the completed preflight.
+  were not reached. A later separately authorized single-task read-only PS5.1
+  reconciliation found Host `Disabled`, `Enabled=false`, zero triggers and no
+  Running/Queued state. Its XML fields match the pinned disabled definition,
+  but existing semantic/comparable guards differ solely on declaration text
+  `utf-16` versus exported `UTF-16`; the historical post-check response itself
+  is `NOT_CAPTURED`. Do not retry InstallAndWarm, recopy the four files,
+  re-register disabled Host, start it, or perform an external rollback. A
+  future owner-gated continuation must start from the exact observed current
+  hash, transition only to on-demand, complete two recorder-backed warm runs,
+  then logon and the CRM/Web shortcut check. Do not repeat the completed
+  preflight or this Host read.
 - Protect work-in-progress code separately: a roadmap checkpoint does not save
   uncommitted work. After a crash, first determine whether the prior operation
   completed and what it changed; never repeat a non-idempotent apply blindly.

@@ -3473,3 +3473,23 @@ the shortcut check were not reached. The recipe preserved files and did not
 perform a competing/destructive rollback. No external task/Docker/HTTP
 post-check was added. The next possible decision is one exact read-only Host
 task/state reconciliation; retry, write, start and rollback remain forbidden.
+
+**P4/B USABLE-WARM HOST RECONCILIATION — 2026-09-24.** One separately
+authorized ordinary-token Windows PowerShell 5.1 campaign read exactly
+`\NEXT Stabil - Host` once and performed no mutation. The task is currently
+Disabled, Enabled=false, has zero triggers, is not Running/Queued, and retains
+the recorder action, approved CWD/principal/InteractiveToken plus IgnoreNew and
+PT15M. LastRunTime is `2026-09-19T21:07:53Z`; LastTaskResult is `22`.
+The explicit RunLevel XML element is absent and therefore not reported as a
+freshly observed value. Current semantic/comparable hashes are
+`AA989DF6...FAA08` / `E3147E8F...D0BA7`; they differ from the pinned disabled
+hashes only because Export-ScheduledTask returned `encoding="UTF-16"` while the
+pinned XML contains `encoding="utf-16"`. Existing hash guards were not relaxed.
+The historical post-check response was not preserved, so this later
+representation difference is not rewritten as its proven historical cause.
+The exact next operational proposal is a new owner-gated continuation from the
+current pinned representation to on-demand Host, two recorder-backed warm runs
+with Private `1 -> 0`, logon only after both Host completions, then the CRM/Web
+shortcut check. It must not recopy the four installed files, re-register the
+disabled variant, or rerun full InstallAndWarm. D-23 remains `2/2`; D-22 stays
+`NOT_RUN`.

@@ -727,7 +727,7 @@
         "next_window": "R04_P4B_USABLE_WARM_OWNER_AUTHORIZED_PREPARATION_LIVE_PREFLIGHT_FORMALLY_BLOCKED"
       },
       "usable_warm_preflight": {
-        "status": "STAGE_B_PARTIAL_PENDING_OPERATION_UNKNOWN_FOUR_FILES_INSTALLED_WARM_RUNS_0_OF_2_READY_FOR_OWNER_REVIEW",
+        "status": "HOST_RECONCILIATION_READ_ONLY_COMPLETE_DISABLED_NO_TRIGGER_IDLE_SEMANTICS_CONFIRMED_EXACT_HASH_REPRESENTATION_MISMATCH_CONTINUATION_NOT_AUTHORIZED",
         "window_id": "R04-D21-P4B-USABLE-WARM-20260923T170936Z",
         "entry_evidence_head": "2234d286df76aa7e410833b6d8262e9663b7f69c",
         "completion_entry_head": "32777ad5e3a6035fe60b25dded95dcee6b8a7094",
@@ -804,15 +804,42 @@
             "result_sha256": "9598F6CBE756625636D1AF406DD1FAC6A2E8CA55A735FCF3D57E250682506655",
             "journal_size_bytes": 6222,
             "journal_sha256": "A0A3171F4C9D290E3ABA02873CA294F4CE2ED4D604BB56FBBF773A1473D575F2",
-            "external_postcheck_task_docker_http": "NOT_RUN"
-          }
+              "external_postcheck_task_docker_http": "NOT_RUN"
+            },
+            "host_reconciliation": {
+              "scope": "ONE_EXACT_TASK_READ_ONLY_WINDOWS_POWERSHELL_5_1_ORDINARY_TOKEN",
+              "read_started_utc": "2026-09-24T08:10:30.0437471Z",
+              "read_completed_utc": "2026-09-24T08:10:39.2325694Z",
+              "envelope": "SUCCESS_HOST_OPERATION_CONFIRMED_WORKER_SETTLED_NO_EFFECT",
+              "state": "Disabled",
+              "enabled": false,
+              "trigger_count": 0,
+              "activity_counts": "DERIVED_FROM_STATE_NOT_INDEPENDENT_INSTANCE_MEASUREMENT",
+              "last_run_utc": "2026-09-19T21:07:53Z",
+              "last_result": 22,
+              "run_level_xml_field": "NOT_AVAILABLE_ABSENT",
+              "current_semantic_sha256": "AA989DF63F264770C85C7FC63753FE21D708677CE0BD47A0CBEE592F45EFAA08",
+              "current_comparable_sha256": "E3147E8F756802E7EEE4F2EBE872452439D51AC0AECE25F5A8AC0474366D0BA7",
+              "disabled_expected_semantic_sha256": "B1CE9C862E575E59EAA00EBAB0F85D262C573DADE6BB7B4130038626A0197E06",
+              "disabled_expected_comparable_sha256": "E8F1A517654C10CE59B28860FE65B1FE8A7518229DE504B4FD662620D6333EA0",
+              "exact_difference": "XML_DECLARATION_ENCODING_CASE_utf_16_VS_UTF_16_ONLY",
+              "decoded_task_fields_match_disabled_target": true,
+              "preimage_present": false,
+              "historical_postcheck_primary_response": "NOT_CAPTURED",
+              "campaign_result_size_bytes": 7461,
+              "campaign_result_sha256": "A09D9574A80AD8FF5F4B76EA9C926DF0B45DCAF1C7170A18B23FBC567F8D78D1",
+              "raw_response_size_bytes": 3190,
+              "raw_response_sha256": "7710BDDAD600A7CC2694A70129EFD5392FBF8306CD878F70A6D44653E36E3135",
+              "task_reads": 1,
+              "production_mutations": 0
+            }
         }
       },
       "live_mutations": "FOUR_CONFIRMED_FILE_WRITES_ONE_PENDING_UNKNOWN_HOST_REGISTER",
       "uac_attempts": 1,
       "host_task_starts": 0,
       "stage_b_authorized": true,
-      "next_action": "OWNER_DECISION_OPTIONAL_ONE_READ_ONLY_EXACT_HOST_TASK_STATE_RECONCILIATION_NO_WRITE_NO_START_NO_ROLLBACK"
+      "next_action": "OWNER_DECISION_NARROW_EXACT_CURRENT_HOST_TO_ON_DEMAND_TWO_WARM_RUNS_LOGON_CRM_WEB_NO_RECOPY_NO_DISABLED_REREGISTRATION"
     },
     "supersedes_current_execution_note_and_preflight": true
     },
