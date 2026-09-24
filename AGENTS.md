@@ -427,6 +427,13 @@
   safety. Push only the authorized branch; never main/tag/release/deploy. After
   push, compare local/remote SHA and read the file at that SHA. Report missing
   synchronization as `LOCAL_ONLY`.
+- USABLE-WARM Stage B has a LOCAL_ONLY approved-manifest derivative
+  `38D7C529...92BDE` and pre-operational index `E298F507...93AD` that pass the
+  unchanged offline guards. The index authorization fields remain false and
+  the operation is `NOT_AUTHORIZED / NOT_RUN`; no UAC or InstallAndWarm is
+  permitted until the owner supplies the one current confirmation recorded in
+  the R04/D-21 plan. Do not repeat the completed live preflight merely because
+  approval bytes were prepared.
 - Protect work-in-progress code separately: a roadmap checkpoint does not save
   uncommitted work. After a crash, first determine whether the prior operation
   completed and what it changed; never repeat a non-idempotent apply blindly.

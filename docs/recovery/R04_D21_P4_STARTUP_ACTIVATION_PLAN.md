@@ -1539,3 +1539,63 @@ tasks pozostają KEEP; `...\P4B-UW-01\apply` pozostaje nieobecny.
 
 Status: `P4B_USABLE_WARM_CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS /
 STAGE_B_BLOCKED_EXACT_APPROVED_MANIFEST_BINDING_NOT_PREPARED_NOT_AUTHORIZED`.
+
+## 44. USABLE-WARM — konfiguracja Stage B gotowa, operacja nieautoryzowana
+
+Właściciel dopuścił wyłącznie LOCAL_ONLY przygotowanie osobnych bajtów
+konfiguracyjnych. Oryginalne `startup-set.proposed.json` i
+`package-index.verifyonly.json` zachowują odpowiednio SHA-256
+`E139CEC5E8011EF38A6A641DF7E68399F968ACF5350E216179395E895C8357F0` i
+`4A58DF7DB1FD100D341BE17633553272D490B9E34EC1C35F13A11B4F23B584DC`.
+
+Nowy `startup-set.approved-for-start.json` ma `31588` B / SHA-256
+`38D7C529FD7CE37E25E32A58CC9CF46075FF5E97D7E60F3618D088653C492BDE`.
+Jego jedyny semantyczny diff to:
+
+- `approval.status: NOT_APPROVED -> APPROVED_FOR_START`;
+- `approval.installation_authorized: false -> true`;
+- `approval.startup_authorized: false -> true`.
+
+`approval.set_id` nadal równa się
+`R04-D21-P4B-USABLE-WARM-20260923T170936Z`, a rzeczywistą referencją decyzji
+jest `D-21`. Nowy `package-index.install-preapproval.json` ma `10908` B /
+SHA-256 `E298F50753BECB023A5A159F010D746046A111DFCEC2B51E89F3E8C2027C93AD`.
+Zmienia wyłącznie ścieżkę/size/hash roli `startup_manifest` oraz odpowiadające
+`prepared_window.manifest_state`. Top-level status pozostaje
+`PROPOSED_AWAITING_SEPARATE_OWNER_OPERATIONAL_APPROVAL`, pięć pól operacyjnych
+pozostaje false, a `requires_separate_owner_operational_approval=true`.
+
+Niezmieniony `Test-P4BPackageIndex` przeszedł na pełnym nowym indeksie i
+rzeczywistych plikach pod Windows PowerShell `5.1.26100.8894`. Niezmieniony
+`Test-StartupSetManifest` przeszedł na izolowanej projekcji dokładnego manifestu
+z własnym junctionem i plikami fixture; wariant kontrolny `NOT_APPROVED`
+zwrócił wyłącznie `START_NOT_APPROVED`. Fixture został usunięty bez przejścia
+rekurencyjnego przez junction. Dowody LOCAL_ONLY: validation summary `1031` B /
+`CE75DE1DA2A3FB3236F69FC4136C3FF2F7C8380E3CA00892273201C3440D1559` oraz
+preparation summary `4279` B /
+`6CE0F8A06BC5FE1E98E52BE84B5829519FA177E55F2507C788283CE2AF16CB18`.
+Granice produkcyjne, UAC, InstallAndWarm, Host/task writes/starts, warm runs i
+rollback wyniosły `0`.
+
+Jedna przyszła decyzja `R04-D21-P4B-USABLE-WARM-STAGEB-20260924T071556Z`
+ma zarazem zatwierdzić mechaniczne przejście indeksu:
+`current_operation_authorized`, `uac_authorized`, `installation_authorized`,
+`warm_runs_authorized`, `logon_trigger_authorized` z false na true oraz
+`requires_separate_owner_operational_approval` z true na false. Docelowe,
+jeszcze niezapisane bajty tego indeksu mają wyliczony SHA-256
+`CF1CCA92DFE3E9A0791615F0EA22454E45D600FDA634FC9DF03D507441A7CCE7` i
+`10904` B. Dopiero po bieżącej odpowiedzi właściciela wolno przedłożyć jeden
+UAC i jedno `InstallAndWarm` recepty `74E5664F...B7D6D` z niezmienionym
+OperationId, nowym indeksem, outputem `...\P4B-UW-01\apply` oraz
+`-AcknowledgeOneTimeMutation`.
+
+Zakres przyszłego okna pozostaje zamrożony: cztery pliki + istniejący Host;
+dwa osobne recorder-backed warm runs z dozwolonym wyłącznie Private
+`START_ONCE 1 -> 0`; logon dopiero po dwóch pełnych wynikach i potwierdzonym
+Host idle; sześć kontenerów i pięć dependency tasks KEEP; Supervisor
+`INTENTIONALLY_STOPPED`; jeden bounded SAFE_INACTIVE tylko przy dowiedzionej
+własności/bezczynności/rozliczeniu. Po sukcesie dopuszczony jest krótki test
+otwarcia CRM/Web przez niezmieniony
+`C:\Users\domai\Desktop\NEXT Stabil.lnk` (`8B46D106...9FBDD`). Docker/WSL pool
+i swap pozostają jawnie `UNKNOWN_NOT_MEASURED`. Bez odpowiedzi właściciela
+status brzmi `STAGE_B_CONFIGURATION_PREPARED / OPERATION_NOT_AUTHORIZED_NOT_RUN`.

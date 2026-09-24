@@ -3448,3 +3448,18 @@ approval transition. Stage B is therefore
 ready for UAC confirmation. The next decision may authorize only a LOCAL_ONLY
 approved-manifest derivative and index rebind plus unchanged guard validation.
 D-23 remains `2/2`; D-22 remains `NOT_RUN`.
+
+**P4/B USABLE-WARM STAGE-B CONFIGURATION PREPARED — 2026-09-24.** The owner
+authorized only LOCAL_ONLY configuration preparation. The separate approved
+manifest is `31588` B / `38D7C529...92BDE`; its semantic diff is exactly the
+approval status plus the two manifest authorization booleans. The separate
+pre-operational index is `10908` B / `E298F507...93AD`; it binds that manifest
+while retaining the required proposed status and all operation authorizations
+false. Unchanged PS5.1 package and startup-manifest guards passed on the full
+package and an isolated fixture; production boundaries were `0`. The previous
+read-only preflight remains current, including declared Docker/WSL pool and
+swap `UNKNOWN_NOT_MEASURED`, and was not repeated. The one next gate is a
+current owner confirmation for window
+`R04-D21-P4B-USABLE-WARM-STAGEB-20260924T071556Z`; without it there is no UAC,
+InstallAndWarm, Host start, warm run or rollback. D-23 remains `2/2`; D-22 is
+unchanged and `NOT_RUN`.
