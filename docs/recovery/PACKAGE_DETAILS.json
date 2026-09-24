@@ -727,12 +727,15 @@
         "next_window": "R04_P4B_USABLE_WARM_OWNER_AUTHORIZED_PREPARATION_LIVE_PREFLIGHT_FORMALLY_BLOCKED"
       },
       "usable_warm_preflight": {
-        "status": "READ_ONLY_PREFLIGHT_FORMALLY_REFUSED_NOT_RUN_PACKAGE_LOCAL_INTEGRITY_PASS_STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED",
+        "status": "CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS_STAGE_B_DECISION_READY_NOT_AUTHORIZED",
         "window_id": "R04-D21-P4B-USABLE-WARM-20260923T170936Z",
         "entry_evidence_head": "2234d286df76aa7e410833b6d8262e9663b7f69c",
+        "completion_entry_head": "32777ad5e3a6035fe60b25dded95dcee6b8a7094",
         "accepted_source": "49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc",
         "recipe_sha256": "74E5664F50CCAE9E641BC076390CE17A769C2E6F1D6F109FB6990C80220B7D6D",
         "package_index_sha256": "6F379DC5330D902CEC30F72E5B4C2CD190FC923AF195B275FF9FF7BA56D64698",
+        "verifyonly_index_sha256": "4A58DF7DB1FD100D341BE17633553272D490B9E34EC1C35F13A11B4F23B584DC",
+        "verifyonly_index_change": "TOP_LEVEL_STATUS_ONLY_ORIGINAL_PRESERVED",
         "launcher_sha256": "686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66",
         "runtime_sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732",
         "recorder_sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
@@ -743,11 +746,18 @@
         "reserved_output_root_created": false,
         "owner_exact_readonly_authorization": true,
         "formal_verifyonly_attempt_id": "R04-D21-P4B-USABLE-WARM-20260923T170936Z-READONLY-PREFLIGHT-01-VERIFYONLY",
-        "formal_verifyonly_result": "REJECTED_BEFORE_CREATEPROCESS_NO_RETRY_NO_ALTERNATE_CHANNEL",
+        "formal_verifyonly_result": "HISTORICAL_REJECTED_BEFORE_CREATEPROCESS_NO_RETRY_NO_ALTERNATE_CHANNEL",
         "formal_refusal_record_size_bytes": 1998,
         "formal_refusal_record_sha256": "D9A547A45147DD60249EDBFA2FC295F181386F56D8E1F08D2AE148D385E64AFE",
-        "task_docker_cim_tcp_http_reads": 0,
-        "resource_reads": 0,
+        "current_verifyonly_result": "VERIFIED_NO_MUTATION",
+        "current_verifyonly_result_sha256": "9A515673F4A10C076E57001891411FC3F5E2C0B8251D1A031680420F18BB53B4",
+        "current_container_readback": "SIX_OF_SIX_PINNED_RUNNING_IDENTITY_PASS_POSTGRES_HEALTHY",
+        "current_host_services_readback": "PUBLIC_PRESENT_PRIVATE_ABSENT_SUPERVISOR_ABSENT",
+        "current_http_readback": "200_200_200_404_404_PASS",
+        "current_windows_disk_gate": "PASS",
+        "docker_wsl_pool_available": "UNKNOWN_NOT_MEASURED",
+        "docker_wsl_swap_usage": "UNKNOWN_NOT_MEASURED",
+        "consolidated_summary_sha256": "1486F0840D2DC604329385363B374A2BE3752F1761D8C1C1A7454BFD250D75B5",
         "task_writes_starts_uac_install_warm_rollback": 0,
         "installed_run01_changed": false
       },
@@ -755,7 +765,7 @@
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "RESOLVE_FORMAL_EXECUTION_PATH_FOR_ALREADY_OWNER_AUTHORIZED_EXACT_READ_ONLY_PREFLIGHT_NO_RETRY_NO_STAGE_B"
+      "next_action": "OWNER_CURRENT_DECISION_FOR_FROZEN_STAGE_B_FOUR_FILES_EXISTING_HOST_TWO_WARM_PRIVATE_1_TO_0_LOGON_AFTER_SUCCESS_ONE_UAC_ACCEPT_DECLARED_UNKNOWNS_AND_PARTIAL_RISK"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

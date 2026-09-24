@@ -1503,3 +1503,37 @@ PACKAGE_LOCAL_INTEGRITY_8_OF_8 / MANIFEST_NOT_APPROVED /
 STAGE_B_NOT_ELIGIBLE_NOT_AUTHORIZED`. Jedyny zależny następny krok to
 rozstrzygnięcie formalnej zdolności wykonania exact zatwierdzonej operacji;
 obecnej kampanii nie ponawiać i nie przechodzić do UAC/Stage B.
+
+## 43. USABLE-WARM — status-only index i kompletny preflight read-only
+
+Historyczny `PACKAGE_STATUS_INVALID` pozostaje prawdziwym wynikiem oryginalnego
+indeksu. Jego top-level `status` miał
+`INACTIVE_PREFLIGHT_ONLY_MANIFEST_NOT_APPROVED`, podczas gdy istniejący
+`Test-P4BPackageIndex` wymaga
+`PROPOSED_AWAITING_SEPARATE_OWNER_OPERATIONAL_APPROVAL`. Oryginał
+`6F379DC5...64698` zachowano. Pochodny LOCAL_ONLY index
+`4A58DF7DB1FD100D341BE17633553272D490B9E34EC1C35F13A11B4F23B584DC`
+zmienia tylko to jedno pole; manifest nadal ma `NOT_APPROVED`, a authorization
+pozostaje false. Pełna istniejąca walidacja pakietu na rzeczywistych plikach
+przeszła.
+
+Jedyny PS5.1 `VerifyOnly` nowego indeksu zakończył się exit `0` i
+`VERIFIED_NO_MUTATION`; result `545` B /
+`9A515673F4A10C076E57001891411FC3F5E2C0B8251D1A031680420F18BB53B4`.
+Następnie jedna kampania odczytowa potwierdziła 6/6 exact pinned containers,
+healthy PostgreSQL, Public Gateway `PRESENT`, Private Gateway i Supervisor
+`ABSENT`, HTTP `200/200/200/404/404` oraz wymagane progi Windows/C:/D:.
+Docker/WSL available pool i swap usage pozostają
+`UNKNOWN_NOT_MEASURED`. Task/service/container starts, writes, UAC,
+InstallAndWarm, rollback i warm runs wynoszą `0`.
+
+Zamrożone Stage B pozostaje nieautoryzowane. Po osobnej bieżącej decyzji może
+objąć wyłącznie cztery pliki i istniejący Host, dwa kompletne recorder-backed
+warm runs z Private `1 -> 0` oraz logon dopiero po obu sukcesach. Sześć
+kontenerów, Supervisor, helper i pięć dependency tasks są KEEP. Output przyszłej
+operacji to nadal nieistniejący `...\P4B-UW-01\apply`. Właściciel musi jawnie
+przyjąć dwa `UNKNOWN_NOT_MEASURED` oraz możliwość bezpiecznego wyniku PARTIAL;
+ten zapis nie zastępuje takiej zgody.
+
+Status: `P4B_USABLE_WARM_CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS /
+STAGE_B_DECISION_READY_NOT_AUTHORIZED`.

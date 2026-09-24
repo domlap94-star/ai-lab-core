@@ -392,6 +392,17 @@
   runtime readiness or request UAC/Stage B. The next action is only resolution
   of the formal execution path for the exact already-authorized read-only
   operation; D-23 remains `2/2` and D-22 remains `NOT_RUN`.
+- The later owner-authorized status-only package-index derivative preserved the
+  original index, manifest `NOT_APPROVED`, and all false mutation
+  authorizations. The unchanged full package gate passed, exact Windows
+  PowerShell 5.1 `VerifyOnly` returned `VERIFIED_NO_MUTATION`, and one current
+  read-only campaign confirmed 6/6 pinned containers, healthy PostgreSQL,
+  Public Gateway present, Private/Supervisor absent, HTTP
+  `200/200/200/404/404`, and Windows/disk thresholds. Docker/WSL pool and swap
+  usage remain `UNKNOWN_NOT_MEASURED`. Do not repeat this preflight. Stage B is
+  decision-ready but not authorized; it still requires one current owner
+  confirmation and one UAC. Installed run01, D-23 `2/2`, and D-22 `NOT_RUN`
+  remain unchanged.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.

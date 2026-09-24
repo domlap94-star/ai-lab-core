@@ -3428,3 +3428,20 @@ Docker, CIM, TCP, HTTP and resource reads plus UAC, mutations and warm runs are
 changed. Stage B remains `NOT_ELIGIBLE / NOT_AUTHORIZED`; resolve only the
 formal execution path for this exact operation before any new operational
 step. D-23 remains `2/2`; D-22 remains `NOT_RUN`.
+
+**P4/B USABLE-WARM STATUS-ONLY INDEX + COMPLETE READ-ONLY PREFLIGHT —
+2026-09-24.** The original index and its historical `PACKAGE_STATUS_INVALID`
+result remain unchanged. A LOCAL_ONLY derivative changed only top-level
+`status` to the exact value required by the existing package guard; manifest
+approval stayed `NOT_APPROVED` and every mutation authorization stayed false.
+The complete existing package gate passed. One Windows PowerShell 5.1
+`VerifyOnly` returned `VERIFIED_NO_MUTATION`. One subsequent read-only
+campaign confirmed all six pinned container identities and running state,
+healthy PostgreSQL, Public Gateway present, Private/Supervisor absent, HTTP
+`200/200/200/404/404`, and Windows/disk thresholds. Docker/WSL available pool
+and current swap use remain `UNKNOWN_NOT_MEASURED`. Starts, writes, UAC,
+InstallAndWarm, rollback and warm runs were `0`. Stage B is
+`DECISION_READY / NOT_AUTHORIZED`: one current owner confirmation must bind the
+four-file + existing-Host changeset, Private `1 -> 0`, logon after two complete
+successes, one UAC, the disclosed UNKNOWNs and possible safe PARTIAL result.
+D-23 remains `2/2`; D-22 remains `NOT_RUN`.
