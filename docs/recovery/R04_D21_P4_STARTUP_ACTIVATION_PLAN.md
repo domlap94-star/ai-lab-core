@@ -1878,3 +1878,74 @@ WARM_RUNS_0_OF_2 / LOGON_NOT_CONFIGURED / CRM_WEB_NOT_OPENED /
 UAC_CONSUMED_NO_RETRY`. R04 pozostaje `IN_PROGRESS`; D-23 `2/2`, D-22
 `NOT_RUN`. Następny krok wymaga osobnej decyzji właściciela po review dokładnego
 bieżącego stanu Host; nie jest autoryzowany w tym oknie.
+
+## 52. USABLE-WARM — Host reconcile: pierwszy warm run ukończony, okno częściowe
+
+Właściciel zatwierdził jednorazowo
+`R04-D21-P4B-USABLE-WARM-CONTINUE-HOST-RECONCILE-20260924T192425Z` dla
+LOCAL_ONLY continuation `42142` B / SHA-256
+`6C3155EE0B31B96A9F8420EA965E97B5558D7F42942DF7E90CF18F1A4BB3A690`
+i indexu `7965` B / SHA-256
+`039166A4E23A9B157DB19E82D3365CE843CA11F41A8F487EF156678589A65A0E`.
+Pochodna dopuszcza pominięcie ponownej rejestracji wyłącznie dla exact Host
+on-demand o semantic/comparable
+`66ECF75806986BE7624FBC2430D14AEEC6D79BE4C348A29E072018E1F00BB938` /
+`171956207D309EC3B5241835F158BA5129A1685DF5FF57E4A650A0C94212BA92`,
+enabled, bez triggerów i bez Running/Queued. Nie zmienia czterech plików produktu.
+
+Końcowy offline PS5.1 przeszedł `14` scenariuszy / `66` asercji przy
+`production_boundaries=0`; wynik `812` B / SHA-256
+`AC4D10D1EBC8A927ABFEC56473824FD51B9BE793C8E3CBD6898ACBADC508B95F`.
+Bounded preflight `12304` B / SHA-256
+`CAB2009A05D85FA92EF8AA58C9BDDB2E309CB52962CC7AE5F38358F7DA910BEE`
+potwierdził cztery zainstalowane pliki, exact Host, sześć pinned kontenerów,
+PostgreSQL healthy, Public present, Private/Supervisor absent i HTTP
+`200/200/200/404`. Docker/WSL pool i swap pozostały jawnie UNKNOWN.
+
+Po jednym UAC elevated PID `56548` zakończył się exit `22`. Główny
+`result.json` (`1816` B / SHA-256
+`1566C0804337174617E93D820BE559379727EE7DEF9BD5ABB71E58DC35312B2D`)
+zachowuje prawdziwy wynik rodzica `PARTIAL_PENDING_OPERATION_UNKNOWN` i nie jest
+przepisywany wstecz na sukces. Journal (`1206` B / SHA-256
+`88BC8C3016BAD57428EAC6018E49E5821EB9A2F6F922D259865D11A90256BBB9`)
+potwierdza jednak przekazanie dokładnie jednego `START_TASK` i rozliczenie jego
+workera.
+
+Recorder attempt `20260924T200607127Z-09f89fd4` zakończył się po wyniku rodzica:
+
+- marker `364` B / SHA-256
+  `E3E1AA3605CB4A5D6369AFB6ABC78D39775CC38C1E6CEB32B37C38B7992AB0C0`;
+- result `6025` B / SHA-256
+  `F252947792F5B12CADCFDB6684EC824F591F8186E3B548A94531B8DD564784B9`;
+- stdout `3094` B / SHA-256
+  `A6EACD08956122702D50FDF3AE4532FA016B417BFC4DFF985A66CA829880F175`;
+- stderr `0` B / SHA-256
+  `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855`.
+
+Wynik recordera to `BASE_READY_LIMITED_CAPTURED`, exit `0`, kompletne strumienie,
+rozliczone dziecko PID `36168` i dokładnie jeden dozwolony event
+`private_gateway START_ONCE SUCCESS`; sześć usług kontenerowych zostało
+zachowanych, Public zachowany, Supervisor pozostał intentionally stopped.
+
+Jeden dozwolony post-check (`9774` B / SHA-256
+`667BAF47908B417667F9986A29B53C97421940528D730072C17115FA3CC311A1`)
+potwierdził Host `Ready`, enabled/no-trigger/idle, LastRun `20:06:05Z`,
+LastResult `0` i exact dwa hashe; Private i Public są present, Supervisor absent,
+sześć exact ID/image nadal running, PostgreSQL healthy, HTTP
+`200/200/200/404`. Pole `runtime_valid=false` wynika wyłącznie z polityki
+preflight oczekującej Private absent; po pierwszym dozwolonym starcie nie jest
+to drift tożsamości ani dowód duplikatu.
+
+Stan wykonawczy: `FIRST_WARM_RECORDER_COMPLETE / WARM_RUNS_1_OF_2 /
+SECOND_REPEAT_NOT_RUN / LOGON_NOT_CONFIGURED / CRM_WEB_NOT_OPENED /
+UAC_CONSUMED / NO_RETRY / SAFE_INACTIVE_NOT_RUN`. Nie wykonano drugiego runu,
+więc brak duplikatu przy powtórce pozostaje `NOT_VERIFIED`, a nie PASS.
+Cztery pliki produktu, pięć dependency tasks, helper, sześć kontenerów, dane,
+junction i flagi nie zostały zmienione. Preservation historyczne pozostaje
+`116 + 87 = 203/203`.
+
+Jedyny spójny kolejny krok wymaga nowej decyzji właściciela dla bieżącego stanu:
+exact Host on-demand jest idle, Private już present, pierwszy attempt jest
+zamknięty. Zakres powinien obejmować bez ponownej rejestracji/kopiowania jeden
+recorder-backed repeat oczekujący `0` nowych startów, potem logon i read-only
+CRM/Web. Obecne okno nie upoważnia do tej kontynuacji.
