@@ -1767,3 +1767,58 @@ running i HTTP `200/200/200/404`. Dowód: `continuation-exec-postcheck01.json`,
 Wynik: `NO_DURABLE_OPERATION_RESULT / UAC_CONSUMED / POSTCHECK_UNCHANGED /
 WARM_RUNS_0_OF_2 / LOGON_NOT_CONFIGURED / CRM_WEB_NOT_OPENED`. Retry,
 SAFE_INACTIVE i dalsza mutacja nie zostały wykonane.
+
+## 50. USABLE-WARM — param-fix wszedł, runtime preflight zablokował mutację
+
+Fail-before na zachowanym preimage potwierdził, że dot-source bazowej recepty
+nadpisywał argumenty kontynuacji: `DefinitionOnly=true`, a
+`ContinuationIndexPath`, `ContinuationId` i `OutputRoot` stawały się puste oraz
+acknowledgement stawał się `false`. Osobno launcher importowany w runtime probe
+nadpisywał lokalny `ManifestPath`. LOCAL_ONLY pochodna zachowuje oryginalne
+argumenty przed importami, wiąże ścieżkę manifestu niezależnie i udostępnia w
+dedykowanym procesie dokładne funkcje hash-pinned recepty bazowej potrzebne jej
+closure-backed granicom. Oryginały pozostały bez zmian.
+
+Finalne bajty:
+
+- continuation `28361` B / SHA-256
+  `7511C8B9428FCBAF7C40FB8824C25F8C73E5D816EE7FD48527684105E7E91F34`;
+- continuation index `5471` B / SHA-256
+  `968FC37EF85FEFB5C1BB2469856862E9838D650FC095818CD62D2B0981E87696`;
+- harness `28035` B / SHA-256
+  `9E75337B0497C9F941C4BC3B986311C39E831AB987FF1949419FEC8E6081AD90`;
+- offline result `811` B / SHA-256
+  `09A0ABA3FFFD5622175B5617CD0B64CD93278718DE2D120F0F8E9517751797E6`.
+
+PS5.1 przeszedł pełną ścieżkę wejścia w `9` scenariuszach / `43` asercjach z
+`production_boundaries=0`: zwykłe wejście zachowało argumenty, jawne
+DefinitionOnly niczego nie wykonało, brak acknowledgement został odrzucony,
+manifest path pozostał przypięty, a syntetyczny pełny przebieg dał Host `2`,
+Private `1 -> 0`, końcowy logon, zachowane SAFE_INACTIVE i pending guards.
+
+Właściciel potwierdził obecność i dokładnie jeden UAC dla okna
+`R04-D21-P4B-USABLE-WARM-CONTINUE-EXEC-PARAMFIX-20260924T155752Z`. Elevated
+PID `70972` uruchomiono dokładnym PS5.1 `-File` z pochodnym indeksem i
+`-AcknowledgeOneTimeMutation`; zakończył się exit `22`. Recepta zapisała
+LOCAL_ONLY:
+
+- `apply\result.json`: `3419` B / SHA-256
+  `C4C1863A3441B61FE551DBB77957D07DB9FC42666D0159061AA38BFD2714C51F`;
+- `apply\preflight.json`: `6940` B / SHA-256
+  `8A47A3B5E975B4212DA65F6405B5A22A2E5A2E2E7738C989A3E2260D8F9DB7AF`.
+
+Wynik to `PREFLIGHT_BLOCKED`: cztery zainstalowane pliki są hash-match, Host
+jest exact `Disabled / enabled=false / trigger_count=0 / idle`, a HTTP ma
+`200/200/200/404`. Runtime adapter nie rozpoznał `Get-StartupProperty` w
+closure po imporcie launchera. W efekcie Docker context/engine, sześć
+obserwacji kontenerów i trzy obserwacje host services są `UNKNOWN`; nie wolno
+ich przepisać na absence ani PASS. `mutation_started=false`,
+`pending_mutation=false`, `host_transitions=[]`, `warm_runs=[]`, journal
+`NOT_OPENED`, SAFE_INACTIVE `NOT_NEEDED`. Nie wykonano Host write/start,
+Private startu, logon ani otwarcia CRM/Web. Jedyny UAC jest zużyty; bez retry,
+alternatywnego kanału lub automatycznej kolejnej mutacji.
+
+Status: `P4B_USABLE_WARM_PARAM_FIX_OFFLINE_PASS /
+OPERATION_PREFLIGHT_BLOCKED_RUNTIME_IMPORT_VISIBILITY /
+NO_MUTATION / WARM_RUNS_0_OF_2 / LOGON_NOT_CONFIGURED /
+CRM_WEB_NOT_OPENED / UAC_CONSUMED`.

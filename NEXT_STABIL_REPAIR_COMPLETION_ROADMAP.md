@@ -4,6 +4,20 @@
 
 **Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. D-21 P1/P2/DATA_ONLY/guard, ograniczony P3, P4/A, Host22 i NUP-01/02/03 zachowują dotychczasowe odbiory; D-23 review pozostaje 2/2. USABLE-WARM Stage B historycznie zainstalowała cztery exact pliki i zakończyła `PARTIAL_PENDING_OPERATION_UNKNOWN` przed warm runs. Po read-only reconciliation Host był Disabled/no-trigger/idle. Dwie późniejsze kontynuacje zużyły po jednym UAC bez trwałego wyniku. Najnowsza skonsolidowana próba miała pozytywny preflight `4/4`, `6/6`, PostgreSQL healthy, Public ready, Private/Supervisor absent i HTTP `200/200/200/404`; PID `73504` zakończył się `0`, ale nie powstały `apply`, preflight, journal ani `result.json`. Jedyny post-check wykazał brak zmian: Host nadal Disabled/no-trigger/idle, sześć kontenerów zachowanych, Public ready, Private/Supervisor absent. Warm runs `0/2`, logon `NOT_CONFIGURED`, CRM/Web `NOT_OPENED`; zgoda/UAC są zużyte i nie ma automatycznego retry. D-22 nadal ustala kolejność po właścicielskim odbiorze R04: ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE; wykonanie NOT_RUN. Bieżący stan znajduje się wyłącznie w §0.**
 
+**Aktualizacja USABLE-WARM PARAM-FIX 2026-09-24:** po fail-before potwierdzającym,
+że import bazowej recepty nadpisywał argumenty kontynuacji, przygotowano
+LOCAL_ONLY pochodną `7511C8B9...91F34` z indeksem
+`968FC37E...E87696`. Pełna ścieżka wejścia PS5.1 przeszła `9` scenariuszy / `43`
+asercje przy `0` granicach produkcyjnych. Jedno następnie zatwierdzone okno
+`R04-D21-P4B-USABLE-WARM-CONTINUE-EXEC-PARAMFIX-20260924T155752Z` zużyło jeden
+UAC; elevated PID `70972` zakończył się exit `22` po zapisaniu
+`PREFLIGHT_BLOCKED`. Cztery pliki i Host Disabled/no-trigger/idle są zgodne,
+HTTP wynosi `200/200/200/404`, lecz runtime adapter nie widział
+`Get-StartupProperty`, dlatego Docker context/engine, sześć kontenerów i trzy
+host services są `UNKNOWN`. `mutation_started=false`, `pending_mutation=false`,
+journal `NOT_OPENED`, warm runs `0/2`, logon `NOT_CONFIGURED`, CRM/Web
+`NOT_OPENED`; brak retry i nowej zgody operacyjnej.
+
 **Aktualizacja 2026-09-20:** właściciel przyjął dokładny source Host22
 `8195e5cf8dacd1976ccd9f71a1f78175c3513acc` i jego ZIP jako
 `HOST22_SOURCE_AND_OFFLINE_PACKAGE_ACCEPTED / NOT_DEPLOYED`. Pierwszy zbiorczy
