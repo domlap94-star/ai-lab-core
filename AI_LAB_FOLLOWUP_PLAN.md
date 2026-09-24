@@ -3463,3 +3463,13 @@ current owner confirmation for window
 `R04-D21-P4B-USABLE-WARM-STAGEB-20260924T071556Z`; without it there is no UAC,
 InstallAndWarm, Host start, warm run or rollback. D-23 remains `2/2`; D-22 is
 unchanged and `NOT_RUN`.
+
+**P4/B USABLE-WARM STAGE-B ATTEMPT — 2026-09-24.** The one current owner
+confirmation and one UAC were consumed. Exact four files were installed and
+hash-matched, then disabled registration of `NEXT Stabil - Host` ended
+`PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED`; the final result is
+`PARTIAL_PENDING_OPERATION_UNKNOWN`. Warm runs, Host/Private starts, logon and
+the shortcut check were not reached. The recipe preserved files and did not
+perform a competing/destructive rollback. No external task/Docker/HTTP
+post-check was added. The next possible decision is one exact read-only Host
+task/state reconciliation; retry, write, start and rollback remain forbidden.

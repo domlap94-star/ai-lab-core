@@ -1599,3 +1599,42 @@ otwarcia CRM/Web przez niezmieniony
 `C:\Users\domai\Desktop\NEXT Stabil.lnk` (`8B46D106...9FBDD`). Docker/WSL pool
 i swap pozostają jawnie `UNKNOWN_NOT_MEASURED`. Bez odpowiedzi właściciela
 status brzmi `STAGE_B_CONFIGURATION_PREPARED / OPERATION_NOT_AUTHORIZED_NOT_RUN`.
+
+## 45. USABLE-WARM Stage B — jedyna próba zakończona partial
+
+Właściciel udzielił dokładnej zgody na okno
+`R04-D21-P4B-USABLE-WARM-STAGEB-20260924T071556Z`. Osobny indeks
+`package-index.install-authorized.json` zachował wcześniejsze pliki i ma
+`10904` B / SHA-256
+`CF1CCA92DFE3E9A0791615F0EA22454E45D600FDA634FC9DF03D507441A7CCE7`.
+Pełny niezmieniony package gate przeszedł pod PS5.1. Następnie dokładnie jeden
+RunAs/UAC uruchomił niezmienioną receptę w `InstallAndWarm`; elevated child
+PID `79776` działał od `2026-09-24T07:38:21.0096157Z` do
+`2026-09-24T07:39:42.3941321Z` i zakończył się exit `22`.
+
+Recepta potwierdziła instalację czterech celów:
+
+- launcher `686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66`;
+- runtime `959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732`;
+- recorder `D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A`;
+- manifest `38D7C529FD7CE37E25E32A58CC9CF46075FF5E97D7E60F3618D088653C492BDE`.
+
+Pierwsza mutacja taska — rejestracja disabled `NEXT Stabil - Host` — została
+przekazana, lecz post-check nie potwierdził wyniku:
+`PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED / possible_effect=true /
+settled=false / worker_cleanup=WORKER_SETTLED`. Wynik końcowy to
+`PARTIAL_PENDING_OPERATION_UNKNOWN`; journal zamknięto, własny elevated child
+zakończył się, a recepta zgodnie z polityką pozostawiła pliki i nie wykonała
+konkurującego/destrukcyjnego rollbacku. Warm runs, Host start, Private start,
+logon i test skrótu wynoszą `0`; pięć dependency tasks i helper nie zostały
+zmienione według result. Nie wykonano zewnętrznego odczytu taska, Docker/HTTP
+ani post-checku usług, więc aktualnego stanu Host nie wolno domniemywać.
+
+LOCAL_ONLY output `...\P4B-UW-01\apply` zawiera result `3412` B /
+`9598F6CBE756625636D1AF406DD1FAC6A2E8CA55A735FCF3D57E250682506655`,
+journal `6222` B /
+`A0A3171F4C9D290E3ABA02873CA294F4CE2ED4D604BB56FBBF773A1473D575F2`
+oraz trzy exact preimages. Zgoda i UAC są zużyte. Bez nowej decyzji obowiązuje
+STOP przed retry, rejestracją/startem Host, rollbackiem, warm runami i innymi
+operacjami. Jedyny proponowany następny zakres to dokładny read-only odczyt
+Host task/state tej próby, bez ponowienia pełnego preflightu.
