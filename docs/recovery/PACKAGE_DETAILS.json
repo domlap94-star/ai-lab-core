@@ -856,6 +856,25 @@
               "fresh_host_readback": "NOT_RUN",
               "owner_bitdefender_statement": "EXCEPTION_ADDED_BY_OWNER_NOT_PROVEN_CAUSE_NOT_GENERAL_AV_CLEARANCE",
               "retry": 0
+            },
+            "observable_invocation_pre_uac_block": {
+              "status": "LOCAL_WRAPPER_REMOVED_BEFORE_OFFLINE_TEST_NO_UAC",
+              "scope": "LOCAL_ONLY_INVOCATION_AND_CAPTURE_CORRECTION_THEN_ONE_UAC_AFTER_SELFTEST_AND_OWNER_PRESENCE",
+              "continuation_script_sha256": "D2F6D8490C39A3FF61A8D8D0DC5DDF260FC46DCF7EFF67E4F02A25A8482CF63B",
+              "continuation_index_sha256": "D6432185D409ABC26639EAF3DC53C2B57CAD4EF1DF092BFCDF6DB6AAA3BBCA1B",
+              "first_observation": "PS51_PARSER_FILE_IN_USE_BY_ANOTHER_PROCESS",
+              "second_observation": "EXACT_WRAPPER_PATH_ABSENT",
+              "formal_security_message": "NOT_AVAILABLE",
+              "cause": "NOT_AVAILABLE_NO_ATTRIBUTION",
+              "wrapper_recreated": false,
+              "channel_or_protection_changed": false,
+              "selftest_started": false,
+              "operation_output_created": false,
+              "uac_requested": false,
+              "product_boundaries": 0,
+              "retry": 0,
+              "blocker_evidence_size_bytes": 1083,
+              "blocker_evidence_sha256": "EF82E5577AA080B927C3CAF93EA2BA1B95F02F479B6EBD20330D6255D24016B1"
             }
         }
       },
@@ -863,7 +882,7 @@
       "uac_attempts": 2,
       "host_task_starts": 0,
       "stage_b_authorized": true,
-      "next_action": "OWNER_DECISION_ONE_OBSERVABLE_INVOCATION_WITH_DURABLE_STDERR_RESULT_NO_AUTOMATIC_RETRY"
+      "next_action": "OWNER_OR_SECURITY_DECISION_ON_EXACT_LOCAL_WRAPPER_REMOVAL_NO_CHANNEL_CHANGE_NO_AUTOMATIC_RETRY"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

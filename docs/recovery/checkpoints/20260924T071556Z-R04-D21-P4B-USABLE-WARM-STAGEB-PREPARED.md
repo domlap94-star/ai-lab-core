@@ -245,3 +245,39 @@ wejścia w receptę ani uzyskać dwóch warm runs; dowód to monitor i brak
 obowiązkowych artefaktów. Nie dodawać K2/K3. Następny krok wymaga jawnej decyzji
 o jednym obserwowalnym wywołaniu z trwałym stderr/result; obecna zgoda i UAC są
 zużyte, bez automatycznego retry.
+
+## Obserwowalne zastępstwo — wynik przed UAC
+
+Nowe zadanie miało zachować exact continuation script/index i poprawić tylko
+transport oraz capture. Przygotowany LOCAL_ONLY wrapper miał zapisać marker
+wejścia, rzeczywisty child PID, safe argv, stdout, stderr, exit i monitor
+result przed oceną `result.json` produktu. Test miał użyć rzeczywistego PS5.1
+i nieszkodliwych targetów, bez UAC i bez granic hosta.
+
+Wrapper został zapisany pod
+`C:\Users\domai\AppData\Local\Temp\P4B-UWC-01\invoke02\invoke-observable-continuation.ps1`.
+Pierwszy parser PS5.1 zwrócił dokładnie błąd odczytu `file in use by another
+process`; następnie exact ścieżka była nieobecna. `selftest01`, `run01` i
+produktowy `apply` nie powstały. Pozostałe trzy nieszkodliwe fixture pozostały.
+Brak formalnej odpowiedzi mechanizmu ochrony oznacza, że sprawca i dokładna
+przyczyna są `NOT_AVAILABLE`; nie przypisano zdarzenia AV i nie próbowano
+zmiany kanału, ochrony lub ACL.
+
+Bezpieczny zapis LOCAL_ONLY ma `1083` B / SHA-256
+`EF82E5577AA080B927C3CAF93EA2BA1B95F02F479B6EBD20330D6255D24016B1`.
+Nowy UAC, wrapper execution, selftest, product preflight, Host/Docker/Task/
+CIM/TCP/HTTP reads/writes/starts i SAFE_INACTIVE wynoszą `0`.
+
+Wynik: `OBSERVABLE_INVOCATION_LOCAL_WRAPPER_REMOVED_BEFORE_OFFLINE_TEST /
+NO_UAC / PRODUCT_BOUNDARIES_0 / WARM_RUNS_0_OF_2 / LOGON_AND_CRM_WEB_NOT_RUN`.
+Nie ma bieżącego zdania do potwierdzenia UAC, ponieważ wymagana lokalna bramka
+nie przeszła.
+
+## ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT
+
+Przed kolejnym krokiem przeczytaj roadmapę na SHA publikacji: §0,
+`ANTI_EXCESSIVE_WORK`, kartę R04 i ten checkpoint. D-23 pozostaje `2/2`.
+K0: `BRAK NOWEGO DOWODU`. K1: obserwowalny wrapper nie przetrwał do parsera i
+selftestu, więc warunek bezpiecznego jednego UAC nie został osiągnięty; dowód
+to dokładny błąd file-in-use, następna nieobecność ścieżki i brak wszystkich
+katalogów wykonawczych. Bez K2/K3, automatycznego retry lub zmiany kanału.

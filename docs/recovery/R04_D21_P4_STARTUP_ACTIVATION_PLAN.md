@@ -1704,3 +1704,31 @@ retry, SAFE_INACTIVE ani dodatkowego live readbacku. Bieżący Host i Supervisor
 zachowują ostatni stan dowodowy z wcześniejszej kampanii, nie świeżą obserwację.
 Kolejna operacja wymaga osobnej decyzji na obserwowalny transport z trwałym
 stdout/stderr/result; nie może być automatycznym ponowieniem tej zgody.
+
+## 48. Obserwowalne zastępstwo — blokada LOCAL_ONLY przed selftestem i UAC
+
+Właściciel zatwierdził minimalną LOCAL_ONLY osłonę zachowującą bez zmian
+receptę `D2F6D849...CF63B`, indeks `D6432185...CA1B` oraz całą logikę
+operacyjną. Osłona miała uruchamiać exact PS5.1 child przez encoded command,
+zapisać marker wejścia/PID/argv przed childem i osobno utrwalić stdout, stderr,
+exit i wynik nadzoru. Produktowy `apply` miał pozostać nieobecny do wejścia
+w niezmienioną kontynuację.
+
+Przed kontaktem z produktem pierwsza próba parsera PS5.1 zakończyła się
+komunikatem: `The file could not be read: Proces nie może uzyskać dostępu do
+pliku, ponieważ jest on używany przez inny proces.` Bezpośredni odczyt exact
+ścieżki chwilę później zwrócił `file does not exist`; wrapper był nieobecny,
+podczas gdy trzy nieszkodliwe pliki testowe pozostały. Nie powstały
+`selftest01`, `run01` ani produktowy `apply`. Nie odtworzono wrappera, nie
+zmieniono ochrony/ACL/kanału i nie wykonano UAC.
+
+Dowód LOCAL_ONLY: `invoke02\pre-uac-blocker.json`, `1083` B / SHA-256
+`EF82E5577AA080B927C3CAF93EA2BA1B95F02F479B6EBD20330D6255D24016B1`.
+Nie ma formalnego komunikatu mechanizmu ochrony ani nazwy procesu trzymającego
+uchwyt, dlatego przyczyna pozostaje
+`NOT_AVAILABLE_NO_FORMAL_SECURITY_MESSAGE_CAPTURED`, a nie domniemane AV.
+
+Status: `OBSERVABLE_INVOCATION_LOCAL_WRAPPER_REMOVED_BEFORE_OFFLINE_TEST /
+NO_UAC / NO_PRODUCT_BOUNDARIES / NO_RETRY`. Warm runs nadal `0/2`; logon i
+CRM/Web `NOT_RUN`. Dalsza czynność wymaga jawnej decyzji owner/security wobec
+tej exact blokady i nie może zmieniać kanału ani zabezpieczeń.

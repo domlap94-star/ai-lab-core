@@ -3508,3 +3508,17 @@ and the exact failure message is `NOT_AVAILABLE` because stderr was not
 persisted. A future operation requires a separate owner decision for an
 observable invocation with durable stderr/result. D-23 remains `2/2`; D-22 is
 unchanged and `NOT_RUN`.
+
+**P4/B OBSERVABLE INVOCATION PRE-UAC BLOCK — 2026-09-24.** The owner
+authorized a minimal LOCAL_ONLY invocation/capture wrapper and one later UAC
+only after a harmless PS5.1 transport test and current presence confirmation.
+The unchanged continuation and index remained pinned. Before any product
+boundary, the PS5.1 parser reported that the new wrapper file was in use by
+another process; the exact path was then absent. No formal security message or
+process identity was captured, so the cause remains `NOT_AVAILABLE`, not an AV
+finding. The wrapper was not recreated, no alternate channel/protection/ACL
+change was used, and self-test, operation output, UAC and product reads/writes/
+starts remained `0`. Evidence: `1083` B /
+`EF82E5577AA080B927C3CAF93EA2BA1B95F02F479B6EBD20330D6255D24016B1`.
+Warm runs remain `0/2`; logon and CRM/Web stay `NOT_RUN`. D-23 remains `2/2`;
+D-22 stays `NOT_RUN`.

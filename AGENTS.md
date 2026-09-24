@@ -456,3 +456,11 @@
   the parent exit code, retry, request another UAC or perform rollback without
   a new owner decision. The owner's statement about a Bitdefender exception is
   not proof of the earlier cause and is not general AV clearance.
+- A subsequent owner-authorized observable-invocation preparation stopped
+  before its harmless PS5.1 self-test and before UAC. The new LOCAL_ONLY
+  wrapper first produced an exact parser read error saying the file was in use
+  by another process, then the exact wrapper path was absent. No formal
+  security response identified a cause. Do not recreate it through another
+  channel, alter protection/ACL, infer AV attribution, request UAC or touch
+  product boundaries without a new owner/security decision. Self-test, run
+  evidence, product output and production reads/writes/starts were all `0`.
