@@ -727,7 +727,7 @@
         "next_window": "R04_P4B_USABLE_WARM_OWNER_AUTHORIZED_PREPARATION_LIVE_PREFLIGHT_FORMALLY_BLOCKED"
       },
       "usable_warm_preflight": {
-        "status": "CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS_STAGE_B_DECISION_READY_NOT_AUTHORIZED",
+        "status": "CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS_STAGE_B_BLOCKED_EXACT_APPROVED_MANIFEST_BINDING_NOT_PREPARED_NOT_AUTHORIZED",
         "window_id": "R04-D21-P4B-USABLE-WARM-20260923T170936Z",
         "entry_evidence_head": "2234d286df76aa7e410833b6d8262e9663b7f69c",
         "completion_entry_head": "32777ad5e3a6035fe60b25dded95dcee6b8a7094",
@@ -741,6 +741,8 @@
         "recorder_sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
         "manifest_sha256": "E139CEC5E8011EF38A6A641DF7E68399F968ACF5350E216179395E895C8357F0",
         "manifest_status": "NOT_APPROVED",
+        "startup_manifest_guard": "START_NOT_APPROVED_UNLESS_APPROVED_FOR_START",
+        "recipe_approval_transition": "NOT_IMPLEMENTED_EXACT_MANIFEST_COPIED",
         "payload_bindings": "8_OF_8_PASS_PS51",
         "reserved_output_root": "C:\\Users\\domai\\AppData\\Local\\Temp\\P4B-UW-01\\apply",
         "reserved_output_root_created": false,
@@ -765,7 +767,7 @@
       "uac_attempts": 0,
       "host_task_starts": 0,
       "stage_b_authorized": false,
-      "next_action": "OWNER_CURRENT_DECISION_FOR_FROZEN_STAGE_B_FOUR_FILES_EXISTING_HOST_TWO_WARM_PRIVATE_1_TO_0_LOGON_AFTER_SUCCESS_ONE_UAC_ACCEPT_DECLARED_UNKNOWNS_AND_PARTIAL_RISK"
+      "next_action": "OWNER_DECISION_MINIMAL_LOCAL_ONLY_APPROVED_FOR_START_MANIFEST_DERIVATIVE_INDEX_REBIND_AND_UNCHANGED_GUARD_VALIDATION_NO_UAC_NO_INSTALL"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

@@ -1527,13 +1527,15 @@ Docker/WSL available pool i swap usage pozostają
 `UNKNOWN_NOT_MEASURED`. Task/service/container starts, writes, UAC,
 InstallAndWarm, rollback i warm runs wynoszą `0`.
 
-Zamrożone Stage B pozostaje nieautoryzowane. Po osobnej bieżącej decyzji może
-objąć wyłącznie cztery pliki i istniejący Host, dwa kompletne recorder-backed
-warm runs z Private `1 -> 0` oraz logon dopiero po obu sukcesach. Sześć
-kontenerów, Supervisor, helper i pięć dependency tasks są KEEP. Output przyszłej
-operacji to nadal nieistniejący `...\P4B-UW-01\apply`. Właściciel musi jawnie
-przyjąć dwa `UNKNOWN_NOT_MEASURED` oraz możliwość bezpiecznego wyniku PARTIAL;
-ten zapis nie zastępuje takiej zgody.
+Zamrożone Stage B pozostaje nieautoryzowane i nie jest jeszcze wykonawczo
+gotowe. Exact manifest ma `approval.status=NOT_APPROVED`, podczas gdy
+niezmieniony `Test-StartupSetManifest` dodaje `START_NOT_APPROVED` dla każdej
+wartości innej niż `APPROVED_FOR_START`. Recepta kopiuje exact manifest i nie
+wykonuje approval transition, więc niezmienione Stage B nie może spełnić warm
+runs. Przed bieżącą zgodą operacyjną potrzebna jest osobno autoryzowana
+LOCAL_ONLY pochodna exact approved manifestu i indeksu oraz przejście
+niezmienionych guardów. Sześć kontenerów, Supervisor, helper i pięć dependency
+tasks pozostają KEEP; `...\P4B-UW-01\apply` pozostaje nieobecny.
 
 Status: `P4B_USABLE_WARM_CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS /
-STAGE_B_DECISION_READY_NOT_AUTHORIZED`.
+STAGE_B_BLOCKED_EXACT_APPROVED_MANIFEST_BINDING_NOT_PREPARED_NOT_AUTHORIZED`.

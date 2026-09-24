@@ -3440,8 +3440,11 @@ campaign confirmed all six pinned container identities and running state,
 healthy PostgreSQL, Public Gateway present, Private/Supervisor absent, HTTP
 `200/200/200/404/404`, and Windows/disk thresholds. Docker/WSL available pool
 and current swap use remain `UNKNOWN_NOT_MEASURED`. Starts, writes, UAC,
-InstallAndWarm, rollback and warm runs were `0`. Stage B is
-`DECISION_READY / NOT_AUTHORIZED`: one current owner confirmation must bind the
-four-file + existing-Host changeset, Private `1 -> 0`, logon after two complete
-successes, one UAC, the disclosed UNKNOWNs and possible safe PARTIAL result.
+InstallAndWarm, rollback and warm runs were `0`. A final exact-byte check found
+that the frozen candidate manifest remains `NOT_APPROVED`; unchanged runtime
+validation returns `START_NOT_APPROVED`, and the recipe does not perform an
+approval transition. Stage B is therefore
+`BLOCKED_EXACT_APPROVED_MANIFEST_BINDING_NOT_PREPARED / NOT_AUTHORIZED`, not
+ready for UAC confirmation. The next decision may authorize only a LOCAL_ONLY
+approved-manifest derivative and index rebind plus unchanged guard validation.
 D-23 remains `2/2`; D-22 remains `NOT_RUN`.

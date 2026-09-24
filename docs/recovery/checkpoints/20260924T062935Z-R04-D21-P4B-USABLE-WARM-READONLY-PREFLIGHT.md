@@ -95,24 +95,37 @@ The sanitized LOCAL_ONLY consolidated summary is `11302` B, SHA-256
 
 ## Result and next decision
 
+The live read-only layers passed, but a final exact-byte execution check found
+a material Stage-B blocker in the frozen package. The candidate manifest has
+`approval.status=NOT_APPROVED`, `installation_authorized=false` and
+`startup_authorized=false`. The unchanged runtime validator adds
+`START_NOT_APPROVED` unless the status is exactly `APPROVED_FOR_START`.
+`InstallAndWarm` copies this exact manifest before the recorder-backed Host
+attempts; it does not perform an approval transition. Therefore an unchanged
+Stage B would install bytes that the launcher must refuse, and cannot be
+presented for owner confirmation as a viable warm window.
+
 Status:
 `P4B_USABLE_WARM_CONSOLIDATED_READ_ONLY_PREFLIGHT_PASS_WITH_DECLARED_UNKNOWNS /
-VERIFYONLY_VERIFIED_NO_MUTATION / STAGE_B_DECISION_READY_NOT_AUTHORIZED`.
+VERIFYONLY_VERIFIED_NO_MUTATION /
+STAGE_B_BLOCKED_EXACT_APPROVED_MANIFEST_BINDING_NOT_PREPARED_NOT_AUTHORIZED`.
 
-The future frozen operation remains four files plus the existing Host task,
-two recorder-backed warm runs with Private `1 -> 0`, and logon only after both
-complete successes. Six containers and Supervisor must not be started or
-changed. Future `InstallAndWarm` output is the still-absent
-`C:\Users\domai\AppData\Local\Temp\P4B-UW-01\apply`. A separate current owner
-confirmation and one UAC are still mandatory; this checkpoint is not that
-authorization.
+The intended operation remains four files plus the existing Host task, two
+recorder-backed warm runs with Private `1 -> 0`, and logon only after both
+complete successes. Before that operation can be offered for confirmation, a
+separate owner-authorized LOCAL_ONLY derivation must create exact
+`APPROVED_FOR_START` manifest bytes, rebind their hash in a derivative index,
+and pass the unchanged manifest/package guards. This checkpoint does not
+authorize that derivation, UAC, installation or Stage B. The reserved
+`C:\Users\domai\AppData\Local\Temp\P4B-UW-01\apply` remains absent.
 
 ## ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT
 
 Przed oceną i kolejnym promptem przeczytaj [roadmapę §0,
 ANTI_EXCESSIVE_WORK oraz aktywną kartę R04](../../../NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md)
 na pełnym opublikowanym SHA oraz ten checkpoint. Zachowaj odbiory i D-23
-`2/2`; nie szukaj K2/K3. K0/K1: `BRAK NOWEGO — wymagany skonsolidowany
-read-only preflight zakończył się PASS z jawnie ujawnionymi dwoma UNKNOWN`.
-Następny krok: jedna bieżąca decyzja właściciela o zamrożonym Stage B; bez niej
-brak UAC, instalacji, Host startu, warm runs i task writes.
+`2/2`; nie szukaj K2/K3. K0/K1: `K1 — zamrożony manifest ma NOT_APPROVED, a
+niezmieniony runtime zwraca START_NOT_APPROVED; niezmienione Stage B nie może
+osiągnąć warm runs`. Następny krok: jedna decyzja właściciela o minimalnym
+LOCAL_ONLY przygotowaniu dokładnych approved-manifest bytes i derivative-index
+binding; nadal bez UAC, instalacji, Host startu, warm runs i task writes.

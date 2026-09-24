@@ -399,10 +399,15 @@
   read-only campaign confirmed 6/6 pinned containers, healthy PostgreSQL,
   Public Gateway present, Private/Supervisor absent, HTTP
   `200/200/200/404/404`, and Windows/disk thresholds. Docker/WSL pool and swap
-  usage remain `UNKNOWN_NOT_MEASURED`. Do not repeat this preflight. Stage B is
-  decision-ready but not authorized; it still requires one current owner
-  confirmation and one UAC. Installed run01, D-23 `2/2`, and D-22 `NOT_RUN`
-  remain unchanged.
+  usage remain `UNKNOWN_NOT_MEASURED`. Do not repeat this preflight. A final
+  exact-byte guard check found that the frozen manifest is still
+  `NOT_APPROVED`, while the unchanged runtime necessarily returns
+  `START_NOT_APPROVED`; the recipe copies those bytes without an approval
+  transition. Stage B is therefore blocked and not authorized. Before any UAC
+  or current operational confirmation, an explicit owner-authorized LOCAL_ONLY
+  derivative must bind exact `APPROVED_FOR_START` manifest bytes and pass the
+  unchanged guards. Installed run01, D-23 `2/2`, and D-22 `NOT_RUN` remain
+  unchanged.
 - One writer at a time. ChatGPT may read concurrently, but checkpoint/source
   writes are serialized by the workflow; never automatically overwrite remote,
   force-push, or create a second "canonical" branch.
