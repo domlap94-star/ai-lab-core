@@ -832,14 +832,38 @@
               "raw_response_sha256": "7710BDDAD600A7CC2694A70129EFD5392FBF8306CD878F70A6D44653E36E3135",
               "task_reads": 1,
               "production_mutations": 0
+            },
+            "narrow_continuation_attempt": {
+              "continuation_id": "R04-D21-P4B-USABLE-WARM-CONTINUE-20260924T104156Z",
+              "status": "NO_DURABLE_OPERATION_RESULT_SCRIPT_ENTRY_NOT_EVIDENCED_UAC_CONSUMED",
+              "continuation_script_sha256": "D2F6D8490C39A3FF61A8D8D0DC5DDF260FC46DCF7EFF67E4F02A25A8482CF63B",
+              "continuation_index_sha256": "D6432185D409ABC26639EAF3DC53C2B57CAD4EF1DF092BFCDF6DB6AAA3BBCA1B",
+              "offline_test": "PASS_4_SCENARIOS_24_ASSERTIONS_PRODUCTION_BOUNDARIES_0",
+              "uac_attempts": 1,
+              "uac_requested_utc": "2026-09-24T11:35:00.5990291Z",
+              "elevated_pid": 82116,
+              "elevated_exit_code": 0,
+              "elevated_exited_utc": "2026-09-24T11:35:08.1965722Z",
+              "monitor_sha256": "CDBA2FE433E43CFD56A04DA2911EB99EA95CE9E64CC9893748B5757B2C229011",
+              "output_root_created": false,
+              "preflight_result_journal_created": false,
+              "exact_failure_message": "NOT_AVAILABLE_STDERR_NOT_PERSISTED",
+              "mutation_evidenced": false,
+              "warm_runs_completed": 0,
+              "logon_enabled": false,
+              "crm_web_test": "NOT_RUN",
+              "safe_inactive": "NOT_RUN",
+              "fresh_host_readback": "NOT_RUN",
+              "owner_bitdefender_statement": "EXCEPTION_ADDED_BY_OWNER_NOT_PROVEN_CAUSE_NOT_GENERAL_AV_CLEARANCE",
+              "retry": 0
             }
         }
       },
-      "live_mutations": "FOUR_CONFIRMED_FILE_WRITES_ONE_PENDING_UNKNOWN_HOST_REGISTER",
-      "uac_attempts": 1,
+      "live_mutations": "FOUR_CONFIRMED_FILE_WRITES_ONE_HISTORICAL_PENDING_UNKNOWN_HOST_REGISTER_NO_NEW_MUTATION_EVIDENCED_BY_NARROW_CONTINUATION",
+      "uac_attempts": 2,
       "host_task_starts": 0,
       "stage_b_authorized": true,
-      "next_action": "OWNER_DECISION_NARROW_EXACT_CURRENT_HOST_TO_ON_DEMAND_TWO_WARM_RUNS_LOGON_CRM_WEB_NO_RECOPY_NO_DISABLED_REREGISTRATION"
+      "next_action": "OWNER_DECISION_ONE_OBSERVABLE_INVOCATION_WITH_DURABLE_STDERR_RESULT_NO_AUTOMATIC_RETRY"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

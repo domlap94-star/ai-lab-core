@@ -199,3 +199,49 @@ bez domniemania historycznej odpowiedzi. Efekt: nie powtarzać disabled register
 ani czterech kopii; przyszła zgoda może objąć tylko zamkniętą kontynuację
 exact-current -> on-demand -> dwa warm runs -> logon -> CRM/Web. Cykl review
 pozostaje `2/2`; brak zgody na task write/start, UAC lub dalszy live read.
+
+## Jednorazowa wąska kontynuacja — UAC zużyty, brak trwałego wyniku
+
+- Continuation ID: `R04-D21-P4B-USABLE-WARM-CONTINUE-20260924T104156Z`.
+- Właściciel oświadczył, że Bitdefender wcześniej zablokował połączenie i że
+  dodał je w swoim interfejsie do wyjątków. Nie jest to potwierdzona przyczyna
+  historycznego błędu ani ogólne AV clearance; konfiguracji ochrony nie
+  zmieniano w tej pracy.
+- LOCAL_ONLY root: `C:\Users\domai\AppData\Local\Temp\P4B-UWC-01`.
+- Continuation script: `25749` B /
+  `D2F6D8490C39A3FF61A8D8D0DC5DDF260FC46DCF7EFF67E4F02A25A8482CF63B`.
+- Continuation index: `5456` B /
+  `D6432185D409ABC26639EAF3DC53C2B57CAD4EF1DF092BFCDF6DB6AAA3BBCA1B`.
+- Offline: `PASS`, `4` scenariusze / `24` asercje, production boundaries `0`.
+
+Po bieżącym potwierdzeniu właściciela wywołano dokładnie jeden RunAs/UAC.
+Monitor `541` B /
+`CDBA2FE433E43CFD56A04DA2911EB99EA95CE9E64CC9893748B5757B2C229011`
+zapisał `UAC_REQUESTED` `2026-09-24T11:35:00.5990291Z`, elevated PID `82116`
+oraz exit `0` `2026-09-24T11:35:08.1965722Z` po `7598.112` ms.
+
+Zarezerwowany output `...\P4B-UWC-01\apply` nie istnieje. Nie powstały
+`preflight.json`, `mutation-journal.jsonl` ani `result.json`. Ponieważ
+kontynuacja tworzy ten output przed preflightem i przed granicą mutacji, nie ma
+dowodu wejścia w przepisaną operację, odczytu hosta ani rozpoczęcia mutacji.
+Brak utrwalonego stderr oznacza `EXACT_FAILURE_MESSAGE=NOT_AVAILABLE`; kod `0`
+procesu nie zastępuje obowiązkowego wyniku recepty.
+
+Wynik: `P4B_USABLE_WARM_CONTINUATION_NO_DURABLE_RESULT /
+SCRIPT_ENTRY_NOT_EVIDENCED / UAC_CONSUMED / NO_RETRY /
+WARM_RUNS_0_OF_2 / LOGON_AND_CRM_WEB_NOT_RUN`. SAFE_INACTIVE nie był
+uruchamiany. Nie wykonano skrótu CRM/Web, ponieważ poprzedzające dwa warm runs
+nie uzyskały PASS. Stan Host disabled/no-trigger/idle i Supervisor
+`INTENTIONALLY_STOPPED` pozostają wyłącznie ostatnim wcześniejszym dowodem,
+bez świeżego readbacku tej próby.
+
+## ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT
+
+Przed oceną przeczytaj roadmapę na SHA publikacji: §0,
+`ANTI_EXCESSIVE_WORK`, aktywną kartę R04 i ten checkpoint. Zachowaj D-23 `2/2`
+i wcześniejsze odbiory. K0: `BRAK NOWEGO DOWODU`. K1: dokładne wywołanie nie
+pozostawiło outputu powstającego przed preflightem, więc nie można udowodnić
+wejścia w receptę ani uzyskać dwóch warm runs; dowód to monitor i brak
+obowiązkowych artefaktów. Nie dodawać K2/K3. Następny krok wymaga jawnej decyzji
+o jednym obserwowalnym wywołaniu z trwałym stderr/result; obecna zgoda i UAC są
+zużyte, bez automatycznego retry.

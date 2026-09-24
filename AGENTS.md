@@ -447,3 +447,12 @@
 - Never write `ACCEPTED` without actual owner acceptance. Every decision names
   the evaluated SHA, scope, and evidence; a later implementation change can
   invalidate only the applicable evidence, not the whole roadmap.
+- The owner later authorized narrow continuation
+  `R04-D21-P4B-USABLE-WARM-CONTINUE-20260924T104156Z` from the reconciled
+  disabled Host. Its one UAC is consumed. Elevated PID `82116` exited `0`, but
+  the reserved output directory, preflight, mutation journal and result were
+  not created, so exact script entry and mutation are not evidenced. Warm runs
+  remain `0/2`; logon and CRM/Web remain `NOT_RUN`. Do not infer success from
+  the parent exit code, retry, request another UAC or perform rollback without
+  a new owner decision. The owner's statement about a Bitdefender exception is
+  not proof of the earlier cause and is not general AV clearance.

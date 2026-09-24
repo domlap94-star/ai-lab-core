@@ -3493,3 +3493,18 @@ with Private `1 -> 0`, logon only after both Host completions, then the CRM/Web
 shortcut check. It must not recopy the four installed files, re-register the
 disabled variant, or rerun full InstallAndWarm. D-23 remains `2/2`; D-22 stays
 `NOT_RUN`.
+
+**P4/B USABLE-WARM NARROW CONTINUATION — 2026-09-24.** The owner authorized
+`R04-D21-P4B-USABLE-WARM-CONTINUE-20260924T104156Z` and was present for one
+UAC. The owner separately stated that Bitdefender had blocked a connection and
+that an exception was added; this is not a proven historical cause or general
+AV clearance. The exact elevated child PID `82116` exited `0`, but the reserved
+output directory and required preflight, mutation journal and result were not
+created. Because output creation precedes preflight and every mutation in the
+continuation, exact script entry and execution are not evidenced. No PASS is
+assigned to mutation, warm, logon or CRM/Web; warm remains `0/2`. The one UAC
+is consumed, no retry/second UAC/SAFE_INACTIVE or new host read was performed,
+and the exact failure message is `NOT_AVAILABLE` because stderr was not
+persisted. A future operation requires a separate owner decision for an
+observable invocation with durable stderr/result. D-23 remains `2/2`; D-22 is
+unchanged and `NOT_RUN`.

@@ -1669,3 +1669,38 @@ pre-state -> przypięty on-demand Host -> dwa recorder-backed warm runs
 krótki test CRM/Web. Czterech plików nie kopiować ponownie i nie rejestrować
 ponownie wariantu disabled. Ta sekcja jest planem; task writes/starts, UAC,
 warm runs, logon i CRM/Web w kampanii rozliczeniowej wyniosły `0`.
+
+## 47. USABLE-WARM — jednorazowa wąska kontynuacja bez trwałego wyniku
+
+Właściciel zatwierdził kontynuację
+`R04-D21-P4B-USABLE-WARM-CONTINUE-20260924T104156Z` i oświadczył, że
+Bitdefender wcześniej zablokował połączenie, po czym właściciel dodał je do
+wyjątków. Jest to oświadczenie właściciela, nie dowód przyczyny wcześniejszego
+błędu ani ogólne `AV-cleared`; ochrona i wyjątki nie były w tej pracy zmieniane.
+
+LOCAL_ONLY kontynuacja miała wejść wyłącznie z dokładnego disabled pre-state,
+bez ponownego kopiowania czterech plików i bez ponownego disabled register.
+Windows PowerShell 5.1 offline zaliczył `4` scenariusze / `24` asercje przy
+granicach produkcyjnych `0`. Recepta ma `25749` B / SHA-256
+`D2F6D8490C39A3FF61A8D8D0DC5DDF260FC46DCF7EFF67E4F02A25A8482CF63B`,
+a continuation index `5456` B / SHA-256
+`D6432185D409ABC26639EAF3DC53C2B57CAD4EF1DF092BFCDF6DB6AAA3BBCA1B`.
+
+Po uprzedzeniu właściciela wykonano dokładnie jeden UAC. Monitor zapisał
+`UAC_REQUESTED` o `2026-09-24T11:35:00.5990291Z`, start elevated PID `82116`
+o `11:35:07.6225121Z` i exit `0` o `11:35:08.1965722Z`. Zarezerwowany
+`C:\Users\domai\AppData\Local\Temp\P4B-UWC-01\apply` nie powstał; nie ma
+`preflight.json`, `mutation-journal.jsonl` ani `result.json`. Kod kontynuacji
+tworzy output przed odczytowym preflightem i przed otwarciem dziennika
+mutacji, więc nie ma dowodu, że exact script entry i właściwa operacja w ogóle
+się rozpoczęły. Exit procesu nadrzędnego nie jest warm PASS. Stderr tej próby
+nie został utrwalony, dlatego dokładny komunikat i przyczyna pozostają
+`NOT_AVAILABLE`, bez rekonstrukcji.
+
+Status: `P4B_USABLE_WARM_CONTINUATION_NO_DURABLE_RESULT / UAC_CONSUMED /
+SCRIPT_ENTRY_NOT_EVIDENCED / MUTATION_NOT_STARTED_BY_PRESCRIBED_RECIPE /
+WARM_RUNS_0_OF_2 / LOGON_AND_CRM_WEB_NOT_RUN`. Nie wykonano drugiego UAC,
+retry, SAFE_INACTIVE ani dodatkowego live readbacku. Bieżący Host i Supervisor
+zachowują ostatni stan dowodowy z wcześniejszej kampanii, nie świeżą obserwację.
+Kolejna operacja wymaga osobnej decyzji na obserwowalny transport z trwałym
+stdout/stderr/result; nie może być automatycznym ponowieniem tej zgody.
