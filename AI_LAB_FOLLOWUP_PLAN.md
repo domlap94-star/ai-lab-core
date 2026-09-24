@@ -3522,3 +3522,20 @@ starts remained `0`. Evidence: `1083` B /
 `EF82E5577AA080B927C3CAF93EA2BA1B95F02F479B6EBD20330D6255D24016B1`.
 Warm runs remain `0/2`; logon and CRM/Web stay `NOT_RUN`. D-23 remains `2/2`;
 D-22 stays `NOT_RUN`.
+
+**P4/B USABLE-WARM COMPLETION ATTEMPT — 2026-09-24.** The owner withdrew the
+wrapper-investigation requirement and authorized one direct completion attempt.
+Local PS5.1 invocation preparation found and handled two scope-loading issues
+without changing product bytes: explicit `ManifestPath` binding and preloading
+the already installed `startup-runtime.ps1`. Final read-only preflight
+`4FE0AC34...12C4` passed: installed targets `4/4`, exact running containers
+`6/6`, PostgreSQL healthy, Public present, Private/Supervisor absent and HTTP
+`200/200/200/404`; Docker/WSL pool and swap remain accepted UNKNOWN for this
+window. After current owner presence confirmation exactly one UAC started PID
+`73504`. It exited `0` after `17856` ms, but `apply`, `preflight.json`, journal
+and `result.json` were absent. Script entry and product success therefore remain
+unevidenced. A single bounded post-check `1D790DD0...218E` confirmed exact
+Disabled/no-trigger/idle Host, unchanged six container identities, Public ready,
+Private/Supervisor absent and the same HTTP results. Task writes/starts, service
+starts, warm runs, logon and CRM/Web were `0`; no retry or SAFE_INACTIVE was
+performed. D-23 remains `2/2`; D-22 remains `NOT_RUN`.

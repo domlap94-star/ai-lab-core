@@ -1732,3 +1732,38 @@ Status: `OBSERVABLE_INVOCATION_LOCAL_WRAPPER_REMOVED_BEFORE_OFFLINE_TEST /
 NO_UAC / NO_PRODUCT_BOUNDARIES / NO_RETRY`. Warm runs nadal `0/2`; logon i
 CRM/Web `NOT_RUN`. Dalsza czynność wymaga jawnej decyzji owner/security wobec
 tej exact blokady i nie może zmieniać kanału ani zabezpieczeń.
+
+## 49. Skonsolidowana próba dokończenia USABLE-WARM
+
+Właściciel wycofał wymaganie diagnozowania zaginionej osłony i zatwierdził jeden
+nowy attempt `R04-D21-P4B-USABLE-WARM-CONTINUE-EXEC-20260924T130821Z` bez
+zmiany skryptu `D2F6D849...CF63B`, indeksu `D6432185...CA1B` ani zainstalowanych
+bajtów. Lokalna kontrola PS5.1 wykazała, że poprawne wejście wymaga jawnego
+przekazania `ManifestPath` podczas dot-source launchera oraz wcześniejszego
+załadowania istniejącego `startup-runtime.ps1`. Jest to korekta wywołania,
+bez modyfikacji produktu.
+
+Końcowy preflight read-only zakończył się PASS: cztery cele hash-match, Host
+`Disabled / no-trigger / idle` z przypiętymi semantic/comparable hashami, sześć
+exact kontenerów running, PostgreSQL healthy, Public Gateway PRESENT/ready,
+Private Gateway i Supervisor ABSENT oraz HTTP `200/200/200/404`. Docker/WSL pool
+i swap pozostały jawnie UNKNOWN. Dowód: `continuation-exec-preflight04.json`,
+`10996` B / SHA-256
+`4FE0AC344614C8A3DD4405B78FD0A1E6D96387935DB8CB78C351350CA8D112C4`.
+
+Po bieżącym potwierdzeniu właściciela wywołano dokładnie jeden UAC. Elevated PID
+`73504` działał od `2026-09-24T13:24:16.6587762Z` do
+`13:24:34.5118723Z` i zakończył się kodem `0`, ale nie utworzył `apply`,
+`preflight.json`, journalu ani `result.json`. Kod `0` nie stanowi wyniku
+kontynuacji; wejście skryptu pozostaje `NOT_EVIDENCED`, a dokładny błąd
+`NOT_AVAILABLE`. Monitor: `1351` B / SHA-256
+`B8AA353B73C55F36D7AFF5803F7CA1DEA99412411D9DEC4EFF622FAB884C128E`.
+
+Jeden bounded post-check potwierdził Host nadal exact Disabled/no-trigger/idle,
+Private/Supervisor ABSENT, Public PRESENT/ready, sześć identycznych full ID/image
+running i HTTP `200/200/200/404`. Dowód: `continuation-exec-postcheck01.json`,
+`7171` B / SHA-256
+`1D790DD024E74942387526BA8BAC6D57941A024C9FE7F88F18BB76F1439E218E`.
+Wynik: `NO_DURABLE_OPERATION_RESULT / UAC_CONSUMED / POSTCHECK_UNCHANGED /
+WARM_RUNS_0_OF_2 / LOGON_NOT_CONFIGURED / CRM_WEB_NOT_OPENED`. Retry,
+SAFE_INACTIVE i dalsza mutacja nie zostały wykonane.

@@ -281,3 +281,32 @@ K0: `BRAK NOWEGO DOWODU`. K1: obserwowalny wrapper nie przetrwał do parsera i
 selftestu, więc warunek bezpiecznego jednego UAC nie został osiągnięty; dowód
 to dokładny błąd file-in-use, następna nieobecność ścieżki i brak wszystkich
 katalogów wykonawczych. Bez K2/K3, automatycznego retry lub zmiany kanału.
+
+## Skonsolidowane dokończenie USABLE-WARM — wynik
+
+Właściciel zakończył wymaganie diagnozowania zaginionej osłony i zatwierdził
+attempt `R04-D21-P4B-USABLE-WARM-CONTINUE-EXEC-20260924T130821Z`. Finalny
+preflight PS5.1 przeszedł: pliki `4/4`, Host exact Disabled/no-trigger/idle,
+kontenery `6/6` running, PostgreSQL healthy, Public PRESENT/ready,
+Private/Supervisor ABSENT, HTTP `200/200/200/404`. Dowód LOCAL_ONLY ma `10996`
+B / `4FE0AC344614C8A3DD4405B78FD0A1E6D96387935DB8CB78C351350CA8D112C4`.
+
+Po bieżącym potwierdzeniu obecności użyto jednego UAC. PID `73504` zakończył się
+kodem `0` po `17856` ms, lecz `apply`, preflight, journal i result nie powstały.
+Monitor ma `1351` B / `B8AA353B73C55F36D7AFF5803F7CA1DEA99412411D9DEC4EFF622FAB884C128E`;
+`EXACT_FAILURE_MESSAGE=NOT_AVAILABLE`. Nie przypisano PASS na podstawie kodu
+powłoki i nie wykonano retry.
+
+Post-check `7171` B / `1D790DD024E74942387526BA8BAC6D57941A024C9FE7F88F18BB76F1439E218E`
+potwierdził Host nadal Disabled/no-trigger/idle, sześć identycznych kontenerów,
+Public ready, Private/Supervisor absent i HTTP `200/200/200/404`. Warm runs
+`0/2`; logon `NOT_CONFIGURED`; CRM/Web `NOT_OPENED`; SAFE_INACTIVE `NOT_RUN`.
+
+## ANTI_EXCESSIVE_WORK — OBOWIĄZKOWY ODCZYT PRZEZ CHATGPT
+
+Przed kolejną decyzją przeczytaj roadmapę na SHA publikacji: §0,
+`ANTI_EXCESSIVE_WORK`, kartę R04 i ten checkpoint. D-23 pozostaje `2/2`.
+K0: `BRAK NOWEGO DOWODU`. K1: jeden zatwierdzony UAC nie pozostawił żadnego
+artefaktu wejścia kontynuacji, mimo pozytywnego preflightu; post-check dowodzi
+braku zmian Host/usług. Zgoda jest zużyta, bez automatycznego retry, K2/K3 i
+bez przepisywania historycznych wyników.

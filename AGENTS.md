@@ -464,3 +464,14 @@
   channel, alter protection/ACL, infer AV attribution, request UAC or touch
   product boundaries without a new owner/security decision. Self-test, run
   evidence, product output and production reads/writes/starts were all `0`.
+- The owner then retired investigation of that missing wrapper and authorized
+  one consolidated usable-warm completion attempt. Its corrected PS5.1
+  preflight passed: installed files `4/4`, exact containers `6/6`, PostgreSQL
+  healthy, Public present, Private/Supervisor absent and HTTP
+  `200/200/200/404`. One UAC started PID `73504`, which exited `0`, but the
+  existing continuation again created no output, preflight, journal or result.
+  A bounded post-check proved Host still exact Disabled/no-trigger/idle,
+  Private/Supervisor absent, Public ready and containers unchanged by identity.
+  Warm runs remain `0/2`; logon and CRM/Web are `NOT_RUN`. This UAC is consumed:
+  do not infer success from exit `0`, retry, start Host, register logon or run
+  SAFE_INACTIVE without a new explicit owner decision.
