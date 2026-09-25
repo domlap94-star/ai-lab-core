@@ -3575,3 +3575,12 @@ The owner manually confirmed read-only opening of CRM/Web, the client list and
 one client detail. Status: `USABLE_WARM_READY_FOR_OWNER_REVIEW`; not R04
 acceptance or cold-start PASS. Docker/WSL pool and swap remain UNKNOWN, D-23
 remains `2/2`, and D-22 remains `NOT_RUN`.
+
+**P4/B USABLE-WARM OWNER ACCEPTANCE — 2026-09-25.** The owner accepted the
+exact result published at `e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa` as
+`USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`. Historical parent/logon
+`PARTIAL/PENDING_UNKNOWN` records and their later resolving evidence remain
+unchanged. The acceptance does not cover cold start, actual post-reboot logon,
+backups, data relocation or whole R04. The next existing scope is
+`R04-ONE-ENTRY-COLD`; this decision does not authorize its execution and
+USABLE-WARM is not replanned.

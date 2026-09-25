@@ -2,7 +2,9 @@
 
 ## Wynik
 
-- Status: `USABLE_WARM_READY_FOR_OWNER_REVIEW`.
+- Status wykonawczy przed decyzją: `USABLE_WARM_READY_FOR_OWNER_REVIEW`.
+- Odbiór właściciela: `USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE` na
+  opublikowanym `e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa`.
 - Warm runs: `2/2` na dwóch różnych recorder attempts.
 - Pierwszy zaakceptowany attempt: `20260924T200607127Z-09f89fd4`, Private
   `START_ONCE=1`.
@@ -16,6 +18,9 @@
 
 Nie jest to `R04_ACCEPTED`, cold-start/logoff/reboot PASS ani odbiór backupów,
 relokacji danych, HKCU Run, Docker/WSL pool lub swap.
+
+Historyczne parent/logon `PARTIAL/PENDING_UNKNOWN` oraz późniejsze dowody ich
+rozliczenia pozostają bez zmian; starych journalów nie przepisano.
 
 ## Dokładne wejścia LOCAL_ONLY
 
@@ -75,5 +80,5 @@ Nie wykonano edycji danych, importu, analizy ani eksportu.
 - Retry `0`, SAFE_INACTIVE `0`, drugi UAC `0`.
 - Cztery pliki produktu, sześć kontenerów, dependency tasks, helper, dane,
   junction i dziewięć flag bez zmian.
-- Następny krok: właścicielski odbiór albo odrzucenie dokładnego wyniku
-  `USABLE_WARM_READY_FOR_OWNER_REVIEW`; bez kolejnej operacji hosta.
+- Następny istniejący zakres: `R04-ONE-ENTRY-COLD`, po odrębnej zgodzie. Ta
+  decyzja nie zezwala na jego wykonanie i nie otwiera ponownie USABLE-WARM.

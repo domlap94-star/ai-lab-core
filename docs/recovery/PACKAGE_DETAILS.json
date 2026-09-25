@@ -221,7 +221,7 @@
       "next_action": "OWNER_DECISION_RECONCILE_NON_PINNED_ENABLED_NO_TRIGGER_HOST_AFTER_PENDING_REGISTER_NO_AUTOMATIC_RETRY",
       "latest_operational_status": {
         "attempt_id": "R04-D21-P4B-USABLE-WARM-REPEAT-20260924T230413Z",
-        "status": "WARM_RUNS_2_OF_2_SECOND_RUN_ZERO_STARTS_LOGON_CONFIGURED_READBACK_CRM_OWNER_CONFIRMED_READY_FOR_REVIEW",
+        "status": "USABLE_WARM_ACCEPTED_LIMITED_RUNTIME_SCOPE",
         "parent_result": "PARTIAL_PENDING_OPERATION_UNKNOWN_PRESERVED",
         "recorder_result": "BASE_READY_LIMITED_CAPTURED_CHILD_SETTLED_EXIT_0",
         "postcheck_utc": "2026-09-25T06:35:58.0070000Z",
@@ -238,7 +238,10 @@
         "second_recorder_attempt_id": "20260925T063227046Z-3e1e1246",
         "second_recorder_result_sha256": "D19E17A2EE74C4DAC72CA366597BAC49CAFDBB75BB8CBAF52F5D9659CB58669E",
         "logon_journal_sha256": "B71520E3D59D97786E4E5F91938E0BF00695173EDAA9A25977A184645AE35964",
-        "next_action": "OWNER_REVIEW_USABLE_WARM_RESULT_NO_HOST_OPERATION"
+        "owner_acceptance_evidence_sha": "e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa",
+        "acceptance_scope": "WARM_2_OF_2_PRIVATE_1_THEN_0_SECOND_ZERO_STARTS_ONE_LOGON_TRIGGER_READBACK_OWNER_MANUAL_READ_ONLY_CRM_LIST_DETAIL",
+        "acceptance_excludes": "COLD_START_POST_REBOOT_LOGON_BACKUPS_DATA_RELOCATION_DOCKER_WSL_POOL_SWAP_WHOLE_R04",
+        "next_action": "R04_ONE_ENTRY_COLD_EXISTING_SCOPE_SEPARATE_AUTHORIZATION_REQUIRED"
       },
       "usable_warm_param_fix_attempt": {
         "window_id": "R04-D21-P4B-USABLE-WARM-CONTINUE-EXEC-PARAMFIX-20260924T155752Z",
@@ -350,7 +353,9 @@
         "supervisor": "ABSENT_INTENTIONALLY_STOPPED",
         "safe_inactive": "NOT_RUN",
         "retry": 0,
-        "status": "USABLE_WARM_READY_FOR_OWNER_REVIEW_NOT_R04_ACCEPTED"
+        "status": "USABLE_WARM_ACCEPTED_LIMITED_RUNTIME_SCOPE",
+        "owner_acceptance_evidence_sha": "e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa",
+        "next_scope": "R04_ONE_ENTRY_COLD_NOT_AUTHORIZED_BY_THIS_DECISION"
       },
       "host22_diagnostic": {
         "status": "HOST22_DIAGNOSED_READ_ONLY_SOURCE_FIX_REQUIRED_NO_RETRY_AUTHORIZED",
@@ -1091,7 +1096,7 @@
             },
             "usable_warm_repeat_attempt": {
               "attempt_id": "R04-D21-P4B-USABLE-WARM-REPEAT-20260924T230413Z",
-              "status": "WARM_RUNS_2_OF_2_SECOND_RUN_ZERO_SERVICE_CONTAINER_STARTS_LOGON_CONFIGURED_READBACK_CRM_OWNER_CONFIRMED_READY_FOR_REVIEW",
+              "status": "USABLE_WARM_ACCEPTED_LIMITED_RUNTIME_SCOPE",
               "continuation_script_sha256": "2498FC31736D754FFD5C8F05612DC8C80EE9D0B68E38D5BB4344298E55899953",
               "continuation_index_sha256": "494536D6787D7E70890475FF90A7310638272C6BA3E39FC238E83FF8A98705EE",
               "offline_test": "PASS_14_SCENARIOS_72_ASSERTIONS_PRODUCTION_BOUNDARIES_0",
@@ -1108,7 +1113,9 @@
               "crm_web": "OWNER_CONFIRMED_READ_ONLY_CLIENT_LIST_AND_ONE_CLIENT_DETAIL",
               "safe_inactive": "NOT_RUN",
               "retry": 0,
-              "authorization": "CONSUMED_NO_AUTOMATIC_ADDITIONAL_HOST_OPERATION"
+              "authorization": "CONSUMED_NO_AUTOMATIC_ADDITIONAL_HOST_OPERATION",
+              "owner_acceptance_evidence_sha": "e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa",
+              "next_scope": "R04_ONE_ENTRY_COLD_NOT_AUTHORIZED_BY_THIS_DECISION"
             }
         }
       },
@@ -1116,7 +1123,7 @@
       "uac_attempts": 6,
       "host_task_starts": 2,
       "stage_b_authorized": true,
-      "next_action": "OWNER_REVIEW_USABLE_WARM_RESULT_NO_ADDITIONAL_HOST_OPERATION"
+      "next_action": "R04_ONE_ENTRY_COLD_EXISTING_SCOPE_SEPARATE_AUTHORIZATION_REQUIRED"
     },
     "supersedes_current_execution_note_and_preflight": true
     },

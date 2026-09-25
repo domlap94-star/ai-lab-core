@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. D-21 P1/P2/DATA_ONLY/guard, ograniczony P3, P4/A, Host22 i NUP-01/02/03 zachowują dotychczasowe odbiory; D-23 review pozostaje 2/2. USABLE-WARM ma obecnie dwa odrębne, kompletne recorder-backed warm runs: pierwszy uruchomił Private dokładnie raz, drugi nie uruchomił żadnej usługi ani kontenera i nie utworzył duplikatu. Host ma jeden trigger logowania, jest `Ready` i bezczynny; exact działanie, CWD, InteractiveToken, LeastPrivilege, PT15M i IgnoreNew są zgodne, a nazwa principal `DOMAI\domai` została lokalnie rozstrzygnięta do przypiętego SID. Historyczny logon journal pozostaje uczciwie `PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED`; logon nie był testowany przez logoff/reboot. Właściciel potwierdził ręczne, read-only otwarcie CRM/Web, listy klientów i szczegółów jednego klienta. Wynik to `USABLE_WARM_READY_FOR_OWNER_REVIEW`, nie odbiór całego P4-B/R04 ani cold-start PASS. Supervisor pozostaje `INTENTIONALLY_STOPPED`, sześć kontenerów i cztery pliki produktu nie zostały zmienione, Docker/WSL pool oraz swap pozostają UNKNOWN. D-22 nadal ustala kolejność po właścicielskim odbiorze R04: ARKUSZE -> KOREKTA I WALIDACJA KLIENTÓW -> TYLKO NIEPRZYPISANE MAILE; wykonanie NOT_RUN. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. D-21 P1/P2/DATA_ONLY/guard, ograniczony P3, P4/A, Host22 i NUP-01/02/03 zachowują dotychczasowe odbiory; D-23 review pozostaje 2/2. Właściciel przyjął wynik USABLE-WARM opublikowany na `e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa` jako `USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`: dwa rozliczone warm runs, Private `1 -> 0`, zero nowych startów usług/kontenerów w drugim runie, jeden trigger logon potwierdzony późniejszym readbackiem oraz ręczne read-only otwarcie CRM/Web, listy klientów i szczegółów klienta. Historyczne parent/logon `PARTIAL/PENDING_UNKNOWN` i późniejsze dowody ich rozliczenia pozostają bez zmian. Nie jest to odbiór cold-startu, rzeczywistego logowania po restarcie, backupów, relokacji danych ani całego R04. Supervisor pozostaje `INTENTIONALLY_STOPPED`; Docker/WSL pool i swap pozostają UNKNOWN. D-22 pozostaje `NOT_RUN`. Następny istniejący zakres to `R04-ONE-ENTRY-COLD`; ta decyzja nie zezwala na jego wykonanie. Bieżący stan znajduje się wyłącznie w §0.**
 
 **Aktualizacja USABLE-WARM PARAM-FIX 2026-09-24:** po fail-before potwierdzającym,
 że import bazowej recepty nadpisywał argumenty kontynuacji, przygotowano
@@ -62,6 +62,13 @@ SAFE_INACTIVE. Późniejsza pojedyncza rejestracja logon ma journal
 principal równoważny przypiętemu SID; formalny wynik nie został przepisany.
 Logoff/reboot `NOT_RUN`. Właściciel następnie potwierdził ręczne read-only
 otwarcie CRM/Web, listy klientów i szczegółów jednego klienta.
+
+**Odbiór USABLE-WARM 2026-09-25:** właściciel przyjął dokładny wynik z
+`e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa` jako
+`USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`. Odbiór nie zmienia historycznych
+`PARTIAL/PENDING_UNKNOWN`, nie nadaje cold-start/logon-after-reboot PASS i nie
+zamyka backupów, relokacji ani całego R04. Następny istniejący zakres to
+`R04-ONE-ENTRY-COLD`, bez uprawnienia do wykonania w tej decyzji.
 
 **Aktualizacja 2026-09-20:** właściciel przyjął dokładny source Host22
 `8195e5cf8dacd1976ccd9f71a1f78175c3513acc` i jego ZIP jako
@@ -273,11 +280,11 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Repozytorium | `domlap94-star/ai-lab-core` |
 | Gałąź wspólnej roadmapy — docelowa | `recovery/next-stabil-repair-completion` |
 | Kanoniczna ścieżka w repo | `NEXT_STABIL_REPAIR_COMPLETION_ROADMAP.md` |
-| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. Host22 i NUP-01/02/03 zachowują odbiory, D-23 review `2/2` jest zakończony. Cztery pliki pozostają zainstalowane i niezmienione. Dwa różne recorder attempts rozliczają warm `2/2`: pierwszy Private `1`, drugi starty usług/kontenerów `0`. Host jest `Ready`/idle z jednym triggerem logon i zgodną semantyką; journal zapisu logon pozostaje historycznie `PENDING_UNKNOWN`. Właściciel potwierdził ręczne read-only CRM/listę/szczegóły. `USABLE_WARM_READY_FOR_OWNER_REVIEW`; logon cold test i całe R04 pozostają nieodebrane. R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION` |
+| Stan rejestracji | P3 `CORE_BACKEND_SOURCE_SWITCH_ACCEPTED / LIMITED_RUNTIME_SCOPE`. P4-A `SOURCE_OFFLINE_AND_IDENTITY_PACKAGE_ACCEPTED / NOT_INSTALLED`. Host22 i NUP-01/02/03 zachowują odbiory, D-23 review `2/2` jest zakończony. Właściciel przyjął USABLE-WARM z `e35ec2c...caaa` jako `USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`: warm `2/2`, Private `1 -> 0`, drugi run bez nowych startów/duplikatu, jeden trigger logon potwierdzony readbackiem i ręczne read-only CRM/lista/szczegóły. Historyczne partial/pending zachowane. Cold/logon-after-reboot, backupy, relokacje i całe R04 pozostają nieodebrane. R04/R05 `IN_PROGRESS`; R03 `WAITING_APPROVAL / WAITING_ESCROW_DECISION`; D-22 `NOT_RUN` |
 | Checkpoint ID | `R04-D21-P4B-USABLE-WARM-REPEAT-20260924T230413Z` |
 | Ostatnia aktualizacja operacyjna UTC | `2026-09-25T06:35:58.007Z`: drugi Host attempt `20260925T063227046Z-3e1e1246` zakończył child exit `0`, starty usług/kontenerów `0`; późniejszy readback potwierdził Host `Ready`/idle i jeden trigger logon. Następnie właściciel potwierdził ręczne read-only otwarcie CRM/Web, listy i szczegółów klienta |
-| Aktualny wykonawca / sesja | Codex / OWNER-AUTHORIZED USABLE-WARM REPEAT COMPLETED, RESULT READY FOR OWNER REVIEW |
-| Aktywny pakiet / podetap | R04/D-21/P4-B — `WARM_RUNS_2_OF_2 / SECOND_RUN_SERVICE_CONTAINER_STARTS_0 / NO_DUPLICATE / LOGON_TRIGGER_CONFIGURED_READBACK_WITH_FORMAL_JOURNAL_PARTIAL / CRM_LIST_DETAIL_OWNER_CONFIRMED_READ_ONLY / USABLE_WARM_READY_FOR_OWNER_REVIEW` |
+| Aktualny wykonawca / sesja | Codex / OWNER ACCEPTED USABLE-WARM LIMITED RUNTIME SCOPE; NO NEW OPERATION |
+| Aktywny pakiet / podetap | R04/D-21/P4-B — `USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`; następny istniejący zakres `R04-ONE-ENTRY-COLD / NOT_RUN / NOT_AUTHORIZED_BY_THIS_DECISION` |
 | Potwierdzony lokalny worktree | `C:\ai-lab-core-recovery`, branch `recovery/next-stabil-repair-completion`; start P4-A local/tracking/remote `c936643b0360cd5a78e72c9d1cc51467edbd83c1`. Oryginalny HEAD `72950657...` pozostaje chroniony; historyczne preservation `116 + 87 = 203/203`. Omyłkowy untracked checkpoint został po exact zgodzie zachowany bajtowo w LOCAL_ONLY i usunięty; oryginalny index i pozostałe pliki nie zostały zmienione |
 | Gałąź / SHA kodu objętego sprawdzeniem | Host-service observation source `49c3f64c238e4bdb25e0d3fe9d7bb98c17677bbc`, launcher raw SHA-256 `686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66`; guard source `0ee0ea50943578e6e552aae23ce1688595ddc262`; accepted DATA_ONLY source `cb6e22506a0fecc440400566293524536847b9b0`; accepted P2 source `2e69622bc6a0b4888427f8ae5be119377aed26d9`; baseline `origin/main@483f9bf8b1a591ded8a42df5da87663c664ed5d4`; rescue `5cd8f86e63e1ab829692ca2601096fd0c0d9d53a` |
 | Baseline commit dokumentacji | `483f9bf8b1a591ded8a42df5da87663c664ed5d4` |
@@ -287,9 +294,9 @@ wykonaniem R00 — Codex ma je zastąpić ustalonymi faktami, nie przewidywaniam
 | Niezacommitowana praca / zabezpieczenie | Historyczne dowody pozostają chronione. Repeat script/index/test oraz wyniki są LOCAL_ONLY pod `C:\Users\domai\AppData\Local\Temp\P4B-UWC-01`; `apply-repeat01` zachowuje preflight, journal, result i logon journal. Recorder evidence pozostaje pod aktywnym data root. Czterech plików produktu nie kopiowano ani nie zmieniano |
 | Niezakończone procesy i skutki operacyjne | Elevated PID `33600` i recorder child PID `59948` są zakończone. Warm runs `2/2`; pierwszy Private start `1`, drugi starty usług/kontenerów `0`. Host ma jeden trigger logon i jest idle. SAFE_INACTIVE `0`, retry `0`; brak nierozliczonego własnego workera. Formalny parent/logon partial pozostaje historią, nie został przepisany |
 | Najnowsza notatka przekazania | `docs/recovery/checkpoints/20260925T064903Z-R04-D21-P4B-USABLE-WARM-REPEAT.md` |
-| Zakres aktualnej zgody | Jednorazowa zgoda na repeat, ewentualny jeden UAC, logon i read-only CRM/Web została wykorzystana. Nie obejmuje logoff/reboot/cold-start, ponownego Host runu, rollbacku, P5, R06 ani D-22 |
-| Blokada / wymagana decyzja | Brak blokady do właścicielskiego review używalnego warm segmentu. Nadal otwarte są formalny cold/logon test, Docker/WSL pool i swap, HKCU Run, dane/relokacje, backup schedules oraz pełne R04 |
-| Jeden następny bezpieczny krok | Właścicielski odbiór albo odrzucenie dokładnego wyniku `USABLE_WARM_READY_FOR_OWNER_REVIEW`; bez nowej operacji hosta. Przy odbiorze dalszy R04 postępuje jako kompletny zakres zgodnie z D-23, bez szukania K2/K3 |
+| Zakres aktualnej zgody | Wyłącznie dokumentacyjny zapis odbioru `USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`, walidacja i publikacja. Bez host reads, testów, UAC, task writes, startów lub rollbacku |
+| Blokada / wymagana decyzja | USABLE-WARM nie ma dalszej bramki review. Nadal otwarte są `R04-ONE-ENTRY-COLD`, rzeczywisty logon po restarcie, Docker/WSL pool i swap, HKCU Run, dane/relokacje, backup schedules oraz pełne R04 |
+| Jeden następny bezpieczny krok | Istniejący zakres `R04-ONE-ENTRY-COLD`, po odrębnej decyzji operacyjnej. Nie planować ani nie wykonywać ponownie USABLE-WARM |
 | Warunek STOP | Brak retry InstallAndWarm/UAC, Host/task write/start, warm run, zewnętrznego rollbacku, kontenerowych zmian, Supervisora, logoff/reboot, backup/restore, relokacji, P5/R06 |
 
 **Jak identyfikować wersję tego checkpointu:** SHA commita zawierającego ten plik
@@ -469,7 +476,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R01 | ACCEPTED | `R01-20260907T224502Z-HISTORY-C2` / OWNER REVIEW | Właściciel zaakceptował wynik na `535ab0b80d12d3f18b9f734dfb9e769c91e11e74` |
 | R02 | ACCEPTED | `R02-20260908T065945Z-HANDOFF-C3` / OWNER REVIEW | Właściciel zaakceptował R02 na `883987f8ba422986db6893aa993da730fa9405a2`; FND-019 i REP-001–004 pozostają otwarte we właściwych późniejszych pakietach |
 | R03 | WAITING_APPROVAL | `R03-20260909T064442Z-A4-ACCEPTANCE` / A4 ACCEPTED | Właściciel zaakceptował A4 na `92cc3aa38f0a81ff40e3798981970bd2e45b6206`: `DATA_RESTORE_VERIFIED_FOR_MANIFEST_8F20A784`. Cały R03 nadal `WAITING_ESCROW_DECISION`; credentials, recovery key, aplikacja, pełne RTO, cleanup i rollout pozostają niezatwierdzone/niewykonane |
-| R04 | IN_PROGRESS | `R04-D21-P4B-USABLE-WARM-REPEAT-20260924T230413Z` / USABLE-WARM READY FOR OWNER REVIEW | P3/P4-A, Host22 i NUP-01/02/03 odbiory zachowane; D-23 review `2/2`. Dwa odrębne recorder attempts dają warm `2/2`: Private `1 -> 0`, drugi run bez nowych startów i bez duplikatu. Host jest Ready/idle z jednym triggerem logon; formalny journal zapisu pozostaje partial, logoff/reboot nie wykonano. Właściciel potwierdził ręczne read-only CRM/listę/szczegóły. Supervisor absent/intentionally stopped; sześć kontenerów i cztery pliki zachowane. `USABLE_WARM_READY_FOR_OWNER_REVIEW`; całe R04 nadal IN_PROGRESS, P5/D-22 nieuruchomione |
+| R04 | IN_PROGRESS | `R04-D21-P4B-USABLE-WARM-REPEAT-20260924T230413Z` / USABLE-WARM ACCEPTED, LIMITED RUNTIME SCOPE | Właściciel przyjął wynik z `e35ec2c...caaa`: warm `2/2`, Private `1 -> 0`, drugi run bez nowych startów i duplikatu, jeden trigger logon potwierdzony readbackiem, ręczne read-only CRM/lista/szczegóły. Historyczne partial/pending zachowane. Cold/logon-after-reboot, backupy, relokacje i całe R04 pozostają otwarte. Następny istniejący zakres: `R04-ONE-ENTRY-COLD`; P5/D-22 nieuruchomione |
 | R05 | IN_PROGRESS | `R05-20260914T184044Z-A4-BACKEND-TESTS` / A4 OWNER ACCEPTED SOURCE ONLY | Właściciel zaakceptował A4 source `04ab5e58cf86896ffd946cabffde13367d343f53` i evidence `8620871711321a42e62291e52865b5a668a4955d` jako `SOURCE_AND_API_WIDGET_TESTS_ACCEPTED / NOT_DEPLOYED`. A1/A2/A3 zachowują wąskie odbiory. Supervisor jest `INTENTIONALLY_STOPPED`; operator Web runtime, Temporary Chat, remote upload, locally_redacted generation i external end-to-end pozostają `NOT_VERIFIED` |
 | R06 | PLANNED | — | — |
 | R07 | PLANNED | — | — |
@@ -1038,6 +1045,12 @@ potwierdził ręczne read-only otwarcie CRM/Web, listy klientów i szczegółów
 jednego klienta. Supervisor pozostał intentionally stopped, sześć kontenerów i
 cztery pliki produktu nie zmieniły się. Nie jest to cold-start PASS ani odbiór
 całego R04.
+Właściciel następnie przyjął ten dokładny wynik opublikowany w
+`e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa` jako
+`USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`. Odbiór nie zmienia dawnych
+journali, nie jest cold-start/logon-after-reboot PASS i nie zamyka backupów,
+relokacji ani całego R04. Dalszy istniejący zakres to `R04-ONE-ENTRY-COLD`;
+ponowne planowanie USABLE-WARM jest wykluczone.
 4. Naprawić kontrakt /version/stable/minimum/debug i zgodność starych klientów. Nie zrównywać sztucznie różnych numerów API/schema/app; muszą tworzyć poprawną macierz zgodności.
 5. Przygotować odtwarzalny build Windows i aktualny build testowy Android z zatwierdzonym certyfikatem; nie publikować ani zużywać numeru release bez osobnej zgody.
 6. D-17 kieruje bieżący odbiór wspólnego API i logiki najpierw przez Web. Android pozostaje wspieranym, nieodebranym targetem; wąski viewport Web nie zastępuje natywnego lifecycle, uprawnień, aparatu/GPS, transportu ani podpisu Androida.

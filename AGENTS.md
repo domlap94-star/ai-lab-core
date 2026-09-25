@@ -493,6 +493,9 @@
   logon trigger and the approved action/principal semantics. Preserve the
   historical parent and logon `PENDING_UNKNOWN` records; do not rewrite them,
   rerun Host, or claim logoff/reboot/cold-start PASS. The owner manually
-  confirmed read-only CRM client-list and client-detail access. Current state is
-  `USABLE_WARM_READY_FOR_OWNER_REVIEW`; R04 remains IN_PROGRESS, D-23 remains
-  `2/2`, D-22 remains NOT_RUN, and Docker/WSL pool plus swap remain UNKNOWN.
+  confirmed read-only CRM client-list and client-detail access. The owner
+  accepted the exact published result as `USABLE_WARM_ACCEPTED /
+  LIMITED_RUNTIME_SCOPE`. R04 remains IN_PROGRESS, D-23 remains `2/2`, D-22
+  remains NOT_RUN, and Docker/WSL pool plus swap remain UNKNOWN. Do not replan
+  or rerun USABLE-WARM; the next existing scope is `R04-ONE-ENTRY-COLD` and
+  requires its own authorization.

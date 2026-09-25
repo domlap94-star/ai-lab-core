@@ -2014,3 +2014,16 @@ CRM_LIST_DETAIL_OWNER_CONFIRMED_READ_ONLY / USABLE_WARM_READY_FOR_OWNER_REVIEW`.
 SAFE_INACTIVE `0`, retry `0`, drugi UAC `0`. Sześć kontenerów, cztery pliki,
 dependency tasks, helper, dane, junction i flagi pozostały bez zmiany. To nie
 jest `R04_ACCEPTED`, cold-start PASS ani dowód automatycznych backupów.
+
+### Odbiór właściciela
+
+Właściciel przyjął wynik opublikowany w
+`e35ec2c9f74d598ae0ee6d48573e8c7b11e2caaa` jako
+`USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`. Zakres odbioru obejmuje warm
+`2/2`, Private `1 -> 0`, brak nowych startów usług/kontenerów w drugim runie,
+jeden trigger logon potwierdzony późniejszym readbackiem oraz ręczne read-only
+otwarcie CRM/Web, listy i szczegółów klienta. Historyczne parent/logon
+`PARTIAL/PENDING_UNKNOWN` i późniejsze dowody ich rozliczenia pozostają bez
+zmiany. Odbiór nie obejmuje cold-startu, rzeczywistego logowania po restarcie,
+backupów, relokacji ani całego R04. Następny istniejący zakres to
+`R04-ONE-ENTRY-COLD`; nie jest wykonywany na podstawie tej decyzji.
