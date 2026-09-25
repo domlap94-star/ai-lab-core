@@ -168,3 +168,35 @@ cold-start and the CRM/Web check are `NOT_RUN`. USABLE-WARM remains accepted and
 unchanged. A future attempt requires a new owner decision after a minimal,
 offline-verified correction of the validation-scope `ManifestPath` collision;
 the present authorization must not be retried.
+
+## Recorder capture/settlement completion — 2026-09-25
+
+The later consumed operation
+`R04-D21-ONE-ENTRY-COLD-EXEC-20260925T124854Z` installed its four files and
+changed the shortcut. Its first manual entry opened one client, but recorder
+attempt `20260925T133815236Z-2598b2ff` remained the historical failure
+`LAUNCHER_PROCESS_UNSETTLED / OUTPUT_STREAMS_UNSETTLED`, exit `24`. Manual
+repeat and cold/logon were not run. These facts are LOCAL_ONLY evidence and do
+not rewrite the earlier published checkpoint or grant another execution.
+
+Fresh PS5.1 fail-before proved that the long-lived client inherited the
+launcher's redirected handles. The source fix separates the client with the
+existing shell start boundary and separates launcher process state from stream
+capture state. The full real process path passes seven scenarios while invalid
+JSON, real stderr, exit 22, timeout and client-without-result remain fail-closed.
+
+Exact production payload for the next operation is now only:
+
+- launcher `86468` B / `41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910`;
+- recorder `21282` B / `BC002D6DC2721BBEF84EC789633D473C34D955D1D42CC506161C60FFA3B5A801`.
+
+Runtime and manifest are unchanged and must not be recopied. The complete new
+operation is bound in `R04_D21_ONE_ENTRY_COLD_COMPLETION_OP.json` as
+`R04-D21-ONE-ENTRY-COLD-COMPLETE-20260925T183020Z`, with OutputRoot
+`C:\Users\domai\AppData\Local\Temp\NEXT-STABIL-OEC-20260925T183020Z`.
+It is `NOT_RUN / WAITING_OWNER_CONFIRMATION`; all approval flags remain false.
+The operation definition is `6476` B /
+`4FE4C3B1E03A7E785ED283E1D2F5627B4D715FD32FC2BDC472E94AF256D081B1`.
+
+Status: `RECORDER_CAPTURE_SETTLEMENT_SOURCE_AND_OFFLINE_PASS /
+NEW_ONE_ENTRY_COLD_OPERATION_NOT_RUN / WAITING_OWNER_CONFIRMATION`.

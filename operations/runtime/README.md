@@ -41,8 +41,16 @@ action, or fallback manifest.
 The recorder never equates a runner exception with a settled child. If the
 owned launcher process was already created, the exception path retains its PID,
 checks or boundedly terminates only that child, and reports `settled=true` only
-after positive process-state evidence. A consumer accepting a warm attempt must
-also bind the marker and result to the same new `attempt_id`, recompute the
+after positive process-state evidence.
+
+The recorder also separates launcher lifecycle from output capture. A
+long-lived desktop client is started through a shell boundary that does not
+retain the launcher's redirected stdout/stderr handles. Evidence records
+launcher started/exited/settled and exit code independently from complete
+stdout/stderr capture. `BASE_READY_LIMITED_CAPTURED` still requires complete,
+untruncated stdout, empty stderr and one valid startup result; incomplete pipe
+capture fails closed and the client is never killed merely to obtain EOF.
+A consumer accepting a warm attempt must also bind the marker and result to the same new `attempt_id`, recompute the
 persisted stdout/stderr lengths and SHA-256 values, require a settled exit, and
 validate the structured launcher events. A status label by itself is not a
 complete warm-run result.

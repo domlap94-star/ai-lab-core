@@ -3,7 +3,7 @@
   "package_id": "R04-D21-ONE-ENTRY-COLD-20260925",
   "generated_utc": "2026-09-25T11:02:16.0092290Z",
   "source_base_commit": "0d952b3aad55cb54db1acb0e0aa44436ead8b39c",
-  "status": "PROPOSED_AWAITING_SEPARATE_OWNER_OPERATIONAL_APPROVAL",
+  "status": "RECORDER_CAPTURE_SETTLEMENT_SOURCE_AND_OFFLINE_PASS_NEW_OPERATION_NOT_RUN_WAITING_OWNER_CONFIRMATION",
   "approval": {
     "installation_authorized": false,
     "startup_authorized": false,
@@ -17,8 +17,8 @@
       "role": "startup_launcher",
       "path": "operations/runtime/start-host-services.ps1",
       "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
-      "size_bytes": 86218,
-      "sha256": "491531FB8926D67AEDB404024C1EE7659376AC6911AC551D9B94A52F47C322D2"
+      "size_bytes": 86468,
+      "sha256": "41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910"
     },
     {
       "role": "startup_runtime",
@@ -31,8 +31,8 @@
       "role": "startup_evidence_recorder",
       "path": "operations/runtime/invoke-host-with-evidence.ps1",
       "target": "C:\\ai-lab-core\\operations\\runtime\\invoke-host-with-evidence.ps1",
-      "size_bytes": 18535,
-      "sha256": "45CBC5D9CD1677A2299F1FF3D2DF58517778D001E4C16AE83300DFC0E9CA63A7"
+      "size_bytes": 21282,
+      "sha256": "BC002D6DC2721BBEF84EC789633D473C34D955D1D42CC506161C60FFA3B5A801"
     },
     {
       "role": "startup_manifest_candidate",
@@ -63,6 +63,12 @@
       "result": "PASS_35_ASSERTIONS_8_CHILD_CASES_PRODUCTION_BOUNDARIES_0"
     },
     {
+      "path": "operations/runtime/test-host-evidence-long-lived-client.ps1",
+      "size_bytes": 11754,
+      "sha256": "3A62651427C755B422A9C362D6AE1BF01FFC0A5A42DFCF078D1985D72296772F",
+      "result": "PASS_7_SCENARIOS_16_ASSERTIONS_PRODUCTION_BOUNDARIES_0"
+    },
+    {
       "path": "operations/runtime/test-startup-data-junction.ps1",
       "size_bytes": 28699,
       "sha256": "35C0EAB5994310F8F10AC4ECFA04C045F8A235DA0FC41EDD602865610E242532",
@@ -78,8 +84,8 @@
   "documentation": [
     {
       "path": "operations/runtime/README.md",
-      "size_bytes": 15100,
-      "sha256": "BDA8352696DA65EE75A8E072A709EBAA9C035E6377B438A3C7E1A3BCD3A2EC0B"
+      "size_bytes": 15625,
+      "sha256": "16334392FCC378D69C8C12AE3C49D124865D00B7109FA96564B7DA57EF29586E"
     },
     {
       "path": "docs/recovery/R04_D21_P4_STARTUP_CHANGESET.csv",
@@ -88,8 +94,8 @@
     },
     {
       "path": "docs/recovery/R04_D21_ONE_ENTRY_COLD_PLAN.md",
-      "size_bytes": 7039,
-      "sha256": "D1B744A2680319F4DEFBC251CD14DAD2E33FC925203D09083B1D419F86858E10"
+      "size_bytes": 10566,
+      "sha256": "83BAEC2BA30E9B857254EB1A800B1E1595629EAB4228877B6413A05ECF0ED0B8"
     }
   ],
   "observed_entry": {
@@ -131,6 +137,18 @@
     "memory_retention": "UNCHANGED_SEPARATE_POLICY",
     "backup_retention": "UNCHANGED_SEPARATE_POLICY",
     "purge_or_cleanup": "NOT_AUTHORIZED"
+  },
+  "completion_operation": {
+    "path": "docs/recovery/R04_D21_ONE_ENTRY_COLD_COMPLETION_OP.json",
+    "size_bytes": 6476,
+    "sha256": "4FE4C3B1E03A7E785ED283E1D2F5627B4D715FD32FC2BDC472E94AF256D081B1",
+    "operation_id": "R04-D21-ONE-ENTRY-COLD-COMPLETE-20260925T183020Z",
+    "output_root": "C:\\Users\\domai\\AppData\\Local\\Temp\\NEXT-STABIL-OEC-20260925T183020Z",
+    "status": "NOT_RUN_WAITING_OWNER_CONFIRMATION",
+    "install_only_roles": [
+      "startup_launcher",
+      "startup_evidence_recorder"
+    ]
   },
   "next_scope_after_acceptance": "R04-DATA-BACKUP"
 }

@@ -623,7 +623,10 @@ function New-RealStartupAdapters {
             $info.FileName = [string]$ExpectedPath
             $info.Arguments = Join-WindowsNativeArguments -ArgumentList @($Arguments)
             $info.WorkingDirectory = [string]$WorkingDirectory
-            $info.UseShellExecute = $false
+            # The client is intentionally long-lived. ShellExecute keeps it outside the
+            # launcher's redirected stdout/stderr handle set, so recorder EOF describes
+            # the launcher rather than the lifetime of the desktop client.
+            $info.UseShellExecute = $true
             $process = [System.Diagnostics.Process]::Start($info)
             if ($null -eq $process) { return [pscustomobject]@{ status = 'START_FAILED' } }
             return [pscustomobject]@{ status = 'ACCEPTED'; pid = $process.Id }

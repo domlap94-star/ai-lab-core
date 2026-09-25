@@ -1,0 +1,126 @@
+{
+  "schema": "NEXT_STABIL_R04_D21_ONE_ENTRY_COLD_COMPLETION_OPERATION_V1",
+  "operation_id": "R04-D21-ONE-ENTRY-COLD-COMPLETE-20260925T183020Z",
+  "output_root": "C:\\Users\\domai\\AppData\\Local\\Temp\\NEXT-STABIL-OEC-20260925T183020Z",
+  "status": "NEW_ONE_ENTRY_COLD_OPERATION_NOT_RUN_WAITING_OWNER_CONFIRMATION",
+  "approval": {
+    "owner_confirmed_current_window": false,
+    "uac_authorized": false,
+    "installation_authorized": false,
+    "manual_entry_authorized": false,
+    "reboot_authorized": false,
+    "logon_test_authorized": false
+  },
+  "predecessor": {
+    "operation_id": "R04-D21-ONE-ENTRY-COLD-EXEC-20260925T124854Z",
+    "authorization_consumed": true,
+    "uac_pid": 17772,
+    "uac_exit_code": 0,
+    "recorder_attempt": "20260925T133815236Z-2598b2ff",
+    "recorder_status": "LAUNCHER_PROCESS_UNSETTLED",
+    "recorder_exit_code": 24,
+    "recorder_stderr": "OUTPUT_STREAMS_UNSETTLED",
+    "opened_client_pid_at_observation": 11924,
+    "client_current_state": "MUST_BE_FRESHLY_OBSERVED_BY_THIS_OPERATION",
+    "second_manual_entry": "NOT_RUN",
+    "reboot_logon_cold": "NOT_RUN",
+    "rollback": "NOT_NEEDED_NOT_RUN"
+  },
+  "source_bindings": [
+    {
+      "role": "startup_launcher",
+      "source": "operations/runtime/start-host-services.ps1",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
+      "size_bytes": 86468,
+      "sha256": "41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910",
+      "install": true
+    },
+    {
+      "role": "startup_evidence_recorder",
+      "source": "operations/runtime/invoke-host-with-evidence.ps1",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\invoke-host-with-evidence.ps1",
+      "size_bytes": 21282,
+      "sha256": "BC002D6DC2721BBEF84EC789633D473C34D955D1D42CC506161C60FFA3B5A801",
+      "install": true
+    },
+    {
+      "role": "startup_runtime_unchanged",
+      "source": "operations/runtime/startup-runtime.ps1",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\startup-runtime.ps1",
+      "size_bytes": 85291,
+      "sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
+      "install": false
+    },
+    {
+      "role": "startup_manifest_unchanged_repository_draft",
+      "source": "docs/recovery/R04_D21_P4_STARTUP_SET_DRAFT.json",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\startup-set.json",
+      "size_bytes": 32730,
+      "sha256": "A55243DFF4AE6781568E0D48B69B5E4870FB2A81FC2F1B2B0E0BBDE4C06D2804",
+      "install": false,
+      "note": "Repository draft is not the installed approved manifest and must not replace it."
+    }
+  ],
+  "preflight": [
+    "Bind the published source/checkpoint commit and revalidate this operation index before any host read or mutation.",
+    "Read exact installed hashes for launcher, recorder, unchanged runtime and installed APPROVED_FOR_START manifest; drift stops the operation.",
+    "Read the current shortcut and Host task, including action, arguments, WorkingDirectory, principal, triggers, enabled/state and last result.",
+    "Freshly observe the exact Windows client and reject foreign or multiple client processes.",
+    "Confirm all six pinned containers, PostgreSQL healthy, one Public and one Private Gateway, Supervisor INTENTIONALLY_STOPPED, required HTTP and public control 404.",
+    "Confirm no backup, import, maintenance, prior Host attempt or competing operation is running. Docker/WSL pool and swap remain explicit UNKNOWN, not PASS."
+  ],
+  "mutation": {
+    "install_only_roles": [
+      "startup_launcher",
+      "startup_evidence_recorder"
+    ],
+    "preimages": "Capture and hash only the two changed installed targets before writes.",
+    "unchanged_roles_not_reinstalled": [
+      "startup_runtime",
+      "startup_manifest"
+    ],
+    "task_or_shortcut_write": false,
+    "junction_or_data_write": false
+  },
+  "manual_entry_branch": {
+    "one_exact_client_already_running": "Treat it only as observed preexisting state; invoke one new repeat entry, require exactly one client, zero service/container starts and one complete new recorder attempt.",
+    "exact_client_not_running": "Invoke one new manual entry and require one complete recorder attempt, then invoke one repeat in the same operation; the historical unsettled attempt is not run one.",
+    "common_acceptance": "Require BASE_READY_LIMITED_CAPTURED, complete untruncated stdout, empty stderr, launcher exit 0, consistent NEXT_STABIL_STARTUP_RESULT_V1, base readiness and no duplicate stack or client."
+  },
+  "reboot_gate": [
+    "After manual entry/repeat, obtain current owner confirmation that no backup, import or material work is active.",
+    "Confirm local access or RustDesk unattended/start-with-Windows recovery and persist the resume point under output_root.",
+    "Perform exactly one Windows restart only after that confirmation."
+  ],
+  "post_reboot": [
+    "Continue the same operation and do not manually start NEXT Stabil before cold/logon evaluation.",
+    "Verify the real Host logon trigger, pinned set readiness, exactly one client after base readiness, no duplicates, public control 404 and Supervisor INTENTIONALLY_STOPPED.",
+    "Obtain owner confirmation that the CRM/Web client list and one client detail open correctly."
+  ],
+  "failure_contract": [
+    "No second reboot and no blind retry.",
+    "Reconcile current state read-only.",
+    "Use only a preprepared rollback limited to the two operation-owned file preimages when ownership and safe state are proven.",
+    "Do not restore the Startup wrapper and do not restore data."
+  ],
+  "forbidden": [
+    "docker compose up/create/recreate/build/pull",
+    "new containers, image or mount changes",
+    "Supervisor start",
+    "backend flag changes",
+    "junction, data, migration, backup, restore, relocation, retention, purge or cleanup changes",
+    "firewall, Tailscale or credential changes",
+    "D-22, R04-DATA-BACKUP, P5 or R06"
+  ],
+  "single_install_root": {
+    "application_root": "C:\\ai-lab-core",
+    "active_data_logical": "C:\\ai-lab-core\\data",
+    "active_data_physical": "D:\\ai-lab-data",
+    "startup_evidence": "C:\\ai-lab-core\\data\\logs\\startup",
+    "system_shortcut_target_allowed": "C:\\Windows\\System32\\schtasks.exe",
+    "operation_output_is_runtime_dependency": false,
+    "recovery_staging_temp_runtime_dependency": false,
+    "backup_destination": "OWNER_SELECTED_PATH_OUTSIDE_C_AND_D_NO_FALLBACK",
+    "memory_retention": "UNCHANGED"
+  }
+}

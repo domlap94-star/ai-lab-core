@@ -135,6 +135,10 @@ function Invoke-BoundedHostEvidenceChildProcess {
         '-File', [string]$Configuration.launcher_path,
         '-ManifestPath', [string]$Configuration.manifest_path
     )
+    $additionalArgumentsProperty = Get-HostEvidenceProperty -InputObject $Configuration -Name 'launcher_arguments'
+    if ($null -ne $additionalArgumentsProperty) {
+        $arguments += @($additionalArgumentsProperty | ForEach-Object { [string]$_ })
+    }
     $start = [System.Diagnostics.ProcessStartInfo]::new()
     $start.FileName = [string]$Configuration.powershell_path
     $start.Arguments = Join-WindowsCommandLineArguments -Values $arguments
@@ -158,10 +162,15 @@ function Invoke-BoundedHostEvidenceChildProcess {
         $stderrTask = $process.StandardError.ReadToEndAsync()
         $completed = $process.WaitForExit([int]$Configuration.timeout_ms)
         $timedOut = -not $completed
-        $settled = $completed
+        $launcherExited = $completed
+        $launcherSettled = $completed
         if ($timedOut) {
             try { $process.Kill() } catch {}
-            try { $settled = $process.WaitForExit([int]$Configuration.cleanup_timeout_ms) } catch { $settled = $false }
+            try {
+                $launcherSettled = $process.WaitForExit([int]$Configuration.cleanup_timeout_ms)
+                $launcherExited = $launcherSettled
+            }
+            catch { $launcherSettled = $false; $launcherExited = $false }
         }
         $stdout = ''
         $stderr = ''
@@ -171,25 +180,30 @@ function Invoke-BoundedHostEvidenceChildProcess {
             $streamsSettled = [System.Threading.Tasks.Task]::WaitAll($tasks, [int]$Configuration.cleanup_timeout_ms)
         }
         catch { $streamsSettled = $false }
+        $stdoutCaptureStatus = if ($streamsSettled) { 'COMPLETE' } else { 'INCOMPLETE' }
+        $stderrCaptureStatus = if ($streamsSettled) { 'COMPLETE' } else { 'INCOMPLETE' }
         if ($streamsSettled) {
-            try { $stdout = $stdoutTask.GetAwaiter().GetResult() } catch { $stderr = 'STDOUT_READ_FAILED' }
+            try { $stdout = $stdoutTask.GetAwaiter().GetResult() } catch { $stdoutCaptureStatus = 'READ_FAILED'; $stderr = 'STDOUT_READ_FAILED' }
             try {
                 $capturedError = $stderrTask.GetAwaiter().GetResult()
                 if (-not [string]::IsNullOrEmpty($capturedError)) { $stderr = $capturedError }
             }
-            catch { if ([string]::IsNullOrEmpty($stderr)) { $stderr = 'STDERR_READ_FAILED' } }
+            catch { $stderrCaptureStatus = 'READ_FAILED'; if ([string]::IsNullOrEmpty($stderr)) { $stderr = 'STDERR_READ_FAILED' } }
         }
         else {
-            $settled = $false
             $stderr = 'OUTPUT_STREAMS_UNSETTLED'
         }
         $exitCode = $null
-        if ($settled) { try { $exitCode = $process.ExitCode } catch {} }
+        if ($launcherExited) { try { $exitCode = $process.ExitCode } catch {} }
         return [pscustomobject][ordered]@{
             started = $true
-            settled = [bool]$settled
+            exited = [bool]$launcherExited
+            settled = [bool]$launcherSettled
             timed_out = [bool]$timedOut
             exit_code = $exitCode
+            output_capture_complete = [bool]($streamsSettled -and $stdoutCaptureStatus -eq 'COMPLETE' -and $stderrCaptureStatus -eq 'COMPLETE')
+            stdout_capture_status = $stdoutCaptureStatus
+            stderr_capture_status = $stderrCaptureStatus
             stdout = [string]$stdout
             stderr = [string]$stderr
             started_utc = $startedUtc.ToString('o')
@@ -215,9 +229,13 @@ function Invoke-BoundedHostEvidenceChildProcess {
         }
         return [pscustomobject]@{
             started = $started
+            exited = [bool]$settledAfterError
             settled = [bool]$settledAfterError
             timed_out = $false
             exit_code = $exitCodeAfterError
+            output_capture_complete = $false
+            stdout_capture_status = 'RUNNER_ERROR'
+            stderr_capture_status = 'RUNNER_ERROR'
             stdout = ''
             stderr = $runnerError
             started_utc = $startedUtc.ToString('o')
@@ -327,7 +345,15 @@ function Invoke-HostEvidenceCapture {
     catch { $writeFailed = $true }
 
     $timedOut = [bool](Get-HostEvidenceProperty -InputObject $child -Name 'timed_out')
+    $exitedProperty = Get-HostEvidenceProperty -InputObject $child -Name 'exited'
+    $exited = if ($null -eq $exitedProperty) { [bool](Get-HostEvidenceProperty -InputObject $child -Name 'settled') } else { [bool]$exitedProperty }
     $settled = [bool](Get-HostEvidenceProperty -InputObject $child -Name 'settled')
+    $captureCompleteProperty = Get-HostEvidenceProperty -InputObject $child -Name 'output_capture_complete'
+    $captureComplete = if ($null -eq $captureCompleteProperty) { $settled } else { [bool]$captureCompleteProperty }
+    $stdoutCaptureStatus = Get-HostEvidenceProperty -InputObject $child -Name 'stdout_capture_status'
+    if ($null -eq $stdoutCaptureStatus) { $stdoutCaptureStatus = if ($captureComplete) { 'COMPLETE' } else { 'INCOMPLETE' } }
+    $stderrCaptureStatus = Get-HostEvidenceProperty -InputObject $child -Name 'stderr_capture_status'
+    if ($null -eq $stderrCaptureStatus) { $stderrCaptureStatus = if ($captureComplete) { 'COMPLETE' } else { 'INCOMPLETE' } }
     $exitCodeValue = Get-HostEvidenceProperty -InputObject $child -Name 'exit_code'
     $launcher = $null
     $status = 'LAUNCHER_RESULT_UNKNOWN'
@@ -335,7 +361,8 @@ function Invoke-HostEvidenceCapture {
     if ($writeFailed) { $status = 'EVIDENCE_WRITE_FAILED' }
     elseif (-not $childStarted) { $status = 'LAUNCHER_NOT_STARTED' }
     elseif ($timedOut) { $status = 'LAUNCHER_TIMEOUT_UNKNOWN' }
-    elseif (-not $settled -or $null -eq $exitCodeValue) { $status = 'LAUNCHER_PROCESS_UNSETTLED' }
+    elseif (-not $exited -or -not $settled -or $null -eq $exitCodeValue) { $status = 'LAUNCHER_PROCESS_UNSETTLED' }
+    elseif (-not $captureComplete) { $status = 'LAUNCHER_OUTPUT_CAPTURE_INCOMPLETE' }
     elseif ($stdout.truncated -or $stderr.truncated) { $status = 'LAUNCHER_OUTPUT_TRUNCATED' }
     elseif (-not [string]::IsNullOrEmpty($stderr.text)) { $status = 'LAUNCHER_STDERR_NONEMPTY' }
     else {
@@ -366,6 +393,14 @@ function Invoke-HostEvidenceCapture {
         recorder_status = $status
         recorder_exit_code = $recorderExitCode
         child_started = $childStarted
+        launcher_process_started = $childStarted
+        launcher_process_exited = $exited
+        launcher_process_settled = $settled
+        launcher_exit_code = $exitCodeValue
+        output_capture_complete = $captureComplete
+        stdout_capture_status = [string]$stdoutCaptureStatus
+        stderr_capture_status = [string]$stderrCaptureStatus
+        long_lived_client_state = if ($null -ne $launcher -and [string](Get-HostEvidenceProperty -InputObject $launcher.result -Name 'client_status') -eq 'RUNNING') { 'RUNNING_REPORTED' } else { 'NOT_CONFIRMED' }
         child_settled = $settled
         child_timed_out = $timedOut
         child_process_id = Get-HostEvidenceProperty -InputObject $child -Name 'process_id'
