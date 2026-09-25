@@ -135,3 +135,36 @@ identities, the bounded preflight, one UAC if required, two manual-entry checks,
 one controlled reboot/logon and the limited rollback above. Until that response:
 `INSTALL=NOT_RUN`, `MANUAL_ENTRY=NOT_RUN`, `REBOOT/LOGON=NOT_RUN`,
 `COLD_START=NOT_RUN`, and the candidate remains `NOT_APPROVED_FOR_START`.
+
+## Operational window result — 2026-09-25
+
+The owner authorized the exact one-time window
+`R04-D21-ONE-ENTRY-COLD-WINDOW-20260925T110738Z` against published SHA
+`cf535cfab7a67e35c3a66b09c1619a0f40599175`, package index
+`9C1A60AA50965E4419C9B6021A8C4F60EA8FEF67C685F37D026CCAF60EBBB06C`
+and review ZIP
+`B8D33DD14CEF2491160A50F241EE58B7679729D3DAE304810729565295C48876`.
+
+The bounded preflight passed package, installed preimages, shortcut/client,
+Host, maintenance, six pinned containers, host services and the required HTTP
+gates. The operational derivative bound manifest
+`6219F891E8C1CB50088C8E2262E7935E329A9B0198E0179815BBA23001A90BBA`
+through index
+`F2905BD6BD014B3F7E3BC4FD17A69CE91EEBD709B091E3EB07314066B5242535`.
+
+The single UAC launched elevated PID `52112`. Four files were copied and
+verified, then the post-copy validation stopped with exit `22` and the exact
+error `Cannot bind argument to parameter 'ManifestPath' because it is an empty
+string.` The failure occurred before shortcut or task writes and before Host,
+service or container starts. One authorized rollback completed as
+`SAFE_INACTIVE_COMPLETE`; the final exact readback confirmed all four installed
+files and the shortcut at their five exact preimages. Host remained Ready with
+the existing single logon trigger and unchanged last run.
+
+Result:
+`PRE_REBOOT_INSTALL_FAILED_VALIDATION_MANIFEST_PARAMETER_COLLISION /
+SAFE_INACTIVE_COMPLETE / UAC_CONSUMED`. Manual entry/repeat, reboot/logon,
+cold-start and the CRM/Web check are `NOT_RUN`. USABLE-WARM remains accepted and
+unchanged. A future attempt requires a new owner decision after a minimal,
+offline-verified correction of the validation-scope `ManifestPath` collision;
+the present authorization must not be retried.
