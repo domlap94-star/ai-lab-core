@@ -52,23 +52,23 @@
     {
       "role": "startup_launcher",
       "path": "operations/runtime/start-host-services.ps1",
-      "sha256": "686F4EC877AADC93D46D2B67858864BF9C728B00093037A266B257099BA14B66",
-      "size_bytes": 79010,
-      "evidence": "SOURCE_49C3F64C238E4BDB25E0D3FE9D7BB98C17677BBC_OFFLINE_PASS_NOT_DEPLOYED"
+      "sha256": "491531FB8926D67AEDB404024C1EE7659376AC6911AC551D9B94A52F47C322D2",
+      "size_bytes": 86218,
+      "evidence": "R04_ONE_ENTRY_COLD_SOURCE_OFFLINE_CANDIDATE_NOT_DEPLOYED"
     },
     {
       "role": "startup_runtime",
       "path": "operations/runtime/startup-runtime.ps1",
-      "sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732",
-      "size_bytes": 83488,
-      "evidence": "P4B_STAGEA_GATE_NORMALIZATION_READY_FOR_REVIEW_NOT_DEPLOYED"
+      "sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
+      "size_bytes": 85291,
+      "evidence": "R04_ONE_ENTRY_COLD_SOURCE_OFFLINE_CANDIDATE_NOT_DEPLOYED"
     },
     {
       "role": "startup_evidence_recorder",
       "path": "operations/runtime/invoke-host-with-evidence.ps1",
-      "sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
-      "size_bytes": 17192,
-      "evidence": "SOURCE_D3435AFCFB89D02D91F2DB3D1EB55BE17FD790BD_NOT_DEPLOYED"
+      "sha256": "45CBC5D9CD1677A2299F1FF3D2DF58517778D001E4C16AE83300DFC0E9CA63A7",
+      "size_bytes": 18535,
+      "evidence": "R04_ONE_ENTRY_COLD_SOURCE_OFFLINE_CANDIDATE_NOT_DEPLOYED"
     },
     {
       "role": "backend_override",
@@ -95,6 +95,12 @@
       "path": "C:\\Program Files\\nodejs\\node.exe",
       "sha256": "9A4EB5F1C29C6A2E93852EAD46B999E284A6A5CA8BAB4D4E241D587D025A52DE",
       "version": "24.18.0"
+    },
+    {
+      "name": "windows_client",
+      "path": "C:\\Users\\domai\\AppData\\Local\\Programs\\NEXT Stabil\\frontend.exe",
+      "sha256": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865",
+      "version": "1.0.2+29"
     }
   ],
   "data_topology": {
@@ -407,8 +413,12 @@
     }
   ],
   "client": {
-    "policy": "DISABLED",
-    "reason": "OPEN_AFTER_BASE_READY_NOT_IMPLEMENTED; existing manual UI shortcut is preserved"
+    "policy": "OPEN_AFTER_BASE_READY",
+    "launch_kind": "EXACT_EXECUTABLE",
+    "tool_ref": "windows_client",
+    "process_name": "frontend",
+    "arguments": [],
+    "working_directory": "C:\\Users\\domai\\AppData\\Local\\Programs\\NEXT Stabil"
   },
   "p4b_window_preparation": {
     "status": "PARTIAL_SAFE_INACTIVE_INSTALLATION_BLOCKED_UAC_CANCELLED",
@@ -617,7 +627,7 @@
     "open_blockers": [
       "GLOBAL_START_MANIFEST_NOT_APPROVED",
       "QDRANT_PHYSICAL_BACKING_UNKNOWN",
-      "OPEN_AFTER_BASE_READY_NOT_IMPLEMENTED",
+      "OPEN_AFTER_BASE_READY_SOURCE_NOT_DEPLOYED_AND_MANUAL_ENTRY_NOT_ACTIVATED",
       "TASK_TRIGGER_CHANGES_NOT_INSTALLED",
       "VHD_AND_PROFILE_RELOCATION_OPEN",
       "SCHEDULED_BACKUP_OPERATION_NOT_YET_VERIFIED_REPAIR_PENDING"
@@ -771,5 +781,37 @@
     "installed": false,
     "host_retried": false,
     "uac_attempts": 0
+  },
+  "r04_one_entry_cold_preparation": {
+    "status": "OPEN_AFTER_BASE_READY_SOURCE_AND_OFFLINE_READY_FOR_REVIEW_NOT_DEPLOYED",
+    "client_observation_utc": "2026-09-25T10:31:56.3011683Z",
+    "existing_shortcut_sha256": "8B46D106A8AD2DB3AC39E57A6E879104C77BA7C8D7AEEC9008577E1F9BA9FBDD",
+    "client_sha256": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865",
+    "client_version": "1.0.2+29",
+    "source_payload": {
+      "startup_launcher_sha256": "491531FB8926D67AEDB404024C1EE7659376AC6911AC551D9B94A52F47C322D2",
+      "startup_runtime_sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
+      "startup_evidence_recorder_sha256": "45CBC5D9CD1677A2299F1FF3D2DF58517778D001E4C16AE83300DFC0E9CA63A7"
+    },
+    "manual_entry": {
+      "path": "C:\\Users\\domai\\Desktop\\NEXT Stabil.lnk",
+      "future_target": "C:\\Windows\\System32\\schtasks.exe",
+      "future_arguments": "/Run /TN \"\\NEXT Stabil - Host\"",
+      "future_working_directory": "C:\\ai-lab-core",
+      "existing_shortcut_preserved_until_operational_acceptance": true
+    },
+    "offline_tests": {
+      "startup_plan_assertions": 62,
+      "real_adapter_assertions": 55,
+      "recorder_assertions": 35,
+      "data_junction_assertions": 44,
+      "p4_package_assertions": 41,
+      "production_boundaries_called": 0
+    },
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "operational_authorization": false,
+    "installed": false,
+    "manual_entry_changed": false,
+    "cold_start_tested": false
   }
 }

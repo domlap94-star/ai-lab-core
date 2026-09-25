@@ -499,3 +499,16 @@
   remains NOT_RUN, and Docker/WSL pool plus swap remain UNKNOWN. Do not replan
   or rerun USABLE-WARM; the next existing scope is `R04-ONE-ENTRY-COLD` and
   requires its own authorization.
+- `R04-ONE-ENTRY-COLD` source/offline work must keep one shared Host/recorder/
+  launcher path. `OPEN_AFTER_BASE_READY` may open only the exact hash-bound
+  Windows client after base readiness; unknown/foreign client identity or a
+  failed database/readiness gate must block the client and produce a safe
+  descriptive result. Preserve the current shortcut bytes until a separately
+  approved operational window accepts the replacement; never restore the old
+  Startup wrapper, legacy Compose-up or a Supervisor trigger.
+- The existing `R04-DATA-BACKUP` scope keeps C: for OS/code and D: for growing
+  active data through the exact junction. A backup target must be explicitly
+  selected outside C:/D:; absent, cancelled or unavailable selection has no
+  fallback to C:, D:, E: or another default. Keep backup retention and memory
+  retention separate and unchanged; do not run backup, purge, relocation or
+  schedule changes during ONE-ENTRY-COLD.

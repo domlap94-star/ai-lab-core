@@ -30,9 +30,13 @@ bounded stdout, stderr, exit status, timestamps, and the parsed
 non-empty stderr, truncated output, malformed JSON, an output collision, or an
 evidence-write failure remains incomplete and is never retried. Only exit `0`
 paired with `BASE_READY_LIMITED`, `base_ready=true`, and
-`INTENTIONALLY_STOPPED` is a recorded success; launcher refusal exit `22` is
-preserved as a refusal. The recorder does not implement another startup path,
-task, scheduler, deployment action, or fallback manifest.
+`INTENTIONALLY_STOPPED` is a recorded success. The safe projection also binds
+`client_status` and `user_message`. A launcher refusal exit `22` is preserved
+as a refusal and, when the installed configuration enables it, the recorder
+shows only that bounded safe message through the logged-on user's existing Host
+task. Failure to display the message never converts the startup result. The
+recorder does not implement another startup path, task, scheduler, deployment
+action, or fallback manifest.
 
 The recorder never equates a runner exception with a settled child. If the
 owned launcher process was already created, the exception path retains its PID,
@@ -47,10 +51,16 @@ complete warm-run result.
 example identities are placeholders, not observations and not a candidate set.
 P2 must select, hash, review and separately approve a real set.
 
-P1 accepts exact Task Scheduler action identities for host services. Direct
-process launch and `OPEN_AFTER_BASE_READY` client launch remain fail-closed;
-their rollout semantics require a later reviewed set rather than an arbitrary
-executable surface.
+P1 accepts exact Task Scheduler action identities for host services.
+`OPEN_AFTER_BASE_READY` is a narrow manifest policy, not an arbitrary
+executable surface: the client must be an `external_tools` entry whose absolute
+path and raw SHA-256 pass the existing tool validation. The manifest separately
+binds the process name, argument array and the executable's exact parent working
+directory. Only after containers, required host services and every HTTP
+boundary are ready may the launcher preserve one matching client or start it
+exactly once. Missing/unknown identity, multiple processes, a foreign path,
+start failure or bounded readiness timeout fails closed. A repeat observes and
+preserves the existing client and cannot create a duplicate.
 
 The manifest validator also binds each host-service `script_ref` to the one
 code-file argument actually selected by that service action. A task action

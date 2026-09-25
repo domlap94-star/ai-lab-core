@@ -1,0 +1,136 @@
+{
+  "schema": "NEXT_STABIL_R04_D21_ONE_ENTRY_COLD_PACKAGE_INDEX_V1",
+  "package_id": "R04-D21-ONE-ENTRY-COLD-20260925",
+  "generated_utc": "2026-09-25T11:02:16.0092290Z",
+  "source_base_commit": "0d952b3aad55cb54db1acb0e0aa44436ead8b39c",
+  "status": "PROPOSED_AWAITING_SEPARATE_OWNER_OPERATIONAL_APPROVAL",
+  "approval": {
+    "installation_authorized": false,
+    "startup_authorized": false,
+    "uac_authorized": false,
+    "reboot_authorized": false,
+    "logon_test_authorized": false
+  },
+  "preserved_acceptance": "USABLE_WARM_ACCEPTED_LIMITED_RUNTIME_SCOPE",
+  "payload": [
+    {
+      "role": "startup_launcher",
+      "path": "operations/runtime/start-host-services.ps1",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
+      "size_bytes": 86218,
+      "sha256": "491531FB8926D67AEDB404024C1EE7659376AC6911AC551D9B94A52F47C322D2"
+    },
+    {
+      "role": "startup_runtime",
+      "path": "operations/runtime/startup-runtime.ps1",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\startup-runtime.ps1",
+      "size_bytes": 85291,
+      "sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3"
+    },
+    {
+      "role": "startup_evidence_recorder",
+      "path": "operations/runtime/invoke-host-with-evidence.ps1",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\invoke-host-with-evidence.ps1",
+      "size_bytes": 18535,
+      "sha256": "45CBC5D9CD1677A2299F1FF3D2DF58517778D001E4C16AE83300DFC0E9CA63A7"
+    },
+    {
+      "role": "startup_manifest_candidate",
+      "path": "docs/recovery/R04_D21_P4_STARTUP_SET_DRAFT.json",
+      "target": "C:\\ai-lab-core\\operations\\runtime\\startup-set.json",
+      "size_bytes": 32730,
+      "sha256": "A55243DFF4AE6781568E0D48B69B5E4870FB2A81FC2F1B2B0E0BBDE4C06D2804",
+      "approval_status": "NOT_APPROVED"
+    }
+  ],
+  "tests": [
+    {
+      "path": "operations/runtime/test-start-host-services.ps1",
+      "size_bytes": 35081,
+      "sha256": "311F9675EC194697F7BBC9BC13587EE8A493448B70CEBF89206601EB2D851887",
+      "result": "PASS_62_ASSERTIONS"
+    },
+    {
+      "path": "operations/runtime/test-startup-real-adapters.ps1",
+      "size_bytes": 48804,
+      "sha256": "9B97A4CBA0232ACAFE9AB43D3086FAD316FB612CA43ED5CB1B19CBD7A396DB52",
+      "result": "PASS_55_ASSERTIONS"
+    },
+    {
+      "path": "operations/runtime/test-host-evidence-capture.ps1",
+      "size_bytes": 11075,
+      "sha256": "5EADA9E0FAFBFFC770E9FF554C726CCA017F0839A49EA000C6B8554CEF97335C",
+      "result": "PASS_35_ASSERTIONS_8_CHILD_CASES_PRODUCTION_BOUNDARIES_0"
+    },
+    {
+      "path": "operations/runtime/test-startup-data-junction.ps1",
+      "size_bytes": 28699,
+      "sha256": "35C0EAB5994310F8F10AC4ECFA04C045F8A235DA0FC41EDD602865610E242532",
+      "result": "PASS_44_ASSERTIONS"
+    },
+    {
+      "path": "operations/runtime/test-p4-startup-package.ps1",
+      "size_bytes": 50887,
+      "sha256": "7E229775C3AC8D1FCBB27A6B38C79E9B20F7A9C55C2816DE8415B6C678F7B829",
+      "result": "PASS_41_ASSERTIONS"
+    }
+  ],
+  "documentation": [
+    {
+      "path": "operations/runtime/README.md",
+      "size_bytes": 15100,
+      "sha256": "BDA8352696DA65EE75A8E072A709EBAA9C035E6377B438A3C7E1A3BCD3A2EC0B"
+    },
+    {
+      "path": "docs/recovery/R04_D21_P4_STARTUP_CHANGESET.csv",
+      "size_bytes": 67086,
+      "sha256": "54ED66B78216C52A365838BC5C2A438EDAA7A430DE2A8910810D8CD2E24C2834"
+    },
+    {
+      "path": "docs/recovery/R04_D21_ONE_ENTRY_COLD_PLAN.md",
+      "size_bytes": 7039,
+      "sha256": "D1B744A2680319F4DEFBC251CD14DAD2E33FC925203D09083B1D419F86858E10"
+    }
+  ],
+  "observed_entry": {
+    "observed_utc": "2026-09-25T10:31:56.3011683Z",
+    "shortcut": "C:\\Users\\domai\\Desktop\\NEXT Stabil.lnk",
+    "shortcut_size_bytes": 1288,
+    "shortcut_sha256": "8B46D106A8AD2DB3AC39E57A6E879104C77BA7C8D7AEEC9008577E1F9BA9FBDD",
+    "client": "C:\\Users\\domai\\AppData\\Local\\Programs\\NEXT Stabil\\frontend.exe",
+    "client_size_bytes": 140288,
+    "client_sha256": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865",
+    "client_version": "1.0.2+29",
+    "startup_wrapper": "ABSENT_CONFIRMED",
+    "host_task": "READY_ENABLED_ONE_LOGON_TRIGGER_INTERACTIVE_TOKEN_LEAST_PRIVILEGE_IGNORE_NEW_PT15M"
+  },
+  "future_manual_entry": {
+    "shortcut": "C:\\Users\\domai\\Desktop\\NEXT Stabil.lnk",
+    "target": "C:\\Windows\\System32\\schtasks.exe",
+    "arguments": "/Run /TN \"\\NEXT Stabil - Host\"",
+    "working_directory": "C:\\ai-lab-core",
+    "preserve_current_shortcut_until_acceptance": true
+  },
+  "future_window": {
+    "install_only_listed_payload": true,
+    "manual_entry_and_repeat": true,
+    "single_windows_reboot_and_logon": true,
+    "owner_ui_check_client_list_and_detail": true,
+    "existing_pinned_resources_may_start": true,
+    "compose_up_create_recreate_build_pull": false,
+    "supervisor_start": false,
+    "data_or_schedule_changes": false,
+    "rollback": "RESTORE_EXACT_ACCEPTED_USABLE_WARM_FILE_AND_SHORTCUT_PREIMAGES_ONLY_WHEN_STATE_IS_KNOWN"
+  },
+  "data_policy": {
+    "c_drive": "OPERATING_SYSTEM_AND_APPLICATION_CODE",
+    "d_drive": "ACTIVE_GROWING_NEXT_STABIL_DATA",
+    "junction": "C:\\ai-lab-core\\data -> D:\\ai-lab-data",
+    "backup_target": "OWNER_SELECTED_PATH_OUTSIDE_C_AND_D_NO_FALLBACK",
+    "large_temporary_backup_files": "OUTSIDE_C_AND_D_OR_EXPLICITLY_ACCOUNTED_BEFORE_ACTIVATION",
+    "memory_retention": "UNCHANGED_SEPARATE_POLICY",
+    "backup_retention": "UNCHANGED_SEPARATE_POLICY",
+    "purge_or_cleanup": "NOT_AUTHORIZED"
+  },
+  "next_scope_after_acceptance": "R04-DATA-BACKUP"
+}

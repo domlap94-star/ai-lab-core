@@ -40,10 +40,12 @@ try {
             max_stdout_characters = $StdoutCap
             max_stderr_characters = 4096
             max_path_characters = 220
+            notify_failure = $false
+            notification_timeout_seconds = 1
         }
     }
-    $successJson = '{"schema":"NEXT_STABIL_STARTUP_RESULT_V1","code":"BASE_READY_LIMITED","base_ready":true,"supervisor_status":"INTENTIONALLY_STOPPED","events":[{"component":"private_gateway","action":"START_ONCE","result":"SUCCESS"}],"details":[]}'
-    $refusalJson = '{"schema":"NEXT_STABIL_STARTUP_RESULT_V1","code":"CONTROLLED_DEPLOY_REQUIRED","base_ready":false,"supervisor_status":"INTENTIONALLY_STOPPED","events":[],"details":["synthetic"]}'
+    $successJson = '{"schema":"NEXT_STABIL_STARTUP_RESULT_V1","code":"BASE_READY_LIMITED","base_ready":true,"supervisor_status":"INTENTIONALLY_STOPPED","client_status":"RUNNING","user_message":"NEXT Stabil jest gotowy.","events":[{"component":"private_gateway","action":"START_ONCE","result":"SUCCESS"}],"details":[]}'
+    $refusalJson = '{"schema":"NEXT_STABIL_STARTUP_RESULT_V1","code":"CONTROLLED_DEPLOY_REQUIRED","base_ready":false,"supervisor_status":"INTENTIONALLY_STOPPED","client_status":"NOT_REQUESTED","user_message":"NEXT Stabil nie jest gotowy.","events":[],"details":["synthetic"]}'
     $success = New-SyntheticLauncher -Name 'success launcher.ps1' -Body ("param([string]`$ManifestPath)`nWrite-Output '$successJson'`nexit 0`n")
     $refusal = New-SyntheticLauncher -Name 'refusal.ps1' -Body ("param([string]`$ManifestPath)`nWrite-Output '$refusalJson'`nexit 22`n")
     $malformed = New-SyntheticLauncher -Name 'malformed.ps1' -Body "param([string]`$ManifestPath)`nWrite-Output '{bad'`nexit 0`n"
@@ -63,6 +65,14 @@ try {
     Assert-HostEvidence ($caseRefusal.recorder_status -eq 'LAUNCHER_REFUSED_CAPTURED') 'refusal status'
     Assert-HostEvidence ($caseRefusal.recorder_exit_code -eq 22) 'refusal exit preserved'
     Assert-HostEvidence ($caseRefusal.launcher_result.code -eq 'CONTROLLED_DEPLOY_REQUIRED') 'refusal JSON captured'
+    Assert-HostEvidence ($caseRefusal.notification_status -eq 'NOT_REQUIRED') 'notification remains disabled in the default offline fixture'
+
+    $notifyConfig = New-TestConfiguration -Launcher $refusal -EvidenceName 'refusal-notify'
+    $notifyConfig.notify_failure = $true
+    $script:notificationMessages = New-Object System.Collections.Generic.List[string]
+    $caseNotified = Invoke-HostEvidenceCapture -Configuration $notifyConfig -AttemptIdFactory { 'attempt-refusal-notify' } -NotificationBoundary { param($Message, $TimeoutSeconds) $script:notificationMessages.Add([string]$Message) }
+    Assert-HostEvidence ($caseNotified.recorder_status -eq 'LAUNCHER_REFUSED_CAPTURED' -and $caseNotified.notification_status -eq 'DELIVERED_OR_TIMED_OUT') 'refusal delivers the safe user message through the injected notification boundary'
+    Assert-HostEvidence ($script:notificationMessages.Count -eq 1 -and $script:notificationMessages[0] -eq 'NEXT Stabil nie jest gotowy.') 'notification receives only the launcher safe message'
 
     $caseMalformed = Invoke-HostEvidenceCapture -Configuration (New-TestConfiguration -Launcher $malformed -EvidenceName 'malformed') -AttemptIdFactory { 'attempt-malformed' }
     Assert-HostEvidence ($caseMalformed.recorder_status -eq 'LAUNCHER_OUTPUT_INVALID_JSON') 'malformed refused'

@@ -557,10 +557,15 @@ function Invoke-BoundedStartupHostOperation {
 }
 
 function Test-RealStartupBoundaryContract {
-    param([Parameter(Mandatory = $true)]$SystemBoundary)
+    param(
+        [Parameter(Mandatory = $true)]$SystemBoundary,
+        [string]$ClientPolicy = 'DISABLED'
+    )
 
     $missing = New-Object System.Collections.Generic.List[string]
-    foreach ($name in @('InvokeNative', 'GetEnvironmentState', 'ObserveDesktop', 'StartDesktop', 'InvokeHostOperation', 'InvokeHttp', 'Sleep')) {
+    $required = @('InvokeNative', 'GetEnvironmentState', 'ObserveDesktop', 'StartDesktop', 'InvokeHostOperation', 'InvokeHttp', 'Sleep')
+    if ($ClientPolicy -eq 'OPEN_AFTER_BASE_READY') { $required += 'StartClient' }
+    foreach ($name in $required) {
         if (-not ((Get-StartupProperty -InputObject $SystemBoundary -Name $name) -is [scriptblock])) { $missing.Add($name) }
     }
     return [pscustomobject]@{ valid = ($missing.Count -eq 0); missing = $missing.ToArray() }
@@ -584,6 +589,9 @@ function New-RealStartupAdapters {
     foreach ($tool in @(Get-StartupProperty -InputObject $Manifest -Name 'external_tools')) { $tools[[string]$tool.name] = $tool }
     $dockerPath = [string](Get-StartupProperty -InputObject $tools['docker_cli'] -Name 'path')
     $desktopPath = [string](Get-StartupProperty -InputObject $tools['docker_desktop'] -Name 'path')
+    $clientDefinition = Get-StartupProperty -InputObject $Manifest -Name 'client'
+    $clientToolRef = [string](Get-StartupProperty -InputObject $clientDefinition -Name 'tool_ref')
+    $clientPath = if ($tools.ContainsKey($clientToolRef)) { [string](Get-StartupProperty -InputObject $tools[$clientToolRef] -Name 'path') } else { '' }
 
     if ($null -eq $SystemBoundary) {
         $nativeBoundary = {
@@ -609,6 +617,17 @@ function New-RealStartupAdapters {
             if ($null -eq $process) { return [pscustomobject]@{ status = 'START_FAILED' } }
             return [pscustomobject]@{ status = 'ACCEPTED'; pid = $process.Id }
         }
+        $startClientBoundary = {
+            param($ExpectedPath, $Arguments, $WorkingDirectory)
+            $info = New-Object System.Diagnostics.ProcessStartInfo
+            $info.FileName = [string]$ExpectedPath
+            $info.Arguments = Join-WindowsNativeArguments -ArgumentList @($Arguments)
+            $info.WorkingDirectory = [string]$WorkingDirectory
+            $info.UseShellExecute = $false
+            $process = [System.Diagnostics.Process]::Start($info)
+            if ($null -eq $process) { return [pscustomobject]@{ status = 'START_FAILED' } }
+            return [pscustomobject]@{ status = 'ACCEPTED'; pid = $process.Id }
+        }
         $hostBoundary = {
             param($Operation, $Expected, $Timeout, $MaximumOutput)
             Invoke-BoundedStartupHostOperation -Operation $Operation -Expected $Expected -TimeoutMilliseconds $Timeout -MaximumOutputCharacters $MaximumOutput
@@ -623,12 +642,13 @@ function New-RealStartupAdapters {
             GetEnvironmentState = $environmentBoundary
             ObserveDesktop = $observeDesktopBoundary
             StartDesktop = $startDesktopBoundary
+            StartClient = $startClientBoundary
             InvokeHostOperation = $hostBoundary
             InvokeHttp = $httpBoundary
             Sleep = { param($Milliseconds) Start-Sleep -Milliseconds $Milliseconds }
         }
     }
-    $boundaryContract = Test-RealStartupBoundaryContract -SystemBoundary $SystemBoundary
+    $boundaryContract = Test-RealStartupBoundaryContract -SystemBoundary $SystemBoundary -ClientPolicy ([string](Get-StartupProperty -InputObject $clientDefinition -Name 'policy'))
     if (-not $boundaryContract.valid) {
         throw ('SYSTEM_BOUNDARY_CONTRACT_INVALID:' + (@($boundaryContract.missing) -join ','))
     }
@@ -670,6 +690,24 @@ function New-RealStartupAdapters {
         param($Definition)
         try {
             return & $SystemBoundary.StartDesktop $desktopPath
+        }
+        catch { return [pscustomobject]@{ status = 'START_FAILED'; detail = ConvertTo-SafeStartupDiagnostic $_.Exception.Message } }
+    }.GetNewClosure()
+
+    $observeClient = {
+        param($Definition)
+        $name = [string](Get-StartupProperty -InputObject $Definition -Name 'process_name')
+        try { return @(& $SystemBoundary.ObserveDesktop $name $clientPath) }
+        catch { return @([pscustomobject]@{ observation_status = 'UNKNOWN'; detail = ConvertTo-SafeStartupDiagnostic $_.Exception.Message }) }
+    }.GetNewClosure()
+
+    $startClient = {
+        param($Definition)
+        try {
+            return & $SystemBoundary.StartClient `
+                $clientPath `
+                @(Get-StartupProperty -InputObject $Definition -Name 'arguments') `
+                ([string](Get-StartupProperty -InputObject $Definition -Name 'working_directory'))
         }
         catch { return [pscustomobject]@{ status = 'START_FAILED'; detail = ConvertTo-SafeStartupDiagnostic $_.Exception.Message } }
     }.GetNewClosure()
@@ -1005,6 +1043,8 @@ function New-RealStartupAdapters {
         ObserveEngine = $observeEngine
         ObserveDockerDesktopProcess = $observeDesktop
         StartDockerDesktop = $startDesktop
+        ObserveClient = $observeClient
+        StartClient = $startClient
         ObserveContainer = $observeContainer
         StartExistingContainer = $startContainer
         ObserveHostService = $observeHost
@@ -1020,8 +1060,21 @@ function New-StartupResult {
         [bool]$BaseReady = $false,
         [string]$SupervisorStatus = 'NOT_OBSERVED',
         [object[]]$Events = @(),
-        [object[]]$Details = @()
+        [object[]]$Details = @(),
+        [string]$ClientStatus = 'NOT_REQUESTED',
+        [string]$UserMessage = ''
     )
+    if ([string]::IsNullOrWhiteSpace($UserMessage)) {
+        $UserMessage = switch ($Code) {
+            'BASE_READY_LIMITED' { 'NEXT Stabil jest gotowy.' }
+            'READINESS_FAILED' { 'NEXT Stabil nie jest jeszcze gotowy. Klient nie zostal otwarty.' }
+            'CLIENT_STATE_UNKNOWN' { 'Nie mozna bezpiecznie potwierdzic stanu klienta NEXT Stabil.' }
+            'CLIENT_IDENTITY_MISMATCH' { 'Wykryto inny lub niejednoznaczny proces klienta NEXT Stabil.' }
+            'CLIENT_START_FAILED' { 'Nie udalo sie otworzyc klienta NEXT Stabil.' }
+            'CLIENT_NOT_READY' { 'Klient NEXT Stabil nie potwierdzil uruchomienia w dozwolonym czasie.' }
+            default { 'NEXT Stabil nie zostal uruchomiony. Sprawdz zapisany wynik operacji.' }
+        }
+    }
     return [pscustomobject][ordered]@{
         schema = 'NEXT_STABIL_STARTUP_RESULT_V1'
         code = $Code
@@ -1029,19 +1082,26 @@ function New-StartupResult {
         supervisor_status = $SupervisorStatus
         ai_export_ready = $false
         all_ready = $false
+        client_status = $ClientStatus
+        user_message = $UserMessage
         events = @($Events)
         details = @(ConvertTo-SafeStartupDiagnostic -Value ($Details -join ';'))
     }
 }
 
 function Test-StartupAdapterContract {
-    param([Parameter(Mandatory = $true)]$Adapters)
+    param(
+        [Parameter(Mandatory = $true)]$Adapters,
+        [string]$ClientPolicy = 'DISABLED'
+    )
     $missing = New-Object System.Collections.Generic.List[string]
-    foreach ($name in @(
+    $required = @(
         'GetDockerEnvironment', 'ObserveEngine', 'ObserveDockerDesktopProcess',
         'StartDockerDesktop', 'ObserveContainer', 'StartExistingContainer',
         'ObserveHostService', 'StartHostService', 'CheckReadiness', 'Sleep'
-    )) {
+    )
+    if ($ClientPolicy -eq 'OPEN_AFTER_BASE_READY') { $required += @('ObserveClient', 'StartClient') }
+    foreach ($name in $required) {
         $value = Get-StartupProperty -InputObject $Adapters -Name $name
         if (-not ($value -is [scriptblock])) { $missing.Add($name) }
     }
@@ -1117,6 +1177,32 @@ function Wait-StartupHostServiceReady {
     return [pscustomobject]@{ ready = $false; code = 'HOST_SERVICE_NOT_READY' }
 }
 
+function Wait-StartupClientReady {
+    param(
+        [Parameter(Mandatory = $true)]$Definition,
+        [Parameter(Mandatory = $true)]$Adapters,
+        [Parameter(Mandatory = $true)][int64]$Deadline,
+        [Parameter(Mandatory = $true)][int]$PollMilliseconds
+    )
+    do {
+        $observed = @(& $Adapters.ObserveClient $Definition)
+        if ($observed.Count -eq 1 -and [string](Get-StartupProperty -InputObject $observed[0] -Name 'observation_status') -eq 'UNKNOWN') {
+            return [pscustomobject]@{ ready = $false; code = 'CLIENT_STATE_UNKNOWN' }
+        }
+        if ($observed.Count -gt 1) { return [pscustomobject]@{ ready = $false; code = 'CLIENT_IDENTITY_MISMATCH' } }
+        if ($observed.Count -eq 1) {
+            if (-not [bool](Get-StartupProperty -InputObject $observed[0] -Name 'identity_valid')) {
+                return [pscustomobject]@{ ready = $false; code = 'CLIENT_IDENTITY_MISMATCH' }
+            }
+            return [pscustomobject]@{ ready = $true; code = 'READY'; observed = $observed[0] }
+        }
+        $remaining = $Deadline - (Get-MonotonicMilliseconds)
+        if ($remaining -le 0) { break }
+        & $Adapters.Sleep ([int][Math]::Min($PollMilliseconds, $remaining))
+    } while ((Get-MonotonicMilliseconds) -lt $Deadline)
+    return [pscustomobject]@{ ready = $false; code = 'CLIENT_NOT_READY' }
+}
+
 function Invoke-NextStabilStartupPlan {
     [CmdletBinding()]
     param(
@@ -1137,7 +1223,7 @@ function Invoke-NextStabilStartupPlan {
     if (-not $read.success) { return New-StartupResult -Code $read.code -Details @($read.detail) }
     $validation = Test-StartupSetManifest -Manifest $read.manifest -ManifestPath $ManifestPath -ExpectedRoot $ExpectedRoot -AllowSyntheticRoot:$AllowSyntheticRoot
     if (-not $validation.valid) { return New-StartupResult -Code 'MANIFEST_REFUSED' -Details $validation.errors }
-    $adapterContract = Test-StartupAdapterContract -Adapters $Adapters
+    $adapterContract = Test-StartupAdapterContract -Adapters $Adapters -ClientPolicy ([string](Get-StartupProperty -InputObject (Get-StartupProperty -InputObject $read.manifest -Name 'client') -Name 'policy'))
     if (-not $adapterContract.valid) { return New-StartupResult -Code 'ADAPTER_CONTRACT_INVALID' -Details $adapterContract.missing }
 
     $lock = Enter-StartupMutex -Root $validation.normalized_root
@@ -1253,7 +1339,33 @@ function Invoke-NextStabilStartupPlan {
                 return New-StartupResult -Code 'READINESS_FAILED' -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -Details @((Get-StartupProperty -InputObject $check -Name 'name'))
             }
         }
-        return New-StartupResult -Code 'BASE_READY_LIMITED' -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events
+        $client = Get-StartupProperty -InputObject $manifest -Name 'client'
+        if ([string](Get-StartupProperty -InputObject $client -Name 'policy') -eq 'OPEN_AFTER_BASE_READY') {
+            $clientDeadline = (Get-MonotonicMilliseconds) + $serviceTimeout
+            $observedClient = @(& $Adapters.ObserveClient $client)
+            if ($observedClient.Count -eq 1 -and [string](Get-StartupProperty -InputObject $observedClient[0] -Name 'observation_status') -eq 'UNKNOWN') {
+                return New-StartupResult -Code 'CLIENT_STATE_UNKNOWN' -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -ClientStatus 'UNKNOWN'
+            }
+            if ($observedClient.Count -gt 1 -or ($observedClient.Count -eq 1 -and -not [bool](Get-StartupProperty -InputObject $observedClient[0] -Name 'identity_valid'))) {
+                return New-StartupResult -Code 'CLIENT_IDENTITY_MISMATCH' -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -ClientStatus 'CONFLICT'
+            }
+            if ($observedClient.Count -eq 1) {
+                $events.Add([pscustomobject]@{ component = 'windows_client'; action = 'PRESERVE_RUNNING' })
+            }
+            else {
+                $startedClient = & $Adapters.StartClient $client
+                $events.Add([pscustomobject]@{ component = 'windows_client'; action = 'START_ONCE'; result = [string](Get-StartupProperty -InputObject $startedClient -Name 'status') })
+                if ([string](Get-StartupProperty -InputObject $startedClient -Name 'status') -ne 'ACCEPTED') {
+                    return New-StartupResult -Code 'CLIENT_START_FAILED' -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -ClientStatus 'NOT_RUNNING'
+                }
+                $clientReady = Wait-StartupClientReady -Definition $client -Adapters $Adapters -Deadline $clientDeadline -PollMilliseconds $poll
+                if (-not $clientReady.ready) {
+                    return New-StartupResult -Code $clientReady.code -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -ClientStatus 'UNKNOWN'
+                }
+            }
+            return New-StartupResult -Code 'BASE_READY_LIMITED' -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -ClientStatus 'RUNNING'
+        }
+        return New-StartupResult -Code 'BASE_READY_LIMITED' -BaseReady $true -SupervisorStatus 'INTENTIONALLY_STOPPED' -Events $events -ClientStatus 'DISABLED'
     }
     catch {
         return New-StartupResult -Code 'ADAPTER_FAILURE' -Events $events -Details @(

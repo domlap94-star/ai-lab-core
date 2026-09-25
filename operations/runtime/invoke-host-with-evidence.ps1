@@ -118,6 +118,8 @@ function Get-HostEvidenceProductionConfiguration {
         max_stdout_characters = 65536
         max_stderr_characters = 16384
         max_path_characters = 220
+        notify_failure = $true
+        notification_timeout_seconds = 20
     }
 }
 
@@ -236,7 +238,7 @@ function ConvertFrom-HostLauncherResult {
     if ([string]::IsNullOrWhiteSpace($Text)) { return [pscustomobject]@{ valid = $false; status = 'LAUNCHER_OUTPUT_EMPTY'; result = $null } }
     try { $value = $Text | ConvertFrom-Json -ErrorAction Stop }
     catch { return [pscustomobject]@{ valid = $false; status = 'LAUNCHER_OUTPUT_INVALID_JSON'; result = $null } }
-    foreach ($name in @('schema', 'code', 'base_ready', 'supervisor_status', 'events', 'details')) {
+    foreach ($name in @('schema', 'code', 'base_ready', 'supervisor_status', 'client_status', 'user_message', 'events', 'details')) {
         if ($null -eq $value.PSObject.Properties[$name]) { return [pscustomobject]@{ valid = $false; status = ('LAUNCHER_OUTPUT_FIELD_MISSING:{0}' -f $name); result = $null } }
     }
     if ([string]$value.schema -ne 'NEXT_STABIL_STARTUP_RESULT_V1') { return [pscustomobject]@{ valid = $false; status = 'LAUNCHER_OUTPUT_SCHEMA_INVALID'; result = $null } }
@@ -245,6 +247,8 @@ function ConvertFrom-HostLauncherResult {
         code = [string]$value.code
         base_ready = [bool]$value.base_ready
         supervisor_status = [string]$value.supervisor_status
+        client_status = [string]$value.client_status
+        user_message = [string]$value.user_message
         events = @($value.events)
         details = @($value.details)
     }
@@ -263,12 +267,20 @@ function Invoke-HostEvidenceCapture {
         [Parameter(Mandatory = $true)]$Configuration,
         [scriptblock]$ProcessRunner,
         $FileBoundary,
-        [scriptblock]$AttemptIdFactory
+        [scriptblock]$AttemptIdFactory,
+        [scriptblock]$NotificationBoundary
     )
 
     if ($null -eq $ProcessRunner) { $ProcessRunner = { param($config, $attemptId) Invoke-BoundedHostEvidenceChildProcess -Configuration $config -AttemptId $attemptId } }
     if ($null -eq $FileBoundary) { $FileBoundary = New-HostEvidenceFileBoundary }
     if ($null -eq $AttemptIdFactory) { $AttemptIdFactory = { New-HostEvidenceAttemptId } }
+    if ($null -eq $NotificationBoundary) {
+        $NotificationBoundary = {
+            param([string]$Message, [int]$TimeoutSeconds)
+            $shell = New-Object -ComObject WScript.Shell
+            [void]$shell.Popup($Message, $TimeoutSeconds, 'NEXT Stabil', 48)
+        }
+    }
     if (-not (Test-HostEvidenceFileBoundary -Boundary $FileBoundary)) { throw 'EVIDENCE_FILE_BOUNDARY_INVALID' }
 
     $attemptId = [string](& $AttemptIdFactory)
@@ -334,6 +346,20 @@ function Invoke-HostEvidenceCapture {
         else { $status = 'LAUNCHER_EXIT_UNEXPECTED' }
     }
 
+    $notificationStatus = 'NOT_REQUIRED'
+    if ($status -eq 'LAUNCHER_REFUSED_CAPTURED' -and
+        [bool](Get-HostEvidenceProperty -InputObject $Configuration -Name 'notify_failure') -and
+        $null -ne $launcher -and
+        -not [string]::IsNullOrWhiteSpace([string](Get-HostEvidenceProperty -InputObject $launcher.result -Name 'user_message'))) {
+        try {
+            & $NotificationBoundary `
+                ([string](Get-HostEvidenceProperty -InputObject $launcher.result -Name 'user_message')) `
+                ([int](Get-HostEvidenceProperty -InputObject $Configuration -Name 'notification_timeout_seconds'))
+            $notificationStatus = 'DELIVERED_OR_TIMED_OUT'
+        }
+        catch { $notificationStatus = 'FAILED' }
+    }
+
     $summary = [pscustomobject][ordered]@{
         schema = 'NEXT_STABIL_HOST_EVIDENCE_RESULT_V1'
         attempt_id = $attemptId
@@ -349,6 +375,7 @@ function Invoke-HostEvidenceCapture {
         stdout = [pscustomobject]@{ path = 'stdout.txt'; characters = $stdout.text.Length; original_characters = $stdout.original_characters; truncated = $stdout.truncated; sha256 = (Get-HostEvidenceSha256Text -Text $stdout.text) }
         stderr = [pscustomobject]@{ path = 'stderr.txt'; characters = $stderr.text.Length; original_characters = $stderr.original_characters; truncated = $stderr.truncated; sha256 = (Get-HostEvidenceSha256Text -Text $stderr.text) }
         launcher_result = if ($null -ne $launcher) { $launcher.result } else { $null }
+        notification_status = $notificationStatus
         evidence_path = $attemptPath
     }
     if (-not $writeFailed) {

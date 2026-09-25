@@ -3584,3 +3584,25 @@ unchanged. The acceptance does not cover cold start, actual post-reboot logon,
 backups, data relocation or whole R04. The next existing scope is
 `R04-ONE-ENTRY-COLD`; this decision does not authorize its execution and
 USABLE-WARM is not replanned.
+
+**R04-ONE-ENTRY-COLD SOURCE/OFFLINE PREPARATION — 2026-09-25.** The owner
+authorized the complete source/offline preparation but not installation,
+task/shortcut writes, UAC, logoff or reboot. The existing shortcut was observed
+as the exact installed Windows client (`frontend.exe` `1.0.2+29`); the Startup
+wrapper is absent and the existing Host remains the common path. The candidate
+implements hash-bound `OPEN_AFTER_BASE_READY`, client preserve/start-once and a
+safe refusal message only after the accepted base gates. Offline PS5.1 covers
+entry -> readiness -> exact client -> repeat without duplicate and the database
+not-ready refusal. The repository candidate remains `NOT_APPROVED / NOT_DEPLOYED`.
+One later owner confirmation must cover the exact four-file package, shortcut
+binding to the same Host path, manual entry/repeat and one controlled Windows
+reboot/logon with local/RustDesk recovery confirmed. A real cold test requires
+that reboot; configured logon alone is not PASS.
+
+The following existing scope remains `R04-DATA-BACKUP`: C: is OS/code, D: is
+growing active NEXT Stabil data through the exact junction, and backups require
+an explicit destination outside C:/D:. Missing/cancelled/unavailable selection
+must not fall back to C:, D:, E: or another default. Large temporary dumps and
+archives must be accounted for before final copy. Backup retention and memory
+retention remain separate and unchanged. No backup, schedule, purge, relocation
+or retention operation is part of ONE-ENTRY-COLD.

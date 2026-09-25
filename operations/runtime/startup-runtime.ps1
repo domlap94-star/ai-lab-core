@@ -1041,7 +1041,36 @@ function Test-StartupSetManifest {
     $clientPolicy = Get-StartupProperty -InputObject $client -Name 'policy'
     if ($clientPolicy -notin @('DISABLED', 'OPEN_AFTER_BASE_READY')) { $errors.Add('CLIENT_POLICY_INVALID') }
     if ($clientPolicy -eq 'OPEN_AFTER_BASE_READY') {
-        $errors.Add('CLIENT_OPEN_NOT_IMPLEMENTED_P1')
+        $launchKind = [string](Get-StartupProperty -InputObject $client -Name 'launch_kind')
+        $toolRef = [string](Get-StartupProperty -InputObject $client -Name 'tool_ref')
+        $processName = [string](Get-StartupProperty -InputObject $client -Name 'process_name')
+        $workingDirectory = [string](Get-StartupProperty -InputObject $client -Name 'working_directory')
+        $arguments = @(Get-StartupProperty -InputObject $client -Name 'arguments')
+        if ($launchKind -ne 'EXACT_EXECUTABLE') { $errors.Add('CLIENT_LAUNCH_KIND_INVALID') }
+        if (-not $seenTools.ContainsKey($toolRef)) {
+            $errors.Add('CLIENT_TOOL_REF_INVALID')
+        }
+        else {
+            $clientPath = [string](Get-StartupProperty -InputObject $seenTools[$toolRef] -Name 'path')
+            if ([string]::IsNullOrWhiteSpace($processName) -or
+                -not $processName.Equals([System.IO.Path]::GetFileNameWithoutExtension($clientPath), [System.StringComparison]::OrdinalIgnoreCase)) {
+                $errors.Add('CLIENT_PROCESS_NAME_MISMATCH')
+            }
+            try {
+                $expectedWorkingDirectory = Get-CanonicalStartupPath -Path ([System.IO.Path]::GetDirectoryName($clientPath))
+                $actualWorkingDirectory = Get-CanonicalStartupPath -Path $workingDirectory
+                if (-not $expectedWorkingDirectory.Equals($actualWorkingDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $errors.Add('CLIENT_WORKING_DIRECTORY_MISMATCH')
+                }
+            }
+            catch { $errors.Add('CLIENT_WORKING_DIRECTORY_INVALID') }
+        }
+        foreach ($argument in $arguments) {
+            if (-not ($argument -is [string]) -or ([string]$argument) -match '[\r\n]') {
+                $errors.Add('CLIENT_ARGUMENT_INVALID')
+                break
+            }
+        }
     }
 
     $readiness = @(Get-StartupProperty -InputObject $Manifest -Name 'readiness')

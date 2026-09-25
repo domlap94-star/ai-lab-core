@@ -56,7 +56,7 @@ function New-TestManifest {
     }
     $toolDirectory = Join-Path $testRoot 'external tools'
     $tools = @()
-    foreach ($name in @('docker_cli', 'docker_desktop', 'node')) {
+    foreach ($name in @('docker_cli', 'docker_desktop', 'node', 'windows_client')) {
         $path = Join-Path $toolDirectory ($name + '.exe')
         Write-TestText -Path $path -Text ('fixture-tool-' + $name)
         $tools += [pscustomobject]@{ name = $name; path = $path; sha256 = Get-StartupSha256 -Path $path }
@@ -117,6 +117,9 @@ function New-FakeStartupState {
         host_starts = @{}
         container_start_status = 'SUCCESS'
         desktop_start_status = 'ACCEPTED'
+        client = @()
+        client_starts = 0
+        client_start_status = 'ACCEPTED'
         host_start_status = 'SUCCESS'
         throw_engine = ''
         container_observe_costs_ms = @(2)
@@ -143,6 +146,16 @@ function New-FakeStartupAdapters {
     }.GetNewClosure()
     $observeDesktop = { param($Definition) $State.calls.Add('desktop.observe'); return @($State.desktop) }.GetNewClosure()
     $startDesktop = { param($Definition) $State.calls.Add('desktop.start'); $State.desktop_starts++; [pscustomobject]@{ status = $State.desktop_start_status } }.GetNewClosure()
+    $observeClient = { param($Definition) $State.calls.Add('client.observe'); return @($State.client) }.GetNewClosure()
+    $startClient = {
+        param($Definition)
+        $State.calls.Add('client.start')
+        $State.client_starts++
+        if ($State.client_start_status -eq 'ACCEPTED') {
+            $State.client = @([pscustomobject]@{ pid = 9911; start_time_utc = '2026-09-25T00:00:00Z'; identity_valid = $true })
+        }
+        [pscustomobject]@{ status = $State.client_start_status }
+    }.GetNewClosure()
     $observeContainer = {
         param($Expected)
         $service = [string]$Expected.service
@@ -197,6 +210,8 @@ function New-FakeStartupAdapters {
         ObserveEngine = $observeEngine
         ObserveDockerDesktopProcess = $observeDesktop
         StartDockerDesktop = $startDesktop
+        ObserveClient = $observeClient
+        StartClient = $startClient
         ObserveContainer = $observeContainer
         StartExistingContainer = $startContainer
         ObserveHostService = $observeHost
@@ -238,11 +253,40 @@ try {
     $result = Invoke-TestPlan $notApproved $state
     Assert-Startup ($result.code -eq 'MANIFEST_REFUSED' -and $state.calls.Count -eq 0) 'NOT_APPROVED refuses before adapters'
 
-    $clientNotAvailable = Copy-TestObject $manifest
-    $clientNotAvailable.client.policy = 'OPEN_AFTER_BASE_READY'
-    $state = New-FakeStartupState $manifest
-    $result = Invoke-TestPlan $clientNotAvailable $state
-    Assert-Startup ($result.code -eq 'MANIFEST_REFUSED' -and $state.calls.Count -eq 0) 'P1 refuses unsupported client opening before adapters'
+    $clientManifest = Copy-TestObject $manifest
+    $clientTool = @($clientManifest.external_tools | Where-Object { $_.name -eq 'windows_client' })[0]
+    $clientManifest.client = [pscustomobject]@{
+        policy = 'OPEN_AFTER_BASE_READY'
+        launch_kind = 'EXACT_EXECUTABLE'
+        tool_ref = 'windows_client'
+        process_name = [System.IO.Path]::GetFileNameWithoutExtension([string]$clientTool.path)
+        arguments = @()
+        working_directory = [System.IO.Path]::GetDirectoryName([string]$clientTool.path)
+    }
+    $state = New-FakeStartupState $clientManifest
+    $result = Invoke-TestPlan $clientManifest $state
+    Assert-Startup ($result.code -eq 'BASE_READY_LIMITED' -and $result.client_status -eq 'RUNNING' -and $state.client_starts -eq 1) 'OPEN_AFTER_BASE_READY starts the exact client once after base readiness'
+    $readinessCall = $state.calls.IndexOf('readiness.public_control_boundary')
+    $clientStartCall = $state.calls.IndexOf('client.start')
+    Assert-Startup ($readinessCall -ge 0 -and $clientStartCall -gt $readinessCall) 'client start occurs only after all readiness checks'
+    $repeat = Invoke-TestPlan $clientManifest $state
+    Assert-Startup ($repeat.code -eq 'BASE_READY_LIMITED' -and $state.client_starts -eq 1 -and ($repeat.events | Where-Object { $_.component -eq 'windows_client' }).action -contains 'PRESERVE_RUNNING') 'repeat preserves one exact client and creates no duplicate'
+
+    $state = New-FakeStartupState $clientManifest
+    $state.readiness.backend = 503
+    $result = Invoke-TestPlan $clientManifest $state
+    Assert-Startup ($result.code -eq 'READINESS_FAILED' -and $state.client_starts -eq 0 -and $result.user_message -match 'nie jest jeszcze gotowy') 'database/readiness failure blocks client and returns a clear user message'
+
+    $state = New-FakeStartupState $clientManifest
+    $state.client = @([pscustomobject]@{ pid = 9912; identity_valid = $false })
+    $result = Invoke-TestPlan $clientManifest $state
+    Assert-Startup ($result.code -eq 'CLIENT_IDENTITY_MISMATCH' -and $state.client_starts -eq 0) 'foreign client process is never adopted or duplicated'
+
+    $invalidClient = Copy-TestObject $clientManifest
+    $invalidClient.client.tool_ref = 'missing_client'
+    $state = New-FakeStartupState $clientManifest
+    $result = Invoke-TestPlan $invalidClient $state
+    Assert-Startup ($result.code -eq 'MANIFEST_REFUSED' -and $state.calls.Count -eq 0) 'missing exact client binding refuses before adapters'
 
     $realAdapterDefinitions = New-RealStartupAdapters -Manifest $manifest
     $realAdapterContract = Test-StartupAdapterContract -Adapters $realAdapterDefinitions

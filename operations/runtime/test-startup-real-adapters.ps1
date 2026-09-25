@@ -59,7 +59,7 @@ function New-AdapterManifest {
     }
     $toolDirectory = Join-Path $testRoot 'external tools'
     $tools = @()
-    foreach ($name in @('docker_cli', 'docker_desktop', 'node')) {
+    foreach ($name in @('docker_cli', 'docker_desktop', 'node', 'windows_client')) {
         $path = Join-Path $toolDirectory ($name + '.exe')
         Write-AdapterFixture -Path $path -Text ('fixture-tool-' + $name)
         $tools += [pscustomobject]@{ name = $name; path = $path; sha256 = Get-StartupSha256 -Path $path }
@@ -117,6 +117,8 @@ function New-RawAdapterState {
         host_delay_ms = 0
         repo_digests = @('repo@sha256:' + ('b' * 64))
         image_identity_status = 'SUCCESS'
+        client_processes = @()
+        client_start_count = 0
     }
 }
 
@@ -361,6 +363,13 @@ function New-RawSystemBoundary {
         GetEnvironmentState = { [pscustomobject]@{ docker_host_override = ''; docker_context_override = '' } }
         ObserveDesktop = { param($ProcessName, $ExpectedPath) throw 'UNEXPECTED_DESKTOP_OBSERVE' }
         StartDesktop = { param($ExpectedPath) throw 'UNEXPECTED_DESKTOP_START' }
+        StartClient = {
+            param($ExpectedPath, $Arguments, $WorkingDirectory)
+            $State.calls.Add('client:start:' + $ExpectedPath)
+            $State.client_start_count++
+            $State.client_processes = @([pscustomobject]@{ Id = 9913; MainModule = [pscustomobject]@{ FileName = $ExpectedPath }; StartTime = [datetime]'2026-09-25T00:00:00Z' })
+            [pscustomobject]@{ status = 'ACCEPTED'; pid = 9913 }
+        }.GetNewClosure()
         InvokeHostOperation = $hostOperation
         InvokeHttp = $http
         Sleep = { param($Milliseconds) }
@@ -391,6 +400,29 @@ try {
     Assert-Adapter ($result.code -eq 'BASE_READY_LIMITED') ('raw-boundary positive plan succeeds; actual=' + ($result | ConvertTo-Json -Depth 8 -Compress))
     Assert-Adapter ($state.container_start_count -eq 0 -and $state.host_start_count.Count -eq 0) 'ready synthetic set is preserved without starts'
     Assert-Adapter (@($state.calls | Where-Object { $_ -notmatch '^(native:|host:|http:)' }).Count -eq 0) 'raw fixture campaign records only complete fake-boundary calls'
+
+    $clientManifest = Copy-AdapterFixture $manifest
+    $clientTool = @($clientManifest.external_tools | Where-Object { $_.name -eq 'windows_client' })[0]
+    $clientManifest.client = [pscustomobject]@{
+        policy = 'OPEN_AFTER_BASE_READY'
+        launch_kind = 'EXACT_EXECUTABLE'
+        tool_ref = 'windows_client'
+        process_name = [System.IO.Path]::GetFileNameWithoutExtension([string]$clientTool.path)
+        arguments = @()
+        working_directory = [System.IO.Path]::GetDirectoryName([string]$clientTool.path)
+    }
+    $state = New-RawAdapterState $clientManifest
+    $clientBoundary = New-RawSystemBoundary $state
+    $clientBoundary.ObserveDesktop = {
+        param($ProcessName, $ExpectedPath)
+        return @(Invoke-StartupDesktopProcessObservation -ProcessName $ProcessName -ExpectedPath $ExpectedPath -GetProcessBoundary { param($Name) @($state.client_processes) })
+    }.GetNewClosure()
+    Save-AdapterManifest $clientManifest
+    $clientAdapters = New-RealStartupAdapters -Manifest $clientManifest -SystemBoundary $clientBoundary
+    $clientFirst = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters $clientAdapters -AllowSyntheticRoot
+    $clientRepeat = Invoke-NextStabilStartupPlan -ManifestPath $manifestPath -ExpectedRoot $testRoot -Adapters $clientAdapters -AllowSyntheticRoot
+    Assert-Adapter ($clientFirst.code -eq 'BASE_READY_LIMITED' -and $clientRepeat.code -eq 'BASE_READY_LIMITED' -and $state.client_start_count -eq 1) 'real client adapter starts the hash-bound executable once and preserves it on repeat'
+    Assert-Adapter (($clientFirst.events | Where-Object { $_.component -eq 'windows_client' }).action -contains 'START_ONCE' -and ($clientRepeat.events | Where-Object { $_.component -eq 'windows_client' }).action -contains 'PRESERVE_RUNNING') 'real adapter exposes the client start then preserve trace'
 
     $localImageManifest = Copy-AdapterFixture $manifest
     $localImageManifest.containers[0] | Add-Member -NotePropertyName image_identity_mode -NotePropertyValue 'LOCAL_IMAGE_ID_CONFIRMED_NO_REPO_DIGEST'

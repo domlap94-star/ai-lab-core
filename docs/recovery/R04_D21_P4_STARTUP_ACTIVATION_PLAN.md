@@ -2027,3 +2027,30 @@ otwarcie CRM/Web, listy i szczegółów klienta. Historyczne parent/logon
 zmiany. Odbiór nie obejmuje cold-startu, rzeczywistego logowania po restarcie,
 backupów, relokacji ani całego R04. Następny istniejący zakres to
 `R04-ONE-ENTRY-COLD`; nie jest wykonywany na podstawie tej decyzji.
+
+## R04-ONE-ENTRY-COLD — source/offline preparation (2026-09-25)
+
+The accepted USABLE-WARM segment is preserved. A bounded projection observed
+the exact current desktop shortcut and installed Windows client; the Startup
+wrapper remains absent. The source candidate now implements
+`OPEN_AFTER_BASE_READY` inside the existing launcher/recorder path:
+
+- client executable `C:\Users\domai\AppData\Local\Programs\NEXT Stabil\frontend.exe`,
+  SHA-256 `5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865`,
+  version `1.0.2+29`, process `frontend`;
+- base readiness and the public-control boundary complete before client
+  observation/start;
+- one exact process is preserved, absence permits one exact start, and
+  unknown/foreign/multiple processes fail closed;
+- a database/readiness failure performs zero client starts and supplies a safe
+  descriptive result; the recorder captures it and owns the optional bounded
+  user notification;
+- repeat performs fresh checks and creates no service/container/client
+  duplicate.
+
+The repository draft remains `NOT_APPROVED`; the current shortcut, task and
+installed files are unchanged. The exact future window, reboot effects,
+rollback boundary and data/backup constraints are frozen in
+`R04_D21_ONE_ENTRY_COLD_PLAN.md`. `INSTALL`, manual entry, reboot/logon and
+cold-start remain `NOT_RUN` pending one owner confirmation of the final
+published package.
