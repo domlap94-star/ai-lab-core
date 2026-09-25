@@ -486,3 +486,13 @@
   journal and files; do not retry registration, start Host, configure logon or
   run SAFE_INACTIVE/rollback without a new exact owner decision. Warm runs stay
   `0/2`, CRM/Web is `NOT_RUN`, D-23 remains `2/2`, and D-22 remains `NOT_RUN`.
+- The later exact host-reconcile and repeat continuations completed two distinct
+  recorder-backed warm runs. The accepted first attempt started Private once;
+  the second attempt `20260925T063227046Z-3e1e1246` completed with zero service
+  or container starts and no duplicate. Host readback is Ready/idle with one
+  logon trigger and the approved action/principal semantics. Preserve the
+  historical parent and logon `PENDING_UNKNOWN` records; do not rewrite them,
+  rerun Host, or claim logoff/reboot/cold-start PASS. The owner manually
+  confirmed read-only CRM client-list and client-detail access. Current state is
+  `USABLE_WARM_READY_FOR_OWNER_REVIEW`; R04 remains IN_PROGRESS, D-23 remains
+  `2/2`, D-22 remains NOT_RUN, and Docker/WSL pool plus swap remain UNKNOWN.

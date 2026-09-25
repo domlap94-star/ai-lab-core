@@ -1949,3 +1949,68 @@ exact Host on-demand jest idle, Private już present, pierwszy attempt jest
 zamknięty. Zakres powinien obejmować bez ponownej rejestracji/kopiowania jeden
 recorder-backed repeat oczekujący `0` nowych startów, potem logon i read-only
 CRM/Web. Obecne okno nie upoważnia do tej kontynuacji.
+
+## 53. USABLE-WARM — drugi run, logon i ręczny read-only CRM/Web
+
+Właściciel przyjął pierwszy warm run z §52 na podstawie późniejszego recordera i
+post-checku, bez przepisywania historycznego parent result/journal. Następnie
+zatwierdził jedną kontynuację
+`R04-D21-P4B-USABLE-WARM-REPEAT-20260924T230413Z` od stanu Host on-demand,
+Private present i warm `1/2`.
+
+LOCAL_ONLY pochodna ma `43652` B / SHA-256
+`2498FC31736D754FFD5C8F05612DC8C80EE9D0B68E38D5BB4344298E55899953`, index
+`8525` B / SHA-256
+`494536D6787D7E70890475FF90A7310638272C6BA3E39FC238E83FF8A98705EE`, a
+harness `44256` B / SHA-256
+`E5DF942C1C52FF6A9020CAD3FF34B186C0B1C6805C8422ABFBACFDFFAC45251C`.
+Końcowy PS5.1 offline wynik to `14` scenariuszy / `72` asercje przy
+`production_boundaries=0`; result `864` B / SHA-256
+`E1EB86C73862ECD4FD40660ED18F2FCA91D4C5577BDA6171E6EE59FA79C28C4D`.
+
+Bieżący read-only preflight przeszedł: cztery pliki exact, Host on-demand
+exact/Ready/idle/no-trigger, sześć kontenerów running, PostgreSQL healthy,
+Public i Private present, Supervisor absent oraz HTTP `200/200/200/404`.
+Docker/WSL pool i swap pozostały jawnie UNKNOWN.
+
+Jeden UAC uruchomił PID `33600`; parent exit `22` zachowuje
+`PARTIAL_PENDING_OPERATION_UNKNOWN`. Nie wykonano retry. Ten sam przekazany
+start rozlicza późniejszy recorder attempt
+`20260925T063227046Z-3e1e1246`:
+
+- marker `364` B / SHA-256
+  `2A4FD8AC721568E252C335F5B832C342A4E87AD788323D38E0EAD68B846D45B1`;
+- result `5961` B / SHA-256
+  `D19E17A2EE74C4DAC72CA366597BAC49CAFDBB75BB8CBAF52F5D9659CB58669E`;
+- stdout `3054` B / SHA-256
+  `525FEF67AD239AAFE5629A5803E2FF75CD10DE33C876780D071DBAD9AF565913`;
+- stderr `0` B / SHA-256
+  `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855`.
+
+Recorder ma `BASE_READY_LIMITED_CAPTURED`, child PID `59948`, exit `0` i
+rozliczone zakończenie. Zdarzenia potwierdzają zachowanie sześciu kontenerów,
+Public i Private oraz `0` `START_ONCE`/`START_EXISTING`; Supervisor pozostał
+intentionally stopped. W połączeniu z zaakceptowanym pierwszym attemptem daje to
+warm `2/2`, Private `1 -> 0` i brak duplikatu.
+
+Po tym wyniku wykonano dokładnie jeden zapis wariantu logon. Journal `1126` B /
+SHA-256 `B71520E3D59D97786E4E5F91938E0BF00695173EDAA9A25977A184645AE35964`
+zachowuje `PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED`; formatter wyniku nie
+zastępuje dowodu Task Scheduler. Bez retry późniejszy exact readback potwierdził
+Host `Ready`, enabled, trigger_count `1`, idle i LastResult `0`; akcja, argumenty,
+CWD, InteractiveToken, LeastPrivilege, PT15M i IgnoreNew są zgodne. Eksportowana
+nazwa `DOMAI\domai` została lokalnie rozstrzygnięta do przypiętego SID
+`S-1-5-21-712169069-4165966233-3173903118-1001`. Formalnego journalu nie
+przepisano na sukces. Logoff/reboot/cold-start są `NOT_RUN`.
+
+Zachowany skrót uruchomił klienta. Automatyczna próba ustawienia fokusu została
+formalnie zablokowana przez ochronę i nie była ponawiana innym kanałem. Właściciel
+następnie potwierdził ręczne, read-only otwarcie CRM/Web, listy klientów i
+szczegółów jednego klienta; nie wykonano edycji, importu, analizy ani eksportu.
+
+Stan: `WARM_RUNS_2_OF_2 / SECOND_RUN_SERVICE_CONTAINER_STARTS_0 /
+NO_DUPLICATE / LOGON_TRIGGER_CONFIGURED_READBACK_WITH_FORMAL_JOURNAL_PARTIAL /
+CRM_LIST_DETAIL_OWNER_CONFIRMED_READ_ONLY / USABLE_WARM_READY_FOR_OWNER_REVIEW`.
+SAFE_INACTIVE `0`, retry `0`, drugi UAC `0`. Sześć kontenerów, cztery pliki,
+dependency tasks, helper, dane, junction i flagi pozostały bez zmiany. To nie
+jest `R04_ACCEPTED`, cold-start PASS ani dowód automatycznych backupów.

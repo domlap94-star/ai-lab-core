@@ -3557,3 +3557,21 @@ the pinned on-demand target. Warm runs remain `0/2`; Private start, logon and
 CRM/Web are `NOT_RUN`; SAFE_INACTIVE was not attempted because the mutation is
 unsettled. The UAC is consumed and there is no retry or rollback authorization.
 D-23 remains `2/2`; D-22 remains `NOT_RUN`.
+
+**P4/B USABLE-WARM REPEAT AND UI CHECK — 2026-09-25.** The owner accepted the
+first warm attempt from its later recorder evidence and authorized exactly one
+repeat. LOCAL_ONLY repeat bytes `2498FC31...99953` / index
+`494536D6...05EE` passed PS5.1 `14` scenarios / `72` assertions and a current
+read-only preflight. One UAC/PID `33600` started exactly one Host. Its parent
+result remains `PARTIAL_PENDING_OPERATION_UNKNOWN`, but the same new recorder
+attempt `20260925T063227046Z-3e1e1246` completed child exit `0` with base ready,
+zero service/container starts, no duplicate and Supervisor still intentionally
+stopped. Together with the accepted first attempt this is warm `2/2`, Private
+`1 -> 0`. One subsequent logon registration has a preserved
+`PENDING_UNKNOWN / TASK_POSTCHECK_NOT_CONFIRMED` journal; without retry, exact
+readback confirmed one enabled logon trigger, Ready/idle Host, exact action and
+the configured account resolving to the pinned SID. Logoff/reboot was not run.
+The owner manually confirmed read-only opening of CRM/Web, the client list and
+one client detail. Status: `USABLE_WARM_READY_FOR_OWNER_REVIEW`; not R04
+acceptance or cold-start PASS. Docker/WSL pool and swap remain UNKNOWN, D-23
+remains `2/2`, and D-22 remains `NOT_RUN`.
