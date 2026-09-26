@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][ValidateRange(1,9223372036854775807)][long]$ScheduleId,[string]$RepositoryRoot='C:\ai-lab-core')
 $ErrorActionPreference='Stop'; Set-StrictMode -Version 2.0
-function Invoke-BackendScheduleCli { param([string[]]$Arguments) $output=@(& docker.exe exec ai-lab-backend python /app/app/scripts/run_backup_schedule.py @Arguments 2>&1); if($LASTEXITCODE -ne 0){throw "backup_schedule_state_failed:$($output -join ' ')"}; return $output }
+function Invoke-BackendScheduleCli { param([string[]]$Arguments) $output=@(& docker.exe exec ai-lab-backend python -m app.scripts.run_backup_schedule @Arguments 2>&1); if($LASTEXITCODE -ne 0){throw "backup_schedule_state_failed:$($output -join ' ')"}; return $output }
 function Test-Checkpoint { param([string]$Checkpoint,[long]$ExpectedRunId,[long]$ExpectedScheduleId)
   $root=[IO.Path]::GetFullPath($Checkpoint).TrimEnd('\'); $manifestPath=Join-Path $root 'backup-manifest.json'
   if(-not(Test-Path -LiteralPath $manifestPath -PathType Leaf)){throw 'backup_manifest_missing'}
