@@ -361,6 +361,14 @@ zabronione.
 
 ## 8. Pełna droga od run01 do używalnego segmentu i zamknięcia R04
 
+Aktualizacja `2026-09-26`: końcowe okno ma status
+`R04_IN_PROGRESS / CONSOLIDATED_K1_REPORT`. Docker VHDX i Qdrant backing są
+zweryfikowane na D:, a source worker code/state split i samodzielnego backup
+schedule runnera przechodzi testy. Dwa zatwierdzone UAC zakończyły się jednak
+przed startem bez mutacji, dlatego poprawki nie są wdrożone i nie istnieje
+zweryfikowany artefakt proofu w `F:\dump`. Compatibility pozostaje niepełne dla
+Web authenticated flow, spójności stable/latest/debug i Android runtime.
+
 Poniższa sekwencja jest jednym planem kompletnego rezultatu R04 zgodnie z D-23.
 Nie cofa odebranych P1/P2/DATA_ONLY/P3/P4-A/Host22/NUP ani zaakceptowanego
 VerifyOnly. Rozdziela pierwszy samodzielnie użyteczny segment od pełnego

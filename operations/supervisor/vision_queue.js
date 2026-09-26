@@ -333,7 +333,7 @@ class VisionQueue {
   _spawnWorker(jobDir) {
     const child = spawn(process.execPath, [this.workerScript, jobDir], {
       cwd: path.dirname(this.workerScript), windowsHide: false, shell: false,
-      env: { ...process.env, NEXT_STABIL_VISION_WORKER_ROOT: this.workerRoot },
+      env: { ...process.env, NEXT_STABIL_VISION_WORKER_STATE_ROOT: this.workerRoot },
     });
     let output = '';
     child.stdout.on('data', (chunk) => { output += chunk.toString(); });

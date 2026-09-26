@@ -46,7 +46,7 @@
     {
       "role": "supervisor_script",
       "path": "operations/supervisor/server.js",
-      "sha256": "EE62CA8E64C836093F6581EBF5724642B620055BE5E13BB4CEE974256595F8E3",
+      "sha256": "174E4AB5009334BECAD62FF7B8BF42E5E259891EA55DE0E0B2BE92C43F6039A6",
       "evidence": "R04_DATA_BACKUP_SOURCE_FOCUSED_PASS_20260926"
     },
     {

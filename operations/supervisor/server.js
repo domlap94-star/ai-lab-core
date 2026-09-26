@@ -29,11 +29,12 @@ const PORT = Number(process.env.AI_LAB_SUPERVISOR_PORT || '8787');
 const PROJECT_DIR = process.env.AI_LAB_PROJECT_DIR || 'C:\\ai-lab-core';
 const ENV_FILE = path.join(PROJECT_DIR, '.env');
 const VISION_SPOOL = path.join(PROJECT_DIR, 'data', 'vision-spool');
-const VISION_WORKER_ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'D:\\ai-lab-data\\workers\\chatgpt-vision';
-const VISION_WORKER_SCRIPT = process.env.NEXT_STABIL_VISION_WORKER_SCRIPT || path.join(VISION_WORKER_ROOT, 'worker', 'vision-job.js');
+const VISION_WORKER_CODE_ROOT = process.env.NEXT_STABIL_VISION_WORKER_CODE_ROOT || path.join(PROJECT_DIR, 'operations', 'vision-worker');
+const VISION_WORKER_STATE_ROOT = process.env.NEXT_STABIL_VISION_WORKER_STATE_ROOT || path.join(PROJECT_DIR, 'data', 'workers', 'chatgpt-vision');
+const VISION_WORKER_SCRIPT = process.env.NEXT_STABIL_VISION_WORKER_SCRIPT || path.join(VISION_WORKER_CODE_ROOT, 'vision-job.js');
 const ANALYSIS_SPOOL = path.join(PROJECT_DIR, 'data', 'analysis-spool');
 const ANALYSIS_WORKER_SCRIPT = process.env.NEXT_STABIL_ANALYSIS_WORKER_SCRIPT
-  || path.join(PROJECT_DIR, 'operations', 'vision-worker', 'analysis-job.js');
+  || path.join(VISION_WORKER_CODE_ROOT, 'analysis-job.js');
 
 const CORE_SERVICES = [
   'postgres',
@@ -121,13 +122,14 @@ const temporaryChatArbiter = new TemporaryChatArbiter();
 const visionQueue = new VisionQueue({
   spoolRoot: VISION_SPOOL,
   workerScript: VISION_WORKER_SCRIPT,
-  workerRoot: VISION_WORKER_ROOT,
+  workerRoot: VISION_WORKER_STATE_ROOT,
   arbiter: temporaryChatArbiter,
 });
 const analysisQueue = new AnalysisQueue({
   spoolRoot: ANALYSIS_SPOOL,
   workerScript: ANALYSIS_WORKER_SCRIPT,
-  workerRoot: VISION_WORKER_ROOT,
+  workerRoot: VISION_WORKER_STATE_ROOT,
+  workerModulesRoot: VISION_WORKER_CODE_ROOT,
   arbiter: temporaryChatArbiter,
 });
 
