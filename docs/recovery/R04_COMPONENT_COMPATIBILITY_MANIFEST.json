@@ -1,0 +1,89 @@
+{
+  "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+  "captured_utc": "2026-09-26T15:48:13Z",
+  "release_id": "NEXT-STABIL-MIXED-OBSERVED-20260926",
+  "status": "UNVERIFIED_WITH_MATERIAL_LIMITATIONS",
+  "components": {
+    "backend": {
+      "version": "1.0.0",
+      "identity_kind": "git_sha",
+      "identity": "0ee0ea50943578e6e552aae23ce1688595ddc262",
+      "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702"
+    },
+    "api": { "version": "1", "identity_kind": "contract_version", "identity": "1" },
+    "database": {
+      "version": "followup_assistant_chat_history_20260829",
+      "identity_kind": "schema_revision",
+      "identity": "followup_assistant_chat_history_20260829"
+    },
+    "web": {
+      "version": "1.0.2+41",
+      "identity_kind": "sha256",
+      "identity": "DE53B54B52F8D84057C438A5AC585CA66A36E2ACC91B42AD65F2B30BB9DE6BA2",
+      "identity_file": "main.dart.js"
+    },
+    "windows": {
+      "version": "1.0.2+29",
+      "identity_kind": "sha256",
+      "identity": "46E8A4CD6D0A9A2B99A6C942990546AE8DC58A5DB8381EE056504EF8322E043D",
+      "authenticode": "NOT_SIGNED",
+      "installed_executable_sha256": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865"
+    },
+    "android": {
+      "version": "1.0.2+29",
+      "identity_kind": "sha256",
+      "identity": "33EBF3DB7A5547A55AEC540173A65AE57EC881657DDA3B039ECF66DBA3F8DA5E",
+      "signature": "APK_SIGNATURE_V2_VERIFIED_ONE_SIGNER",
+      "certificate_sha256": "5E223DA2DA7C893D089D7333E99AAEEE8D98C9CDF72BE80609020967368FE018"
+    },
+    "supervisor": {
+      "version": "INTENTIONALLY_STOPPED",
+      "identity_kind": "sha256",
+      "identity": "4CFB7F9E3D97521D8D0F6D588BB119AB34C9D52FAD498AA520368CD13B170701"
+    },
+    "gateway": {
+      "version": "PUBLIC_CONTROL_404",
+      "identity_kind": "sha256",
+      "identity": "59B21389A25EAD7F73384F3267AD0238F4563B85589D823161A5853ECE41B37A"
+    },
+    "analysis_worker": {
+      "version": "1",
+      "identity_kind": "sha256",
+      "identity": "2D9E4B0B639D052611F57C5A17AF7DAD415E5D7BAA78349C420BF3E13B2C971C"
+    },
+    "vision_worker": {
+      "version": "1",
+      "identity_kind": "sha256",
+      "identity": "54CCA6E992BD00F2A239288E18199B7D4CAE097AE7B49773639B094851434BEE"
+    }
+  },
+  "startup": {
+    "approved_manifest_sha256": "53CA6E98F81915D62C7695D8F077FACC95E394D897BD2E9D12000143B6972EC9",
+    "launcher_sha256": "41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910",
+    "runtime_sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
+    "recorder_sha256": "BC002D6DC2721BBEF84EC789633D473C34D955D1D42CC506161C60FFA3B5A801",
+    "supervisor_policy": "INTENTIONALLY_STOPPED",
+    "backend_boolean_flags": "9/9_FALSE_UNCHANGED"
+  },
+  "public_version": {
+    "backend": "1.0.0",
+    "api": 1,
+    "minimum_app": "1.0.0",
+    "latest_app": "1.0.0",
+    "environment": "development",
+    "debug": true,
+    "runtime_configuration": "REVIEW_REQUIRED"
+  },
+  "support_matrix": {
+    "web_1.0.2+41_api_1": "NOT_TESTED_WITH_REASON_EXPIRED_SESSION_BLOCKED_CLIENT_LIST_DETAIL",
+    "windows_1.0.2+29_api_1": "SUPPORTED_ONE_ENTRY_COLD_OWNER_CONFIRMED",
+    "android_1.0.2+29_api_1": "NOT_TESTED_WITH_REASON_OWNER_DEFERRED_RUNTIME_ACCEPTANCE"
+  },
+  "material_limitations": [
+    "LIVE_WEB_BUILD_41_DIFFERS_FROM_STABLE_CLIENT_BUILD_29",
+    "PUBLIC_VERSION_LATEST_1.0.0_DIFFERS_FROM_STABLE_1.0.2",
+    "PUBLIC_VERSION_ENVIRONMENT_DEVELOPMENT_DEBUG_TRUE",
+    "WINDOWS_STABLE_INSTALLER_NOT_AUTHENTICODE_SIGNED",
+    "ANDROID_RUNTIME_NOT_TESTED"
+  ]
+}

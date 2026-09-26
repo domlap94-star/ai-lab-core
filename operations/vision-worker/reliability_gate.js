@@ -12,7 +12,7 @@ const SPOOL = path.join(PROJECT, 'data', 'vision-spool');
 const requestedCount = Number(process.argv[2] || '20');
 if (![1, 3, 20].includes(requestedCount)) throw new Error('GATE_COUNT_MUST_BE_1_3_OR_20');
 const REPORT = path.join(
-  'C:\\ChatGPT-Vision-Worker',
+  process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'D:\\ai-lab-data\\workers\\chatgpt-vision',
   'output',
   requestedCount === 1
     ? 'chunk17_reboot_smoke.json'

@@ -5,7 +5,14 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-function normalizeDestination(value, projectDir) {
+function assertAllowedPhysicalVolume(value) {
+  const root = path.win32.parse(value).root.toUpperCase();
+  if (root === 'C:\\' || root === 'D:\\') {
+    throw new Error('backup_destination_system_or_data_volume_forbidden');
+  }
+}
+
+function normalizeDestination(value, projectDir, options = {}) {
   const raw = String(value || '').trim().replace(/\//g, '\\');
   if (/^\\\\[?.]\\/.test(raw) || raw.split('\\').includes('..')) throw new Error('backup_destination_invalid');
   const drivePath = /^[A-Za-z]:\\/.test(raw);
@@ -16,6 +23,7 @@ function normalizeDestination(value, projectDir) {
   if (!parsed.root || resolved.toLowerCase() === parsed.root.replace(/[\\]+$/, '').toLowerCase()) {
     throw new Error('backup_destination_root_forbidden');
   }
+  if (!options.allowSystemOrDataVolumeForTest) assertAllowedPhysicalVolume(resolved);
   const repo = path.win32.normalize(projectDir).replace(/[\\]+$/, '').toLowerCase();
   const lower = resolved.toLowerCase();
   if (lower === repo || lower.startsWith(`${repo}\\`)) throw new Error('backup_destination_active_path');
@@ -28,10 +36,11 @@ function sha256File(filePath) {
   return hash.digest('hex');
 }
 
-function destinationPreflight(value, projectDir) {
-  const destination = normalizeDestination(value, projectDir);
+function destinationPreflight(value, projectDir, options = {}) {
+  const destination = normalizeDestination(value, projectDir, options);
   if (!fs.existsSync(destination) || !fs.statSync(destination).isDirectory()) throw new Error('backup_destination_unavailable');
   const real = fs.realpathSync.native(destination);
+  if (!options.allowSystemOrDataVolumeForTest) assertAllowedPhysicalVolume(real);
   const probe = path.join(real, `.next-stabil-write-probe-${crypto.randomUUID()}`);
   try {
     fs.writeFileSync(probe, '', { flag: 'wx' });
@@ -54,8 +63,8 @@ function destinationPreflight(value, projectDir) {
   };
 }
 
-function destinationMetadata(value, projectDir) {
-  const destination = normalizeDestination(value, projectDir);
+function destinationMetadata(value, projectDir, options = {}) {
+  const destination = normalizeDestination(value, projectDir, options);
   if (!fs.existsSync(destination) || !fs.statSync(destination).isDirectory()) {
     return {
       normalized_destination: destination,
@@ -67,6 +76,7 @@ function destinationMetadata(value, projectDir) {
     };
   }
   const real = fs.realpathSync.native(destination);
+  if (!options.allowSystemOrDataVolumeForTest) assertAllowedPhysicalVolume(real);
   if (fs.lstatSync(destination).isSymbolicLink()) throw new Error('backup_destination_reparse_forbidden');
   let writable = true;
   try { fs.accessSync(real, fs.constants.R_OK | fs.constants.W_OK); } catch (_) { writable = false; }
@@ -83,13 +93,14 @@ function destinationMetadata(value, projectDir) {
   };
 }
 
-function browseDestination(value, relativePath, projectDir) {
-  const root = normalizeDestination(value, projectDir);
+function browseDestination(value, relativePath, projectDir, options = {}) {
+  const root = normalizeDestination(value, projectDir, options);
   const relative = String(relativePath || '').trim().replace(/\//g, '\\');
   if (path.win32.isAbsolute(relative) || relative.split('\\').includes('..')) {
     throw new Error('backup_destination_relative_path_invalid');
   }
   const rootReal = fs.realpathSync.native(root);
+  if (!options.allowSystemOrDataVolumeForTest) assertAllowedPhysicalVolume(rootReal);
   const target = path.win32.resolve(rootReal, relative || '.');
   if (target.toLowerCase() !== rootReal.toLowerCase()
       && !target.toLowerCase().startsWith(`${rootReal.toLowerCase()}\\`)) {
@@ -127,9 +138,9 @@ function listedFiles(root) {
   return output.sort();
 }
 
-function deleteManagedBackup(payload, projectDir, activeBackupOperationId = null) {
+function deleteManagedBackup(payload, projectDir, activeBackupOperationId = null, options = {}) {
   if (activeBackupOperationId) throw new Error('managed_backup_active');
-  const root = normalizeDestination(payload.destination_root, projectDir);
+  const root = normalizeDestination(payload.destination_root, projectDir, options);
   const checkpoint = path.win32.normalize(String(payload.checkpoint_path || '')).replace(/[\\]+$/, '');
   const manifestPath = path.win32.normalize(String(payload.manifest_path || ''));
   const rootPrefix = `${root.toLowerCase()}\\`;
@@ -141,6 +152,7 @@ function deleteManagedBackup(payload, projectDir, activeBackupOperationId = null
   }
   if (!fs.existsSync(root) || !fs.existsSync(checkpoint) || !fs.existsSync(manifestPath)) throw new Error('managed_backup_missing');
   const rootReal = fs.realpathSync.native(root);
+  if (!options.allowSystemOrDataVolumeForTest) assertAllowedPhysicalVolume(rootReal);
   const checkpointReal = fs.realpathSync.native(checkpoint);
   if (!checkpointReal.toLowerCase().startsWith(`${rootReal.toLowerCase()}\\`)) throw new Error('managed_backup_reparse_escape');
   if (fs.lstatSync(checkpoint).isSymbolicLink()) throw new Error('managed_backup_reparse_forbidden');
@@ -173,6 +185,7 @@ function deleteManagedBackup(payload, projectDir, activeBackupOperationId = null
 }
 
 module.exports = {
+  assertAllowedPhysicalVolume,
   normalizeDestination,
   destinationPreflight,
   destinationMetadata,

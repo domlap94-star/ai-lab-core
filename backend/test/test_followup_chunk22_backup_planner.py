@@ -123,7 +123,7 @@ async def assert_reconciler_wake_contract() -> None:
 
 def payload(
     name: str,
-    destination: str = r"D:\NEXT-Fixture",
+    destination: str = r"F:\NEXT-Fixture",
     *,
     auto_delete: bool = False,
     keep_days: int | None = None,
@@ -231,13 +231,15 @@ def main() -> None:
         plan.keep_days = 0
         db.commit(); db.refresh(plan)
 
-        token, expires, host = service.issue_preflight_token(user_id=actor.id, scope="database", destination=r"D:\Manual")
+        token, expires, host = service.issue_preflight_token(user_id=actor.id, scope="database", destination=r"F:\Manual")
         assert expires > datetime.now(timezone.utc) and host["writable"]
-        assert service.verify_preflight_token(token=token, user_id=actor.id, scope="database", destination=r"D:\Manual") == r"D:\Manual"
-        expect_code(lambda: service.verify_preflight_token(token=token, user_id=actor.id, scope="database", destination=r"D:\Changed"), "backup_preflight_token_binding_invalid")
+        assert service.verify_preflight_token(token=token, user_id=actor.id, scope="database", destination=r"F:\Manual") == r"F:\Manual"
+        expect_code(lambda: service.verify_preflight_token(token=token, user_id=actor.id, scope="database", destination=r"F:\Changed"), "backup_preflight_token_binding_invalid")
         assert service.validate_destination(r"\\server\share\NEXT") == r"\\server\share\NEXT"
         expect_code(lambda: service.validate_destination(r"\\?\C:\unsafe"), "backup_destination_invalid")
-        expect_code(lambda: service.validate_destination("D:\\"), "backup_destination_root_forbidden")
+        expect_code(lambda: service.validate_destination("F:\\"), "backup_destination_root_forbidden")
+        expect_code(lambda: service.validate_destination(r"C:\Backup"), "backup_destination_system_or_data_volume_forbidden")
+        expect_code(lambda: service.validate_destination(r"D:\Backup"), "backup_destination_system_or_data_volume_forbidden")
 
         now = datetime.now(timezone.utc)
         for index, (size, protected) in enumerate(((20, True), (60, False), (70, False), (80, False), (90, False))):

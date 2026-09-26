@@ -30,14 +30,14 @@ class FakeSupervisor:
     def backup_status(self, operation_id):
         return {
             "status": "completed", "stage": "completed", "verified": True,
-            "checkpoint_path": r"C:\ai-lab-core-backups\fixture",
-            "manifest_path": r"C:\ai-lab-core-backups\fixture\backup-manifest.json",
+            "checkpoint_path": r"F:\ai-lab-core-backups\fixture",
+            "manifest_path": r"F:\ai-lab-core-backups\fixture\backup-manifest.json",
             "artifact_count": 7, "total_bytes": 1234, "error_code": None,
         }
 
     def discover(self, destinations):
         return {"items": [{
-            "checkpoint_path": r"C:\ai-lab-core-backups\fixture",
+            "checkpoint_path": r"F:\ai-lab-core-backups\fixture",
             "created_at": "2026-08-21T10:00:00Z", "scope": "full",
             "app_version": "1.0.2+25", "source_head": "a" * 40,
             "db_revision": "followup_admin_backup_restore_ui_20260821",
@@ -47,7 +47,7 @@ class FakeSupervisor:
             "compatibility": "compatible",
             "error_code": "qdrant_restore_verification_required",
         }, {
-            "checkpoint_path": r"C:\ai-lab-core-backups\verified-fixture",
+            "checkpoint_path": r"F:\ai-lab-core-backups\verified-fixture",
             "created_at": "2026-08-21T14:30:00Z", "scope": "full",
             "app_version": "1.0.2+25", "source_head": "b" * 40,
             "db_revision": "followup_admin_backup_restore_ui_20260821",
@@ -157,12 +157,17 @@ def main() -> None:
         fake = FakeSupervisor()
         service = BackupRestoreService(db, fake)
 
-        require(service.validate_destination(r"C:\ai-lab-core-backups") == r"C:\ai-lab-core-backups", "safe destination rejected")
+        require(service.validate_destination(r"F:\ai-lab-core-backups") == r"F:\ai-lab-core-backups", "safe destination rejected")
+        for forbidden_volume in (r"C:\backups", r"D:\backups"):
+            expect_code(
+                lambda value=forbidden_volume: service.validate_destination(value),
+                "backup_destination_system_or_data_volume_forbidden",
+            )
         for unsafe in (r"C:\ai-lab-core", r"C:\ai-lab-core\data\documents", r"..\backup", r"C:\safe\..\ai-lab-core"):
-            expected = "backup_destination_active_path" if "ai-lab-core" in unsafe and ".." not in unsafe else "backup_destination_invalid"
+            expected = "backup_destination_system_or_data_volume_forbidden" if "ai-lab-core" in unsafe and ".." not in unsafe else "backup_destination_invalid"
             expect_code(lambda value=unsafe: service.validate_destination(value), expected)
 
-        daily = BackupScheduleWrite(name="daily", enabled=False, scope="full", destination=r"C:\ai-lab-core-backups", cadence="daily", local_time=time(3))
+        daily = BackupScheduleWrite(name="daily", enabled=False, scope="full", destination=r"F:\ai-lab-core-backups", cadence="daily", local_time=time(3))
         before_dst = datetime(2026, 3, 28, 22, tzinfo=timezone.utc)
         next_run = service.next_run(daily, before_dst)
         require(next_run.astimezone().tzinfo is not None, "next run lost timezone")
@@ -186,7 +191,7 @@ def main() -> None:
                 name="monthly-unsafe",
                 enabled=True,
                 scope="database",
-                destination=r"C:\ai-lab-core-backups",
+                destination=r"F:\ai-lab-core-backups",
                 cadence="monthly",
                 local_time=time(3),
                 month_day=29,
@@ -196,7 +201,7 @@ def main() -> None:
         else:
             raise AssertionError("Windows-inexact monthly day accepted")
         try:
-            BackupScheduleWrite(name="dst", enabled=True, scope="database", destination=r"C:\ai-lab-core-backups", cadence="daily", local_time=time(2, 30))
+            BackupScheduleWrite(name="dst", enabled=True, scope="database", destination=r"F:\ai-lab-core-backups", cadence="daily", local_time=time(2, 30))
         except Exception as error:
             require("backup_schedule_dst_unsafe_time" in str(error), "DST-unsafe time returned wrong validation")
         else:
@@ -214,12 +219,12 @@ def main() -> None:
         require(view["sync_status"] == "synced" and view["host_enabled"], "host schedule status not projected")
         db.rollback()
 
-        run = service.start_backup(scope="database", destination=r"C:\ai-lab-core-backups", actor=actor)
+        run = service.start_backup(scope="database", destination=r"F:\ai-lab-core-backups", actor=actor)
         require(run.status == "running" and len(fake.started) == 1, "manual backup not delegated")
         expect_code(
             lambda: service.start_backup(
                 scope="database",
-                destination=r"C:\ai-lab-core-backups",
+                destination=r"F:\ai-lab-core-backups",
                 actor=actor,
             ),
             "backup_already_running",
@@ -232,12 +237,12 @@ def main() -> None:
         scheduled_item = service.create_schedule(
             daily.model_copy(update={"name": "scheduled-run", "scope": "database", "enabled": True}), actor
         )
-        scheduled = service.start_backup(scope="database", destination=r"C:\ai-lab-core-backups", actor=actor, trigger="scheduled", schedule_id=scheduled_item.id)
+        scheduled = service.start_backup(scope="database", destination=r"F:\ai-lab-core-backups", actor=actor, trigger="scheduled", schedule_id=scheduled_item.id)
         require(fake.started[-1]["trigger"] == "scheduled" and fake.started[-1]["schedule_id"] == scheduled_item.id, "scheduled identity not delegated")
         db.rollback()
 
         full_preview = service.preview(
-            r"C:\ai-lab-core-backups\fixture",
+            r"F:\ai-lab-core-backups\fixture",
             "full",
             "followup_admin_backup_restore_ui_20260821",
         )
@@ -247,7 +252,7 @@ def main() -> None:
             "Full restore did not fail closed on Qdrant proof",
         )
         verified_full = service.preview(
-            r"C:\ai-lab-core-backups\verified-fixture",
+            r"F:\ai-lab-core-backups\verified-fixture",
             "full",
             "followup_admin_backup_restore_ui_20260821",
         )
@@ -256,7 +261,7 @@ def main() -> None:
             "Verified Full restore candidate remained blocked",
         )
         preview = service.preview(
-            r"C:\ai-lab-core-backups\fixture",
+            r"F:\ai-lab-core-backups\fixture",
             "database",
             "followup_admin_backup_restore_ui_20260821",
         )

@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { validateManifest, validateResult, extractEnvelope, sha256Json } = require('./vision_contract');
 
-const ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'C:\\ChatGPT-Vision-Worker';
+const ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'D:\\ai-lab-data\\workers\\chatgpt-vision';
 const PROFILE = path.join(ROOT, 'edge-profile');
 const RESPONSE_TIMEOUT = 180000;
 const RESPONSE_START_TIMEOUT = 60000;

@@ -29,7 +29,7 @@ const PORT = Number(process.env.AI_LAB_SUPERVISOR_PORT || '8787');
 const PROJECT_DIR = process.env.AI_LAB_PROJECT_DIR || 'C:\\ai-lab-core';
 const ENV_FILE = path.join(PROJECT_DIR, '.env');
 const VISION_SPOOL = path.join(PROJECT_DIR, 'data', 'vision-spool');
-const VISION_WORKER_ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'C:\\ChatGPT-Vision-Worker';
+const VISION_WORKER_ROOT = process.env.NEXT_STABIL_VISION_WORKER_ROOT || 'D:\\ai-lab-data\\workers\\chatgpt-vision';
 const VISION_WORKER_SCRIPT = process.env.NEXT_STABIL_VISION_WORKER_SCRIPT || path.join(VISION_WORKER_ROOT, 'worker', 'vision-job.js');
 const ANALYSIS_SPOOL = path.join(PROJECT_DIR, 'data', 'analysis-spool');
 const ANALYSIS_WORKER_SCRIPT = process.env.NEXT_STABIL_ANALYSIS_WORKER_SCRIPT
@@ -112,7 +112,6 @@ const RESOURCE_BRIDGE_KEY = crypto
   .update('next-stabil-resource-supervisor-v1')
   .digest('hex');
 const BACKUP_SCRIPT = path.join(PROJECT_DIR, 'operations', 'hardening', 'backup-production.ps1');
-const DEFAULT_BACKUP_ROOT = 'C:\\ai-lab-core-backups';
 const BACKUP_SCOPES = new Set(['full', 'database', 'documents', 'qdrant', 'n8n_config']);
 const BACKUP_STAGES = new Set(['validating', 'database', 'documents', 'qdrant', 'n8n', 'configuration', 'release', 'verifying']);
 const backupOperations = new Map();

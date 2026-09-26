@@ -1,0 +1,817 @@
+{
+  "schema": "NEXT_STABIL_STARTUP_SET_V1",
+  "component_identity_schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
+  "startup_package_schema": "NEXT_STABIL_STARTUP_PACKAGE_V1",
+  "set_id": "R04-DATA-BACKUP-COMPATIBILITY-20260926",
+  "root": "C:\\ai-lab-core",
+  "approval": {
+    "status": "APPROVED_FOR_START",
+    "set_id": "R04-DATA-BACKUP-COMPATIBILITY-20260926",
+    "decision_id": "R04-DATA-BACKUP",
+    "installation_authorized": true,
+    "startup_authorized": true
+  },
+  "timeouts": {
+    "native_command_ms": 20000,
+    "engine_stage_ms": 180000,
+    "service_stage_ms": 60000,
+    "poll_ms": 1000,
+    "max_output_chars": 32768
+  },
+  "files": [
+    {
+      "role": "compose_config",
+      "path": "compose.yaml",
+      "sha256": "69F19086990D45112FCDF3673A5BB33778A7B48A8CA3E4E14BC07A974C1C076A",
+      "evidence": "INSTALLED_BYTES_OBSERVED_2026-09-17"
+    },
+    {
+      "role": "compose_helper",
+      "path": "operations/windows/start-compose-after-docker.ps1",
+      "sha256": "91C763F5D0FF6CC7184E0B238EA6A6047CBB3FB13F88917777F4E0696E9667EC",
+      "evidence": "P1_ACCEPTED_SOURCE_NOT_INSTALLED"
+    },
+    {
+      "role": "public_gateway_script",
+      "path": "operations/gateway/public_web_server.cjs",
+      "sha256": "59B21389A25EAD7F73384F3267AD0238F4563B85589D823161A5853ECE41B37A",
+      "evidence": "INSTALLED_BYTES_OBSERVED_2026-09-17"
+    },
+    {
+      "role": "private_gateway_script",
+      "path": "operations/gateway/web_server.cjs",
+      "sha256": "AD9D05F35A86AEDAF2F1522EE330788AD9312040525E5B65AF389EC07DFC06ED",
+      "evidence": "INSTALLED_BYTES_OBSERVED_2026-09-17"
+    },
+    {
+      "role": "supervisor_script",
+      "path": "operations/supervisor/server.js",
+      "sha256": "EE62CA8E64C836093F6581EBF5724642B620055BE5E13BB4CEE974256595F8E3",
+      "evidence": "R04_DATA_BACKUP_SOURCE_FOCUSED_PASS_20260926"
+    },
+    {
+      "role": "startup_launcher",
+      "path": "operations/runtime/start-host-services.ps1",
+      "sha256": "41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910",
+      "size_bytes": 86468,
+      "evidence": "R04_ONE_ENTRY_COLD_RECORDER_FIX_INSTALLED_20260925"
+    },
+    {
+      "role": "startup_runtime",
+      "path": "operations/runtime/startup-runtime.ps1",
+      "sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
+      "size_bytes": 85291,
+      "evidence": "R04_ONE_ENTRY_COLD_SOURCE_OFFLINE_CANDIDATE_NOT_DEPLOYED"
+    },
+    {
+      "role": "startup_evidence_recorder",
+      "path": "operations/runtime/invoke-host-with-evidence.ps1",
+      "sha256": "BC002D6DC2721BBEF84EC789633D473C34D955D1D42CC506161C60FFA3B5A801",
+      "size_bytes": 21282,
+      "evidence": "R04_ONE_ENTRY_COLD_RECORDER_FIX_INSTALLED_20260925"
+    },
+    {
+      "role": "backend_override",
+      "path": "operations/runtime/approved-compose/R04-D21-P3-core.override.yml",
+      "sha256": "F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86",
+      "evidence": "INSTALLED_BYTES_OBSERVED_2026-09-17"
+    }
+  ],
+  "external_tools": [
+    {
+      "name": "docker_cli",
+      "path": "C:\\Users\\domai\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe",
+      "sha256": "46D8A5BD7523C575FB276A75296AB19ABB9BF277D334169C665E521E46DBC2A4",
+      "version": "29.8.0"
+    },
+    {
+      "name": "docker_desktop",
+      "path": "C:\\Users\\domai\\AppData\\Local\\Programs\\DockerDesktop\\Docker Desktop.exe",
+      "sha256": "F508DE4FA1F4A9E2EB8A2DDDE64A10D0CD45414E88CC11E9CD4120247E217799",
+      "version": "4.91.0.239619"
+    },
+    {
+      "name": "node",
+      "path": "C:\\Program Files\\nodejs\\node.exe",
+      "sha256": "9A4EB5F1C29C6A2E93852EAD46B999E284A6A5CA8BAB4D4E241D587D025A52DE",
+      "version": "24.18.0"
+    },
+    {
+      "name": "windows_client",
+      "path": "C:\\Users\\domai\\AppData\\Local\\Programs\\NEXT Stabil\\frontend.exe",
+      "sha256": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865",
+      "version": "1.0.2+29"
+    }
+  ],
+  "data_topology": {
+    "schema": "NEXT_STABIL_DATA_TOPOLOGY_V1",
+    "logical_path": "C:\\ai-lab-core\\data",
+    "target": "D:\\ai-lab-data",
+    "link_type": "DIRECTORY_JUNCTION",
+    "purpose": "ACTIVE_DATA_ONLY",
+    "bindings": [
+      {
+        "service": "backend",
+        "role": "APPLICATION_DATA",
+        "source": "C:\\ai-lab-core\\data",
+        "destination": "/data"
+      },
+      {
+        "service": "postgres",
+        "role": "POSTGRESQL_DATA",
+        "source": "C:\\ai-lab-core\\data\\postgres",
+        "destination": "/var/lib/postgresql/data"
+      },
+      {
+        "service": "n8n",
+        "role": "N8N_DATA",
+        "source": "C:\\ai-lab-core\\data\\n8n",
+        "destination": "/home/node/.n8n"
+      },
+      {
+        "service": "open-webui",
+        "role": "OPENWEBUI_DATA",
+        "source": "C:\\ai-lab-core\\data\\openwebui",
+        "destination": "/app/backend/data"
+      },
+      {
+        "service": "ollama",
+        "role": "OLLAMA_DATA",
+        "source": "C:\\ai-lab-core\\data\\ollama",
+        "destination": "/root/.ollama"
+      }
+    ]
+  },
+  "docker": {
+    "context": "desktop-linux",
+    "endpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
+    "process_name": "Docker Desktop",
+    "cli_tool": "docker_cli",
+    "desktop_tool": "docker_desktop"
+  },
+  "containers": [
+    {
+      "service": "backend",
+      "container_name": "ai-lab-backend",
+      "compose_project": "ai-lab-core",
+      "container_id": "686ac37663ad369f253eb91da4364aa2bd6c16c77b1205cc41d61c68d4d9c854",
+      "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
+      "image_identity_mode": "REPO_DIGEST",
+      "repo_digest": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702",
+      "startup_order": 60,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [
+        "postgres"
+      ],
+      "restart_policy": "unless-stopped",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\backend",
+          "destination": "/app",
+          "type": "bind",
+          "read_only": true
+        },
+        {
+          "source": "C:\\ai-lab-core\\data",
+          "destination": "/data",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 8000,
+          "container_port": 8000,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "service": "postgres",
+      "container_name": "postgres",
+      "compose_project": "ai-lab-core",
+      "container_id": "240343ebff4fb299b239db2817efea1910ab59c29ed3ec9df3a8abde04e81226",
+      "image_id": "sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d",
+      "image_identity_mode": "REPO_DIGEST",
+      "repo_digest": "sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d",
+      "startup_order": 10,
+      "health_requirement": "HEALTHY",
+      "depends_on_healthy": [],
+      "restart_policy": "unless-stopped",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\postgres",
+          "destination": "/var/lib/postgresql/data",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 5432,
+          "container_port": 5432,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "service": "qdrant",
+      "container_name": "qdrant",
+      "compose_project": "ai-lab-core",
+      "container_id": "daa3b0b86b748aa3a52052dac08bfde499cf19ad61600a1325e09061a5451fae",
+      "image_id": "sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286",
+      "image_identity_mode": "REPO_DIGEST",
+      "repo_digest": "sha256:0bd98fa7977f1e75694779359ca4e212822e5a71334e28421182f72f209d5286",
+      "startup_order": 20,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
+      "restart_policy": "unless-stopped",
+      "mounts": [
+        {
+          "source": "qdrant_storage",
+          "destination": "/qdrant/storage",
+          "type": "volume",
+          "read_only": false,
+          "physical_backing": "UNKNOWN"
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 6333,
+          "container_port": 6333,
+          "protocol": "tcp"
+        },
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 6334,
+          "container_port": 6334,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "service": "n8n",
+      "container_name": "n8n",
+      "compose_project": "ai-lab-core",
+      "container_id": "a44e719ecfecf72a199b4f8b3ec9d7503548d2098601e767d5e9e6503d37081c",
+      "image_id": "sha256:3c07c723326dd72e46a6969181c66a75260b7a204b9b77ba1ece6d594489c684",
+      "image_identity_mode": "REPO_DIGEST",
+      "repo_digest": "sha256:3c07c723326dd72e46a6969181c66a75260b7a204b9b77ba1ece6d594489c684",
+      "startup_order": 30,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
+      "restart_policy": "unless-stopped",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\n8n",
+          "destination": "/home/node/.n8n",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 5678,
+          "container_port": 5678,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "service": "open-webui",
+      "container_name": "open-webui",
+      "compose_project": "ai-lab-core",
+      "container_id": "9575ca068b8cc17d0b2ac72e0062867c5c74650c12619bf6ecc6b48d1ec54c39",
+      "image_id": "sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0",
+      "image_identity_mode": "REPO_DIGEST",
+      "repo_digest": "sha256:a26effeb220e132482bf7e0560b3404843e7bc40d23051144e062960df8df6b0",
+      "startup_order": 40,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
+      "restart_policy": "unless-stopped",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\openwebui",
+          "destination": "/app/backend/data",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 3000,
+          "container_port": 8080,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "service": "ollama",
+      "container_name": "ollama",
+      "compose_project": "ai-lab-core",
+      "container_id": "7ff1c45ea12cb9a26df1540cdeb5993c30fe12ac1d9c199ea7ce776847aac083",
+      "image_id": "sha256:ec24bcaa2a810eb74171ce7c517813ef4821ed678988845e8d76cf62467036d4",
+      "image_identity_mode": "REPO_DIGEST",
+      "repo_digest": "sha256:ec24bcaa2a810eb74171ce7c517813ef4821ed678988845e8d76cf62467036d4",
+      "startup_order": 50,
+      "health_requirement": "RUNNING",
+      "depends_on_healthy": [],
+      "restart_policy": "unless-stopped",
+      "mounts": [
+        {
+          "source": "C:\\ai-lab-core\\data\\ollama",
+          "destination": "/root/.ollama",
+          "type": "bind",
+          "read_only": false
+        }
+      ],
+      "ports": [
+        {
+          "host_ip": "127.0.0.1",
+          "host_port": 11434,
+          "container_port": 11434,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  ],
+  "host_services": [
+    {
+      "name": "public_gateway",
+      "policy": "REQUIRED",
+      "launch_kind": "TASK",
+      "task_name": "NEXT Stabil - Public Gateway",
+      "task_path": "\\",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "arguments": [
+        "operations/gateway/public_web_server.cjs"
+      ],
+      "working_directory": "C:\\ai-lab-core",
+      "listener_host": "127.0.0.1",
+      "listener_port": 8789,
+      "script_ref": "public_gateway_script",
+      "tool_ref": "node"
+    },
+    {
+      "name": "private_gateway",
+      "policy": "REQUIRED",
+      "launch_kind": "TASK",
+      "task_name": "NEXT Stabil - Private Gateway",
+      "task_path": "\\",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "arguments": [
+        "operations/gateway/web_server.cjs"
+      ],
+      "working_directory": "C:\\ai-lab-core",
+      "listener_host": "127.0.0.1",
+      "listener_port": 8788,
+      "script_ref": "private_gateway_script",
+      "tool_ref": "node"
+    },
+    {
+      "name": "supervisor",
+      "policy": "INTENTIONALLY_STOPPED",
+      "launch_kind": "TASK",
+      "task_name": "NEXT Stabil - Supervisor",
+      "task_path": "\\",
+      "executable": "C:\\Program Files\\nodejs\\node.exe",
+      "arguments": [
+        "operations/supervisor/server.js"
+      ],
+      "working_directory": "C:\\ai-lab-core",
+      "listener_host": "127.0.0.1",
+      "listener_port": 8787,
+      "script_ref": "supervisor_script",
+      "tool_ref": "node"
+    }
+  ],
+  "readiness": [
+    {
+      "name": "backend",
+      "uri": "http://127.0.0.1:8000/health",
+      "expected_status": 200
+    },
+    {
+      "name": "web",
+      "uri": "http://127.0.0.1:8789/",
+      "expected_status": 200
+    },
+    {
+      "name": "public_gateway",
+      "uri": "http://127.0.0.1:8789/gateway-health",
+      "expected_status": 200
+    },
+    {
+      "name": "public_control_boundary",
+      "uri": "http://127.0.0.1:8789/control",
+      "expected_status": 404
+    }
+  ],
+  "client": {
+    "policy": "OPEN_AFTER_BASE_READY",
+    "launch_kind": "EXACT_EXECUTABLE",
+    "tool_ref": "windows_client",
+    "process_name": "frontend",
+    "arguments": [],
+    "working_directory": "C:\\Users\\domai\\AppData\\Local\\Programs\\NEXT Stabil"
+  },
+  "p4b_window_preparation": {
+    "status": "PARTIAL_SAFE_INACTIVE_INSTALLATION_BLOCKED_UAC_CANCELLED",
+    "op_id": "R04-D21-P4B-WINDOW-20260918T084652Z",
+    "package_head": "bd9acc14f6f0d12bacdb5a9a8dd5a8f69a5b333b",
+    "launcher_source": "8756314f51a76091a483cfc9b677a05c7f67f315",
+    "manifest_target": "C:\\ai-lab-core\\operations\\runtime\\startup-set.json",
+    "phase_b_authorized": true,
+    "authorization_consumed": true,
+    "installation_performed": false,
+    "runtime_mutation_performed": false,
+    "startup_wrapper": "MOVED_TO_PROTECTED_ROLLBACK",
+    "host_task": "INSTALLED_DISABLED_NO_TRIGGER_NEVER_RUN",
+    "existing_task_set": "UNCHANGED_PREIMAGE_WITH_EXISTING_TRIGGERS",
+    "warm_runs": 0,
+    "blocker": "EXISTING_TASK_UPDATE_ACCESS_DENIED_AND_UAC_CANCELLED"
+  },
+  "p4b_resume_attempt": {
+    "status": "PRE_MUTATION_NATIVE_ARGUMENT_TRANSPORT_FAILED",
+    "resume_id": "R04-D21-P4B-RESUME-20260918T112015Z",
+    "entry_head": "79e4bf1b802664851b6499f566d302e868841d67",
+    "recipe_index_sha256": "9DD6A85B14B307DA698513849EC0DF9E81ED7EBDF278B1064329AA64234B6E7E",
+    "recipe_sha256": "D8E2868F51F04D179C3749CA6E0691C307BA8B7ABEB668CC9987E60D4A350F61",
+    "input_index_sha256": "ED8826F7CFAB1A33B84C5FCF3BDA1E57FB48E9598100B3826C0CDDDCC3131CDA",
+    "uac_attempts": 1,
+    "uac_accepted": true,
+    "elevation_and_inputs": "PASS",
+    "mutation_started": false,
+    "rollback_attempted": false,
+    "installation_performed": false,
+    "runtime_mutation_performed": false,
+    "warm_runs": 0,
+    "blocker": "WINDOWS_POWERSHELL_START_PROCESS_ARGUMENTLIST_SPLIT_DOCKER_INSPECT_TEMPLATE"
+  },
+  "p4b_recipe_transport_review": {
+    "status": "RECIPE_NATIVE_ARGUMENT_TRANSPORT_FIXED_TESTED_ON_POWERSHELL_51_READY_FOR_REVIEW",
+    "recipe_id": "R04-D21-P4B-RECIPE-TRANSPORT-FIX-20260918T152017Z",
+    "entry_head": "540c981e05ce5c868996fc06ac6aab339ac6d650",
+    "accepted_transport_source": "8756314f51a76091a483cfc9b677a05c7f67f315",
+    "failed_recipe_sha256": "D8E2868F51F04D179C3749CA6E0691C307BA8B7ABEB668CC9987E60D4A350F61",
+    "corrected_recipe_sha256": "5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67",
+    "recipe_index_sha256": "43F285C2E82032F6914F5C5F8BA0653C85EC44F2A4F24E13D835A7C02162A2A9",
+    "offline_test": "PASS_17_OF_17_120_ASSERTIONS_POWERSHELL_5_1",
+    "preimage_argv_count": 56,
+    "fixed_argv_count": 7,
+    "exact_docker_readback": "PASS_SINGLE_BACKEND_INSPECT",
+    "docker_readback_verdict_sha256": "FBFFA2C853565C539480B8C8F94355FD6E08C06D515653B3C201D9F9A7CF1A43",
+    "docker_invocations": 1,
+    "uac_attempts": 0,
+    "mutation_started": false,
+    "installation_performed": false,
+    "runtime_mutation_performed": false,
+    "warm_runs": 0,
+    "owner_operational_approval_required": true
+  },
+  "p4b_input_binding_review": {
+    "status": "RECIPE_INPUT_BINDINGS_AND_OFFLINE_PREFLIGHT_PASS_EXACT_PACKAGE_READY_FOR_REVIEW_NOT_INSTALLED",
+    "package_id": "R04-D21-P4B-INPUT-BINDINGS-20260918T192258Z",
+    "entry_head": "102c65277c2143986f81109b759ff837cf23a7bc",
+    "preimage_recipe_sha256": "5F310C64DFB21F55B4403E9A738B80344EB9CEC38536EE4FD2081F6422F1FD67",
+    "recipe_sha256": "733AA23F15EF9CC1E8A87F1A1B38EF523464F09160EDACF50300F00957D05B6A",
+    "package_index_sha256": "ED05FE269F89BE881474CA9B2C00D62589720FD0AE1959547D55A4032B54875C",
+    "input_index_sha256": "ED8826F7CFAB1A33B84C5FCF3BDA1E57FB48E9598100B3826C0CDDDCC3131CDA",
+    "input_roles_verified": 29,
+    "container_baselines_verified": 6,
+    "offline_test": "PASS_14_OF_14_119_ASSERTIONS_POWERSHELL_5_1",
+    "historical_fake_boundary_calls": 6,
+    "synthetic_mutation_boundary_calls": 1,
+    "real_docker_calls": 0,
+    "real_task_scheduler_calls": 0,
+    "real_http_calls": 0,
+    "uac_attempts": 0,
+    "host_mutations": 0,
+    "installation_performed": false,
+    "warm_runs": 0,
+    "future_output_root_free": true,
+    "owner_operational_approval_required": true
+  },
+  "p4b_exact_resume_preflight": {
+    "status": "PRE_UAC_BLOCKED_PREFLIGHT_EVIDENCE_NOT_PERSISTED_PATH_LENGTH",
+    "external_resume_id": "R04-D21-P4B-EXACT-RESUME-20260919T094244Z",
+    "entry_head": "ea825a6b237999bcb3bc3b77ab4c2623a334930c",
+    "recipe_sha256": "F6D3A8CC7AA57ED50244D773076700BCBE5771609762947B230E344C5C883F0E",
+    "package_index_sha256": "FDF9FE7AF55A8285FB51506E3CBFA5368F366353748DC68BBCCBBC37164A977F",
+    "review_zip_sha256": "D2B3263BE6ECB20E139CF63E7559C0E53605CE8827183989E37979247965DA1C",
+    "input_index_sha256": "ED8826F7CFAB1A33B84C5FCF3BDA1E57FB48E9598100B3826C0CDDDCC3131CDA",
+    "package_entries_verified": 6,
+    "zip_entries_verified": 7,
+    "external_inputs_verified": 29,
+    "verify_inputs_only": "PASS_EXIT_0",
+    "reserved_execution_output_exists": false,
+    "fresh_preflight": "BLOCKED_FIRST_TASK_PROJECTION_NOT_PERSISTED",
+    "collector_exit_code": 1,
+    "docker_reads": 0,
+    "http_reads": 0,
+    "uac_attempts": 0,
+    "installation_performed": false,
+    "host_mutations": 0,
+    "warm_runs": 0,
+    "owner_replacement_preflight_decision_required": true
+  },
+  "p4b_replacement_readonly_preflight": {
+    "campaign_id": "R04-D21-P4B-PF01-20260919T104840Z",
+    "entry_head": "94f81f952a12de437fc8b6480953793260b81927",
+    "status": "REPLACEMENT_READ_ONLY_PREFLIGHT_PARTIAL_HOST_TASK_FORMATTER_CIMCLASS_FAILURE",
+    "evidence_root": "C:\\ai-lab-core-staging\\recovery\\P4B-PF-01",
+    "local_io": "PASS",
+    "max_planned_path_length": 90,
+    "path_budget": 220,
+    "recipe_package_root_length": 205,
+    "reserved_execution_output_root_length": 252,
+    "installer_events_path_length": 275,
+    "installer_output_path_compatibility": "NOT_VERIFIED_NO_IO_PERFORMED",
+    "task_xml_persisted": 6,
+    "preimage_raw_matches": 5,
+    "host_static_semantic_match": true,
+    "host_dynamic_state": "NOT_PERSISTED_NO_REREAD",
+    "collector_exit_code": 1,
+    "collector_timed_out": false,
+    "docker_readback": "NOT_RUN",
+    "http_readback": "NOT_RUN",
+    "uac_attempts": 0,
+    "installation_performed": false,
+    "warm_runs": 0,
+    "installation_mutations": 0,
+    "result_sha256": "58B876CFA386B11D868FDA1D569A6E6F6ABE291CC39CCB4D0509DE615FA73B8A",
+    "index_sha256": "40A9DA4636B40FBF9F0CB3E4FB99E26EF509B6E2D28E48A18E24709DFA1C1A02",
+    "owner_new_live_read_decision_required": true
+  },
+  "p4b_collector_readback_continuation": {
+    "status": "PREFLIGHT_EVIDENCE_PARTIAL_TASK_INFO_MAPPING_ERROR_NO_REREAD",
+    "entry_head": "14bb1c4ff25a0ae027aedd85862401a622587587",
+    "evidence_root": "C:\\ai-lab-core-staging\\recovery\\P4B-PF-01\\c2",
+    "corrected_collector_sha256": "B78AC996CC180D0137454447EFC4C64007E83BFFC712D8960341BCFFF98850A3",
+    "collector_tests_sha256": "1F31D56E207E0F1EDC4735065A3861C1685BE3D37E00593A9691EE5F6513A83B",
+    "offline_cases": 13,
+    "offline_assertions": 61,
+    "test_workers_accounted": "3/3",
+    "task_xml_reprojected": 6,
+    "task_state_observed": 6,
+    "task_info_observed": 0,
+    "task_info_failed": 6,
+    "last_run_time": "NOT_VERIFIED",
+    "last_task_result": "NOT_VERIFIED",
+    "http_records": 6,
+    "docker_container_records": 6,
+    "docker_image_records": 6,
+    "postgres_health": "healthy",
+    "all_containers_running": true,
+    "all_restart_count_zero": true,
+    "docker_safe_projection_sha256": "43C7B41E24D8596B40BE68C85A0FB8AEA1416815D709612DDD78F2678E4EEA77",
+    "final_projection_sha256": "6D18493AFACBF19BFDA5D0607910572101AC5D27A36665AAE596727F8B159B74",
+    "evidence_index_sha256": "A3FB97D5F46713753CBEC8A509D518D2DBFAE96EFAB7ABE44B8624F266FF52F8",
+    "installer_output_path_compatibility": "NOT_VERIFIED_NO_IO",
+    "uac_attempts": 0,
+    "installation_performed": false,
+    "warm_runs": 0,
+    "installation_mutations": 0,
+    "owner_new_live_read_or_operation_decision_required": true
+  },
+  "p4a_preparation": {
+    "status": "STARTUP_PACKAGE_SOURCE_AND_OFFLINE_TESTS_READY_FOR_REVIEW_IDENTITY_RECONCILED_NOT_INSTALLED",
+    "selected_launcher_source": "2e69622bc6a0b4888427f8ae5be119377aed26d9",
+    "selected_data_validator_source": "cb6e22506a0fecc440400566293524536847b9b0",
+    "p4a_continuation_source": "8756314f51a76091a483cfc9b677a05c7f67f315",
+    "payload": [
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
+        "sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871",
+        "bytes": 63377,
+        "installed": false
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\startup-runtime.ps1",
+        "sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7",
+        "bytes": 69194,
+        "installed": false
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\windows\\start-compose-after-docker.ps1",
+        "sha256": "91C763F5D0FF6CC7184E0B238EA6A6047CBB3FB13F88917777F4E0696E9667EC",
+        "bytes": 880,
+        "installed": false,
+        "replaces_sha256": "445AFFC04CF916602A30FDC9BBE0C8557E31AC670E8C5D389636BAB11E6DECC5"
+      }
+    ],
+    "installed_override": {
+      "path": "operations/runtime/approved-compose/R04-D21-P3-core.override.yml",
+      "sha256": "F99BABA92A72DFA366367470181AB1BF9DEC19D71ADBD2CBF1632F0B74DE4E86"
+    },
+    "historical_local_package_index_sha256": "DC76525E49B77C7CA791B9724D38F9E26C2FC7FDA8513A2403B7D167481ACB72",
+    "continuation_index_path": "continuation-20260917T222614Z/evidence/local-package-index.json",
+    "identity_reconciliation_index_path": "identity-reconciliation-20260918T011139Z/local-package-index.json",
+    "identity_evidence": {
+      "backend_postgres_observed_utc": "2026-09-18T00:02:24Z/2026-09-18T00:02:25Z",
+      "four_service_observation_window_utc": "2026-09-18T01:15:44.2376952Z/2026-09-18T01:18:24.0096364Z",
+      "classification": "DRAFT_TRANSCRIPTION_ERROR_PROVEN",
+      "current_identity_count": "6/6",
+      "safe_projection_sha256": [
+        "7FB247C58E9B1675D35572356C485219C14332771B48DF636F6CDFF75CA0B184",
+        "9F4980132ACCF73F4790742849862963E5629386C12E4F225676899DB7EE3B66"
+      ]
+    },
+    "historical_snapshot_before_run01": true,
+    "live_operations_performed": 0,
+    "open_blockers": [
+      "GLOBAL_START_MANIFEST_NOT_APPROVED",
+      "QDRANT_PHYSICAL_BACKING_UNKNOWN",
+      "OPEN_AFTER_BASE_READY_SOURCE_NOT_DEPLOYED_AND_MANUAL_ENTRY_NOT_ACTIVATED",
+      "TASK_TRIGGER_CHANGES_NOT_INSTALLED",
+      "VHD_AND_PROFILE_RELOCATION_OPEN",
+      "SCHEDULED_BACKUP_OPERATION_NOT_YET_VERIFIED_REPAIR_PENDING"
+    ]
+  },
+  "p4b_short_output_resume": {
+    "status": "PARTIAL_AFTER_FAILURE_HOST_TASK_FAILED_22_SAFE_INACTIVE_PARTIAL_UNKNOWN_READY_FOR_OWNER_REVIEW",
+    "resume_id": "R04-D21-P4B-RESUME-SHORT-OUTPUT-20260919T202300Z",
+    "recipe_sha256": "F65DF7232ADC3DBFE6B35FC08D255D385748ED17CC3078CACB93501FB9BF8C9A",
+    "package_index_sha256": "36623A0384F400D10D9FF0714FE7ED67B0090FC872C19751ED195D2E52C8D49E",
+    "result_sha256": "3EA0038DDE23C63D69E13E038B329274357C3AC6FFFE89B398098C4243E764C6",
+    "finished_utc": "2026-09-19T21:08:13.8402781Z",
+    "uac_attempts": 1,
+    "mutation_started": true,
+    "installed_files": [
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\start-host-services.ps1",
+        "sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871"
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\startup-runtime.ps1",
+        "sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7"
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\windows\\start-compose-after-docker.ps1",
+        "sha256": "91C763F5D0FF6CC7184E0B238EA6A6047CBB3FB13F88917777F4E0696E9667EC"
+      },
+      {
+        "target": "C:\\ai-lab-core\\operations\\runtime\\startup-set.json",
+        "sha256": "E66F22A7EC433183940FC3014E1B9F8C1DBE535375EC2D6580B958B55586010C",
+        "approval_status": "APPROVED_FOR_START"
+      }
+    ],
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "host_task": {
+      "state": "Disabled",
+      "trigger": "NONE",
+      "last_run_utc": "2026-09-19T21:07:53Z",
+      "last_task_result": 22,
+      "launcher_result_detail": "NOT_CAPTURED"
+    },
+    "warm_runs_completed": 0,
+    "private_gateway_starts_observed": 0,
+    "rollback": {
+      "attempted": true,
+      "status": "PARTIAL_UNKNOWN",
+      "destructive_file_rollback": false,
+      "helper_restore": false,
+      "blocking_observation": "NEXT Stabil - Public Gateway:Running"
+    },
+    "pending_mutation_seen": false,
+    "workers_accounted": "50/50",
+    "post_state": {
+      "docker_desktop": "DISABLED_NO_TRIGGER",
+      "docker_compose": "DISABLED_NO_TRIGGER",
+      "public_gateway": "RUNNING_ON_DEMAND_NO_TRIGGER",
+      "private_gateway": "READY_ON_DEMAND_NO_TRIGGER_NOT_STARTED",
+      "supervisor": "READY_ON_DEMAND_NO_TRIGGER_INTENTIONALLY_STOPPED",
+      "host_logon_trigger": "NOT_INSTALLED",
+      "containers": "SIX_OF_SIX_UNCHANGED_RUNNING_RESTART_COUNT_ZERO",
+      "postgres": "healthy"
+    },
+    "authorization_consumed": true,
+    "owner_review_required": true,
+    "automatic_retry_authorized": false
+  },
+  "p4b_host22_source_review": {
+    "status": "HOST22_FINAL_OBSERVATION_CONDITIONS_AND_MANIFEST_BINDINGS_READY_FOR_REVIEW",
+    "entry_commit": "a398e30c5c57c916d330378979798e71937db0cb",
+    "preimage_source_commit": "ed961d6980ebebe2e4d351319e2aa909437bc1ec",
+    "source_commit": "8195e5cf8dacd1976ccd9f71a1f78175c3513acc",
+    "deployment_status": "NOT_DEPLOYED",
+    "offline_assertions": {
+      "focused": 70,
+      "launcher_plan": 57,
+      "real_adapters": 51,
+      "data_junction": 44,
+      "p4_package": 41,
+      "candidate_binding": 18
+    },
+    "production_boundary_calls": 0,
+    "installed_launcher_sha256": "7BB24450C0B0EFDD8321935B129A25CEDD788BA3B8951965EF8E4A09BBF33871",
+    "installed_runtime_sha256": "349404C3B8DE7B2502437E023BEC09464428856A6D8F120EAFBD68E1ABCF4FA7",
+    "candidate_launcher_sha256": "B4143A6934E6723E3293A6D5A4806A4F01D34CB53037C6417B16830BD4EC7892",
+    "candidate_runtime_sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732",
+    "payload": [
+      {
+        "role": "startup_launcher",
+        "path": "operations/runtime/start-host-services.ps1",
+        "size_bytes": 78681,
+        "sha256": "B4143A6934E6723E3293A6D5A4806A4F01D34CB53037C6417B16830BD4EC7892"
+      },
+      {
+        "role": "startup_runtime",
+        "path": "operations/runtime/startup-runtime.ps1",
+        "size_bytes": 83488,
+        "sha256": "959768E297BCB93FF1AF3D7EE5A174313F9DC053707EDE8C45D3A84D024B0732"
+      }
+    ],
+    "native_envelope_completeness": "FAIL_CLOSED_ON_MISSING_INVALID_OR_UNKNOWN_TYPED_METADATA_TRUNCATION_TIMEOUT_NONZERO_OR_UNSETTLED",
+    "container_stage_deadline": "ONE_SHARED_MONOTONIC_DEADLINE_CHECKED_BEFORE_POSITIVE_READY_DECISION",
+    "pinned_ready_state": "RUNNING_AND_STATE_STATUS_RUNNING",
+    "host_retry_authorized": false,
+    "review_zip_sha256": "COMPUTED_OUTSIDE_CANDIDATE_TO_AVOID_SELF_REFERENCE"
+  },
+  "p4b_host22_narrow_update_preparation": {
+    "status": "NARROW_UPDATE_AND_RESULT_CAPTURE_READY_FOR_REVIEW_NO_OPERATIONAL_CHANGES",
+    "accepted_host22_source": "8195e5cf8dacd1976ccd9f71a1f78175c3513acc",
+    "result_capture_source": "727eb860c75d3dd7b010b86de3eeaa3d656c69cf",
+    "operation_id": "R04-D21-P4B-HOST22-NARROW-UPDATE-20260920T173311Z",
+    "package_index_sha256": "33BD4FEDA762B0CA247D5840530353FFD5B253F9F333BFCB5EB65EC18BA220E8",
+    "recipe_sha256": "A9FE79A497CA30F982A2407F578765352AABE70CF1FCA62802AF176CCED88307",
+    "proposed_manifest_sha256": "21F53D91DE12F2CF3FF175F68F8C08564503ED51F5A1A7C394C6BCBA5D70DC94",
+    "proposed_host_xml_sha256": {
+      "disabled": "9B7391A3D9DEA6E48959D579DEBBBCF5D4549BF19E5DF9B5D29F36766E536154",
+      "on_demand": "628F42404292FFF9CF197E544FC5704F51BB491DDB3536ABF1D1AAB6E362565E",
+      "logon": "BBC46CEAD773B30206C04B6551432B6ACE5A815F9EDDA794587DDB13E680F4D5"
+    },
+    "review_zip_sha256": "881C804FF6747ECDEF912F7F7B379921B04CA767BCA43A455C0A7E3BBF7CD3C6",
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "operational_authorization": false,
+    "installed": false,
+    "host_retried": false,
+    "uac_attempts": 0
+  },
+  "p4b_host22_nup_review": {
+    "status": "ROLLBACK_DEPENDENCIES_AND_PENDING_MUTATIONS_READY_FOR_REVIEW_OFFLINE_ONLY_NOT_INSTALLED",
+    "d23_review_cycle": "1_OF_2_COMPLETE_NEXT_REVIEW_IS_2_OF_2",
+    "source_commit": "d3435afcfb89d02d91f2db3d1eb55be17fd790bd",
+    "operation_id": "R04-D21-P4B-HOST22-NUP-20260920T200422Z",
+    "recorder_sha256": "D21A3E6B5D49E68711C5584138C47C2201B861A80DD4A4F89F173DC57217452A",
+    "recipe_sha256": "0B051C2F54125E25ED6DDEDEDC63A33A738604B8AAECE713B13C473FA83FB9EF",
+    "package_index_sha256": "67B32FB8981F765A251DDC081D4FD9473B224A2BFFEE7E96CA01C1C57A288222",
+    "proposed_manifest_sha256": "72A6109B95D59ADD32A91C30187CCA78A597CD1858AD3331350518239616898C",
+    "review_zip_sha256": "C34B9460E1E4528932F722D93BF1E57E2F1906CE8F3179E0834CACA633957A1F",
+    "offline_tests": {
+      "recorder_assertions": 32,
+      "owned_child_cases": 8,
+      "orchestration_assertions": 51,
+      "orchestration_scenarios": 16,
+      "synthetic_host_attempts": 2,
+      "synthetic_private_starts": "1_THEN_0",
+      "supervisor_starts": 0,
+      "container_start_existing": 0,
+      "five_dependency_task_writes": 0,
+      "production_boundary_calls": 0,
+      "unsettled_owned_processes": 0
+    },
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "operational_authorization": false,
+    "installed": false,
+    "host_retried": false,
+    "uac_attempts": 0
+  },
+  "r04_one_entry_cold_preparation": {
+    "status": "OPEN_AFTER_BASE_READY_SOURCE_AND_OFFLINE_READY_FOR_REVIEW_NOT_DEPLOYED",
+    "client_observation_utc": "2026-09-25T10:31:56.3011683Z",
+    "existing_shortcut_sha256": "8B46D106A8AD2DB3AC39E57A6E879104C77BA7C8D7AEEC9008577E1F9BA9FBDD",
+    "client_sha256": "5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865",
+    "client_version": "1.0.2+29",
+    "source_payload": {
+      "startup_launcher_sha256": "491531FB8926D67AEDB404024C1EE7659376AC6911AC551D9B94A52F47C322D2",
+      "startup_runtime_sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
+      "startup_evidence_recorder_sha256": "45CBC5D9CD1677A2299F1FF3D2DF58517778D001E4C16AE83300DFC0E9CA63A7"
+    },
+    "manual_entry": {
+      "path": "C:\\Users\\domai\\Desktop\\NEXT Stabil.lnk",
+      "future_target": "C:\\Windows\\System32\\schtasks.exe",
+      "future_arguments": "/Run /TN \"\\NEXT Stabil - Host\"",
+      "future_working_directory": "C:\\ai-lab-core",
+      "existing_shortcut_preserved_until_operational_acceptance": true
+    },
+    "offline_tests": {
+      "startup_plan_assertions": 62,
+      "real_adapter_assertions": 55,
+      "recorder_assertions": 35,
+      "data_junction_assertions": 44,
+      "p4_package_assertions": 41,
+      "production_boundaries_called": 0
+    },
+    "repository_draft_approval_status": "NOT_APPROVED",
+    "operational_authorization": false,
+    "installed": false,
+    "manual_entry_changed": false,
+    "cold_start_tested": false
+  }
+}

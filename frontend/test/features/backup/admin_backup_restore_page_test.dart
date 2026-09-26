@@ -80,7 +80,7 @@ class _FakeBackupApi extends BackupApi {
     return ManagedBackup(
       id: 99,
       backupId: 'legacy-fixture',
-      destinationRoot: r'C:\backup-fixture',
+      destinationRoot: r'F:\backup-fixture',
       scope: 'database',
       appVersion: '1.0.2+25',
       totalBytes: 10,
@@ -128,7 +128,7 @@ class _FakeBackupApi extends BackupApi {
     required HostStorageLocation location,
     required String relativePath,
   }) async => ManualBackupPreflight(
-    destination: r'D:\NEXT-Backups',
+    destination: r'F:\NEXT-Backups',
     destinationDisplay: 'Dysk backupowy',
     storageLocationId: location.id,
     available: true,
@@ -202,7 +202,7 @@ class _FakeBackupApi extends BackupApi {
 }
 
 final RestoreCandidate _candidate = RestoreCandidate(
-  checkpointPath: r'C:\ai-lab-core-backups\20260821T100000Z',
+  checkpointPath: r'F:\ai-lab-core-backups\20260821T100000Z',
   createdAt: DateTime.utc(2026, 8, 21, 10),
   scope: BackupScope.full,
   appVersion: '1.0.2+25',
@@ -215,7 +215,7 @@ final RestoreCandidate _candidate = RestoreCandidate(
 );
 
 final RestoreCandidate _qdrantBlockedCandidate = RestoreCandidate(
-  checkpointPath: r'C:\ai-lab-core-backups\20260821T100000Z',
+  checkpointPath: r'F:\ai-lab-core-backups\20260821T100000Z',
   createdAt: DateTime.utc(2026, 8, 21, 10),
   scope: BackupScope.full,
   appVersion: '1.0.2+25',
@@ -440,7 +440,7 @@ void main() {
           name: 'Daily Backup',
           enabled: true,
           scope: BackupScope.full,
-          destination: r'C:\ai-lab-core-backups',
+          destination: r'F:\ai-lab-core-backups',
           cadence: 'daily',
           localTime: '03:00:00',
           nextRunAt: next,
@@ -511,8 +511,8 @@ void main() {
         legacy: <LegacyBackupCandidate>[
           LegacyBackupCandidate(
             candidateId: 'fixture',
-            checkpointPath: r'C:\backup-fixture\checkpoint',
-            destinationRoot: r'C:\backup-fixture',
+            checkpointPath: r'F:\backup-fixture\checkpoint',
+            destinationRoot: r'F:\backup-fixture',
             totalBytes: 10,
             verified: false,
             integrityStatus: 'unverified',

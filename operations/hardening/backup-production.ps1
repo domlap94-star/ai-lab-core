@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RepositoryRoot = "C:\ai-lab-core",
-    [string]$BackupRoot = "C:\ai-lab-core-backups",
+    [Parameter(Mandatory = $true)]
+    [string]$BackupRoot,
     [string]$Release = "1.0.2+21",
     [string]$QdrantCollection = "ai_lab_document_chunks",
     [string[]]$QdrantCollections = @(),
@@ -26,6 +27,62 @@ function Invoke-CheckedCommand {
     param([string]$FilePath, [string[]]$Arguments)
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$FilePath failed with exit code $LASTEXITCODE." }
+}
+
+function ConvertTo-NativeArgumentString {
+    param([string[]]$Arguments)
+    return (($Arguments | ForEach-Object {
+        if ($_ -notmatch '[\s"]') { $_ }
+        else { '"' + $_.Replace('\', '\').Replace('"', '\"') + '"' }
+    }) -join ' ')
+}
+
+function Invoke-CheckedBinaryCapture {
+    param([string]$FilePath, [string[]]$Arguments, [string]$OutputPath)
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $FilePath
+    $start.Arguments = ConvertTo-NativeArgumentString $Arguments
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    if (-not $process.Start()) { throw "$FilePath failed to start." }
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $output = [IO.File]::Open($OutputPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try { $process.StandardOutput.BaseStream.CopyTo($output) }
+    finally { $output.Dispose() }
+    $process.WaitForExit()
+    $stderr = $stderrTask.Result
+    if ($process.ExitCode -ne 0) {
+        Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
+        throw "$FilePath failed with exit code $($process.ExitCode): $stderr"
+    }
+}
+
+function Invoke-CheckedFileInput {
+    param([string]$FilePath, [string[]]$Arguments, [string]$InputPath)
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $FilePath
+    $start.Arguments = ConvertTo-NativeArgumentString $Arguments
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    if (-not $process.Start()) { throw "$FilePath failed to start." }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $input = [IO.File]::OpenRead($InputPath)
+    try { $input.CopyTo($process.StandardInput.BaseStream) }
+    finally { $input.Dispose(); $process.StandardInput.Close() }
+    $process.WaitForExit()
+    $null = $stdoutTask.Result
+    $stderr = $stderrTask.Result
+    if ($process.ExitCode -ne 0) { throw "$FilePath failed with exit code $($process.ExitCode): $stderr" }
 }
 
 function Get-DirectoryBytes {
@@ -204,6 +261,9 @@ $repo = (Resolve-Path -LiteralPath $RepositoryRoot).Path.TrimEnd('\')
 $toolRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..")).TrimEnd('\')
 $dataRoot = (Resolve-Path -LiteralPath (Join-Path $repo "data")).Path.TrimEnd('\')
 $backupBase = [System.IO.Path]::GetFullPath($BackupRoot).TrimEnd('\')
+if ([IO.Path]::GetPathRoot($backupBase).TrimEnd('\').ToUpperInvariant() -in @('C:', 'D:')) {
+    throw "backup_destination_system_or_data_volume_forbidden"
+}
 if ($backupBase.StartsWith($repo + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "BackupRoot must be outside the repository."
 }
@@ -212,6 +272,10 @@ if ($backupBase.StartsWith($dataRoot + '\', [System.StringComparison]::OrdinalIg
 }
 if (-not (Test-Path -LiteralPath $backupBase -PathType Container)) {
     throw "backup_root_missing"
+}
+$physicalBackupBase = (Resolve-Path -LiteralPath $backupBase).Path.TrimEnd('\')
+if ([IO.Path]::GetPathRoot($physicalBackupBase).TrimEnd('\').ToUpperInvariant() -in @('C:', 'D:')) {
+    throw "backup_destination_system_or_data_volume_forbidden"
 }
 $stamp = if ([string]::IsNullOrWhiteSpace($CheckpointId)) {
     (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
@@ -311,16 +375,11 @@ if ($Scope -in @("full", "database")) {
     $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=database"
     $dbDump = Join-Path $artifacts "postgres.dump"
-    $containerDump = "/tmp/next-stabil-$stamp.dump"
-    try {
-        Invoke-CheckedCommand "docker.exe" @(
-            "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
-            "--format=custom", "--compress=6", "--no-owner", "--file=$containerDump"
-        )
-        Invoke-CheckedCommand "docker.exe" @("exec", "postgres", "pg_restore", "--list", $containerDump) | Out-Null
-        Invoke-CheckedCommand "docker.exe" @("cp", "postgres`:$containerDump", $dbDump)
-    }
-    finally { & docker exec postgres rm -f $containerDump 2>$null }
+    Invoke-CheckedBinaryCapture "docker.exe" @(
+        "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
+        "--format=custom", "--compress=6", "--no-owner"
+    ) $dbDump
+    Invoke-CheckedFileInput "docker.exe" @("exec", "-i", "postgres", "pg_restore", "--list") $dbDump
     $artifactRecords += Get-ArtifactRecord $checkpoint $dbDump
     $componentWindows += [ordered]@{ component = "postgres"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
@@ -378,17 +437,21 @@ if ($Scope -in @("full", "qdrant")) {
         $qdrantSnapshot = if ($ManifestFormat -eq "RecoveryPointV2") {
             Join-Path $qdrantArtifactRoot $artifactLeaf
         } else { Join-Path $artifacts $artifactLeaf }
-        Invoke-CheckedCommand "curl.exe" @(
-            "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
-            "--output", $qdrantSnapshot,
-            "http://127.0.0.1:6333/collections/$collection/snapshots/$snapshotName"
-        )
-        $validationJson = (& node.exe $validator $qdrantSnapshot 2>$null)
-        $validatorExit = $LASTEXITCODE
-        if ([string]::IsNullOrWhiteSpace(($validationJson -join ""))) { throw "qdrant_snapshot_validation_failed" }
-        $validation = ($validationJson -join "") | ConvertFrom-Json
-        $structurallyValid = $validatorExit -eq 0 -and $validation.valid -eq $true
-        if (-not $structurallyValid) { throw "qdrant_snapshot_invalid" }
+        try {
+            Invoke-CheckedCommand "curl.exe" @(
+                "--fail", "--silent", "--show-error", "--location", "--max-time", "900",
+                "--output", $qdrantSnapshot,
+                "http://127.0.0.1:6333/collections/$collection/snapshots/$snapshotName"
+            )
+            $validationJson = (& node.exe $validator $qdrantSnapshot 2>$null)
+            $validatorExit = $LASTEXITCODE
+            if ([string]::IsNullOrWhiteSpace(($validationJson -join ""))) { throw "qdrant_snapshot_validation_failed" }
+            $validation = ($validationJson -join "") | ConvertFrom-Json
+            $structurallyValid = $validatorExit -eq 0 -and $validation.valid -eq $true
+            if (-not $structurallyValid) { throw "qdrant_snapshot_invalid" }
+        } finally {
+            Invoke-RestMethod -Method Delete -Uri "http://127.0.0.1:6333/collections/$collection/snapshots/$snapshotName" -TimeoutSec 30 | Out-Null
+        }
         $artifactRecord = Get-ArtifactRecord $checkpoint $qdrantSnapshot
         $artifactRecords += $artifactRecord
         $vectors = $collectionInfo.result.config.params.vectors
@@ -440,15 +503,13 @@ if ($Scope -in @("full", "n8n_config")) {
     Write-Output "BACKUP_STAGE=n8n"
     $n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
     $n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
-    $n8nWorkflowTemp = "/tmp/next-stabil-$stamp-workflows.json"
-    $n8nCredentialsTemp = "/tmp/next-stabil-$stamp-credentials.json"
+    Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all") $n8nWorkflows
+    Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all") $n8nCredentials
     try {
-        Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all", "--output=$n8nWorkflowTemp")
-        Invoke-CheckedCommand "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all", "--output=$n8nCredentialsTemp")
-        Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nWorkflowTemp", $n8nWorkflows)
-        Invoke-CheckedCommand "docker.exe" @("cp", "n8n`:$n8nCredentialsTemp", $n8nCredentials)
-    }
-    finally { & docker exec n8n rm -f $n8nWorkflowTemp $n8nCredentialsTemp 2>$null }
+        $workflowExport = Get-Content -LiteralPath $n8nWorkflows -Raw | ConvertFrom-Json
+        $credentialExport = Get-Content -LiteralPath $n8nCredentials -Raw | ConvertFrom-Json
+    } catch { throw "n8n_export_json_invalid" }
+    if ($null -eq $workflowExport -or $null -eq $credentialExport) { throw "n8n_export_json_invalid" }
     $artifactRecords += Get-ArtifactRecord $checkpoint $n8nWorkflows
     $artifactRecords += Get-ArtifactRecord $checkpoint $n8nCredentials
     $componentWindows += [ordered]@{ component = "n8n_exports"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }

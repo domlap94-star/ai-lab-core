@@ -90,7 +90,7 @@ class BackupScheduleRead(BackupScheduleWrite):
 
 class BackupRunRequest(BaseModel):
     scope: BackupScope
-    destination: str = Field(default="C:\\ai-lab-core-backups", min_length=3, max_length=500)
+    destination: str = Field(min_length=3, max_length=500)
     confirmed: bool
 
 

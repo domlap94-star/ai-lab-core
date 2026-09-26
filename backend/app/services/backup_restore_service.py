@@ -81,6 +81,8 @@ class BackupRestoreService:
         drive, tail = ntpath.splitdrive(resolved)
         if not drive or not tail.strip("\\"):
             raise BackupRestoreValidation("backup_destination_root_forbidden")
+        if drive.casefold() in {"c:", "d:"}:
+            raise BackupRestoreValidation("backup_destination_system_or_data_volume_forbidden")
         lowered = resolved.casefold()
         blocked = (
             r"c:\ai-lab-core".casefold(),

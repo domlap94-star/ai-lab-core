@@ -15,7 +15,7 @@ Vision endpoints through the public gateway.
    supervisor bridge client to verify `READY` or an expected `BUSY` state.
 3. Confirm queue size and active job ID metadata only. Do not inspect customer
    image content to diagnose a normal job.
-4. The dedicated Edge profile is under `C:\ChatGPT-Vision-Worker`; it is not
+4. The dedicated Edge profile is under `D:\ai-lab-data\workers\chatgpt-vision`; it is not
    the user's primary Edge profile. Node 24.18.0, Playwright 1.62.1 and Edge
    channel 151 were verified at the hardening checkpoint.
 
