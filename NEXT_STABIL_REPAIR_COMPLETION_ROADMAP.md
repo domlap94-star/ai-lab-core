@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 i R25 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. Właściciel decyzją D-24 czasowo wstrzymał dalsze wykonywanie R04 wyłącznie organizacyjnie; jego funkcjonalny stan, wcześniejsze odbiory, cztery K1 i punkt wznowienia `20260927T111500Z-R04-THREE-K1-CLOSURE-ATTEMPT` pozostają niezmienione. Właściciel praktycznie sprawdził kompletny R25 i potwierdził „sprawdzone w praktyce, działa.”; decyzja D-31 nadaje `R25_ACCEPTED` dokładnemu wynikowi opublikowanemu w `4757c8197200b4a103edd58843b0e442d60ba004`. Backend, schema, Web, Android, pełny A/B no-leak E2E, exact Windows `1.0.2+29`, `SAC_OFF_OWNER_MANAGED_HOST`, installed-root acceptance i cleanup pozostają PASS. Uwagi o bezpośrednim przycisku udostępniania są nowym pakietem UX i nie otwierają ponownie R25. Kanoniczny kontrakt R25 znajduje się w `docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md`, a checkpoint odbioru w `docs/recovery/checkpoints/20260927T172419Z-R25-OWNER-ACCEPTED.md`. R04 pozostaje wstrzymane, D-22 `NOT_RUN`. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 i R25 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. Właściciel decyzją D-24 czasowo wstrzymał dalsze wykonywanie R04 wyłącznie organizacyjnie; jego funkcjonalny stan, wcześniejsze odbiory, cztery K1 i punkt wznowienia `20260927T111500Z-R04-THREE-K1-CLOSURE-ATTEMPT` pozostają niezmienione. Właściciel praktycznie sprawdził kompletny R25 i potwierdził „sprawdzone w praktyce, działa.”; decyzja D-31 nadaje `R25_ACCEPTED` dokładnemu wynikowi opublikowanemu w `4757c8197200b4a103edd58843b0e442d60ba004`. R26 krok 1 dodaje bezpośrednie udostępnianie klienta z listy i szczegółów bez zmiany kontraktu R25. Source, build `1.0.2+42`, Web/Android/Windows deployment i syntetyczny live smoke są PASS; fixture R26S1 usunięto z residue `0/0/0`. Status to `R26_STEP1_READY_FOR_OWNER_SMOKE / R26_NOT_ACCEPTED`; krok 2 pozostaje `DEFERRED / NOT_AUTHORIZED / NOT_STARTED`. Kanoniczny kontrakt R25 znajduje się w `docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md`, plan R26 w `docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md`, a checkpoint R26 w `docs/recovery/checkpoints/20260927T195541Z-R26-STEP1-READY-FOR-OWNER-SMOKE.md`. R04 pozostaje wstrzymane, D-22 `NOT_RUN`. Bieżący stan znajduje się wyłącznie w §0.**
 
 **Aktualizacja USABLE-WARM PARAM-FIX 2026-09-24:** po fail-before potwierdzającym,
 że import bazowej recepty nadpisywał argumenty kontynuacji, przygotowano
@@ -532,6 +532,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R23 | PLANNED | — | — |
 | R24 | PLANNED | — | Osobne zgody na exact-path cleanup |
 | R25 | ACCEPTED | OWNER_CONFIRMED / BACKEND_WEB_ANDROID_E2E_WINDOWS_PASS / SAC_OFF_OWNER_MANAGED_HOST / EXACT_HASH_ACCEPTANCE | Właściciel praktycznie sprawdził wynik i potwierdził „sprawdzone w praktyce, działa.”; uwagi o nowym przycisku są osobnym R26 i nie otwierają R25 |
+| R26 | IN_PROGRESS | STEP1_IMPLEMENTED_DEPLOYED_READY_FOR_OWNER_SMOKE / STEP2_DEFERRED_NOT_AUTHORIZED | Wspólny przycisk działa na liście i w szczegółach, live smoke oraz cleanup fixture PASS; R26 pozostaje NOT_ACCEPTED do praktycznego odbioru właściciela |
 
 `docs/recovery/PACKAGE_REGISTER.csv` i `docs/recovery/PACKAGE_DETAILS.json` są lustrzanym
 indeksem tych samych pakietów. Przy zmianie statusu należy je zsynchronizować
@@ -1927,6 +1928,22 @@ uzgodnionego produktu jako narzędzia pracy właściciela.
 **Odbiór właścicielski:** właściciel praktycznie sprawdził opublikowany wynik `4757c8197200b4a103edd58843b0e442d60ba004` i potwierdził „sprawdzone w praktyce, działa.”. Status `R25_ACCEPTED`. Lokalna polityka exact-hash nie jest modelem zaufania dla publicznej dystrybucji na obce komputery; taki kanał wymagałby osobnej decyzji. Nowy UX bezpośredniego udostępniania jest osobnym R26 i nie otwiera R25. R04 pozostaje wstrzymane, D-22 `NOT_RUN`.
 
 **Poza zakresem:** automatic assignment, territory/team/group, public links, delegowanie przez External, field-level permissions, grant per zasób, redesign RBAC/multi-tenant, Gmail/Sheets/D-22, dalsze R04, niezwiązane R05–R24, cleanup i R23 audit.
+
+### R26 — Bezpośrednie udostępnianie klienta
+
+**Identyfikator:** `DIRECT_CLIENT_SHARING` · **Faza:** B — Poprawność istniejącego systemu · **Typ:** FEATURE / UX / VERIFY · **Status:** patrz §0.2 · **Zależności:** R25
+
+**Cel kroku 1:** dodać wspólną akcję `Udostępnij klienta` na karcie klienta i w szczegółach. Lista używa aktualnych `manager-options` oraz historii grantów, wyklucza aktywne granty, dopuszcza cofnięte, a wybór użytkownika tylko otwiera dialog. Dokładnie jeden istniejący POST następuje dopiero po `Udostępnij`.
+
+**Kanoniczny plan:** `docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md`. Implementacja współdzieli repository, providery i `ClientShareAction`; nie zmienia backendu, migracji, DB/schema, R25 scope ani serwerowej autoryzacji.
+
+**Warunek kroku 1:** akcja jest dostępna tylko dla wewnętrznych `User/Admin/Administrator`, działa na liście i w szczegółach bez zmiany trasy, anulowanie ma zero mutacji, potwierdzenie ma jeden POST, aktywny grant znika z opcji, revoke pozostaje zgodny, a Web/Windows/Android i syntetyczny live smoke są PASS.
+
+**Bieżący wynik:** source został opublikowany w serii `d34bb805...`, `b1ff82b8...`, `5492009d...`, `ccfd4846...`; focused testy `11/11` i `16/16`, pełny Flutter `374/374` oraz analyze są PASS. Wersja `1.0.2+42` jest wdrożona: Web main `44A53C0B...A115EE`, Windows installer `1F920C49...013E`, installed executable `C0DE8E94...34CD5`, Android APK `10A1193A...E027`. Deployment ma `APPROVED_FOR_START / pending_mutation=false`. Live smoke potwierdził Alpha dostępnego, Beta wykluczonego, cancel bez grantu, dokładnie jeden POST po confirm, wykluczenie obu po sukcesie i dokładnie jednego klienta dla Alpha. Oba granty cofnięto, a dokładne fixture usunięto z residue `users=0 / clients=0 / grants=0`.
+
+**Stan:** krok 1 `IMPLEMENTED / DEPLOYED / READY_FOR_OWNER_SMOKE`; krok 2 `DEFERRED / NOT_AUTHORIZED / NOT_STARTED`; `R26_NOT_ACCEPTED`. Techniczne K0/K1 kroku 1: `BRAK`. Codex nie nadaje `R26_ACCEPTED` bez praktycznego odbioru właściciela.
+
+**Poza zakresem kroku 1:** filtrowanie `/shared-clients`, ukrywanie cofniętej historii, multi-select, bulk grant/revoke, nowy endpoint, query route i preselection, przebudowa historii, backend/schema, D-22 i wznowienie R04.
 
 ## 8. Dokładne zasady wycofania plików
 
