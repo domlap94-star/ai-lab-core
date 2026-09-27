@@ -27,6 +27,7 @@ from app.services.client_workflow_status_projection_service import (
 )
 from app.services.semantic_search_service import SemanticSearchService
 from app.services.timeline_service import TimelineService
+from app.services.inspection_date import inspection_date_time
 
 
 MAX_EMAILS = 40
@@ -289,14 +290,14 @@ class ClientKnowledgeContextService:
                 )
                 .order_by(
                     Inspection.completed_at.desc().nulls_last(),
-                    Inspection.scheduled_at.desc().nulls_last(),
+                    Inspection.scheduled_date.desc().nulls_last(),
                     Inspection.id.desc(),
                 )
                 .first()
             )
             coverage.inspections_considered = 1 if row is not None else 0
             if row is not None:
-                occurred_at = row.completed_at or row.started_at or row.scheduled_at
+                occurred_at = row.completed_at or inspection_date_time(row.scheduled_date)
                 date_text = occurred_at.date().isoformat() if occurred_at else "brak daty"
                 answer = f"Ostatnia wizja lokalna: {row.title}, {date_text} ({row.status})."
                 sources = [
@@ -392,7 +393,7 @@ class ClientKnowledgeContextService:
             )
             .order_by(
                 Inspection.completed_at.desc().nulls_last(),
-                Inspection.scheduled_at.desc().nulls_last(),
+                Inspection.scheduled_date.desc().nulls_last(),
                 Inspection.id.desc(),
             )
             .limit(MAX_INSPECTIONS)
@@ -407,7 +408,7 @@ class ClientKnowledgeContextService:
                         source_type="inspection",
                         source_id=item.id,
                         title=item.title,
-                        date=item.completed_at or item.started_at or item.scheduled_at,
+                        date=item.completed_at or inspection_date_time(item.scheduled_date),
                         route=f"/inspections/{item.id}",
                         snippet=self._snippet(text),
                     ),

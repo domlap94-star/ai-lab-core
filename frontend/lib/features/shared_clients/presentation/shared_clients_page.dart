@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 
 import '../../auth/application/auth_controller.dart';
 import '../application/client_access_providers.dart';
@@ -16,6 +17,8 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
   int? _clientId;
   int? _externalUserId;
   bool _busy = false;
+  bool _showRevoked = false;
+  final Set<int> _selectedGrantIds = <int>{};
 
   Future<void> _change({required bool grant}) async {
     final clientId = _clientId;
@@ -63,8 +66,68 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
               externalUserId: userId,
             );
       }
+      invalidateClientAccess(ref, clientId);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _bulkRevoke() async {
+    if (_busy || _selectedGrantIds.isEmpty) return;
+    final ids = _selectedGrantIds.toList(growable: false)..sort();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cofnąć wybrane dostępy?'),
+        content: Text(
+          'Wybrani użytkownicy natychmiast utracą dostęp do wskazanych klientów i ich zasobów.\n\nLiczba dostępów: ${ids.length}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cofnij dostępy'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final session = ref.read(authControllerProvider).value?.session;
+    if (session == null) return;
+    setState(() => _busy = true);
+    try {
+      final count = await ref
+          .read(clientAccessRepositoryProvider)
+          .bulkRevoke(session: session, grantIds: ids);
+      if (!mounted) return;
+      setState(_selectedGrantIds.clear);
       ref.invalidate(clientGrantHistoryProvider);
+      ref.invalidate(clientGrantHistoryWithRevokedProvider);
       ref.invalidate(clientAccessManagerOptionsProvider);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Cofnięto $count dostępów.')));
+    } on DioException catch (error) {
+      if (!mounted) return;
+      if (error.response?.statusCode == 409) {
+        setState(_selectedGrantIds.clear);
+        ref.invalidate(clientGrantHistoryProvider);
+        ref.invalidate(clientGrantHistoryWithRevokedProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Lista udostępnień uległa zmianie. Sprawdź wybór ponownie.',
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nie udało się cofnąć dostępów.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -74,9 +137,13 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
   Widget build(BuildContext context) {
     final role = ref.watch(authControllerProvider).value?.user?.role ?? '';
     final external = role.trim().toLowerCase() == 'external';
-    final data = ref.watch(
-      external ? sharedClientsProvider : clientGrantHistoryProvider,
-    );
+    final data = external
+        ? ref.watch(sharedClientsProvider)
+        : ref.watch(
+            _showRevoked
+                ? clientGrantHistoryWithRevokedProvider
+                : clientGrantHistoryProvider,
+          );
     final options = external
         ? null
         : ref.watch(clientAccessManagerOptionsProvider);
@@ -149,6 +216,41 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
               ],
             ),
             const Divider(height: 32),
+            SwitchListTile(
+              key: const Key('show-revoked-grants'),
+              value: _showRevoked,
+              title: const Text('Pokaż cofnięte'),
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(() {
+                      _showRevoked = value;
+                      _selectedGrantIds.clear();
+                    }),
+            ),
+            Wrap(
+              spacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('Wybrano: ${_selectedGrantIds.length}'),
+                FilledButton(
+                  key: const Key('bulk-revoke-selected'),
+                  onPressed: _busy || _selectedGrantIds.isEmpty
+                      ? null
+                      : _bulkRevoke,
+                  child: Text(
+                    'Cofnij zaznaczone (${_selectedGrantIds.length})',
+                  ),
+                ),
+                if (_selectedGrantIds.isNotEmpty)
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => setState(_selectedGrantIds.clear),
+                    child: const Text('Anuluj wybór'),
+                  ),
+              ],
+            ),
+            const Divider(height: 32),
           ],
           data.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -177,20 +279,42 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
                                   externalOption.isNotEmpty
                               ? externalOption.first['username'].toString()
                               : null;
-                          return ListTile(
-                            key: ValueKey('shared-client-$clientId'),
-                            leading: const Icon(Icons.business_outlined),
+                          if (external) {
+                            return ListTile(
+                              key: ValueKey('shared-client-$clientId'),
+                              leading: const Icon(Icons.business_outlined),
+                              title: Text(name ?? 'Klient #$clientId'),
+                              onTap: () => context.go('/clients/$clientId'),
+                            );
+                          }
+                          final active = row['active'] == true;
+                          final grantId = row['id'] as int?;
+                          final grantedAt = row['granted_at']?.toString();
+                          final revokedAt = row['revoked_at']?.toString();
+                          final revokedBy = row['revoked_by_user_id'];
+                          return CheckboxListTile(
+                            key: ValueKey('grant-select-$grantId'),
+                            secondary: const Icon(Icons.business_outlined),
+                            value: active && grantId != null
+                                ? _selectedGrantIds.contains(grantId)
+                                : false,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            enabled: active && !_busy,
+                            onChanged: active && grantId != null
+                                ? (value) => setState(() {
+                                    if (value == true) {
+                                      _selectedGrantIds.add(grantId);
+                                    } else {
+                                      _selectedGrantIds.remove(grantId);
+                                    }
+                                  })
+                                : null,
                             title: Text(
                               name ?? resolvedClient ?? 'Klient #$clientId',
                             ),
-                            subtitle: external
-                                ? null
-                                : Text(
-                                    '${resolvedExternal ?? 'Zewnętrzny #${row['external_user_id']}'} · ${row['active'] == true ? 'aktywny' : 'cofnięty'}',
-                                  ),
-                            onTap: external
-                                ? () => context.go('/clients/$clientId')
-                                : null,
+                            subtitle: Text(
+                              '${resolvedExternal ?? 'Zewnętrzny #${row['external_user_id']}'} · ${active ? 'aktywny · nadano: ${grantedAt ?? 'brak daty'}' : 'cofnięty · ${revokedAt ?? 'brak daty'} · aktor: ${revokedBy ?? 'brak'}'}',
+                            ),
                           );
                         })
                         .toList(growable: false),

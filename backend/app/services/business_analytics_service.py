@@ -19,6 +19,7 @@ from app.schemas.business_assistant import BusinessCoverage, BusinessSource
 from app.services.client_workflow_status_projection_service import (
     CLIENT_WORKFLOW_STATUS_LABELS as STATUS_LABELS,
 )
+from app.services.inspection_date import inspection_date_time
 
 
 @dataclass(frozen=True)
@@ -75,8 +76,8 @@ class BusinessAnalyticsService:
             return self._answer(f"W ostatnich 7 dniach dodano {count} dokumentów.", "Dokumenty — ostatnie 7 dni", count, coverage, now)
         if "wizj" in q and any(word in q for word in ("zaplan", "w toku", "odby")):
             status = "planned" if "zaplan" in q else "in_progress" if "w toku" in q else "completed"
-            rows = self.db.query(Inspection).filter(Inspection.deleted_at.is_(None), Inspection.status == status).order_by(Inspection.scheduled_at.desc().nulls_last(), Inspection.id.desc()).limit(20).all()
-            sources = [self._entity("inspection", row.id, row.title, f"/inspections/{row.id}", row.scheduled_at or row.created_at) for row in rows]
+            rows = self.db.query(Inspection).filter(Inspection.deleted_at.is_(None), Inspection.status == status).order_by(Inspection.scheduled_date.desc().nulls_last(), Inspection.id.desc()).limit(20).all()
+            sources = [self._entity("inspection", row.id, row.title, f"/inspections/{row.id}", inspection_date_time(row.scheduled_date) or row.created_at) for row in rows]
             return AnalyticsAnswer(f"Znaleziono {len(rows)} wizji o statusie {status}.", sources, coverage)
         if "bez kontaktu" in q or "nie mieli kontaktu" in q:
             return self._stale_contacts(now, coverage)
@@ -143,7 +144,7 @@ class BusinessAnalyticsService:
 
     def _attention(self, now: datetime, coverage: BusinessCoverage) -> AnalyticsAnswer:
         pending = self.db.query(ClientCandidate).filter(ClientCandidate.deleted_at.is_(None), ClientCandidate.status == "pending").count()
-        overdue = self.db.query(Inspection).filter(Inspection.deleted_at.is_(None), Inspection.status == "planned", Inspection.scheduled_at.isnot(None), Inspection.scheduled_at < now).count()
+        overdue = self.db.query(Inspection).filter(Inspection.deleted_at.is_(None), Inspection.status == "planned", Inspection.scheduled_date.isnot(None), Inspection.scheduled_date < now.date()).count()
         missing_contact = self._active_clients().filter(Client.primary_email.is_(None), Client.primary_phone.is_(None)).count()
         text = f"Deterministyczne sygnały uwagi: oczekujący kandydaci {pending}, przeterminowane zaplanowane wizje {overdue}, klienci bez głównego e-maila i telefonu {missing_contact}."
         return AnalyticsAnswer(text, [BusinessSource(source_type="analytics", title="Sygnały wymagające uwagi", date=now, snippet=text)], coverage)

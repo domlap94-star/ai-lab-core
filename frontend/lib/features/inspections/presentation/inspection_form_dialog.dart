@@ -19,29 +19,41 @@ class InspectionFormDialog extends StatefulWidget {
 class _InspectionFormDialogState extends State<InspectionFormDialog> {
   late int? _clientId = widget.inspection?.clientId ?? widget.clientId;
   bool _clientMissing = false;
+  late DateTime? _scheduledDate =
+      widget.inspection?.scheduledDate ?? _todayDate();
   late final _scheduled = TextEditingController(
-    text: widget.inspection?.scheduledAt?.toIso8601String() ?? '',
-  );
-  late final _started = TextEditingController(
-    text: widget.inspection?.startedAt?.toIso8601String() ?? '',
+    text: _scheduledDate == null ? '' : inspectionDateDisplay(_scheduledDate!),
   );
   late InspectionStatus _status =
       widget.inspection?.status ?? InspectionStatus.planned;
   final _form = GlobalKey<FormState>();
+
+  static DateTime _todayDate() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
   @override
   void dispose() {
-    for (final value in <TextEditingController>[_scheduled, _started]) {
-      value.dispose();
-    }
+    _scheduled.dispose();
     super.dispose();
   }
 
-  String? _date(String? value) =>
-      value == null ||
-          value.trim().isEmpty ||
-          DateTime.tryParse(value.trim()) != null
-      ? null
-      : 'Nieprawidłowa data i czas';
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _scheduledDate ?? DateTime(now.year, now.month, now.day),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _scheduledDate = DateTime(picked.year, picked.month, picked.day);
+      _scheduled.text = inspectionDateDisplay(_scheduledDate!);
+    });
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
@@ -92,18 +104,21 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
                     setState(() => _status = value ?? _status),
               ),
               TextFormField(
+                key: const Key('inspection-scheduled-date'),
                 controller: _scheduled,
-                decoration: const InputDecoration(
-                  labelText: 'Termin (ISO, opcjonalnie)',
+                readOnly: true,
+                onTap: _pickDate,
+                decoration: InputDecoration(
+                  labelText: 'Termin wizji *',
+                  suffixIcon: IconButton(
+                    key: const Key('inspection-scheduled-date-picker'),
+                    onPressed: _pickDate,
+                    icon: const Icon(Icons.calendar_month),
+                  ),
                 ),
-                validator: _date,
-              ),
-              TextFormField(
-                controller: _started,
-                decoration: const InputDecoration(
-                  labelText: 'Rozpoczęto (ISO, opcjonalnie)',
-                ),
-                validator: _date,
+                validator: (_) => _scheduledDate == null
+                    ? 'Wybierz termin wizji lokalnej.'
+                    : null,
               ),
             ],
           ),
@@ -125,12 +140,7 @@ class _InspectionFormDialogState extends State<InspectionFormDialog> {
           Navigator.pop(context, <String, dynamic>{
             'client_id': _clientId,
             'status': _status.apiValue,
-            'scheduled_at': _scheduled.text.trim().isEmpty
-                ? null
-                : _scheduled.text.trim(),
-            'started_at': _started.text.trim().isEmpty
-                ? null
-                : _started.text.trim(),
+            'scheduled_date': inspectionDateApi(_scheduledDate!),
           });
         },
         child: const Text('Zapisz'),

@@ -1,5 +1,22 @@
 enum InspectionStatus { planned, inProgress, completed, cancelled }
 
+DateTime? parseInspectionDateOnly(Object? value) {
+  final text = value?.toString() ?? '';
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(text);
+  if (match == null) return null;
+  return DateTime(
+    int.parse(match.group(1)!),
+    int.parse(match.group(2)!),
+    int.parse(match.group(3)!),
+  );
+}
+
+String inspectionDateApi(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+String inspectionDateDisplay(DateTime value) =>
+    '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year.toString().padLeft(4, '0')}';
+
 extension InspectionStatusValue on InspectionStatus {
   String get apiValue => switch (this) {
     InspectionStatus.planned => 'planned',
@@ -26,7 +43,7 @@ class Inspection {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
-    this.scheduledAt,
+    this.scheduledDate,
     this.startedAt,
     this.completedAt,
     this.notes,
@@ -41,7 +58,8 @@ class Inspection {
   final String clientName;
   final String title;
   final InspectionStatus status;
-  final DateTime? scheduledAt;
+  final DateTime? scheduledDate;
+  DateTime? get scheduledAt => scheduledDate;
   final DateTime? startedAt;
   final DateTime? completedAt;
   final String? notes;
@@ -64,7 +82,10 @@ class Inspection {
       (value) => value.apiValue == json['status'],
       orElse: () => InspectionStatus.planned,
     ),
-    scheduledAt: DateTime.tryParse(json['scheduled_at']?.toString() ?? ''),
+    scheduledDate:
+        parseInspectionDateOnly(json['scheduled_date']) ??
+        _legacyInspectionDate(json['scheduled_at']) ??
+        _legacyInspectionDate(json['started_at']),
     startedAt: DateTime.tryParse(json['started_at']?.toString() ?? ''),
     completedAt: DateTime.tryParse(json['completed_at']?.toString() ?? ''),
     notes: json['notes']?.toString(),
@@ -74,6 +95,33 @@ class Inspection {
     createdAt: DateTime.parse(json['created_at'].toString()),
     updatedAt: DateTime.parse(json['updated_at'].toString()),
   );
+}
+
+DateTime? _legacyInspectionDate(Object? value) {
+  final text = value?.toString() ?? '';
+  final parsed = DateTime.tryParse(text);
+  if (parsed == null) return null;
+  if (!text.endsWith('Z') && !RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(text)) {
+    return DateTime(parsed.year, parsed.month, parsed.day);
+  }
+  final utc = parsed.toUtc();
+  final marchEnd = DateTime.utc(utc.year, 4, 0);
+  final octoberEnd = DateTime.utc(utc.year, 11, 0);
+  final dstStart = DateTime.utc(
+    utc.year,
+    3,
+    marchEnd.day - (marchEnd.weekday % 7),
+    1,
+  );
+  final dstEnd = DateTime.utc(
+    utc.year,
+    10,
+    octoberEnd.day - (octoberEnd.weekday % 7),
+    1,
+  );
+  final offsetHours = !utc.isBefore(dstStart) && utc.isBefore(dstEnd) ? 2 : 1;
+  final warsaw = utc.add(Duration(hours: offsetHours));
+  return DateTime(warsaw.year, warsaw.month, warsaw.day);
 }
 
 class InspectionPage {

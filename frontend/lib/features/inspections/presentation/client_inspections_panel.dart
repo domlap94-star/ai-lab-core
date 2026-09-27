@@ -92,10 +92,10 @@ class _ClientInspectionsPanelState
                                 title: const Text('Wizja lokalna'),
                                 subtitle: Text(inspection.status.label),
                                 trailing: Text(
-                                  inspection.scheduledAt == null
+                                  inspection.scheduledDate == null
                                       ? 'bez terminu'
                                       : formatPolishDate(
-                                          inspection.scheduledAt!,
+                                          inspection.scheduledDate!,
                                         ),
                                 ),
                                 onTap: () => context.push(

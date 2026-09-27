@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -61,7 +61,7 @@ class InspectionFoundationContractTests(unittest.TestCase):
         self.assertNotIn("update(", upgrade.lower())
 
     def test_schema_rejects_invalid_status_location_and_time_order(self) -> None:
-        base = {"client_id": 1}
+        base = {"client_id": 1, "scheduled_date": date(2026, 8, 17)}
         invalid = [
             {**base, "status": "unknown"},
             {**base, "latitude": 52.1},
@@ -142,8 +142,8 @@ class InspectionFoundationDatabaseTests(unittest.TestCase):
             project_id=None,
             client_id=self.client_a.id,
             status="planned",
-            date_from=datetime.now(UTC),
-            date_to=datetime.now(UTC) + timedelta(days=2),
+            date_from=datetime.now(UTC).date(),
+            date_to=(datetime.now(UTC) + timedelta(days=2)).date(),
             skip=0,
             limit=20,
         )
@@ -207,7 +207,10 @@ class InspectionFoundationDatabaseTests(unittest.TestCase):
         self.assertEqual(read.project_name, self.project.name)
         updated = self.service.update(
             legacy.id,
-            InspectionUpdate(notes="Legacy relation retained"),
+            InspectionUpdate(
+                notes="Legacy relation retained",
+                scheduled_date=datetime.now(UTC).date(),
+            ),
             self.actor,
         )
         self.assertEqual(updated.project_id, self.project.id)
@@ -328,11 +331,21 @@ class InspectionFoundationDatabaseTests(unittest.TestCase):
         self.assertIn(unauthenticated.status_code, {401, 403})
 
         app.dependency_overrides[get_current_user] = lambda: self.actor
+        missing_date = api.post(
+            "/api/v1/inspections",
+            json={
+                "client_id": self.client_a.id,
+                "status": "planned",
+                "notes": "Created without project or manual title",
+            },
+        )
+        self.assertEqual(missing_date.status_code, 422, missing_date.text)
         created_response = api.post(
             "/api/v1/inspections",
             json={
                 "client_id": self.client_a.id,
                 "status": "planned",
+                "scheduled_date": datetime.now(UTC).date().isoformat(),
                 "notes": "Created without project or manual title",
             },
         )

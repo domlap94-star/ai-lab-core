@@ -23,6 +23,7 @@ from app.services.semantic_search_service import SemanticSearchService
 from app.models.document_asset import DocumentAsset
 from app.models.document_page import DocumentPage
 from app.services.vision_dispatcher import process_explicit_vision_document
+from app.services.inspection_date import inspection_date_time
 
 
 GENERATION_MODEL = "llama3.2"
@@ -288,7 +289,7 @@ class TechnicalAiService:
         evidence = [
             _Evidence(TechnicalSource(
                 source_type="inspection", source_id=inspection.id,
-                title=inspection.title, date=inspection.completed_at or inspection.started_at or inspection.scheduled_at,
+                title=inspection.title, date=inspection.completed_at or inspection_date_time(inspection.scheduled_date),
                 route=f"/inspections/{inspection.id}",
                 snippet=self._snippet(" ".join(filter(None, [inspection.title, inspection.status, inspection.notes]))),
             ), 1.2),

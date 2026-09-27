@@ -21,6 +21,7 @@ from app.services.global_search_service import GlobalSearchService
 from app.services.inspection_service import InspectionService
 from app.services.project_service import ProjectService
 from app.services.timeline_service import TimelineService
+from app.services.inspection_date import inspection_date_time
 
 
 class ToolDenied(RuntimeError): pass
@@ -320,13 +321,13 @@ class AgentToolRegistry:
 
     def _search_inspections(self, args: EntitySearchArgs) -> AgentToolResult:
         page = self.inspections.get_page(search=args.query, project_id=None, client_id=args.client_id or self.client_id, status=None, date_from=None, date_to=None, skip=0, limit=args.limit)
-        sources = [self._source("inspection", x.id, x.title, f"/inspections/{x.id}", x.notes or "", x.scheduled_at or x.created_at) for x in page.items]
+        sources = [self._source("inspection", x.id, x.title, f"/inspections/{x.id}", x.notes or "", inspection_date_time(x.scheduled_date) or x.created_at) for x in page.items]
         return AgentToolResult({"inspections": [{"id": x.id, "title": x.title, "status": x.status} for x in page.items]}, sources, {"inspections": len(sources)}, [])
 
     def _get_inspection(self, args: IdArgs) -> AgentToolResult:
         x = self.inspections.get(args.id); self._require_client(x.client_id)
         if self.inspection_id is not None and x.id != self.inspection_id: raise ScopeViolation("SCOPE_VIOLATION")
-        data = {"id": x.id, "status": x.status, "scheduled_at": x.scheduled_at.isoformat() if x.scheduled_at else None, "notes": (x.notes or "")[:1000], "location": {"latitude": x.latitude, "longitude": x.longitude, "accuracy_m": x.location_accuracy_m}, "document_count": len(x.documents)}
+        data = {"id": x.id, "status": x.status, "scheduled_date": x.scheduled_date.isoformat() if x.scheduled_date else None, "scheduled_at": x.scheduled_at.isoformat() if x.scheduled_at else None, "notes": (x.notes or "")[:1000], "location": {"latitude": x.latitude, "longitude": x.longitude, "accuracy_m": x.location_accuracy_m}, "document_count": len(x.documents)}
         return AgentToolResult(data, [self._source("inspection", x.id, x.title, f"/inspections/{x.id}", x.notes or "", x.updated_at)], {"inspections": 1}, [])
 
     def _search_projects(self, args: EntitySearchArgs) -> AgentToolResult:

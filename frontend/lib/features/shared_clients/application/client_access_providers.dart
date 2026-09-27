@@ -40,6 +40,15 @@ final clientGrantHistoryProvider = FutureProvider<List<Map<String, dynamic>>>((
   return ref.watch(clientAccessRepositoryProvider).fetchGrantHistory(session);
 });
 
+final clientGrantHistoryWithRevokedProvider =
+    FutureProvider<List<Map<String, dynamic>>>((Ref ref) async {
+      final session = ref.watch(authControllerProvider).value?.session;
+      if (session == null) return const <Map<String, dynamic>>[];
+      return ref
+          .watch(clientAccessRepositoryProvider)
+          .fetchGrantHistory(session, includeRevoked: true);
+    });
+
 final clientAccessManagerOptionsProvider =
     FutureProvider<Map<String, List<Map<String, dynamic>>>>((Ref ref) async {
       final session = ref.watch(authControllerProvider).value?.session;
@@ -98,6 +107,7 @@ final availableClientShareUsersProvider =
 
 void invalidateClientAccess(WidgetRef ref, int clientId) {
   ref.invalidate(clientGrantHistoryProvider);
+  ref.invalidate(clientGrantHistoryWithRevokedProvider);
   ref.invalidate(clientAccessManagerOptionsProvider);
   ref.invalidate(availableClientShareUsersProvider(clientId));
 }

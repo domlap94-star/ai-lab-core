@@ -9,6 +9,8 @@ from app.models.role import Role
 from app.models.user import User
 from app.schemas.client_access_grant import (
     ClientAccessGrantCreate,
+    ClientAccessGrantBulkRevoke,
+    ClientAccessGrantBulkRevokeResult,
     ClientAccessGrantPage,
     ClientAccessGrantRead,
     ClientAccessManagerOptions,
@@ -16,7 +18,11 @@ from app.schemas.client_access_grant import (
     ExternalUserOption,
     SharedClientRead,
 )
-from app.services.client_access_grant_service import ClientAccessGrantService, GrantValidationError
+from app.services.client_access_grant_service import (
+    ClientAccessGrantService,
+    GrantConflictError,
+    GrantValidationError,
+)
 from app.services.client_scope_service import ClientScopeService
 
 
@@ -99,6 +105,25 @@ def grant(
         )
     except GrantValidationError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/grants/bulk-revoke", response_model=ClientAccessGrantBulkRevokeResult)
+def bulk_revoke(
+    data: ClientAccessGrantBulkRevoke,
+    actor: User = Depends(_manager),
+    db: Session = Depends(get_db),
+) -> ClientAccessGrantBulkRevokeResult:
+    try:
+        grant_ids, revoked_at = ClientAccessGrantService(db).bulk_revoke(
+            grant_ids=data.grant_ids, actor=actor
+        )
+    except GrantConflictError as error:
+        raise HTTPException(status_code=409, detail="Grant list changed") from error
+    except GrantValidationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return ClientAccessGrantBulkRevokeResult(
+        revoked_count=len(grant_ids), grant_ids=grant_ids, revoked_at=revoked_at
+    )
 
 
 @router.delete("/grants", status_code=204)

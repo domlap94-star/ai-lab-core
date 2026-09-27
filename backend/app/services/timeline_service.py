@@ -23,6 +23,7 @@ from app.services.client_email_service import ClientEmailService
 from app.services.client_service import ClientNotFoundError
 from app.services.client_workflow_status_projection_service import CLIENT_WORKFLOW_STATUS_LABELS
 from app.services.project_service import ProjectNotFoundError
+from app.services.inspection_date import inspection_date_time
 
 
 class TimelineService:
@@ -323,20 +324,22 @@ class TimelineService:
     ) -> None:
         specifications = (
             ("inspection_created", Inspection.created_at, self._inspection_created),
-            ("inspection_scheduled", Inspection.scheduled_at, self._inspection_scheduled),
+            ("inspection_scheduled", Inspection.scheduled_date, self._inspection_scheduled),
             ("inspection_started", Inspection.started_at, self._inspection_started),
             ("inspection_completed", Inspection.completed_at, self._inspection_completed),
         )
         for event_type, column, mapper in specifications:
             query = base_query.filter(column.isnot(None))
+            selected_from = date_from.date() if event_type == "inspection_scheduled" and date_from else date_from
+            selected_to = date_to.date() if event_type == "inspection_scheduled" and date_to else date_to
             self._append_model_events(
                 events,
                 totals,
                 query=query,
                 date_column=column,
                 event_type=event_type,
-                date_from=date_from,
-                date_to=date_to,
+                date_from=selected_from,
+                date_to=selected_to,
                 window=window,
                 mapper=mapper,
                 enabled=self._enabled(requested, event_type),
@@ -577,7 +580,7 @@ class TimelineService:
 
     @staticmethod
     def _inspection_scheduled(row: Inspection) -> TimelineEvent:
-        return TimelineEvent(stable_key=f"inspection:{row.id}:scheduled", event_type="inspection_scheduled", occurred_at=row.scheduled_at, title="Zaplanowano wizję lokalną", summary=row.title, client_id=row.client_id, project_id=row.project_id, inspection_id=row.id, source_type="inspection", source_id=row.id, actor_user_id=row.created_by_user_id)
+        return TimelineEvent(stable_key=f"inspection:{row.id}:scheduled", event_type="inspection_scheduled", occurred_at=inspection_date_time(row.scheduled_date), title="Zaplanowano wizję lokalną", summary=row.title, client_id=row.client_id, project_id=row.project_id, inspection_id=row.id, source_type="inspection", source_id=row.id, actor_user_id=row.created_by_user_id)
 
     @staticmethod
     def _inspection_completed(row: Inspection) -> TimelineEvent:

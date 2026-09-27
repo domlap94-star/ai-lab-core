@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.mixins import BusinessBase
@@ -43,6 +43,7 @@ class Inspection(BusinessBase):
         Index("ix_inspections_client_id", "client_id"),
         Index("ix_inspections_status", "status"),
         Index("ix_inspections_scheduled_at", "scheduled_at"),
+        Index("ix_inspections_scheduled_date", "scheduled_date"),
         Index("ix_inspections_deleted_at", "deleted_at"),
     )
 
@@ -57,6 +58,7 @@ class Inspection(BusinessBase):
         String(20), nullable=False, default="planned", server_default="planned"
     )
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    scheduled_date: Mapped[date | None] = mapped_column(Date)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)

@@ -9,6 +9,17 @@ class ClientAccessGrantCreate(BaseModel):
     external_user_id: int = Field(gt=0)
 
 
+class ClientAccessGrantBulkRevoke(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    grant_ids: list[int] = Field(min_length=1, max_length=100)
+
+
+class ClientAccessGrantBulkRevokeResult(BaseModel):
+    revoked_count: int
+    grant_ids: list[int]
+    revoked_at: datetime
+
+
 class ClientAccessGrantRead(BaseModel):
     id: int
     client_id: int

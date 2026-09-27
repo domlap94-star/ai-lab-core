@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from app.schemas.inspection import (
 )
 from app.services.inspection_service import (
     InspectionClientNotFoundError,
+    InspectionDateRequiredError,
     InspectionNotFoundError,
     InspectionService,
 )
@@ -36,8 +37,8 @@ def list_inspections(
     project_id: int | None = Query(default=None, ge=1),
     client_id: int | None = Query(default=None, ge=1),
     inspection_status: InspectionStatus | None = Query(default=None, alias="status"),
-    date_from: datetime | None = Query(default=None),
-    date_to: datetime | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     current_user: User = Depends(get_current_user),
@@ -103,6 +104,8 @@ def update_inspection(
         InspectionClientNotFoundError,
     ) as error:
         raise _error(error) from error
+    except InspectionDateRequiredError as error:
+        raise HTTPException(status_code=422, detail="scheduled_date is required") from error
 
 
 @router.delete("/{inspection_id}", status_code=status.HTTP_204_NO_CONTENT)

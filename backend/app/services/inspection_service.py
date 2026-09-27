@@ -7,9 +7,11 @@ from app.models.user import User
 from app.repositories.client_repository import ClientRepository
 from app.repositories.inspection_repository import InspectionRepository
 from app.schemas.inspection import (
+    InspectionBase,
     InspectionCreate,
     InspectionPage,
     InspectionUpdate,
+    inspection_local_date,
 )
 
 
@@ -18,6 +20,10 @@ class InspectionNotFoundError(Exception):
 
 
 class InspectionClientNotFoundError(Exception):
+    pass
+
+
+class InspectionDateRequiredError(Exception):
     pass
 
 
@@ -73,6 +79,10 @@ class InspectionService:
         payload = self._complete_payload(data.model_dump())
         client = self._client(payload["client_id"])
         validated = InspectionCreate.model_validate(payload).model_dump()
+        # Legacy timestamps may select the canonical business date, but new
+        # writes do not create a second independent "started" value.
+        validated["scheduled_at"] = None
+        validated["started_at"] = None
         inspection = Inspection(
             **validated,
             project_id=None,
@@ -92,11 +102,25 @@ class InspectionService:
             key: getattr(inspection, key) for key in InspectionCreate.model_fields
         }
         merged = {**current, **payload}
+        date_fields = {"scheduled_date", "scheduled_at", "started_at"}
+        if date_fields.intersection(data.model_fields_set):
+            merged["scheduled_date"] = data.scheduled_date
+            if "scheduled_at" in data.model_fields_set:
+                merged["scheduled_at"] = inspection.scheduled_at
+            if "started_at" in data.model_fields_set:
+                merged["started_at"] = inspection.started_at
+        if merged.get("scheduled_date") is None:
+            for legacy_value in (merged.get("scheduled_at"), merged.get("started_at")):
+                if legacy_value is not None:
+                    merged["scheduled_date"] = inspection_local_date(legacy_value)
+                    break
+        if merged.get("scheduled_date") is None:
+            raise InspectionDateRequiredError
         if "status" in payload and payload["status"] != "completed":
             merged["completed_at"] = None
         merged = self._complete_payload(merged)
         client = self._client(merged["client_id"])
-        validated = InspectionCreate.model_validate(merged).model_dump()
+        validated = InspectionBase.model_validate(merged).model_dump()
         for key, value in validated.items():
             setattr(inspection, key, value)
         inspection.title = self._title(client.name, client.id)

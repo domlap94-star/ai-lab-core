@@ -26,16 +26,33 @@ class ClientAccessRepository {
   }
 
   Future<List<Map<String, dynamic>>> fetchGrantHistory(
-    AuthSession session,
-  ) async {
+    AuthSession session, {
+    bool includeRevoked = false,
+  }) async {
     final Response<Map<String, dynamic>> response = await _dio
         .get<Map<String, dynamic>>(
           '/api/v1/client-access/grants',
+          queryParameters: <String, dynamic>{
+            if (!includeRevoked) 'active': true,
+          },
           options: _options(session),
         );
     return (response.data?['items'] as List<dynamic>? ?? const <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .toList(growable: false);
+  }
+
+  Future<int> bulkRevoke({
+    required AuthSession session,
+    required List<int> grantIds,
+  }) async {
+    final Response<Map<String, dynamic>> response = await _dio
+        .post<Map<String, dynamic>>(
+          '/api/v1/client-access/grants/bulk-revoke',
+          data: <String, dynamic>{'grant_ids': grantIds},
+          options: _options(session),
+        );
+    return response.data?['revoked_count'] as int? ?? 0;
   }
 
   Future<Map<String, List<Map<String, dynamic>>>> fetchManagerOptions(

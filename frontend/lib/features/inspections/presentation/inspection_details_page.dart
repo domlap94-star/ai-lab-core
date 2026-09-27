@@ -153,7 +153,7 @@ class LegacyInspectionDetailsPage extends ConsumerWidget {
                       Text('Klient: ${item.clientName}'),
                       Text('Status: ${item.status.label}'),
                       Text(
-                        'Termin: ${item.scheduledAt?.toLocal().toString() ?? 'brak'}',
+                        'Termin: ${item.scheduledDate == null ? 'brak' : inspectionDateDisplay(item.scheduledDate!)}',
                       ),
                       Text('Lokalizacja: ${item.location}'),
                       Text(item.notes ?? 'Brak notatek'),

@@ -434,7 +434,9 @@ class _InspectionDetailsPageState extends ConsumerState<InspectionDetailsPage> {
           ),
           Text('Klient: ${item.clientName}'),
           Text('Status: ${item.status.label}'),
-          Text('Termin: ${item.scheduledAt?.toLocal().toString() ?? 'brak'}'),
+          Text(
+            'Termin: ${item.scheduledDate == null ? 'brak' : inspectionDateDisplay(item.scheduledDate!)}',
+          ),
           const SizedBox(height: 8),
           Text(
             item.latitude == null

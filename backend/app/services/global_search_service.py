@@ -28,6 +28,7 @@ from app.services.client_workflow_status_projection_service import (
 from app.services.semantic_search_service import SemanticSearchService
 from app.models.user import User
 from app.services.client_scope_service import ClientScopeService
+from app.services.inspection_date import inspection_date_time
 
 
 SEARCH_TYPES = (
@@ -412,7 +413,7 @@ class GlobalSearchService:
                     snippet=self._matching_snippet(q.folded, [inspection.notes]),
                     score=score,
                     reasons=reasons,
-                    occurred_at=inspection.scheduled_at or inspection.updated_at,
+                    occurred_at=inspection_date_time(inspection.scheduled_date) or inspection.updated_at,
                     client_id=inspection.client_id,
                     project_id=inspection.project_id,
                     inspection_id=inspection.id,

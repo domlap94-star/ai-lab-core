@@ -167,7 +167,7 @@ class _InspectionsPageState extends ConsumerState<InspectionsPage> {
                           child: ListTile(
                             title: const Text('Wizja lokalna'),
                             subtitle: Text(
-                              '${item.clientName}\n${item.status.label} • ${item.scheduledAt?.toLocal().toString() ?? 'bez terminu'}',
+                              '${item.clientName}\n${item.status.label} • ${item.scheduledDate == null ? 'bez terminu' : inspectionDateDisplay(item.scheduledDate!)}',
                             ),
                             isThreeLine: true,
                             onTap: () =>

@@ -14,6 +14,10 @@ class GrantValidationError(ValueError):
     pass
 
 
+class GrantConflictError(ValueError):
+    pass
+
+
 class ClientAccessGrantService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -95,6 +99,31 @@ class ClientAccessGrantService:
         self.db.commit()
         self.db.refresh(row)
         return self._read(row)
+
+    def bulk_revoke(self, *, grant_ids: list[int], actor: User) -> tuple[list[int], datetime]:
+        self.require_manager(actor)
+        unique_ids = list(dict.fromkeys(grant_ids))
+        if not unique_ids or any(not isinstance(value, int) or isinstance(value, bool) or value <= 0 for value in unique_ids):
+            raise GrantValidationError("positive_grant_ids_required")
+        if len(unique_ids) > 100:
+            raise GrantValidationError("bulk_grant_limit_exceeded")
+        rows = (
+            self.db.query(ClientAccessGrant)
+            .filter(ClientAccessGrant.id.in_(unique_ids))
+            .with_for_update()
+            .all()
+        )
+        by_id = {row.id: row for row in rows}
+        if len(by_id) != len(unique_ids) or any(by_id[value].revoked_at is not None for value in unique_ids):
+            self.db.rollback()
+            raise GrantConflictError("grant_set_changed")
+        revoked_at = datetime.now(timezone.utc)
+        for grant_id in unique_ids:
+            row = by_id[grant_id]
+            row.revoked_by_user_id = actor.id
+            row.revoked_at = revoked_at
+        self.db.commit()
+        return unique_ids, revoked_at
 
     def page(self, *, client_id: int | None, external_user_id: int | None, active: bool | None, skip: int, limit: int):
         query = self.db.query(ClientAccessGrant)

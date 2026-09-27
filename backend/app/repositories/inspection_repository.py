@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
@@ -33,8 +33,8 @@ class InspectionRepository(BaseRepository[Inspection]):
         project_id: int | None,
         client_id: int | None,
         status: str | None,
-        date_from: datetime | None,
-        date_to: datetime | None,
+        date_from: date | None,
+        date_to: date | None,
         skip: int,
         limit: int,
         viewer: User | None = None,
@@ -72,13 +72,13 @@ class InspectionRepository(BaseRepository[Inspection]):
         if status is not None:
             query = query.filter(Inspection.status == status)
         if date_from is not None:
-            query = query.filter(Inspection.scheduled_at >= date_from)
+            query = query.filter(Inspection.scheduled_date >= date_from)
         if date_to is not None:
-            query = query.filter(Inspection.scheduled_at <= date_to)
+            query = query.filter(Inspection.scheduled_date <= date_to)
         total = query.count()
         items = (
             query.order_by(
-                Inspection.scheduled_at.desc().nullslast(),
+                Inspection.scheduled_date.desc().nullslast(),
                 Inspection.created_at.desc(),
                 Inspection.id.desc(),
             )
