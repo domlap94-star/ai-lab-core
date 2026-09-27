@@ -112,8 +112,10 @@ lokalnych logów biznesowych.
 ## 6. Stan
 
 - `R25_ACCEPTED` pozostaje bez zmian;
-- R26 krok 1: `IMPLEMENTED / DEPLOYED / READY_FOR_OWNER_SMOKE`;
-- R26 krok 2: `DEFERRED / NOT_AUTHORIZED / NOT_STARTED`;
-- `R26_NOT_ACCEPTED` — odbiór praktyczny należy do właściciela;
+- R26 krok 1: `ACCEPTED / OWNER_CONFIRMED` dla wyniku opublikowanego w
+  `182183c618a2545b79eaea97702a8bbc3a1525ac`;
+- właściciel praktycznie potwierdził działanie na liście i w szczegółach,
+  anulowanie bez grantu oraz dokładnie jeden właściwy grant po potwierdzeniu;
+- R26 krok 2: `SEPARATE_SCOPE / DEFERRED / NOT_AUTHORIZED / NOT_STARTED`;
 - otwarte techniczne K0/K1 w zakresie kroku 1: `BRAK`;
 - R04 pozostaje wstrzymane; D-22 pozostaje `NOT_RUN`.
