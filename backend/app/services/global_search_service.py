@@ -5,7 +5,7 @@ import re
 from typing import Iterable
 
 from sqlalchemy import Text, and_, cast, exists, func, literal, or_, true
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, selectinload
 
 from app.models.candidate_source import CandidateSource
 from app.models.client import Client
@@ -74,16 +74,18 @@ class GlobalSearchService:
         if self.viewer is None or not self.scope.is_external(self.viewer):
             return true()
         allowed = self.scope.active_client_ids(self.viewer)
+        scope_project = aliased(Project, name="scope_project")
+        scope_inspection = aliased(Inspection, name="scope_inspection")
         project_allowed = exists().where(
-            Project.id == Document.project_id,
-            Project.client_id.in_(allowed),
-            Project.deleted_at.is_(None),
-        )
+            scope_project.id == Document.project_id,
+            scope_project.client_id.in_(allowed),
+            scope_project.deleted_at.is_(None),
+        ).correlate(Document)
         inspection_allowed = exists().where(
-            Inspection.id == Document.inspection_id,
-            Inspection.client_id.in_(allowed),
-            Inspection.deleted_at.is_(None),
-        )
+            scope_inspection.id == Document.inspection_id,
+            scope_inspection.client_id.in_(allowed),
+            scope_inspection.deleted_at.is_(None),
+        ).correlate(Document)
         return and_(
             or_(
                 Document.client_id.isnot(None),
