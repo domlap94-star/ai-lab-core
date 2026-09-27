@@ -22,6 +22,9 @@ from app.ai.services.rag_service import RagService
 from app.api.auth import get_current_user
 from app.database.session import get_db
 from app.models.user import User
+from app.models.document import Document
+from app.models.inspection import Inspection
+from app.models.knowledge_base import AnalysisJob
 from app.schemas.business_assistant import BusinessAskRequest, BusinessAskResponse
 from app.services.business_assistant_service import (
     BusinessAssistantModelUnavailable,
@@ -68,6 +71,79 @@ from app.services.assistant_run_service import (
     AssistantRunNotFound,
     AssistantRunService,
 )
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
+from app.services.global_mail_service import GlobalMailNotFoundError, GlobalMailService
+
+
+def _require_external_scope(db: Session, user: User, client_id: int | None) -> None:
+    if not ClientScopeService.is_external(user):
+        return
+    try:
+        ClientScopeService(db).require_client_access(user, client_id)
+    except ClientScopeNotFound as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wskazanego kontekstu.") from error
+
+
+def _require_external_context(
+    db: Session,
+    user: User,
+    *,
+    client_id: int | None,
+    document_id: int | None = None,
+    inspection_id: int | None = None,
+    candidate_id: int | None = None,
+    mail_source_id: int | None = None,
+) -> None:
+    if not ClientScopeService.is_external(user):
+        return
+    _require_external_scope(db, user, client_id)
+    if candidate_id is not None:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wskazanego kontekstu.")
+    policy = ClientScopeService(db)
+    try:
+        if document_id is not None:
+            document = db.get(Document, document_id)
+            if document is None or policy.require_resource_access(user, document) != client_id:
+                raise ClientScopeNotFound
+        if inspection_id is not None:
+            inspection = db.get(Inspection, inspection_id)
+            if inspection is None or policy.require_resource_access(user, inspection) != client_id:
+                raise ClientScopeNotFound
+        if mail_source_id is not None:
+            mail = GlobalMailService(db).get_detail(mail_source_id, viewer=user)
+            if mail.client_id != client_id:
+                raise ClientScopeNotFound
+    except (ClientScopeNotFound, GlobalMailNotFoundError) as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wskazanego kontekstu.") from error
+
+
+def _deny_external_global(user: User) -> None:
+    if ClientScopeService.is_external(user):
+        raise HTTPException(status_code=403, detail="Globalny kontekst jest niedostępny.")
+
+
+def _require_external_job_context(
+    db: Session, user: User, request_id: str
+) -> None:
+    """Revalidate a durable unified request against the current grant."""
+    if not ClientScopeService.is_external(user):
+        return
+    job = db.get(AnalysisJob, request_id)
+    if job is None or job.created_by_user_id != user.id:
+        raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej analizy.")
+    try:
+        request = UnifiedAssistantRequest.model_validate(job.request_payload or {})
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail="Nie znaleziono aktywnej analizy.") from error
+    _require_external_context(
+        db,
+        user,
+        client_id=request.client_id,
+        document_id=request.document_id,
+        inspection_id=request.inspection_id,
+        candidate_id=request.candidate_id,
+        mail_source_id=request.mail_source_id,
+    )
 
 router = APIRouter(
     prefix="/ai",
@@ -81,6 +157,15 @@ async def ask_unified_assistant(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UnifiedAssistantResponse:
+    _require_external_context(
+        db,
+        current_user,
+        client_id=request.client_id,
+        document_id=request.document_id,
+        inspection_id=request.inspection_id,
+        candidate_id=request.candidate_id,
+        mail_source_id=request.mail_source_id,
+    )
     try:
         return await UnifiedAssistantService(
             db, release_db_before_model=True
@@ -103,6 +188,15 @@ def create_assistant_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AssistantRunResponse:
+    _require_external_context(
+        db,
+        current_user,
+        client_id=request.client_id,
+        document_id=request.document_id,
+        inspection_id=request.inspection_id,
+        candidate_id=request.candidate_id,
+        mail_source_id=request.mail_source_id,
+    )
     try:
         return AssistantRunService(db).create(request=request, user_id=current_user.id)
     except AssistantPipelineDisabled as error:
@@ -130,6 +224,7 @@ def create_assistant_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AssistantConversationDetail:
+    _deny_external_global(current_user)
     return AssistantConversationService(db).create(
         request=request,
         user_id=current_user.id,
@@ -145,6 +240,7 @@ def list_assistant_conversations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AssistantConversationListResponse:
+    _deny_external_global(current_user)
     return AssistantConversationService(db).list_owned(
         user_id=current_user.id,
         limit=limit,
@@ -161,6 +257,7 @@ def get_assistant_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AssistantConversationDetail:
+    _deny_external_global(current_user)
     try:
         return AssistantConversationService(db).get_owned_detail(
             conversation_id=conversation_id,
@@ -181,6 +278,7 @@ def rename_assistant_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AssistantConversationDetail:
+    _deny_external_global(current_user)
     try:
         return AssistantConversationService(db).rename(
             conversation_id=conversation_id,
@@ -200,6 +298,7 @@ def delete_assistant_conversation(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AssistantConversationDeleteResponse:
+    _deny_external_global(current_user)
     try:
         return AssistantConversationService(db).soft_delete(
             conversation_id=conversation_id,
@@ -218,7 +317,10 @@ def list_assistant_runs(
 ) -> AssistantRunListResponse:
     try:
         return AssistantRunService(db).list_owned(
-            user_id=current_user.id, active=active, limit=limit
+            user_id=current_user.id,
+            active=active,
+            limit=limit,
+            viewer=current_user,
         )
     except AssistantPipelineDisabled as error:
         raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
@@ -231,7 +333,9 @@ def get_assistant_run(
     current_user: User = Depends(get_current_user),
 ) -> AssistantRunResponse:
     try:
-        return AssistantRunService(db).get(run_id=run_id, user_id=current_user.id)
+        return AssistantRunService(db).get(
+            run_id=run_id, user_id=current_user.id, viewer=current_user
+        )
     except AssistantPipelineDisabled as error:
         raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
     except AssistantRunNotFound as error:
@@ -245,7 +349,9 @@ def cancel_assistant_run(
     current_user: User = Depends(get_current_user),
 ) -> AssistantRunResponse:
     try:
-        return AssistantRunService(db).cancel(run_id=run_id, user_id=current_user.id)
+        return AssistantRunService(db).cancel(
+            run_id=run_id, user_id=current_user.id, viewer=current_user
+        )
     except AssistantPipelineDisabled as error:
         raise HTTPException(status_code=404, detail="Durable Assistant API is not enabled.") from error
     except AssistantRunNotFound as error:
@@ -258,6 +364,7 @@ async def cancel_unified_assistant(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UnifiedAssistantResponse:
+    _require_external_job_context(db, current_user, request_id)
     try:
         return await UnifiedAssistantService(db).cancel(
             request_id=request_id, user_id=current_user.id
@@ -272,6 +379,7 @@ async def get_unified_assistant_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UnifiedAssistantResponse:
+    _require_external_job_context(db, current_user, request_id)
     try:
         return await UnifiedAssistantService(db).status(request_id=request_id, user_id=current_user.id)
     except UnifiedAssistantContextError as error:
@@ -284,6 +392,12 @@ async def ask_agent(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AgentAskResponse:
+    _require_external_context(
+        db,
+        current_user,
+        client_id=request.client_id,
+        inspection_id=request.inspection_id,
+    )
     try:
         return await AgentService(db).ask(
             question=request.question,
@@ -308,7 +422,7 @@ async def ask_business_assistant(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BusinessAskResponse:
-    del current_user
+    _deny_external_global(current_user)
     try:
         return await BusinessAssistantService(db).ask(
             question=request.question,
@@ -327,7 +441,12 @@ async def ask_technical_assistant(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TechnicalAskResponse:
-    del current_user
+    _require_external_context(
+        db,
+        current_user,
+        client_id=request.client_id,
+        inspection_id=request.inspection_id,
+    )
     try:
         return await TechnicalAiService(db).ask(
             question=request.question,
@@ -352,6 +471,7 @@ async def chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ChatResponse:
+    _deny_external_global(current_user)
     try:
         service = ChatService(db)
 
@@ -381,8 +501,14 @@ async def chat(
 async def rag(
     request: RagRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> RagApiResponse:
-    del current_user
+    _require_external_context(
+        db,
+        current_user,
+        client_id=request.client_id,
+        document_id=request.document_id,
+    )
 
     try:
         service = RagService()

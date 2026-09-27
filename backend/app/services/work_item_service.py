@@ -14,6 +14,7 @@ from app.models.document import Document
 from app.models.project import Project
 from app.models.user import User
 from app.models.work_item import WorkItem
+from app.services.client_scope_service import ClientScopeService
 from app.models.work_item_document import WorkItemDocument
 from app.models.work_item_note import WorkItemNote
 from app.schemas.work_item import (
@@ -232,11 +233,13 @@ class WorkItemService:
     def get(self, item_id: int, *, include_archived: bool = False) -> WorkItemRead:
         return self._read(self._active(item_id, include_archived=include_archived))
 
-    def list(self, *, item_type=None, status=None, priority=None, assignee_user_id=None, client_id=None, date_from=None, date_to=None, search=None, archived=False, skip=0, limit=50):
+    def list(self, *, item_type=None, status=None, priority=None, assignee_user_id=None, client_id=None, date_from=None, date_to=None, search=None, archived=False, skip=0, limit=50, viewer: User | None = None):
         query = self.db.query(WorkItem, User.username, Client.name).outerjoin(
             User, User.id == WorkItem.assignee_user_id
         ).outerjoin(Client, Client.id == WorkItem.client_id)
         query = query.filter(WorkItem.deleted_at.isnot(None) if archived else WorkItem.deleted_at.is_(None))
+        if viewer is not None:
+            query = ClientScopeService(self.db).scope_client_query(viewer, query, WorkItem.client_id)
         for column, value in ((WorkItem.item_type, item_type), (WorkItem.status, status), (WorkItem.priority, priority), (WorkItem.assignee_user_id, assignee_user_id), (WorkItem.client_id, client_id)):
             if value is not None:
                 query = query.filter(column == value)
@@ -520,8 +523,11 @@ class CalendarService:
                 and_(WorkItem.start_at.is_(None), WorkItem.due_at.isnot(None), WorkItem.due_at >= month_start, WorkItem.due_at <= month_end),
             ),
         )
+        work_query = ClientScopeService(self.db).scope_client_query(actor, work_query, WorkItem.client_id)
         work_total = work_query.count(); work_rows = work_query.order_by(func.coalesce(WorkItem.start_at, WorkItem.due_at), WorkItem.id).limit(self.WORK_LIMIT).all()
         absence_query = self.db.query(AbsenceRequest, User.username).join(User, User.id == AbsenceRequest.requester_user_id).filter(AbsenceRequest.status.in_(("requested", "approved")), AbsenceRequest.start_date <= month_end.date(), AbsenceRequest.end_date >= month_start.date())
+        if ClientScopeService.is_external(actor):
+            absence_query = absence_query.filter(False)
         if not _is_admin(actor): absence_query = absence_query.filter(AbsenceRequest.requester_user_id == actor.id)
         absence_total = absence_query.count(); absence_rows = absence_query.order_by(AbsenceRequest.start_date, AbsenceRequest.id).limit(self.ABSENCE_LIMIT).all()
         items: list[CalendarEntry] = []

@@ -15,6 +15,7 @@ from app.models.conversation import Conversation
 from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.message import Message
 from app.models.knowledge_base import AnalysisJob
+from app.models.user import User
 from app.schemas.assistant_pipeline import (
     AssistantRunCreateRequest,
     AssistantRunListResponse,
@@ -35,6 +36,7 @@ from app.services.assistant_conversation_service import AssistantConversationSer
 from app.services.document_preparation_service import (
     is_document_intelligence_resource_wait,
 )
+from app.services.client_scope_service import ClientScopeService
 
 
 class AssistantPipelineDisabled(RuntimeError):
@@ -188,11 +190,24 @@ class AssistantRunService:
         self.db.refresh(run)
         return self.response(run)
 
-    def get_owned(self, *, run_id: str, user_id: int, lock: bool = False) -> AssistantRun:
+    def get_owned(
+        self,
+        *,
+        run_id: str,
+        user_id: int,
+        lock: bool = False,
+        viewer: User | None = None,
+    ) -> AssistantRun:
         query = self.db.query(AssistantRun).filter(
             AssistantRun.id == run_id,
             AssistantRun.created_by_user_id == user_id,
         )
+        if viewer is not None and ClientScopeService.is_external(viewer):
+            query = query.filter(
+                AssistantRun.target_scope["client_id"].as_integer().in_(
+                    ClientScopeService(self.db).active_client_ids(viewer)
+                )
+            )
         if lock:
             query = query.with_for_update()
         run = query.one_or_none()
@@ -200,17 +215,32 @@ class AssistantRunService:
             raise AssistantRunNotFound("ASSISTANT_RUN_NOT_FOUND")
         return run
 
-    def get(self, *, run_id: str, user_id: int) -> AssistantRunResponse:
+    def get(
+        self, *, run_id: str, user_id: int, viewer: User | None = None
+    ) -> AssistantRunResponse:
         self.require_enabled()
-        return self.response(self.get_owned(run_id=run_id, user_id=user_id))
+        return self.response(
+            self.get_owned(run_id=run_id, user_id=user_id, viewer=viewer)
+        )
 
     def list_owned(
-        self, *, user_id: int, active: bool = True, limit: int = 20
+        self,
+        *,
+        user_id: int,
+        active: bool = True,
+        limit: int = 20,
+        viewer: User | None = None,
     ) -> AssistantRunListResponse:
         self.require_enabled()
         query = self.db.query(AssistantRun).filter(
             AssistantRun.created_by_user_id == user_id
         ).options(joinedload(AssistantRun.conversation))
+        if viewer is not None and ClientScopeService.is_external(viewer):
+            query = query.filter(
+                AssistantRun.target_scope["client_id"].as_integer().in_(
+                    ClientScopeService(self.db).active_client_ids(viewer)
+                )
+            )
         if active:
             query = query.filter(AssistantRun.status.in_(["created", "queued", "running", "waiting"]))
         rows = query.order_by(AssistantRun.created_at.desc(), AssistantRun.id.desc()).limit(
@@ -218,9 +248,13 @@ class AssistantRunService:
         ).all()
         return AssistantRunListResponse(items=[self.response(row) for row in rows])
 
-    def cancel(self, *, run_id: str, user_id: int) -> AssistantRunResponse:
+    def cancel(
+        self, *, run_id: str, user_id: int, viewer: User | None = None
+    ) -> AssistantRunResponse:
         self.require_enabled()
-        run = self.get_owned(run_id=run_id, user_id=user_id, lock=True)
+        run = self.get_owned(
+            run_id=run_id, user_id=user_id, lock=True, viewer=viewer
+        )
         if run.status in {"completed", "review_required", "failed", "cancelled"}:
             self.db.rollback()
             return self.response(run)

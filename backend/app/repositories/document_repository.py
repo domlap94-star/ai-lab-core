@@ -13,6 +13,10 @@ from app.models.document_page import DocumentPage
 from app.models.client import Client
 from app.models.work_item import WorkItem
 from app.models.work_item_document import WorkItemDocument
+from app.models.inspection import Inspection
+from app.models.project import Project
+from app.models.user import User
+from app.services.client_scope_service import ClientScopeService
 from app.services.document_metadata_unicode_safety import (
     assert_json_compatible_safe,
 )
@@ -80,8 +84,20 @@ class DocumentRepository:
         content_type: str | None = None,
         skip: int = 0,
         limit: int = 50,
+        viewer: User | None = None,
     ) -> tuple[list, int]:
         query = self._read_query()
+        if viewer is not None and ClientScopeService.is_external(viewer):
+            allowed = ClientScopeService(self.db).active_client_ids(viewer)
+            project_allowed = exists().where(Project.id == Document.project_id, Project.client_id.in_(allowed), Project.deleted_at.is_(None))
+            inspection_allowed = exists().where(Inspection.id == Document.inspection_id, Inspection.client_id.in_(allowed), Inspection.deleted_at.is_(None))
+            has_owner = or_(Document.client_id.isnot(None), Document.project_id.isnot(None), Document.inspection_id.isnot(None))
+            query = query.filter(
+                has_owner,
+                or_(Document.client_id.is_(None), Document.client_id.in_(allowed)),
+                or_(Document.project_id.is_(None), project_allowed),
+                or_(Document.inspection_id.is_(None), inspection_allowed),
+            )
         query = self._apply_read_filters(
             query,
             document_id=document_id,

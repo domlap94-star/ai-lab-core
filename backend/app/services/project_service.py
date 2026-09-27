@@ -30,14 +30,14 @@ class ProjectService:
         project.client_name = project.client.name
         return project
 
-    def get(self, project_id: int) -> Project:
-        project = self.repository.get(project_id)
+    def get(self, project_id: int, viewer: User | None = None) -> Project:
+        project = self.repository.get(project_id, viewer=viewer)
         if project is None:
             raise ProjectNotFoundError
         return self._read(project)
 
-    def get_page(self, *, search: str | None, client_id: int | None, status: str | None, skip: int, limit: int) -> ProjectPage:
-        items, total = self.repository.get_page(search=search, client_id=client_id, status=status, skip=skip, limit=limit)
+    def get_page(self, *, search: str | None, client_id: int | None, status: str | None, skip: int, limit: int, viewer: User | None = None) -> ProjectPage:
+        items, total = self.repository.get_page(search=search, client_id=client_id, status=status, skip=skip, limit=limit, viewer=viewer)
         return ProjectPage(items=[self._read(item) for item in items], total=total, skip=skip, limit=limit)
 
     def create(self, data: ProjectCreate, actor: User) -> Project:

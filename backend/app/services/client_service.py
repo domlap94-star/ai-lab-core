@@ -22,6 +22,7 @@ from app.services.client_workflow_status_projection_service import (
     ClientWorkflowStatusProjectionService,
 )
 from app.services.change_history_service import ChangeHistoryService
+from app.models.user import User
 
 
 class ClientNotFoundError(Exception):
@@ -46,8 +47,8 @@ class ClientService(BaseService[Client]):
 
         super().__init__(self.client_repository)
 
-    def get_client(self, client_id: int) -> Client:
-        client = self.client_repository.get(client_id)
+    def get_client(self, client_id: int, viewer: User | None = None) -> Client:
+        client = self.client_repository.get(client_id, viewer=viewer)
 
         if client is None:
             raise ClientNotFoundError
@@ -67,6 +68,7 @@ class ClientService(BaseService[Client]):
         sort_order: ClientPageSortOrder | None = None,
         skip: int = 0,
         limit: int = 50,
+        viewer: User | None = None,
     ) -> ClientPage:
         if sort_order is not None:
             return self._get_clients_sorted_by_effective_date(
@@ -77,6 +79,7 @@ class ClientService(BaseService[Client]):
                 sort_order=sort_order,
                 skip=skip,
                 limit=limit,
+                viewer=viewer,
             )
 
         items, total = self.client_repository.get_page(
@@ -86,6 +89,7 @@ class ClientService(BaseService[Client]):
             exclude_statuses=exclude_statuses,
             skip=skip,
             limit=limit,
+            viewer=viewer,
         )
 
         self.added_date_projection.attach(items)
@@ -108,12 +112,14 @@ class ClientService(BaseService[Client]):
         sort_order: ClientPageSortOrder,
         skip: int,
         limit: int,
+        viewer: User | None = None,
     ) -> ClientPage:
         candidates = self.client_repository.get_sort_candidates(
             search=search,
             client_type=client_type,
             industry_id=industry_id,
             exclude_statuses=exclude_statuses,
+            viewer=viewer,
         )
         source_dates = self.added_date_projection.source_dates_for(
             [client_id for client_id, _, _ in candidates]

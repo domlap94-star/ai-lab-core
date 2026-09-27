@@ -8,6 +8,7 @@ from app.services.global_search_service import (
     GlobalSearchService,
     SearchTypeError,
 )
+from app.models.user import User
 
 
 router = APIRouter(
@@ -25,6 +26,7 @@ def global_search(
     limit: int = Query(default=25, ge=1, le=50),
     semantic: bool = Query(default=True),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> GlobalSearchPage:
     try:
         requested_types = GlobalSearchService.parse_types(types)
@@ -34,10 +36,10 @@ def global_search(
             detail=str(error),
         ) from error
 
-    return GlobalSearchService(db).search(
+    return GlobalSearchService(db, viewer=current_user).search(
         query=q,
         types=requested_types,
         skip=skip,
         limit=limit,
-        semantic=semantic,
+        semantic=semantic and not GlobalSearchService(db, viewer=current_user).scope.is_external(current_user),
     )

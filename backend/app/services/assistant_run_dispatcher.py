@@ -18,6 +18,8 @@ from app.models.assistant_pipeline import (
     DocumentIntelligenceArtifact,
 )
 from app.models.document import Document
+from app.models.inspection import Inspection
+from app.models.user import User
 from app.models.document_preparation_job import DocumentPreparationJob
 from app.models.knowledge_base import AnalysisJob, KnowledgeBaseItem
 from app.schemas.unified_assistant import (
@@ -51,6 +53,7 @@ from app.services.local_model_time_policy import (
 )
 from app.services.unified_assistant_service import UnifiedAssistantService
 from app.services.visual_v2_service import VisualV2ContractError, VisualV2Service
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
 
 
 logger = logging.getLogger("ai_lab.assistant_pipeline_v2")
@@ -663,6 +666,41 @@ async def _execute_run(run_id: str) -> None:
             db.rollback()
             return
         request = UnifiedAssistantRequest.model_validate(run.request_payload)
+        actor = db.get(User, run.created_by_user_id)
+        if actor is None or not actor.is_active:
+            run.status = "failed"
+            run.error_code = "CLIENT_SCOPE_REVOKED"
+            run.finished_at = datetime.now(UTC)
+            db.commit()
+            return
+        if ClientScopeService.is_external(actor):
+            policy = ClientScopeService(db)
+            try:
+                client_id = policy.require_client_access(actor, request.client_id)
+                if request.candidate_id is not None or request.mail_source_id is not None:
+                    raise ClientScopeNotFound
+                if request.document_id is not None:
+                    document_scope = db.get(Document, request.document_id)
+                    if (
+                        document_scope is None
+                        or policy.require_resource_access(actor, document_scope)
+                        != client_id
+                    ):
+                        raise ClientScopeNotFound
+                if request.inspection_id is not None:
+                    inspection_scope = db.get(Inspection, request.inspection_id)
+                    if (
+                        inspection_scope is None
+                        or policy.require_resource_access(actor, inspection_scope)
+                        != client_id
+                    ):
+                        raise ClientScopeNotFound
+            except ClientScopeNotFound:
+                run.status = "failed"
+                run.error_code = "CLIENT_SCOPE_REVOKED"
+                run.finished_at = datetime.now(UTC)
+                db.commit()
+                return
         plan = run.plan or {}
         intent = str(plan.get("intent") or "evidence_reasoning")
         resuming_advanced = run.current_stage == "waiting_for_advanced"

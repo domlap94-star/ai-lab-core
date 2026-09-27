@@ -11,6 +11,7 @@ from app.services.document_service import (
     DocumentContentUnavailableError,
     DocumentService,
 )
+from app.models.user import User
 
 
 class DocumentNotFoundError(Exception):
@@ -22,7 +23,8 @@ class DocumentReadService:
         self.repository = DocumentRepository(db)
         self.storage_service = DocumentService(db)
 
-    def get_page(self, **filters) -> DocumentPublicPage:
+    def get_page(self, *, viewer: User | None = None, **filters) -> DocumentPublicPage:
+        filters["viewer"] = viewer
         items, total = self.repository.get_read_page(**filters)
         return DocumentPublicPage(
             items=[self._to_public(item) for item in items],

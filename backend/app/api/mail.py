@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.client_scope import require_non_external
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.global_mail import GlobalMailDetail, GlobalMailPage, GlobalMailThread
@@ -24,6 +25,7 @@ from app.services.mail_reconciliation_service import (
     MailReconciliationService,
     MailReconciliationValidationError,
 )
+from app.services.client_scope_service import ClientScopeService
 
 
 router = APIRouter(prefix="/mail", tags=["Mail"])
@@ -45,12 +47,24 @@ def send_mail(request: MailSendRequest, actor: User = Depends(get_current_user),
 
 @router.post("/{source_id}/reply", response_model=MailSendResponse)
 def reply_mail(source_id: int, request: MailReplyRequest, actor: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MailSendResponse:
+    if ClientScopeService.is_external(actor):
+        try:
+            GlobalMailService(db).get_detail(source_id, viewer=actor)
+        except GlobalMailNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Mail not found") from error
     try: return MailSendService(db).reply(source_id, actor, request)
     except (MailSendConflictError, MailSendNotFoundError, MailSendValidationError) as exc: _send_error(exc)
 
 
 @router.post("/{source_id}/forward", response_model=MailSendResponse)
 def forward_mail(source_id: int, request: MailForwardRequest, actor: User = Depends(get_current_user), db: Session = Depends(get_db)) -> MailSendResponse:
+    if ClientScopeService.is_external(actor):
+        try:
+            source = GlobalMailService(db).get_detail(source_id, viewer=actor)
+        except GlobalMailNotFoundError as error:
+            raise HTTPException(status_code=404, detail="Mail not found") from error
+        if request.client_id is None:
+            request = request.model_copy(update={"client_id": source.client_id})
     try: return MailSendService(db).forward(source_id, actor, request)
     except (MailSendConflictError, MailSendNotFoundError, MailSendValidationError) as exc: _send_error(exc)
 
@@ -58,7 +72,7 @@ def forward_mail(source_id: int, request: MailForwardRequest, actor: User = Depe
 @router.post("/reconcile/dry-run", response_model=MailReconciliationDryRunResponse)
 def reconcile_mail_dry_run(
     request: MailReconciliationRequest,
-    actor: User = Depends(get_current_user),
+    actor: User = Depends(require_non_external),
     db: Session = Depends(get_db),
 ) -> MailReconciliationDryRunResponse:
     try:
@@ -77,7 +91,7 @@ def reconcile_mail_dry_run(
 @router.post("/reconcile/apply", response_model=MailReconciliationResponse)
 def reconcile_mail_apply(
     request: MailReconciliationApplyRequest,
-    actor: User = Depends(get_current_user),
+    actor: User = Depends(require_non_external),
     db: Session = Depends(get_db),
 ) -> MailReconciliationResponse:
     try:
@@ -108,7 +122,7 @@ def list_mail(
     thread_id: str | None = Query(default=None, min_length=1, max_length=1000),
     skip: int = Query(default=0, ge=0, le=100000),
     limit: int = Query(default=50, ge=1, le=200),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> GlobalMailPage:
     return GlobalMailService(db).get_page(
@@ -116,20 +130,20 @@ def list_mail(
         has_attachments=has_attachments, read_state=read_state,
         ignored=ignored,
         date_from=date_from, date_to=date_to, thread_id=thread_id,
-        skip=skip, limit=limit,
+        skip=skip, limit=limit, viewer=current_user,
     )
 
 
 @router.get("/threads/{thread_id}", response_model=GlobalMailThread)
 def get_mail_thread(
     thread_id: str,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> GlobalMailThread:
     if not thread_id.strip() or len(thread_id) > 1000:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
     try:
-        return GlobalMailService(db).get_thread(thread_id)
+        return GlobalMailService(db).get_thread(thread_id, viewer=current_user)
     except GlobalMailNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from exc
 
@@ -137,10 +151,10 @@ def get_mail_thread(
 @router.get("/{source_id}", response_model=GlobalMailDetail)
 def get_mail_detail(
     source_id: int,
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> GlobalMailDetail:
     try:
-        return GlobalMailService(db).get_detail(source_id)
+        return GlobalMailService(db).get_detail(source_id, viewer=current_user)
     except GlobalMailNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from exc

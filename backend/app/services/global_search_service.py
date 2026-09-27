@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 from typing import Iterable
 
-from sqlalchemy import Text, and_, cast, func, literal, or_
+from sqlalchemy import Text, and_, cast, func, literal, or_, true
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.candidate_source import CandidateSource
@@ -26,6 +26,8 @@ from app.services.client_workflow_status_projection_service import (
     ClientWorkflowStatusProjectionService,
 )
 from app.services.semantic_search_service import SemanticSearchService
+from app.models.user import User
+from app.services.client_scope_service import ClientScopeService
 
 
 SEARCH_TYPES = (
@@ -53,12 +55,20 @@ class GlobalSearchService:
         db: Session,
         *,
         semantic_service: SemanticSearchService | None = None,
+        viewer: User | None = None,
     ) -> None:
         self.db = db
         self.semantic_service = semantic_service or SemanticSearchService()
         self.email_projection = ClientEmailService(db)
         self.client_status_projection = ClientWorkflowStatusProjectionService(db)
         self.client_matching = ClientSearchMatchingService()
+        self.viewer = viewer
+        self.scope = ClientScopeService(db)
+
+    def _allowed(self, column):
+        if self.viewer is None or not self.scope.is_external(self.viewer):
+            return true()
+        return column.in_(self.scope.active_client_ids(self.viewer))
 
     @staticmethod
     def parse_types(value: str | None) -> tuple[str, ...]:
@@ -137,6 +147,7 @@ class GlobalSearchService:
             )
             .filter(
                 Client.deleted_at.is_(None),
+                self._allowed(Client.id),
                 self.client_matching.condition(q),
             )
             .order_by(Client.updated_at.desc(), Client.id.desc())
@@ -264,6 +275,7 @@ class GlobalSearchService:
             .filter(
                 Project.deleted_at.is_(None),
                 Client.deleted_at.is_(None),
+                self._allowed(Project.client_id),
                 or_(
                     Project.name.ilike(pattern),
                     Project.description.ilike(pattern),
@@ -330,6 +342,7 @@ class GlobalSearchService:
                 Inspection.deleted_at.is_(None),
                 or_(Inspection.project_id.is_(None), Project.deleted_at.is_(None)),
                 Client.deleted_at.is_(None),
+                self._allowed(Inspection.client_id),
                 or_(
                     Inspection.title.ilike(pattern),
                     Inspection.notes.ilike(pattern),
@@ -391,6 +404,7 @@ class GlobalSearchService:
             .filter(
                 Document.trashed_at.is_(None),
                 Document.purged_at.is_(None),
+                self._allowed(Document.client_id),
                 or_(
                     Document.filename.ilike(pattern),
                     Document.original_filename.ilike(pattern),
@@ -486,6 +500,7 @@ class GlobalSearchService:
                 ClientCandidate.deleted_at.is_(None),
                 Client.deleted_at.is_(None),
                 ClientCandidate.status.in_(LINKED_CANDIDATE_STATUSES),
+                self._allowed(Client.id),
                 searchable.op("@@")(text_query),
             )
             .order_by(CandidateSource.created_at.desc(), CandidateSource.id.desc())
@@ -553,6 +568,8 @@ class GlobalSearchService:
         return results
 
     def _candidates(self, q: ClientSearchQuery, limit: int) -> list[GlobalSearchResult]:
+        if self.viewer is not None and self.scope.is_external(self.viewer):
+            return []
         pattern = f"%{q.value}%"
         source_label = (
             self.db.query(
@@ -657,6 +674,7 @@ class GlobalSearchService:
                     Document.id.in_(document_ids),
                     Document.trashed_at.is_(None),
                     Document.purged_at.is_(None),
+                    self._allowed(Document.client_id),
                 )
                 .all()
             )

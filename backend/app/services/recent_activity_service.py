@@ -20,6 +20,7 @@ from app.models.user import User
 from app.models.user_lifecycle_event import UserLifecycleEvent
 from app.models.work_item import WorkItem
 from app.schemas.recent_activity import RecentActivityItem, RecentActivityPage
+from app.services.client_scope_service import ClientScopeService
 
 
 _WHITESPACE = re.compile(r"\s+")
@@ -76,6 +77,15 @@ class RecentActivityService:
             )
         )
         projected = [row for _, rows in sources for row in rows]
+
+        if ClientScopeService.is_external(viewer):
+            allowed = {
+                row[0]
+                for row in self.db.query(Client.id)
+                .filter(Client.id.in_(ClientScopeService(self.db).active_client_ids(viewer)))
+                .all()
+            }
+            projected = [row for row in projected if row.client_id in allowed]
 
         before_visibility = len(projected)
         projected = self._filter_absence_visibility(projected, viewer, is_admin)

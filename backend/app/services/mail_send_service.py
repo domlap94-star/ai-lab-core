@@ -19,6 +19,7 @@ from app.models.import_source import ImportSource
 from app.models.client_candidate import ClientCandidate
 from app.models.mail_send_operation import MailSendOperation
 from app.models.user import User
+from app.models.client_contact_point import ClientContactPoint
 from app.schemas.import_ingest import CandidateDataInput, CandidateSourceInput, ImportIngestRequest
 from app.schemas.mail_send import MailForwardRequest, MailReplyRequest, MailSendRequest, MailSendResponse
 from app.services.document_service import resolve_document_storage_path
@@ -28,6 +29,7 @@ from app.services.mail_provider_adapter import (
     MailProviderUnknownError,
     N8nMailProviderAdapter,
 )
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
 
 
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
@@ -72,7 +74,29 @@ class MailSendService:
         return self._execute("forward", actor, composed, source=source)
 
     def _execute(self, action: str, actor: User, request: MailSendRequest, *, source: CandidateSource | None = None) -> MailSendResponse:
-        documents, encoded = self._attachments(request.attachment_document_ids, request.client_id)
+        external = ClientScopeService.is_external(actor)
+        if external:
+            try:
+                client_id = ClientScopeService(self.db).require_client_access(actor, request.client_id)
+            except ClientScopeNotFound as error:
+                raise MailSendNotFoundError from error
+            allowed_recipients = {
+                value.casefold()
+                for (value,) in self.db.query(ClientContactPoint.normalized_value).filter(
+                    ClientContactPoint.client_id == client_id,
+                    ClientContactPoint.kind == "email",
+                    ClientContactPoint.deleted_at.is_(None),
+                ).all()
+            }
+            primary = self.db.query(Client.primary_email).filter(Client.id == client_id).scalar()
+            if primary:
+                allowed_recipients.add(primary.strip().casefold())
+            requested_recipients = {value.casefold() for value in request.to + request.cc + request.bcc}
+            if not requested_recipients or not requested_recipients.issubset(allowed_recipients):
+                raise MailSendValidationError("external_recipient_outside_client")
+        documents, encoded = self._attachments(
+            request.attachment_document_ids, request.client_id, exact_client=external
+        )
         digest = self._payload_hash(action, request, source.id if source else None)
         operation, replayed, claimed = self._claim(
             action=action, actor=actor, request=request, source=source,
@@ -183,7 +207,7 @@ class MailSendService:
         ))
         return result.source_id
 
-    def _attachments(self, ids: list[int], client_id: int | None):
+    def _attachments(self, ids: list[int], client_id: int | None, *, exact_client: bool = False):
         if not ids: return [], []
         docs = self.db.query(Document).filter(
             Document.id.in_(ids),
@@ -193,6 +217,7 @@ class MailSendService:
         if len(docs) != len(ids): raise MailSendValidationError("attachment_not_found")
         total = 0; encoded = []
         for document in docs:
+            if exact_client and document.client_id != client_id: raise MailSendValidationError("attachment_forbidden")
             if client_id and document.client_id not in (None, client_id): raise MailSendValidationError("attachment_forbidden")
             if not document.content_type.startswith(ALLOWED_MIME_PREFIXES): raise MailSendValidationError("attachment_mime_forbidden")
             path = resolve_document_storage_path(storage_path=document.storage_path or "", data_root=Path(settings.data_dir))

@@ -26,6 +26,7 @@ import '../../features/trash/presentation/admin_trash_page.dart';
 import '../../features/backup/presentation/admin_backup_restore_page.dart';
 import '../../features/knowledge_base/presentation/admin_knowledge_base_page.dart';
 import '../widgets/app_shell.dart';
+import '../../features/shared_clients/presentation/shared_clients_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/dashboard',
@@ -35,6 +36,11 @@ final GoRouter appRouter = GoRouter(
         return AppShell(currentLocation: state.uri.toString(), child: child);
       },
       routes: <RouteBase>[
+        GoRoute(
+          path: '/shared-clients',
+          builder: (BuildContext context, GoRouterState state) =>
+              const SharedClientsPage(),
+        ),
         GoRoute(
           path: '/dashboard',
           builder: (BuildContext context, GoRouterState state) {

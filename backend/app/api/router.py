@@ -13,6 +13,7 @@ from app.api.client_candidates.router import (
     router as client_candidates_router,
 )
 from app.api.clients.router import router as clients_router
+from app.api.client_access import router as client_access_router
 from app.api.documents.router import router as documents_router
 from app.api.imports.router import router as imports_router
 from app.api.inspections.router import router as inspections_router
@@ -41,6 +42,7 @@ api_router.include_router(admin_knowledge_base_router)
 api_router.include_router(admin_system_status_router)
 api_router.include_router(users_router)
 api_router.include_router(clients_router)
+api_router.include_router(client_access_router)
 api_router.include_router(client_candidates_router)
 api_router.include_router(imports_router)
 api_router.include_router(documents_router)

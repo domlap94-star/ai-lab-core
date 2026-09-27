@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Respon
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.client_scope import guard_path_resource, require_non_external, scope_not_found
 from app.database.session import get_db
 from app.models.user import User
 from app.models.work_item_note import WorkItemNote
@@ -18,8 +19,9 @@ from app.services.work_item_service import (
     WorkItemService,
 )
 from app.services.document_service import DocumentService, DocumentStorageError, DocumentTooLargeError, EmptyDocumentError
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
 
-router = APIRouter(prefix="/work-items", tags=["Work Items"])
+router = APIRouter(prefix="/work-items", tags=["Work Items"], dependencies=[Depends(guard_path_resource)])
 
 
 def _http(error: Exception) -> HTTPException:
@@ -29,18 +31,21 @@ def _http(error: Exception) -> HTTPException:
 
 
 @router.get("", response_model=WorkItemPage)
-def list_items(item_type: WorkItemType | None = None, item_status: WorkItemStatus | None = Query(None, alias="status"), priority: WorkItemPriority | None = None, assignee_user_id: int | None = None, client_id: int | None = None, date_from: datetime | None = None, date_to: datetime | None = None, search: str | None = Query(None, max_length=255), archived: bool = False, skip: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return WorkItemService(db).list(item_type=item_type, status=item_status, priority=priority, assignee_user_id=assignee_user_id, client_id=client_id, date_from=date_from, date_to=date_to, search=search, archived=archived, skip=skip, limit=limit)
+def list_items(item_type: WorkItemType | None = None, item_status: WorkItemStatus | None = Query(None, alias="status"), priority: WorkItemPriority | None = None, assignee_user_id: int | None = None, client_id: int | None = None, date_from: datetime | None = None, date_to: datetime | None = None, search: str | None = Query(None, max_length=255), archived: bool = False, skip: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return WorkItemService(db).list(item_type=item_type, status=item_status, priority=priority, assignee_user_id=assignee_user_id, client_id=client_id, date_from=date_from, date_to=date_to, search=search, archived=archived, skip=skip, limit=limit, viewer=current_user)
 
 
 @router.get("/assignees", response_model=list[AssigneeRead])
-def assignees(search: str | None = Query(None, max_length=100), limit: int = Query(50, ge=1, le=100), _: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def assignees(search: str | None = Query(None, max_length=100), limit: int = Query(50, ge=1, le=100), _: User = Depends(require_non_external), db: Session = Depends(get_db)):
     return WorkItemService(db).active_assignees(search, limit)
 
 
 @router.post("", response_model=WorkItemRead, status_code=201)
 def create_item(data: WorkItemCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try: return WorkItemService(db).create(data, user)
+    try:
+        ClientScopeService(db).require_client_access(user, data.client_id)
+        return WorkItemService(db).create(data, user)
+    except ClientScopeNotFound as error: raise scope_not_found() from error
     except WorkItemReferenceError as error: raise _http(error) from error
 
 
@@ -52,7 +57,11 @@ def get_item(item_id: int, include_archived: bool = False, _: User = Depends(get
 
 @router.patch("/{item_id}", response_model=WorkItemRead)
 def update_item(item_id: int, data: WorkItemUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try: return WorkItemService(db).update(item_id, data, user)
+    try:
+        if "client_id" in data.model_fields_set:
+            ClientScopeService(db).require_client_access(user, data.client_id)
+        return WorkItemService(db).update(item_id, data, user)
+    except ClientScopeNotFound as error: raise scope_not_found() from error
     except (WorkItemNotFoundError, WorkItemConflictError, WorkItemReferenceError) as error: raise _http(error) from error
 
 

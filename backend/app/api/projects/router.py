@@ -4,14 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.client_scope import guard_path_resource, scope_not_found
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectPage, ProjectRead, ProjectStatus, ProjectUpdate
 from app.schemas.timeline import TimelineEventType, TimelinePage
 from app.services.project_service import ProjectClientNotFoundError, ProjectLinkedWorkItemError, ProjectNotFoundError, ProjectService
 from app.services.timeline_service import TimelineService
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
 
-router = APIRouter(prefix="/projects", tags=["Projects"])
+router = APIRouter(prefix="/projects", tags=["Projects"], dependencies=[Depends(guard_path_resource)])
 
 
 def _error(error: Exception) -> HTTPException:
@@ -23,14 +25,14 @@ def _error(error: Exception) -> HTTPException:
 
 
 @router.get("", response_model=ProjectPage)
-def list_projects(search: str | None = Query(default=None), client_id: int | None = Query(default=None), project_status: ProjectStatus | None = Query(default=None, alias="status"), skip: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=200), _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectPage:
-    return ProjectService(db).get_page(search=search, client_id=client_id, status=project_status, skip=skip, limit=limit)
+def list_projects(search: str | None = Query(default=None), client_id: int | None = Query(default=None), project_status: ProjectStatus | None = Query(default=None, alias="status"), skip: int = Query(default=0, ge=0), limit: int = Query(default=50, ge=1, le=200), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectPage:
+    return ProjectService(db).get_page(search=search, client_id=client_id, status=project_status, skip=skip, limit=limit, viewer=current_user)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
-def get_project(project_id: int, _: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectRead:
+def get_project(project_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectRead:
     try:
-        return ProjectService(db).get(project_id)
+        return ProjectService(db).get(project_id, viewer=current_user)
     except ProjectNotFoundError as error:
         raise _error(error) from error
 
@@ -62,7 +64,10 @@ def get_project_timeline(
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 def create_project(data: ProjectCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectRead:
     try:
+        ClientScopeService(db).require_client_access(current_user, data.client_id)
         return ProjectService(db).create(data, current_user)
+    except ClientScopeNotFound as error:
+        raise scope_not_found() from error
     except ProjectClientNotFoundError as error:
         raise _error(error) from error
 
@@ -70,7 +75,11 @@ def create_project(data: ProjectCreate, current_user: User = Depends(get_current
 @router.patch("/{project_id}", response_model=ProjectRead)
 def update_project(project_id: int, data: ProjectUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectRead:
     try:
+        if "client_id" in data.model_fields_set:
+            ClientScopeService(db).require_client_access(current_user, data.client_id)
         return ProjectService(db).update(project_id, data, current_user)
+    except ClientScopeNotFound as error:
+        raise scope_not_found() from error
     except (ProjectNotFoundError, ProjectClientNotFoundError, ProjectLinkedWorkItemError) as error:
         raise _error(error) from error
 

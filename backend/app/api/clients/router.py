@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
 from app.api.admin_users import require_admin
+from app.api.client_scope import guard_path_resource, require_non_external
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.trash import TrashEntryRead
@@ -89,6 +90,7 @@ router = APIRouter(
     tags=["Clients"],
     dependencies=[
         Depends(get_current_user),
+        Depends(guard_path_resource),
     ],
 )
 
@@ -112,7 +114,7 @@ def get_industries(
 def create_client(
     data: ClientCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_non_external),
 ) -> ClientRead:
     service = ClientService(db)
 
@@ -136,6 +138,7 @@ def create_client(
 def get_client_workflow_statuses(
     client_ids: list[int] = Query(default=[], max_length=100),
     db: Session = Depends(get_db),
+    _: User = Depends(require_non_external),
 ) -> list[ClientWorkflowStatusRead]:
     return ClientBulkService(db).workflow_statuses(client_ids)
 
@@ -144,7 +147,7 @@ def get_client_workflow_statuses(
 def set_client_workflow_status(
     data: ClientWorkflowBatchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_non_external),
 ) -> ClientBatchResponse:
     return ClientBulkService(db).set_workflow_status(
         data, actor_user_id=current_user.id
@@ -214,6 +217,7 @@ def get_clients_page(
         le=100,
     ),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> ClientPage:
     service = ClientService(db)
 
@@ -225,6 +229,7 @@ def get_clients_page(
         sort_order=sort_order,
         skip=skip,
         limit=limit,
+        viewer=current_user,
     )
 
 
@@ -247,6 +252,7 @@ def get_clients(
         le=500,
     ),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> list[ClientRead]:
     service = ClientService(db)
 
@@ -254,6 +260,7 @@ def get_clients(
         search=search,
         skip=skip,
         limit=limit,
+        viewer=current_user,
     ).items
 
 

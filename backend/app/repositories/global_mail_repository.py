@@ -83,9 +83,17 @@ LEFT JOIN clients c ON c.id=cc.matched_client_id AND c.deleted_at IS NULL
         thread_id: str | None,
         skip: int,
         limit: int,
+        external_user_id: int | None = None,
     ) -> tuple[list[Any], bool]:
         conditions = ["cs.source_type='gmail_message'", "cs.deleted_at IS NULL"]
         params: dict[str, Any] = {"skip": skip, "fetch": limit + 1}
+        if external_user_id is not None:
+            conditions.extend([
+                "cc.matched_client_id IS NOT NULL",
+                "cc.status IN ('accepted','merged','duplicate')",
+                "EXISTS (SELECT 1 FROM client_access_grants cag WHERE cag.client_id=cc.matched_client_id AND cag.external_user_id=:external_user_id AND cag.revoked_at IS NULL)",
+            ])
+            params["external_user_id"] = external_user_id
         if search:
             conditions.append(
                 f"({SEARCH_DOCUMENT_SQL}) @@ plainto_tsquery('simple', :search)"
@@ -148,18 +156,29 @@ LEFT JOIN clients c ON c.id=cc.matched_client_id AND c.deleted_at IS NULL
         rows = list(self.db.execute(text(sql), params).mappings())
         return rows[:limit], len(rows) > limit
 
-    def get_one(self, source_id: int) -> Any | None:
-        sql = self._select_sql() + " WHERE cs.id=:source_id AND cs.source_type='gmail_message' AND cs.deleted_at IS NULL"
-        return self.db.execute(text(sql), {"source_id": source_id}).mappings().one_or_none()
+    def get_one(self, source_id: int, external_user_id: int | None = None) -> Any | None:
+        condition = ""
+        params: dict[str, Any] = {"source_id": source_id}
+        if external_user_id is not None:
+            condition = " AND cc.matched_client_id IS NOT NULL AND cc.status IN ('accepted','merged','duplicate') AND EXISTS (SELECT 1 FROM client_access_grants cag WHERE cag.client_id=cc.matched_client_id AND cag.external_user_id=:external_user_id AND cag.revoked_at IS NULL)"
+            params["external_user_id"] = external_user_id
+        sql = self._select_sql() + " WHERE cs.id=:source_id AND cs.source_type='gmail_message' AND cs.deleted_at IS NULL" + condition
+        return self.db.execute(text(sql), params).mappings().one_or_none()
 
-    def get_thread(self, thread_id: str, limit: int) -> list[Any]:
+    def get_thread(self, thread_id: str, limit: int, external_user_id: int | None = None) -> list[Any]:
+        condition = ""
+        params: dict[str, Any] = {"thread_id": thread_id, "limit": limit}
+        if external_user_id is not None:
+            condition = "AND cc.matched_client_id IS NOT NULL AND cc.status IN ('accepted','merged','duplicate') AND EXISTS (SELECT 1 FROM client_access_grants cag WHERE cag.client_id=cc.matched_client_id AND cag.external_user_id=:external_user_id AND cag.revoked_at IS NULL) "
+            params["external_user_id"] = external_user_id
         sql = (
             self._select_sql()
             + " WHERE cs.source_type='gmail_message' AND cs.deleted_at IS NULL "
             + "AND cs.external_parent_id=:thread_id "
+            + condition
             + f"ORDER BY ({MESSAGE_TIME_SQL}) ASC, cs.id ASC LIMIT :limit"
         )
-        return list(self.db.execute(text(sql), {"thread_id": thread_id, "limit": limit}).mappings())
+        return list(self.db.execute(text(sql), params).mappings())
 
     def get_attachments(self, message_ids: list[str]) -> list[Document]:
         if not message_ids:

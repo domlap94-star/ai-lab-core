@@ -12,6 +12,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.client_scope import require_non_external
 from app.database.session import get_db
 from app.schemas.client_candidate_review import (
     CandidateAcceptResponse,
@@ -50,7 +51,7 @@ router = APIRouter(
     prefix="/client-candidates",
     tags=["Client Candidates"],
     dependencies=[
-        Depends(get_current_user),
+        Depends(require_non_external),
     ],
 )
 

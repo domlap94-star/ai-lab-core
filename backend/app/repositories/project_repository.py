@@ -6,17 +6,24 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.client import Client
 from app.models.project import Project
 from app.repositories.base_repository import BaseRepository
+from app.models.user import User
+from app.services.client_scope_service import ClientScopeService
 
 
 class ProjectRepository(BaseRepository[Project]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, Project)
 
-    def get(self, object_id: int) -> Project | None:
-        return self.db.query(Project).options(joinedload(Project.client), joinedload(Project.work_item)).filter(Project.id == object_id, Project.deleted_at.is_(None)).first()
+    def get(self, object_id: int, viewer: User | None = None) -> Project | None:
+        query = self.db.query(Project)
+        if viewer is not None:
+            query = ClientScopeService(self.db).scope_client_query(viewer, query, Project.client_id)
+        return query.options(joinedload(Project.client), joinedload(Project.work_item)).filter(Project.id == object_id, Project.deleted_at.is_(None)).first()
 
-    def get_page(self, *, search: str | None, client_id: int | None, status: str | None, skip: int, limit: int) -> tuple[list[Project], int]:
+    def get_page(self, *, search: str | None, client_id: int | None, status: str | None, skip: int, limit: int, viewer: User | None = None) -> tuple[list[Project], int]:
         query = self.db.query(Project).join(Client).options(joinedload(Project.client), joinedload(Project.work_item)).filter(Project.deleted_at.is_(None), Client.deleted_at.is_(None))
+        if viewer is not None:
+            query = ClientScopeService(self.db).scope_client_query(viewer, query, Project.client_id)
         if search and search.strip():
             pattern = f"%{search.strip()}%"
             query = query.filter(or_(Project.name.ilike(pattern), Project.description.ilike(pattern), Project.city.ilike(pattern), Client.name.ilike(pattern)))

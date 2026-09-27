@@ -81,6 +81,58 @@ class AppShell extends ConsumerStatefulWidget {
     ),
   ];
 
+  static const List<NavigationItem> externalNavigationItems = <NavigationItem>[
+    NavigationItem(
+      label: 'Udostępnieni klienci',
+      path: '/shared-clients',
+      icon: Icons.group_outlined,
+      selectedIcon: Icons.group,
+    ),
+    NavigationItem(
+      label: 'Zadania',
+      path: '/tasks',
+      icon: Icons.task_alt_outlined,
+      selectedIcon: Icons.task_alt,
+    ),
+    NavigationItem(
+      label: 'Realizacje',
+      path: '/projects',
+      icon: Icons.construction_outlined,
+      selectedIcon: Icons.construction,
+    ),
+    NavigationItem(
+      label: 'Wizje lokalne',
+      path: '/inspections',
+      icon: Icons.location_searching_outlined,
+      selectedIcon: Icons.location_searching,
+    ),
+    NavigationItem(
+      label: 'Dokumenty',
+      path: '/documents',
+      icon: Icons.description_outlined,
+      selectedIcon: Icons.description,
+    ),
+    NavigationItem(
+      label: 'Maile',
+      path: '/mail',
+      icon: Icons.mail_outline,
+      selectedIcon: Icons.mail,
+    ),
+  ];
+
+  static List<NavigationItem> itemsForRole(String role) =>
+      role.trim().toLowerCase() == 'external'
+      ? externalNavigationItems
+      : <NavigationItem>[
+          ...navigationItems,
+          const NavigationItem(
+            label: 'Udostępnieni klienci',
+            path: '/shared-clients',
+            icon: Icons.group_outlined,
+            selectedIcon: Icons.group,
+          ),
+        ];
+
   @override
   ConsumerState<AppShell> createState() => _AppShellState();
 
@@ -142,7 +194,9 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   int get _selectedIndex {
-    final int index = AppShell.navigationItems.indexWhere(
+    final String role =
+        ref.read(authControllerProvider).value?.user?.role ?? '';
+    final int index = AppShell.itemsForRole(role).indexWhere(
       (NavigationItem item) => widget.currentLocation.startsWith(item.path),
     );
 
@@ -150,7 +204,9 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   void _navigate(BuildContext context, int index) {
-    final String destination = AppShell.navigationItems[index].path;
+    final String role =
+        ref.read(authControllerProvider).value?.user?.role ?? '';
+    final String destination = AppShell.itemsForRole(role)[index].path;
 
     if (widget.currentLocation != destination) {
       context.go(destination);
@@ -279,6 +335,20 @@ class _AppShellState extends ConsumerState<AppShell>
         : 'U\u017cytkownik';
 
     final String role = authState?.user?.role ?? '';
+    final List<NavigationItem> navigationItems = AppShell.itemsForRole(role);
+    final bool external = role.trim().toLowerCase() == 'external';
+    final String path =
+        Uri.tryParse(widget.currentLocation)?.path ?? widget.currentLocation;
+    final bool allowedExternalPath =
+        navigationItems.any(
+          (item) => path == item.path || path.startsWith('${item.path}/'),
+        ) ||
+        path.startsWith('/clients/');
+    if (external && !allowedExternalPath) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/shared-clients');
+      });
+    }
 
     return _CentralBackNavigationScope(
       child: PopScope<Object?>(
@@ -293,6 +363,7 @@ class _AppShellState extends ConsumerState<AppShell>
 
             if (useDesktopLayout) {
               return _DesktopShell(
+                navigationItems: navigationItems,
                 selectedIndex: _selectedIndex,
                 username: username,
                 role: role,
@@ -308,6 +379,7 @@ class _AppShellState extends ConsumerState<AppShell>
             }
 
             return _MobileShell(
+              navigationItems: navigationItems,
               selectedIndex: _selectedIndex,
               username: username,
               onDrawerChanged: (bool isOpen) {
@@ -337,6 +409,7 @@ class AppNavigationPolicy {
   static const String dashboardPath = '/dashboard';
 
   static const Map<String, String> _fallbacks = <String, String>{
+    '/shared-clients': dashboardPath,
     '/cases': dashboardPath,
     '/clients': dashboardPath,
     '/tasks': dashboardPath,
@@ -437,6 +510,7 @@ class _CentralBackNavigationScope extends InheritedWidget {
 class _DesktopShell extends StatelessWidget {
   const _DesktopShell({
     required this.selectedIndex,
+    required this.navigationItems,
     required this.username,
     required this.role,
     required this.onDestinationSelected,
@@ -446,6 +520,7 @@ class _DesktopShell extends StatelessWidget {
   });
 
   final int selectedIndex;
+  final List<NavigationItem> navigationItems;
   final String username;
   final String role;
   final ValueChanged<int> onDestinationSelected;
@@ -475,10 +550,9 @@ class _DesktopShell extends StatelessWidget {
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
-                        itemCount: AppShell.navigationItems.length,
+                        itemCount: navigationItems.length,
                         itemBuilder: (BuildContext context, int index) {
-                          final NavigationItem item =
-                              AppShell.navigationItems[index];
+                          final NavigationItem item = navigationItems[index];
 
                           return _DesktopNavigationTile(
                             item: item,
@@ -649,6 +723,7 @@ class _UserPanel extends StatelessWidget {
 class _MobileShell extends StatefulWidget {
   const _MobileShell({
     required this.selectedIndex,
+    required this.navigationItems,
     required this.username,
     required this.onDrawerChanged,
     required this.onDestinationSelected,
@@ -657,6 +732,7 @@ class _MobileShell extends StatefulWidget {
   });
 
   final int selectedIndex;
+  final List<NavigationItem> navigationItems;
   final String username;
   final ValueChanged<bool> onDrawerChanged;
   final ValueChanged<int> onDestinationSelected;
@@ -695,13 +771,12 @@ class _MobileShellState extends State<_MobileShell> {
                 const _MobileDrawerHeader(),
                 for (
                   int index = 0;
-                  index < AppShell.navigationItems.length;
+                  index < widget.navigationItems.length;
                   index++
                 )
                   Builder(
                     builder: (BuildContext drawerContext) {
-                      final NavigationItem item =
-                          AppShell.navigationItems[index];
+                      final NavigationItem item = widget.navigationItems[index];
                       final bool selected = widget.selectedIndex == index;
 
                       return ListTile(

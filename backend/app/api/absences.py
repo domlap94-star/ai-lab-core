@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.client_scope import require_non_external
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.work_item import AbsenceCreate, AbsencePage, AbsenceRead, AbsenceReview, AbsenceStatus, AbsenceUpdate, VersionRequest
 from app.services.work_item_service import AbsenceAuthorizationError, AbsenceOverlapError, AbsenceService, WorkItemConflictError, WorkItemNotFoundError
 
-router = APIRouter(prefix="/absence-requests", tags=["Absence Requests"])
+router = APIRouter(prefix="/absence-requests", tags=["Absence Requests"], dependencies=[Depends(require_non_external)])
 
 def _http(error):
     if isinstance(error, WorkItemNotFoundError): return HTTPException(404, "absence_not_found")

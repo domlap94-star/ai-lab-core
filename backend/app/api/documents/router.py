@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.api.imports.dependencies import require_import_api_key
 from app.api.auth import get_current_user
 from app.api.admin_users import require_admin
+from app.api.client_scope import guard_path_resource, require_non_external, scope_not_found
 from app.database.session import get_db
 from app.schemas.document import (
     DocumentClientLinkRequest,
@@ -78,10 +79,12 @@ from app.services.trash_lifecycle_service import (
     TrashLifecycleService,
     TrashNotFoundError,
 )
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
 
 router = APIRouter(
     prefix="/documents",
     tags=["Documents"],
+    dependencies=[Depends(guard_path_resource)],
 )
 
 
@@ -110,7 +113,7 @@ MAX_USER_UPLOAD_BYTES = 250 * 1024 * 1024
 
 @router.get("/vision/health")
 def get_vision_health(
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_non_external),
 ) -> dict:
     try:
         return VisionSupervisorClient().health()
@@ -434,6 +437,10 @@ async def upload_user_document(
             ClientService(db).get_client(client_id)
         except ClientNotFoundError as error:
             raise HTTPException(status_code=404, detail="Client not found") from error
+    try:
+        ClientScopeService(db).require_client_access(current_user, client_id)
+    except ClientScopeNotFound as error:
+        raise scope_not_found() from error
     metadata = _parse_intake_metadata(intake_metadata)
     metadata.update({
         "actor_user_id": current_user.id,
@@ -502,11 +509,15 @@ def link_document_client(
     db: Session = Depends(get_db),
 ) -> DocumentClientLinkResult:
     try:
+        ClientScopeService(db).require_client_access(current_user, request.client_id)
         _, event = DocumentClientMatchingService(db).link(document_id, current_user, request)
         document = DocumentReadService(db).get_document(document_id)
         result = DocumentClientLinkResult(document=document, event=event)
         db.commit()
         return result
+    except ClientScopeNotFound as error:
+        db.rollback()
+        raise scope_not_found() from error
     except (DocumentMatchNotFoundError, DocumentMatchConflictError, DocumentMatchInvalidOperationError) as error:
         db.rollback()
         raise _matching_error(error) from error
@@ -532,6 +543,8 @@ def unlink_document_client(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentClientLinkResult:
+    if ClientScopeService.is_external(current_user):
+        raise HTTPException(status_code=403, detail="External cannot create an unassigned document")
     try:
         _, event = DocumentClientMatchingService(db).unlink(
             document_id, current_user, request.reason, confirm=request.confirm
@@ -554,6 +567,8 @@ def undo_document_client_link(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentClientLinkResult:
+    if ClientScopeService.is_external(current_user):
+        raise HTTPException(status_code=403, detail="External cannot restore an unassigned document")
     try:
         _, event = DocumentClientMatchingService(db).undo(document_id, current_user)
         document = DocumentReadService(db).get_document(document_id)
@@ -585,7 +600,7 @@ def list_documents(
     content_type: str | None = Query(default=None, max_length=255),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100),
-    _: object = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> DocumentPublicPage:
     return DocumentReadService(db).get_page(
@@ -601,6 +616,7 @@ def list_documents(
         content_type=content_type,
         skip=skip,
         limit=limit,
+        viewer=current_user,
     )
 
 

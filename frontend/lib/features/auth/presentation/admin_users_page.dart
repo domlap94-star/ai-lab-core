@@ -455,6 +455,10 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
                           value: 'Administrator',
                           child: Text('Administrator'),
                         ),
+                        DropdownMenuItem<String>(
+                          value: 'External',
+                          child: Text('Zewnętrzny'),
+                        ),
                       ],
                       onChanged: _isSubmitting
                           ? null
@@ -761,6 +765,10 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                     DropdownMenuItem(
                       value: 'Administrator',
                       child: Text('Administrator'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'External',
+                      child: Text('Zewnętrzny'),
                     ),
                   ],
                   onChanged: (value) => setState(() => _role = value ?? _role),

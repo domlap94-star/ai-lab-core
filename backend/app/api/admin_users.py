@@ -78,6 +78,7 @@ class AdminCreateUserRequest(BaseModel):
         if normalized not in {
             "Administrator",
             "User",
+            "External",
         }:
             raise ValueError("Unknown role")
 
@@ -119,7 +120,7 @@ class AdminUpdateUserRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, value: str | None) -> str | None:
-        if value is not None and value not in {"Administrator", "User"}:
+        if value is not None and value not in {"Administrator", "User", "External"}:
             raise ValueError("Unknown role")
         return value
 
@@ -200,6 +201,7 @@ def update_user(
                     active_administrator_ids=active_admin_ids,
                 )
             target.role = role
+            target.auth_version += 1
         for field in ("username", "email"):
             if field not in payload:
                 continue

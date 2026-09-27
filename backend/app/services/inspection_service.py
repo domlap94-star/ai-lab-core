@@ -35,13 +35,14 @@ class InspectionService:
         inspection.client_name = inspection.client.name
         return inspection
 
-    def get(self, inspection_id: int) -> Inspection:
-        inspection = self.repository.get(inspection_id)
+    def get(self, inspection_id: int, viewer: User | None = None) -> Inspection:
+        inspection = self.repository.get(inspection_id, viewer=viewer)
         if inspection is None:
             raise InspectionNotFoundError
         return self._read(inspection)
 
-    def get_page(self, **filters) -> InspectionPage:
+    def get_page(self, *, viewer: User | None = None, **filters) -> InspectionPage:
+        filters["viewer"] = viewer
         items, total = self.repository.get_page(**filters)
         return InspectionPage(
             items=[self._read(item) for item in items],

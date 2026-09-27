@@ -11,15 +11,20 @@ from app.repositories.base_repository import BaseRepository
 from app.services.client_search_matching_service import (
     ClientSearchMatchingService,
 )
+from app.models.user import User
+from app.services.client_scope_service import ClientScopeService
 
 
 class ClientRepository(BaseRepository[Client]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, Client)
 
-    def get(self, object_id: int) -> Client | None:
+    def get(self, object_id: int, viewer: User | None = None) -> Client | None:
+        query = self.db.query(Client)
+        if viewer is not None:
+            query = ClientScopeService(self.db).scope_client_query(viewer, query, Client.id)
         return (
-            self.db.query(Client)
+            query
             .options(
                 joinedload(Client.industry),
                 selectinload(Client.contact_points),
@@ -42,6 +47,7 @@ class ClientRepository(BaseRepository[Client]):
         exclude_statuses: list[str] | None = None,
         skip: int = 0,
         limit: int = 50,
+        viewer: User | None = None,
     ) -> tuple[list[Client], int]:
         filtered_query = self._filtered_query(
             search=search,
@@ -49,6 +55,8 @@ class ClientRepository(BaseRepository[Client]):
             industry_id=industry_id,
             exclude_statuses=exclude_statuses,
         )
+        if viewer is not None:
+            filtered_query = ClientScopeService(self.db).scope_client_query(viewer, filtered_query, Client.id)
 
         total = filtered_query.count()
 
@@ -78,14 +86,18 @@ class ClientRepository(BaseRepository[Client]):
         client_type: str | None = None,
         industry_id: int | None = None,
         exclude_statuses: list[str] | None = None,
+        viewer: User | None = None,
     ) -> list[tuple[int, datetime, date | None]]:
-        return (
-            self._filtered_query(
+        query = self._filtered_query(
                 search=search,
                 client_type=client_type,
                 industry_id=industry_id,
                 exclude_statuses=exclude_statuses,
             )
+        if viewer is not None:
+            query = ClientScopeService(self.db).scope_client_query(viewer, query, Client.id)
+        return (
+            query
             .with_entities(Client.id, Client.created_at, Client.client_added_at)
             .all()
         )

@@ -14,6 +14,8 @@ from app.schemas.global_mail import (
     GlobalMailThread,
 )
 from app.services.client_email_service import ClientEmailService
+from app.models.user import User
+from app.services.client_scope_service import ClientScopeService
 
 
 class GlobalMailNotFoundError(Exception):
@@ -25,7 +27,9 @@ class GlobalMailService:
         self.repository = GlobalMailRepository(db)
         self.client_email = ClientEmailService(db)
 
-    def get_page(self, **filters: Any) -> GlobalMailPage:
+    def get_page(self, *, viewer: User | None = None, **filters: Any) -> GlobalMailPage:
+        if viewer is not None and ClientScopeService.is_external(viewer):
+            filters["external_user_id"] = viewer.id
         limit = int(filters["limit"])
         rows, has_more = self.repository.get_page(**filters)
         return GlobalMailPage(
@@ -35,8 +39,9 @@ class GlobalMailService:
             has_more=has_more,
         )
 
-    def get_detail(self, source_id: int) -> GlobalMailDetail:
-        row = self.repository.get_one(source_id)
+    def get_detail(self, source_id: int, viewer: User | None = None) -> GlobalMailDetail:
+        external_user_id = viewer.id if viewer is not None and ClientScopeService.is_external(viewer) else None
+        row = self.repository.get_one(source_id, external_user_id=external_user_id)
         if row is None:
             raise GlobalMailNotFoundError
         documents = self.repository.get_attachments([row["message_id"]])
@@ -44,10 +49,13 @@ class GlobalMailService:
         selected = payload.get("attachment_document_ids")
         if isinstance(selected, list):
             documents = self._unique_documents(documents + self.repository.get_documents_by_ids([value for value in selected if isinstance(value, int)]))
+        if viewer is not None and ClientScopeService.is_external(viewer):
+            documents = [document for document in documents if document.client_id == row["client_id"]]
         return self._detail(row, documents)
 
-    def get_thread(self, thread_id: str, limit: int = 200) -> GlobalMailThread:
-        rows = self.repository.get_thread(thread_id, limit)
+    def get_thread(self, thread_id: str, limit: int = 200, viewer: User | None = None) -> GlobalMailThread:
+        external_user_id = viewer.id if viewer is not None and ClientScopeService.is_external(viewer) else None
+        rows = self.repository.get_thread(thread_id, limit, external_user_id=external_user_id)
         if not rows:
             raise GlobalMailNotFoundError
         documents = self.repository.get_attachments(
@@ -56,6 +64,12 @@ class GlobalMailService:
         grouped: dict[str, list[Any]] = defaultdict(list)
         for document in documents:
             grouped[document.gmail_message_id].append(document)
+        if viewer is not None and ClientScopeService.is_external(viewer):
+            allowed_by_message = {row["message_id"]: row["client_id"] for row in rows}
+            grouped = defaultdict(list, {
+                message_id: [document for document in items if document.client_id == allowed_by_message.get(message_id)]
+                for message_id, items in grouped.items()
+            })
         return GlobalMailThread(
             thread_id=thread_id,
             items=[self._detail(row, grouped[row["message_id"]]) for row in rows],
