@@ -5,11 +5,15 @@ from app.api.auth import get_current_user
 from app.database.session import get_db
 from app.models.client import Client
 from app.models.client_access_grant import ClientAccessGrant
+from app.models.role import Role
 from app.models.user import User
 from app.schemas.client_access_grant import (
     ClientAccessGrantCreate,
     ClientAccessGrantPage,
     ClientAccessGrantRead,
+    ClientAccessManagerOptions,
+    ClientAccessOption,
+    ExternalUserOption,
     SharedClientRead,
 )
 from app.services.client_access_grant_service import ClientAccessGrantService, GrantValidationError
@@ -57,6 +61,30 @@ def list_grants(
         client_id=client_id, external_user_id=external_user_id, active=active, skip=skip, limit=limit
     )
     return ClientAccessGrantPage(items=items, total=total, skip=skip, limit=limit)
+
+
+@router.get("/manager-options", response_model=ClientAccessManagerOptions)
+def manager_options(
+    _: User = Depends(_manager), db: Session = Depends(get_db)
+) -> ClientAccessManagerOptions:
+    clients = db.query(Client.id, Client.name).filter(
+        Client.deleted_at.is_(None)
+    ).order_by(Client.name, Client.id).all()
+    external_users = db.query(User.id, User.username).join(
+        Role, Role.id == User.role_id
+    ).filter(
+        Role.name == "External",
+        User.is_active.is_(True),
+        User.trashed_at.is_(None),
+        User.purged_at.is_(None),
+    ).order_by(User.username, User.id).all()
+    return ClientAccessManagerOptions(
+        clients=[ClientAccessOption(id=row.id, name=row.name) for row in clients],
+        external_users=[
+            ExternalUserOption(id=row.id, username=row.username)
+            for row in external_users
+        ],
+    )
 
 
 @router.post("/grants", response_model=ClientAccessGrantRead, status_code=201)

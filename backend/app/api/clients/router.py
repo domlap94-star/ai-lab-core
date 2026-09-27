@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
 from app.api.admin_users import require_admin
-from app.api.client_scope import guard_path_resource, require_non_external
+from app.api.client_scope import guard_path_resource, require_non_external, scope_not_found
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.trash import TrashEntryRead
@@ -84,6 +84,7 @@ from app.services.document_service import (
 )
 from app.services.project_service import ProjectNotFoundError
 from app.services.timeline_service import TimelineService
+from app.services.client_scope_service import ClientScopeNotFound, ClientScopeService
 
 router = APIRouter(
     prefix="/clients",
@@ -138,8 +139,16 @@ def create_client(
 def get_client_workflow_statuses(
     client_ids: list[int] = Query(default=[], max_length=100),
     db: Session = Depends(get_db),
-    _: User = Depends(require_non_external),
+    current_user: User = Depends(get_current_user),
 ) -> list[ClientWorkflowStatusRead]:
+    if ClientScopeService.is_external(current_user):
+        if not client_ids:
+            return []
+        try:
+            for client_id in client_ids:
+                ClientScopeService(db).require_client_access(current_user, client_id)
+        except ClientScopeNotFound as error:
+            raise scope_not_found() from error
     return ClientBulkService(db).workflow_statuses(client_ids)
 
 
@@ -147,8 +156,13 @@ def get_client_workflow_statuses(
 def set_client_workflow_status(
     data: ClientWorkflowBatchRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_non_external),
+    current_user: User = Depends(get_current_user),
 ) -> ClientBatchResponse:
+    try:
+        for client_id in data.client_ids:
+            ClientScopeService(db).require_client_access(current_user, client_id)
+    except ClientScopeNotFound as error:
+        raise scope_not_found() from error
     return ClientBulkService(db).set_workflow_status(
         data, actor_user_id=current_user.id
     )

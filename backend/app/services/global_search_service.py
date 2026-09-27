@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 from typing import Iterable
 
-from sqlalchemy import Text, and_, cast, func, literal, or_, true
+from sqlalchemy import Text, and_, cast, exists, func, literal, or_, true
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.candidate_source import CandidateSource
@@ -69,6 +69,31 @@ class GlobalSearchService:
         if self.viewer is None or not self.scope.is_external(self.viewer):
             return true()
         return column.in_(self.scope.active_client_ids(self.viewer))
+
+    def _document_allowed(self):
+        if self.viewer is None or not self.scope.is_external(self.viewer):
+            return true()
+        allowed = self.scope.active_client_ids(self.viewer)
+        project_allowed = exists().where(
+            Project.id == Document.project_id,
+            Project.client_id.in_(allowed),
+            Project.deleted_at.is_(None),
+        )
+        inspection_allowed = exists().where(
+            Inspection.id == Document.inspection_id,
+            Inspection.client_id.in_(allowed),
+            Inspection.deleted_at.is_(None),
+        )
+        return and_(
+            or_(
+                Document.client_id.isnot(None),
+                Document.project_id.isnot(None),
+                Document.inspection_id.isnot(None),
+            ),
+            or_(Document.client_id.is_(None), Document.client_id.in_(allowed)),
+            or_(Document.project_id.is_(None), project_allowed),
+            or_(Document.inspection_id.is_(None), inspection_allowed),
+        )
 
     @staticmethod
     def parse_types(value: str | None) -> tuple[str, ...]:
@@ -404,7 +429,7 @@ class GlobalSearchService:
             .filter(
                 Document.trashed_at.is_(None),
                 Document.purged_at.is_(None),
-                self._allowed(Document.client_id),
+                self._document_allowed(),
                 or_(
                     Document.filename.ilike(pattern),
                     Document.original_filename.ilike(pattern),
@@ -674,7 +699,7 @@ class GlobalSearchService:
                     Document.id.in_(document_ids),
                     Document.trashed_at.is_(None),
                     Document.purged_at.is_(None),
-                    self._allowed(Document.client_id),
+                    self._document_allowed(),
                 )
                 .all()
             )

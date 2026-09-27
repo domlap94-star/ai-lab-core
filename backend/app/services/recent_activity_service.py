@@ -60,32 +60,28 @@ class RecentActivityService:
 
         branch_limit = skip + limit + 1
         is_admin = bool(viewer.role and viewer.role.name == "Administrator")
+        external = ClientScopeService.is_external(viewer)
+        allowed = ClientScopeService(self.db).active_client_ids(viewer) if external else None
         sources: list[tuple[str, list[_Projected]]] = [
-            ("client_activity", self._activity_rows(branch_limit)),
-            ("change_history", self._history_rows(branch_limit, is_admin=is_admin)),
-            ("candidate_merge", self._candidate_merge_rows(branch_limit)),
-            ("document_link", self._document_link_rows(branch_limit)),
+            ("client_activity", self._activity_rows(branch_limit, allowed=allowed)),
+            ("document_link", self._document_link_rows(branch_limit, allowed=allowed)),
         ]
+        if not external:
+            sources.extend((
+                ("change_history", self._history_rows(branch_limit, is_admin=is_admin)),
+                ("candidate_merge", self._candidate_merge_rows(branch_limit)),
+            ))
         if is_admin:
             sources.append(("user_lifecycle", self._user_lifecycle_rows(branch_limit)))
         sources.extend(
             (
-                ("document", self._document_rows(branch_limit)),
-                ("mail_send", self._mail_send_rows(branch_limit)),
-                ("project", self._project_rows(branch_limit)),
-                ("inspection", self._inspection_rows(branch_limit)),
+                ("document", self._document_rows(branch_limit, allowed=allowed)),
+                ("mail_send", self._mail_send_rows(branch_limit, allowed=allowed)),
+                ("project", self._project_rows(branch_limit, allowed=allowed)),
+                ("inspection", self._inspection_rows(branch_limit, allowed=allowed)),
             )
         )
         projected = [row for _, rows in sources for row in rows]
-
-        if ClientScopeService.is_external(viewer):
-            allowed = {
-                row[0]
-                for row in self.db.query(Client.id)
-                .filter(Client.id.in_(ClientScopeService(self.db).active_client_ids(viewer)))
-                .all()
-            }
-            projected = [row for row in projected if row.client_id in allowed]
 
         before_visibility = len(projected)
         projected = self._filter_absence_visibility(projected, viewer, is_admin)
@@ -149,13 +145,11 @@ class RecentActivityService:
             has_more=len(window) > limit,
         )
 
-    def _activity_rows(self, limit: int) -> list[_Projected]:
-        rows = (
-            self.db.query(ClientActivityEvent)
-            .order_by(ClientActivityEvent.occurred_at.desc(), ClientActivityEvent.id.desc())
-            .limit(limit)
-            .all()
-        )
+    def _activity_rows(self, limit: int, *, allowed=None) -> list[_Projected]:
+        query = self.db.query(ClientActivityEvent)
+        if allowed is not None:
+            query = query.filter(ClientActivityEvent.client_id.in_(allowed))
+        rows = query.order_by(ClientActivityEvent.occurred_at.desc(), ClientActivityEvent.id.desc()).limit(limit).all()
         summaries = {
             "call_initiated": "Rozpoczęto połączenie z klientem",
             "client_status_changed": "Zmieniono status klienta",
@@ -263,8 +257,11 @@ class RecentActivityService:
             ) for row in rows
         ]
 
-    def _document_link_rows(self, limit: int) -> list[_Projected]:
-        rows = self.db.query(DocumentClientLinkEvent).order_by(DocumentClientLinkEvent.created_at.desc(), DocumentClientLinkEvent.id.desc()).limit(limit).all()
+    def _document_link_rows(self, limit: int, *, allowed=None) -> list[_Projected]:
+        query = self.db.query(DocumentClientLinkEvent)
+        if allowed is not None:
+            query = query.filter(DocumentClientLinkEvent.new_client_id.in_(allowed))
+        rows = query.order_by(DocumentClientLinkEvent.created_at.desc(), DocumentClientLinkEvent.id.desc()).limit(limit).all()
         actions = {"LINK": "linked", "UNLINK": "unlinked", "MOVE": "moved"}
         summaries = {"LINK": "Powiązano dokument z klientem", "UNLINK": "Usunięto powiązanie dokumentu z klientem", "MOVE": "Przeniesiono dokument do innego klienta"}
         return [
@@ -289,11 +286,14 @@ class RecentActivityService:
             ) for row in rows
         ]
 
-    def _document_rows(self, limit: int) -> list[_Projected]:
-        rows = self.db.query(Document).filter(
+    def _document_rows(self, limit: int, *, allowed=None) -> list[_Projected]:
+        query = self.db.query(Document).filter(
             Document.trashed_at.is_(None),
             Document.purged_at.is_(None),
-        ).order_by(Document.created_at.desc(), Document.id.desc()).limit(limit).all()
+        )
+        if allowed is not None:
+            query = query.filter(Document.client_id.in_(allowed))
+        rows = query.order_by(Document.created_at.desc(), Document.id.desc()).limit(limit).all()
         return [
             _Projected(
                 stable_key=f"document-created:{row.id}", timestamp=row.created_at,
@@ -304,8 +304,11 @@ class RecentActivityService:
             ) for row in rows
         ]
 
-    def _mail_send_rows(self, limit: int) -> list[_Projected]:
-        rows = self.db.query(MailSendOperation).filter(MailSendOperation.status == "canonical_synced").order_by(MailSendOperation.updated_at.desc(), MailSendOperation.id.desc()).limit(limit).all()
+    def _mail_send_rows(self, limit: int, *, allowed=None) -> list[_Projected]:
+        query = self.db.query(MailSendOperation).filter(MailSendOperation.status == "canonical_synced")
+        if allowed is not None:
+            query = query.filter(MailSendOperation.client_id.in_(allowed))
+        rows = query.order_by(MailSendOperation.updated_at.desc(), MailSendOperation.id.desc()).limit(limit).all()
         labels = {"compose": "Wysłano nową wiadomość", "reply": "Wysłano odpowiedź", "forward": "Przekazano wiadomość"}
         return [
             _Projected(
@@ -317,8 +320,11 @@ class RecentActivityService:
             ) for row in rows
         ]
 
-    def _project_rows(self, limit: int) -> list[_Projected]:
-        rows = self.db.query(Project).order_by(Project.created_at.desc(), Project.id.desc()).limit(limit).all()
+    def _project_rows(self, limit: int, *, allowed=None) -> list[_Projected]:
+        query = self.db.query(Project)
+        if allowed is not None:
+            query = query.filter(Project.client_id.in_(allowed))
+        rows = query.order_by(Project.created_at.desc(), Project.id.desc()).limit(limit).all()
         return [
             _Projected(
                 stable_key=f"project-created:{row.id}", timestamp=row.created_at,
@@ -329,8 +335,11 @@ class RecentActivityService:
             ) for row in rows
         ]
 
-    def _inspection_rows(self, limit: int) -> list[_Projected]:
-        rows = self.db.query(Inspection).order_by(Inspection.created_at.desc(), Inspection.id.desc()).limit(limit).all()
+    def _inspection_rows(self, limit: int, *, allowed=None) -> list[_Projected]:
+        query = self.db.query(Inspection)
+        if allowed is not None:
+            query = query.filter(Inspection.client_id.in_(allowed))
+        rows = query.order_by(Inspection.created_at.desc(), Inspection.id.desc()).limit(limit).all()
         return [
             _Projected(
                 stable_key=f"inspection-created:{row.id}", timestamp=row.created_at,

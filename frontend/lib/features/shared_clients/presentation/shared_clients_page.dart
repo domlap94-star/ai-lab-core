@@ -48,6 +48,32 @@ final clientGrantHistoryProvider = FutureProvider<List<Map<String, dynamic>>>((
       .toList(growable: false);
 });
 
+final clientAccessManagerOptionsProvider =
+    FutureProvider<Map<String, List<Map<String, dynamic>>>>((ref) async {
+      final session = ref.watch(authControllerProvider).value?.session;
+      if (session == null) {
+        return const {'clients': [], 'external_users': []};
+      }
+      final response = await ref
+          .watch(dioProvider)
+          .get<Map<String, dynamic>>(
+            '/api/v1/client-access/manager-options',
+            options: Options(
+              headers: {
+                'Authorization': '${session.tokenType} ${session.accessToken}',
+              },
+            ),
+          );
+      List<Map<String, dynamic>> rows(String key) =>
+          (response.data?[key] as List<dynamic>? ?? const [])
+              .whereType<Map<String, dynamic>>()
+              .toList(growable: false);
+      return {
+        'clients': rows('clients'),
+        'external_users': rows('external_users'),
+      };
+    });
+
 class SharedClientsPage extends ConsumerStatefulWidget {
   const SharedClientsPage({super.key});
 
@@ -56,22 +82,37 @@ class SharedClientsPage extends ConsumerStatefulWidget {
 }
 
 class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
-  final _clientId = TextEditingController();
-  final _externalUserId = TextEditingController();
+  int? _clientId;
+  int? _externalUserId;
   bool _busy = false;
 
-  @override
-  void dispose() {
-    _clientId.dispose();
-    _externalUserId.dispose();
-    super.dispose();
-  }
-
   Future<void> _change({required bool grant}) async {
-    final clientId = int.tryParse(_clientId.text.trim());
-    final userId = int.tryParse(_externalUserId.text.trim());
+    final clientId = _clientId;
+    final userId = _externalUserId;
     final session = ref.read(authControllerProvider).value?.session;
     if (clientId == null || userId == null || session == null) return;
+    if (!grant) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cofnąć dostęp?'),
+          content: const Text(
+            'Użytkownik natychmiast utraci dostęp do klienta i jego zasobów.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Cofnij dostęp'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
     setState(() => _busy = true);
     try {
       final dio = ref.read(dioProvider);
@@ -94,6 +135,7 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
         );
       }
       ref.invalidate(clientGrantHistoryProvider);
+      ref.invalidate(clientAccessManagerOptionsProvider);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -106,6 +148,9 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
     final data = ref.watch(
       external ? sharedClientsProvider : clientGrantHistoryProvider,
     );
+    final options = external
+        ? null
+        : ref.watch(clientAccessManagerOptionsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Udostępnieni klienci')),
       body: ListView(
@@ -117,14 +162,48 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _clientId,
-              decoration: const InputDecoration(labelText: 'ID klienta'),
-            ),
-            TextField(
-              controller: _externalUserId,
-              decoration: const InputDecoration(
-                labelText: 'ID użytkownika External',
+            options!.when(
+              loading: () => const LinearProgressIndicator(),
+              error: (error, _) => Text(
+                'Nie udało się odczytać klientów i użytkowników: $error',
+              ),
+              data: (value) => Column(
+                children: [
+                  DropdownButtonFormField<int>(
+                    key: ValueKey('client-$_clientId'),
+                    initialValue: _clientId,
+                    decoration: const InputDecoration(labelText: 'Klient'),
+                    items: value['clients']!
+                        .map(
+                          (row) => DropdownMenuItem<int>(
+                            value: row['id'] as int,
+                            child: Text(row['name'].toString()),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _clientId = value),
+                  ),
+                  DropdownButtonFormField<int>(
+                    key: ValueKey('external-user-$_externalUserId'),
+                    initialValue: _externalUserId,
+                    decoration: const InputDecoration(
+                      labelText: 'Użytkownik Zewnętrzny',
+                    ),
+                    items: value['external_users']!
+                        .map(
+                          (row) => DropdownMenuItem<int>(
+                            value: row['id'] as int,
+                            child: Text(row['username'].toString()),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(() => _externalUserId = value),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -154,14 +233,33 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
                         .map((row) {
                           final clientId = row['client_id'] ?? row['id'];
                           final name = row['name']?.toString();
+                          final optionRows = options?.value;
+                          final clientOption = optionRows?['clients']?.where(
+                            (item) => item['id'] == clientId,
+                          );
+                          final externalOption = optionRows?['external_users']
+                              ?.where(
+                                (item) => item['id'] == row['external_user_id'],
+                              );
+                          final resolvedClient =
+                              clientOption != null && clientOption.isNotEmpty
+                              ? clientOption.first['name'].toString()
+                              : null;
+                          final resolvedExternal =
+                              externalOption != null &&
+                                  externalOption.isNotEmpty
+                              ? externalOption.first['username'].toString()
+                              : null;
                           return ListTile(
                             key: ValueKey('shared-client-$clientId'),
                             leading: const Icon(Icons.business_outlined),
-                            title: Text(name ?? 'Klient #$clientId'),
+                            title: Text(
+                              name ?? resolvedClient ?? 'Klient #$clientId',
+                            ),
                             subtitle: external
                                 ? null
                                 : Text(
-                                    'External #${row['external_user_id']} · ${row['active'] == true ? 'aktywny' : 'cofnięty'}',
+                                    '${resolvedExternal ?? 'Zewnętrzny #${row['external_user_id']}'} · ${row['active'] == true ? 'aktywny' : 'cofnięty'}',
                                   ),
                             onTap: external
                                 ? () => context.go('/clients/$clientId')

@@ -39,9 +39,12 @@ class ClientScopeService:
         return bool(user.role and user.role.name == EXTERNAL_ROLE)
 
     def active_client_ids(self, user: User):
-        return select(ClientAccessGrant.client_id).where(
+        return select(ClientAccessGrant.client_id).join(
+            Client, Client.id == ClientAccessGrant.client_id
+        ).where(
             ClientAccessGrant.external_user_id == user.id,
             ClientAccessGrant.revoked_at.is_(None),
+            Client.deleted_at.is_(None),
         )
 
     def scope_client_query(

@@ -31,3 +31,18 @@ class ClientAccessGrantPage(BaseModel):
     total: int
     skip: int
     limit: int
+
+
+class ClientAccessOption(BaseModel):
+    id: int
+    name: str
+
+
+class ExternalUserOption(BaseModel):
+    id: int
+    username: str
+
+
+class ClientAccessManagerOptions(BaseModel):
+    clients: list[ClientAccessOption]
+    external_users: list[ExternalUserOption]

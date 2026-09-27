@@ -195,6 +195,17 @@ def main() -> None:
             == created.json()["id"],
             "HTTP grant retry was not idempotent",
         )
+        options = http.get("/api/v1/client-access/manager-options")
+        require(options.status_code == 200, options.text)
+        require(
+            {row["id"] for row in options.json()["clients"]} == {a.id, b.id},
+            "Manager client options are incomplete",
+        )
+        require(
+            [row["id"] for row in options.json()["external_users"]]
+            == [external.id],
+            "Manager External options are not role-scoped",
+        )
         actor["value"] = external
         shared = http.get("/api/v1/client-access/shared-clients")
         require(shared.status_code == 200, shared.text)
@@ -202,6 +213,10 @@ def main() -> None:
         require(http.get(f"/api/v1/clients/{a.id}").status_code == 200, "Granted A HTTP guard failed")
         require(http.get(f"/api/v1/clients/{b.id}").status_code == 404, "B direct ID did not return 404")
         require(http.get("/api/v1/client-access/grants").status_code == 403, "External managed grants")
+        require(
+            http.get("/api/v1/client-access/manager-options").status_code == 403,
+            "External read manager options",
+        )
         actor["value"] = normal
         require(
             http.delete(
