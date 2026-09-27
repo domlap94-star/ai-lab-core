@@ -2354,5 +2354,42 @@
       "RT-060",
       "RT-061"
     ]
+  },
+  {
+    "package_id": "R25",
+    "name": "Użytkownik zewnętrzny z ręcznie udostępnianym zakresem klientów",
+    "helper_id": "EXTERNAL_USER_CLIENT_SCOPE",
+    "phase": "B — Poprawność istniejącego systemu",
+    "type": "FEATURE / SECURITY / VERIFY",
+    "dependencies": ["R00", "R02"],
+    "goal": "Handlowiec External korzysta z pełnych funkcji User wyłącznie dla klientów z aktywnym ręcznym grantem; inne klienty i zasoby są niewidoczne i niedostępne.",
+    "scope": [
+      "Addytywna rola External i audytowalny client_access_grants z historią grant/revoke.",
+      "Centralna backendowa polityka query/object/create/update/download oraz fail-closed owner-client resolver.",
+      "Pokrycie klientów, kontaktów, projektów, inspections, dokumentów, maili, zadań, timeline, search, dashboard, notifications, exports, AI i async jobs.",
+      "API grant/revoke/list/history dostępne Administrator/User, niedostępne External.",
+      "Wspólna zakładka Flutter Udostępnieni klienci pod /shared-clients i klientowo ograniczone menu External.",
+      "Focused security, migration, backend, Flutter i A/B no-leak E2E; dotknięte buildy i controlled deployment po osobnej zgodzie."
+    ],
+    "checks": [
+      "External bez grantów widzi zero klientowych danych; grant A udostępnia pełny workflow A, B pozostaje nieenumerowalny również przez ID, pliki, search, counts, export i AI.",
+      "Revoke, deactivation i role change działają od następnego requestu bez trwałej listy klientów w JWT.",
+      "Administrator/User zachowują obecny zakres, a admin-only pozostaje admin-only.",
+      "Query-level filtering poprzedza limit/count; shared-clients nie ma N+1; grant/revoke są atomowe i audytowalne.",
+      "Wynik jest wdrożony i przechodzi Web/Windows oraz wymagany Android smoke przed R25_READY_FOR_OWNER_REVIEW."
+    ],
+    "done": "Kompletny workflow External z ręcznym grant/revoke i centralnym client scope jest wdrożony, no-leak E2E przechodzi, a wynik jest gotowy do odbioru właściciela.",
+    "impact": "Przyszła addytywna migracja DB, backend auth/scope i Flutter. Bieżąca rejestracja zmienia wyłącznie dokumentację.",
+    "approval": "D-24 OWNER_PRIORITY_ACTIVE_DOCUMENTED_NOT_RUN. Implementacja, migracja, UAC, deployment i operacje hosta wymagają osobnej bieżącej zgody.",
+    "rollback": "Przywrócić kod/build/config i fail-closed wyłączyć External; nie usuwać tabeli ani historii grantów bez osobnej destrukcyjnej zgody.",
+    "exclude": "Automatic assignment, territory/team/group, public links, delegowanie przez External, field-level i per-resource grants, redesign RBAC/multi-tenant, Gmail/Sheets, D-22, dalsze R04, niezwiązane R05–R24, cleanup i R23 audit.",
+    "status": "PLANNED",
+    "active_stage": "OWNER_PRIORITY / READY_FOR_IMPLEMENTATION_AUTHORIZATION",
+    "execution_state": "NOT_IMPLEMENTED / NOT_DEPLOYED / NOT_ACCEPTED",
+    "canonical_plan": "docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md",
+    "primary_requirements": ["M-006", "M-007", "M-015", "M-016", "M-017", "M-038", "M-039", "M-043", "M-047", "M-064", "M-069", "M-071", "M-072", "M-073"],
+    "linked_requirements": ["F-005", "F-009", "F-013", "F-020", "F-022", "F-035"],
+    "findings": [],
+    "retirement_ids": []
   }
 ]

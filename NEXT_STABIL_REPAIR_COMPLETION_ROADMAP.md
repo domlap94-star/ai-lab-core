@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. `USABLE_WARM_ACCEPTED / LIMITED_RUNTIME_SCOPE`, `ONE_ENTRY_COLD_COMPLETE / OWNER_CONFIRMED` i D-23 `2/2` pozostają w mocy. Docker VHDX/Qdrant backing są zweryfikowane na D:. Finalny wspólny UAC zatrzymał się przed instalacją na `TREE_VERIFY_FAILED:worker_modules`: pliki/bajty/hashe stagingu były zgodne, lecz root ACL nie został skopiowany. Journal zakończył `FAILED_ROLLED_BACK`, `pending_mutation=false`, targety Worker pozostają absent i brak staging residue. Gałąź rollbacku niepotrzebnie odtworzyła backend, dlatego aktualny kontener ma ID `4c4ca245…`, podczas gdy przywrócony manifest nadal wiąże `b175fe4f…`; publiczne `/version` zachowuje wcześniejsze bezpieczne 1.0.2/production/debug=false/SAFE. Backup proof nie został uruchomiony i `F:\dump` nie ma nowego artefaktu. Android uninstall oraz install zwróciły Success, lecz wrapper błędnie zaklasyfikował wielowierszowy output jako FAIL i zgodnie z polityką przywrócił snapshot; readback potwierdza stare 1.0.0, bez retry. Poprawki ACL i pre-mutation rollback są opublikowane, lecz niewdrożone. Stan: `R04_IN_PROGRESS / FINAL_CONSOLIDATED_K1`; D-22 `NOT_RUN`. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. Właściciel decyzją D-24 czasowo wstrzymał dalsze wykonywanie R04 wyłącznie organizacyjnie; jego funkcjonalny stan, wcześniejsze odbiory, cztery K1 i punkt wznowienia `20260927T111500Z-R04-THREE-K1-CLOSURE-ATTEMPT` pozostają niezmienione. Nowym pilnym priorytetem jest R25 `EXTERNAL_USER_CLIENT_SCOPE`: `PLANNED / OWNER_PRIORITY / READY_FOR_IMPLEMENTATION_AUTHORIZATION / NOT_IMPLEMENTED / NOT_DEPLOYED / NOT_ACCEPTED`. Kanoniczny kontrakt znajduje się w `docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md`. Rejestracja nie autoryzuje implementacji, migracji, deploymentu, UAC ani host operations. Po właścicielskim odbiorze R25 praca wraca do ostatniego checkpointu R04 bez otwierania jego zamkniętych części. D-22 pozostaje `NOT_RUN`. Bieżący stan znajduje się wyłącznie w §0.**
 
 **Aktualizacja USABLE-WARM PARAM-FIX 2026-09-24:** po fail-before potwierdzającym,
 że import bazowej recepty nadpisywał argumenty kontynuacji, przygotowano
@@ -531,6 +531,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R22 | PLANNED | — | — |
 | R23 | PLANNED | — | — |
 | R24 | PLANNED | — | Osobne zgody na exact-path cleanup |
+| R25 | PLANNED | OWNER_PRIORITY / READY_FOR_IMPLEMENTATION_AUTHORIZATION | `NOT_IMPLEMENTED / NOT_DEPLOYED / NOT_ACCEPTED`; pełny kontrakt: `docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md`; R04 pozostaje IN_PROGRESS i jest wyłącznie organizacyjnie wstrzymane |
 
 `docs/recovery/PACKAGE_REGISTER.csv` i `docs/recovery/PACKAGE_DETAILS.json` są lustrzanym
 indeksem tych samych pakietów. Przy zmianie statusu należy je zsynchronizować
@@ -1908,6 +1909,22 @@ uzgodnionego produktu jako narzędzia pracy właściciela.
 **Rollback:** Tracked: commit+path; untracked/outside: niezależna zweryfikowana kopia; dane: chroniony preimage/backup. Irreversible retention jawnie oznaczona.
 
 **Poza zakresem:** Wildcard delete, git clean/reset, modele 9B/embedding, migracje/lockfile/licencje/regresje, live builds/workers przed zastąpieniem, obcy PostgreSQL.
+
+### R25 — Użytkownik zewnętrzny z ręcznie udostępnianym zakresem klientów
+
+**Identyfikator:** `EXTERNAL_USER_CLIENT_SCOPE` · **Faza:** B — Poprawność istniejącego systemu · **Typ:** FEATURE / SECURITY / VERIFY · **Status:** patrz §0.2 · **Zależności:** R00; R02
+
+**Cel:** rola `External` (`Zewnętrzny`) otrzymuje pełne biznesowe możliwości istniejącej roli User wyłącznie w obrębie klientów z aktywnym ręcznym grantem. Poza zakresem obowiązuje backendowy default deny bez ujawnienia istnienia zasobów.
+
+**Kanoniczny plan:** `docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md`. Plan wiąże model audytowalnych grantów, centralną politykę backendu, pełną macierz endpointów i zasobów, grant/revoke API, Flutter `/shared-clients`, testy A/B braku przecieku, migrację, deployment i rollback jako jeden kompletny przyszły chunk.
+
+**Odpowiedzialność za istniejące wymagania:** M-006, M-007, M-015, M-016, M-017, M-038, M-039, M-043, M-047, M-064, M-069, M-071, M-072, M-073; F-005, F-009, F-013, F-020, F-022, F-035. Wymagania specyficzne dla External wynikają bezpośrednio z decyzji D-24; nie utworzono fikcyjnych identyfikatorów M/F.
+
+**Warunek zamknięcia:** rola/grant/revoke, centralny query/object/write/download scope, wszystkie klientowe workflow, natychmiastowy revoke, brak direct-ID/search/count/file/AI leak, niezmienione zachowanie Administrator/User, pełny E2E i controlled deployment są PASS. Codex może nadać `R25_READY_FOR_OWNER_REVIEW`; wyłącznie właściciel nadaje `R25_ACCEPTED`.
+
+**Potrzebna zgoda:** osobna bieżąca zgoda na całe wykonanie end-to-end oraz późniejsze operacyjne UAC/migration/deployment. Niniejsza rejestracja jest dokumentacyjna i nie uruchamia R25.
+
+**Poza zakresem:** automatic assignment, territory/team/group, public links, delegowanie przez External, field-level permissions, grant per zasób, redesign RBAC/multi-tenant, Gmail/Sheets/D-22, dalsze R04, niezwiązane R05–R24, cleanup i R23 audit.
 
 ## 8. Dokładne zasady wycofania plików
 
