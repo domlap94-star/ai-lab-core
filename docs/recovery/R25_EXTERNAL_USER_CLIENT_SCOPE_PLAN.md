@@ -1,8 +1,8 @@
 # R25 — External user / client-scoped access
 
-Status: `R25_READY_FOR_OWNER_REVIEW / NOT_ACCEPTED`.
+Status: `R25_ACCEPTED / OWNER_CONFIRMED`.
 
-Ten dokument pozostaje kanonicznym kontraktem R25. Source `34834c96443da619d051b66ea4ef37f055a6549b`, addytywna migracja `r25_external_scope_20260927`, backend, startup manifest, Web, Android `1.0.2+29` i pełny authenticated A/B no-leak E2E pozostają wdrożone i zweryfikowane. Exact Windows `1.0.2+29` został zainstalowany na tej właścicielsko zarządzanej maszynie i przeszedł `SAC_OFF_OWNER_MANAGED_HOST / EXACT_HASH_INSTALLED_ROOT_ACCEPTANCE` oraz syntetyczny UI smoke z exact cleanupem. Otwartych technicznych K0/K1 brak; wynik jest gotowy do odbioru właściciela. Szczegóły zawiera checkpoint `20260927T164120Z-R25-WINDOWS-OWNER-INSTALL-PASS.md`. Wyłącznie właściciel może nadać `R25_ACCEPTED`.
+Ten dokument pozostaje kanonicznym kontraktem R25. Source `34834c96443da619d051b66ea4ef37f055a6549b`, addytywna migracja `r25_external_scope_20260927`, backend, startup manifest, Web, Android `1.0.2+29`, pełny authenticated A/B no-leak E2E oraz exact Windows `1.0.2+29` z `SAC_OFF_OWNER_MANAGED_HOST / EXACT_HASH_INSTALLED_ROOT_ACCEPTANCE` pozostają wdrożone i zweryfikowane. Właściciel praktycznie sprawdził opublikowany wynik `4757c8197200b4a103edd58843b0e442d60ba004` i potwierdził „sprawdzone w praktyce, działa.”. Status `R25_ACCEPTED / OWNER_CONFIRMED`. Uwagi o bezpośrednim przycisku udostępniania są osobnym R26 i nie otwierają R25. Szczegóły zawiera checkpoint `20260927T172419Z-R25-OWNER-ACCEPTED.md`.
 
 ## 1. Efekt użytkowy i zasada nadrzędna
 
@@ -226,4 +226,8 @@ Exact installer `EA69C1FF1DA1CB2E608FF49CABEB6ABBAEA763AB679B73B2FDBB55DF5EFA3CE
 
 Windows UI smoke użył wyłącznie efemerycznych danych syntetycznych. External bez grantów zobaczył pusty stan; po grancie User widział wyłącznie A, otworzył szczegóły A i dozwolone ekrany zadań, realizacji, wizji, dokumentów i maili; B pozostał nieenumerowalny. Revoke odebrał A od następnego requestu, a close/reopen pokazał pustą listę i dokładnie jeden proces bez crasha. Po wylogowaniu usunięto użytkowników, klientów A/B, grant i poświadczenia; wszystkie liczniki residue są `0`, `pending_mutation=false`.
 
-Wynik końcowy: `R25_READY_FOR_OWNER_REVIEW / NOT_ACCEPTED`. Backend, schema, startup manifest, Web, Android i wcześniejszy pełny A/B E2E pozostają bez zmian i PASS. Technicznych K0/K1 brak. R04 pozostaje wstrzymane; D-22 pozostaje `NOT_RUN`.
+Wynik techniczny przed odbiorem właścicielskim: `R25_READY_FOR_OWNER_REVIEW / NOT_ACCEPTED`. Backend, schema, startup manifest, Web, Android i wcześniejszy pełny A/B E2E pozostały bez zmian i PASS. Technicznych K0/K1 nie było; późniejszy odbiór właścicielski zapisano poniżej. R04 pozostaje wstrzymane; D-22 pozostaje `NOT_RUN`.
+
+## 21. Odbiór właścicielski — 2026-09-27
+
+Właściciel praktycznie sprawdził kompletny wynik opublikowany w `4757c8197200b4a103edd58843b0e442d60ba004` i potwierdził: „sprawdzone w praktyce, działa.”. Nadaje to `R25_ACCEPTED / OWNER_CONFIRMED`. Nie powtarzano pełnego E2E. Nowa prośba o bezpośredni przycisk udostępniania z listy i szczegółów klienta stanowi odrębny pakiet R26 i nie zmienia ani nie otwiera ponownie zaakceptowanej polityki R25.
