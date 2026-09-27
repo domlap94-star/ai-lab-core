@@ -10,6 +10,7 @@ param(
     [string]$ExpectedStableManifestSha256 = 'B45D01BE9DBEB077564A67F5521C0AB98BF3BF6AB19DD5AA3F522AA4F633F781',
     [string]$ExpectedInstalledWebSha256 = 'A6D708B2BF72664676F5232CD1208B3FB656FB275A65BCB927FEBC9AFDDCE80A',
     [string]$ExpectedCandidateWebSha256 = '44A53C0BF821D31279294D017D4D12673A822AAFFBAAF301B8C90900E4A115EE',
+    [string]$ExpectedWindowsClientSha256 = 'C0DE8E94FF2BF4280ACDC2C1FA0B65701CB3A19D3269226F6C2BDB664C134CD5',
     [string]$ExpectedWindowsInstallerSha256 = '1F920C494704F7FA2E91ADC1049DB4002A3B210A4F15948013D5237BC8AB013E',
     [string]$ExpectedAndroidApkSha256 = '10A1193AB6FE50F567549F6F42AA40AE829896B23BA8986EA8E8BE25927BE027'
 )
@@ -117,6 +118,7 @@ try {
     Assert-FileHash -Path $stableManifest -Expected $ExpectedStableManifestSha256
     Assert-FileHash -Path $installedWebMain -Expected $ExpectedInstalledWebSha256
     Assert-FileHash -Path (Join-Path $CandidateWebRoot 'main.dart.js') -Expected $ExpectedCandidateWebSha256
+    Assert-FileHash -Path (Join-Path $env:LOCALAPPDATA 'Programs\NEXT Stabil\frontend.exe') -Expected $ExpectedWindowsClientSha256
     Assert-FileHash -Path $CandidateWindowsInstaller -Expected $ExpectedWindowsInstallerSha256
     Assert-FileHash -Path $CandidateAndroidApk -Expected $ExpectedAndroidApkSha256
 
@@ -141,6 +143,10 @@ try {
     $webBindings[0].sha256 = $ExpectedCandidateWebSha256
     $webBindings[0].size_bytes = 5067103
     $webBindings[0].evidence = 'R26_STEP1_EXACT_WEB_ARTIFACT_INSTALLED_20260927'
+    $windowsClientBindings = @($startupObject.external_tools | Where-Object { $_.name -eq 'windows_client' })
+    if ($windowsClientBindings.Count -ne 1) { throw "WINDOWS_CLIENT_BINDING_COUNT_INVALID:$($windowsClientBindings.Count)" }
+    $windowsClientBindings[0].sha256 = $ExpectedWindowsClientSha256
+    $windowsClientBindings[0].version = '1.0.2+42'
     Write-Utf8NoBom -Path $startupTemp -Text (($startupObject | ConvertTo-Json -Depth 100) + "`n")
 
     $stableObject = Get-Content -LiteralPath $stableManifest -Raw -Encoding UTF8 | ConvertFrom-Json
