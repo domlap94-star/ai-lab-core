@@ -1,78 +1,9 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/network/api_client.dart';
 import '../../auth/application/auth_controller.dart';
-
-final sharedClientsProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final auth = ref.watch(authControllerProvider).value;
-  final session = auth?.session;
-  if (session == null) return const [];
-  final response = await ref
-      .watch(dioProvider)
-      .get<List<dynamic>>(
-        '/api/v1/client-access/shared-clients',
-        options: Options(
-          headers: {
-            'Authorization': '${session.tokenType} ${session.accessToken}',
-          },
-        ),
-      );
-  return (response.data ?? const []).whereType<Map<String, dynamic>>().toList(
-    growable: false,
-  );
-});
-
-final clientGrantHistoryProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) async {
-  final auth = ref.watch(authControllerProvider).value;
-  final session = auth?.session;
-  if (session == null) return const [];
-  final response = await ref
-      .watch(dioProvider)
-      .get<Map<String, dynamic>>(
-        '/api/v1/client-access/grants',
-        options: Options(
-          headers: {
-            'Authorization': '${session.tokenType} ${session.accessToken}',
-          },
-        ),
-      );
-  return (response.data?['items'] as List<dynamic>? ?? const [])
-      .whereType<Map<String, dynamic>>()
-      .toList(growable: false);
-});
-
-final clientAccessManagerOptionsProvider =
-    FutureProvider<Map<String, List<Map<String, dynamic>>>>((ref) async {
-      final session = ref.watch(authControllerProvider).value?.session;
-      if (session == null) {
-        return const {'clients': [], 'external_users': []};
-      }
-      final response = await ref
-          .watch(dioProvider)
-          .get<Map<String, dynamic>>(
-            '/api/v1/client-access/manager-options',
-            options: Options(
-              headers: {
-                'Authorization': '${session.tokenType} ${session.accessToken}',
-              },
-            ),
-          );
-      List<Map<String, dynamic>> rows(String key) =>
-          (response.data?[key] as List<dynamic>? ?? const [])
-              .whereType<Map<String, dynamic>>()
-              .toList(growable: false);
-      return {
-        'clients': rows('clients'),
-        'external_users': rows('external_users'),
-      };
-    });
+import '../application/client_access_providers.dart';
 
 class SharedClientsPage extends ConsumerStatefulWidget {
   const SharedClientsPage({super.key});
@@ -115,24 +46,22 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
     }
     setState(() => _busy = true);
     try {
-      final dio = ref.read(dioProvider);
-      final options = Options(
-        headers: {
-          'Authorization': '${session.tokenType} ${session.accessToken}',
-        },
-      );
       if (grant) {
-        await dio.post(
-          '/api/v1/client-access/grants',
-          data: {'client_id': clientId, 'external_user_id': userId},
-          options: options,
-        );
+        await ref
+            .read(clientAccessRepositoryProvider)
+            .grant(
+              session: session,
+              clientId: clientId,
+              externalUserId: userId,
+            );
       } else {
-        await dio.delete(
-          '/api/v1/client-access/grants',
-          queryParameters: {'client_id': clientId, 'external_user_id': userId},
-          options: options,
-        );
+        await ref
+            .read(clientAccessRepositoryProvider)
+            .revoke(
+              session: session,
+              clientId: clientId,
+              externalUserId: userId,
+            );
       }
       ref.invalidate(clientGrantHistoryProvider);
       ref.invalidate(clientAccessManagerOptionsProvider);
@@ -144,7 +73,7 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(authControllerProvider).value?.user?.role ?? '';
-    final external = role == 'External';
+    final external = role.trim().toLowerCase() == 'external';
     final data = ref.watch(
       external ? sharedClientsProvider : clientGrantHistoryProvider,
     );
@@ -164,9 +93,8 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
             const SizedBox(height: 12),
             options!.when(
               loading: () => const LinearProgressIndicator(),
-              error: (error, _) => Text(
-                'Nie udało się odczytać klientów i użytkowników: $error',
-              ),
+              error: (_, _) =>
+                  const Text('Nie udało się odczytać klientów i użytkowników.'),
               data: (value) => Column(
                 children: [
                   DropdownButtonFormField<int>(
@@ -224,8 +152,7 @@ class _SharedClientsPageState extends ConsumerState<SharedClientsPage> {
           ],
           data.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) =>
-                Text('Nie udało się odczytać udostępnień: $error'),
+            error: (_, _) => const Text('Nie udało się odczytać udostępnień.'),
             data: (rows) => rows.isEmpty
                 ? const Text('Brak udostępnionych klientów.')
                 : Column(

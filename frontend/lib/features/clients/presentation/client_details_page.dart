@@ -11,6 +11,7 @@ import '../application/clients_providers.dart';
 import '../application/clients_controller.dart';
 import '../application/client_workflow_status.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../shared_clients/presentation/client_share_action.dart';
 import '../domain/client.dart';
 import '../domain/industry.dart';
 import 'client_workspace_panels.dart';
@@ -59,6 +60,13 @@ class ClientDetailsPage extends ConsumerWidget {
           ),
           title: const Text('Szczegóły klienta'),
           actions: <Widget>[
+            clientValue.maybeWhen(
+              data: (Client client) => ClientShareAction(
+                clientId: client.id,
+                clientDisplayName: client.displayName,
+              ),
+              orElse: () => const SizedBox.shrink(),
+            ),
             IconButton(
               key: const Key('client-unified-assistant'),
               tooltip: 'Zapytaj Asystenta AI',

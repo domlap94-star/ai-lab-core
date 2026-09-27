@@ -16,6 +16,7 @@ import 'package:ai_lab/features/auth/application/auth_controller.dart';
 import 'package:ai_lab/features/auth/application/auth_state.dart';
 import 'package:ai_lab/features/auth/domain/auth_session.dart';
 import 'package:ai_lab/features/auth/domain/current_user.dart';
+import 'package:ai_lab/features/shared_clients/application/client_access_providers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -406,6 +407,109 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Klienci'), findsOneWidget);
     expect(find.text('zachowany filtr'), findsOneWidget);
+  });
+
+  testWidgets(
+    'direct share stays on list, precedes chevron and hides in multi-select',
+    (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1200, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final ProviderContainer container = ProviderContainer(
+        overrides: [
+          authControllerProvider.overrideWith(_StatusAuthController.new),
+          clientsControllerProvider.overrideWith(_HotfixClientsController.new),
+          industriesProvider.overrideWith(
+            (Ref ref) async => const <Industry>[],
+          ),
+          availableClientShareUsersProvider.overrideWith(
+            (Ref ref, int clientId) async => const <ClientShareUser>[],
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(authControllerProvider.future);
+      final GoRouter router = _router(initialLocation: '/clients');
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final Finder share = find.byKey(
+        const ValueKey<String>('client-share-123'),
+      );
+      final Finder card = find.byKey(const ValueKey<String>('client-card-123'));
+      final Finder chevron = find.descendant(
+        of: card,
+        matching: find.byIcon(Icons.chevron_right),
+      );
+      expect(share, findsOneWidget);
+      expect(chevron, findsOneWidget);
+      expect(
+        tester.getCenter(share).dx,
+        lessThan(tester.getCenter(chevron).dx),
+      );
+
+      await tester.tap(share);
+      await tester.pumpAndSettle();
+      expect(router.routeInformationProvider.value.uri.path, '/clients');
+      expect(
+        find.text('Brak użytkowników, którym można udostępnić klienta.'),
+        findsOneWidget,
+      );
+
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('client-multi-select')));
+      await tester.pumpAndSettle();
+      expect(share, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('details AppBar orders share before assistant and refresh', (
+    WidgetTester tester,
+  ) async {
+    final ProviderContainer container = ProviderContainer(
+      overrides: [
+        authControllerProvider.overrideWith(_StatusAuthController.new),
+        clientDetailsProvider.overrideWith(
+          (Ref ref, int clientId) async => _client,
+        ),
+        availableClientShareUsersProvider.overrideWith(
+          (Ref ref, int clientId) async => const <ClientShareUser>[],
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(authControllerProvider.future);
+    final GoRouter router = _router(initialLocation: '/clients/123');
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final Finder share = find.byKey(const ValueKey<String>('client-share-123'));
+    final Finder assistant = find.byKey(const Key('client-unified-assistant'));
+    final Finder refresh = find.byTooltip('Odśwież dane klienta');
+    expect(share, findsOneWidget);
+    expect(
+      tester.getCenter(share).dx,
+      lessThan(tester.getCenter(assistant).dx),
+    );
+    expect(
+      tester.getCenter(assistant).dx,
+      lessThan(tester.getCenter(refresh).dx),
+    );
   });
 
   testWidgets('direct-entry system and AppBar back fall back to client list', (

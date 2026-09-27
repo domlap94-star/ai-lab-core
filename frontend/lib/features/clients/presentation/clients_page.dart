@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/app_shell.dart';
 import '../../../core/formatters/polish_date_time.dart';
 import '../../auth/application/auth_controller.dart';
+import '../../shared_clients/presentation/client_share_action.dart';
 import 'client_form_dialog.dart';
 
 import '../application/client_list_filter.dart';
@@ -1431,6 +1432,11 @@ class _ClientCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
+              if (!selectionMode)
+                ClientShareAction(
+                  clientId: client.id,
+                  clientDisplayName: client.displayName,
+                ),
               const Icon(Icons.chevron_right),
             ],
           ),
