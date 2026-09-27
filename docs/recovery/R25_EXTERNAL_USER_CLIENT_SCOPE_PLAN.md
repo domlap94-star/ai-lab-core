@@ -1,8 +1,8 @@
 # R25 — External user / client-scoped access
 
-Status: `PLANNED / OWNER_PRIORITY / READY_FOR_IMPLEMENTATION_AUTHORIZATION / NOT_IMPLEMENTED / NOT_DEPLOYED / NOT_ACCEPTED`.
+Status: `IN_PROGRESS / CORE_BACKEND_AND_WEB_DEPLOYED / WINDOWS_APPLICATION_CONTROL_BLOCKED / ANDROID_SIGNATURE_OWNER_DECISION_REQUIRED / NOT_ACCEPTED`.
 
-Ten dokument jest kanonicznym kontraktem przyszłego wykonania R25 jako jednego kompletnego chunku full-stack. Nie stanowi zgody na migrację, implementację, deployment, UAC ani operację hosta. Po wykonaniu Codex może nadać `R25_READY_FOR_OWNER_REVIEW`; wyłącznie właściciel może nadać `R25_ACCEPTED`.
+Ten dokument pozostaje kanonicznym kontraktem R25. Właściciel później zatwierdził implementację i kontrolowany deployment. Source `16e8fcb5d311a20b703a74b1a9c966292b3499a8` jest opublikowany; addytywna migracja `r25_external_scope_20260927`, exact 36 plików backendu, backend-only replacement, pochodny startup manifest i Web zostały wdrożone. R25 nie jest jeszcze gotowy do odbioru: Application Control zablokował exact instalator Windows przed startem także przez jedyny dopuszczony kanał UAC, a standardowy Android update zakończył się `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; zgodnie z bieżącą granicą nie wykonano uninstallu. Szczegóły zawiera checkpoint `20260927T124457Z-R25-FORWARD-RECOVERY-CONSOLIDATED-K1.md`. Wyłącznie właściciel może nadać `R25_ACCEPTED`.
 
 ## 1. Efekt użytkowy i zasada nadrzędna
 
