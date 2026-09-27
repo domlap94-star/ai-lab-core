@@ -1,8 +1,8 @@
 # R25 — External user / client-scoped access
 
-Status: `R25_IN_PROGRESS / FULL_POST_DEPLOY_E2E_PASS / ANDROID_PASS / WINDOWS_TRUSTED_SIGNING_REQUIRED / NOT_ACCEPTED`.
+Status: `R25_READY_FOR_OWNER_REVIEW / NOT_ACCEPTED`.
 
-Ten dokument pozostaje kanonicznym kontraktem R25. Właściciel zatwierdził implementację, poprawkę External search, kontrolowany minimalny deployment i pełne ponowienie live E2E. Source `34834c96443da619d051b66ea4ef37f055a6549b` jest opublikowany; addytywna migracja `r25_external_scope_20260927`, exact backend, backend-only replacement, pochodny startup manifest i Web są wdrożone. Android `1.0.2+29` pozostaje kanonicznie zainstalowany na jedynym emulatorze. Pełny świeży authenticated E2E oraz Web/Android smoke przeszły bez przecieku i z exact cleanupem. R25 nie jest jeszcze gotowy do odbioru wyłącznie dlatego, że Windows nadal wymaga zaufanego podpisanego kanału zgodnego z aktywną polityką `VerifiedAndReputableDesktop`. Szczegóły zawiera checkpoint `20260927T152443Z-R25-SEARCH-FIX-FULL-E2E-PASS.md`. Wyłącznie właściciel może nadać `R25_ACCEPTED`.
+Ten dokument pozostaje kanonicznym kontraktem R25. Source `34834c96443da619d051b66ea4ef37f055a6549b`, addytywna migracja `r25_external_scope_20260927`, backend, startup manifest, Web, Android `1.0.2+29` i pełny authenticated A/B no-leak E2E pozostają wdrożone i zweryfikowane. Exact Windows `1.0.2+29` został zainstalowany na tej właścicielsko zarządzanej maszynie i przeszedł `SAC_OFF_OWNER_MANAGED_HOST / EXACT_HASH_INSTALLED_ROOT_ACCEPTANCE` oraz syntetyczny UI smoke z exact cleanupem. Otwartych technicznych K0/K1 brak; wynik jest gotowy do odbioru właściciela. Szczegóły zawiera checkpoint `20260927T164120Z-R25-WINDOWS-OWNER-INSTALL-PASS.md`. Wyłącznie właściciel może nadać `R25_ACCEPTED`.
 
 ## 1. Efekt użytkowy i zasada nadrzędna
 
@@ -215,3 +215,15 @@ Web smoke potwierdził login External, dokładnie Client A bez B, szczegóły A,
 Windows pozostał bez mutacji: dokładnie jeden proces z `%LOCALAPPDATA%\Programs\NEXT Stabil\frontend.exe`, SHA-256 `5BD959A30CE176D5E484D41EF1B5BF51D0D9FD38F5F99F7219AA07446BDB0865`. Nie wykonano retry instalatora ani obejścia ochrony. Jedynym otwartym materialnym K1 jest `WINDOWS_TRUSTED_SIGNING_REQUIRED`: osobno zatwierdzony zaufany RSA Code Signing build, podpisanie dystrybucyjnych PE i NSIS, zgodna instalacja oraz installed-root acceptance.
 
 Status końcowy tego okna: `R25_IN_PROGRESS / FULL_POST_DEPLOY_E2E_PASS / ANDROID_PASS / WINDOWS_TRUSTED_SIGNING_REQUIRED / NOT_ACCEPTED`. Nie nadano `R25_READY_FOR_OWNER_REVIEW` ani `R25_ACCEPTED`; R04 pozostaje wstrzymane, D-22 pozostaje `NOT_RUN`.
+
+## 20. Windows owner-managed local installation — 2026-09-27
+
+Historyczny wynik `SAC_ON_INSTALLER_TRUSTED` i raport WDAC pozostają prawidłowe dla podpisanego kanału. Właściciel osobno zdecydował, że ta jedna lokalna maszyna NEXT Stabil używa trybu `SAC_OFF_OWNER_MANAGED_HOST`; nie jest to deklaracja zaufania do publicznej dystrybucji na obce komputery. Smart App Control przełączono przez oficjalny interfejs Windows Security z `On` na `Off`, bez edycji rejestru, usuwania polityk, `Unblock-File` ani restartu. Bitdefender pozostał aktywny (`productState=266240`), wszystkie trzy profile firewalla pozostały aktywne, a UAC `EnableLUA=1`.
+
+Source kontraktu acceptance opublikowano jako `a92a4238d118f7ea4a7698bea7e84ae2cb1ac1af`. Historyczny tryb nadal wymaga Managed Installer evidence; nowy tryb wymaga SAC Off, aktywnych Bitdefendera/firewalla/UAC, kanonicznego registered rootu, exact manifestu i hashy wszystkich plików, jawnie dozwolonych generated files, poprawnego uninstall/shortcuts, braku reparse/path escape i braku szeroko zapisywalnych katalogów wykonywalnych. Focused PowerShell 5.1 testy obu trybów przeszły, historyczny preimage przeszedł historyczny gate, a fail-before starego rootu w nowym trybie prawidłowo wykrył nieoczekiwany plik.
+
+Exact installer `EA69C1FF1DA1CB2E608FF49CABEB6ABBAEA763AB679B73B2FDBB55DF5EFA3CE9` (`NotSigned`, `1.0.2.29`) zakończył się exit `0`. Stary, potrójnie związany z preimage plik `dartjni.dll` nie należał do exact R25 manifestu i został usunięty przy zachowanej operation-owned kopii rollback. Finalny gate potwierdził 20 payload files plus jawnie dozwolony `Uninstall.exe`, installed `frontend.exe` `DF4683C67423276AA18BFD107F5238F3EFD5E27FD7FDA86EED23A0B7F9CBED51`, uninstall metadata, oba skróty, ACL/reparse/path boundaries i brak staging/recovery/Temp dependency. Jeden responsywny proces ładował natywne moduły wyłącznie z kanonicznego rootu; po początku okna nie było nowych nieoczekiwanych Code Integrity 3033/3077.
+
+Windows UI smoke użył wyłącznie efemerycznych danych syntetycznych. External bez grantów zobaczył pusty stan; po grancie User widział wyłącznie A, otworzył szczegóły A i dozwolone ekrany zadań, realizacji, wizji, dokumentów i maili; B pozostał nieenumerowalny. Revoke odebrał A od następnego requestu, a close/reopen pokazał pustą listę i dokładnie jeden proces bez crasha. Po wylogowaniu usunięto użytkowników, klientów A/B, grant i poświadczenia; wszystkie liczniki residue są `0`, `pending_mutation=false`.
+
+Wynik końcowy: `R25_READY_FOR_OWNER_REVIEW / NOT_ACCEPTED`. Backend, schema, startup manifest, Web, Android i wcześniejszy pełny A/B E2E pozostają bez zmian i PASS. Technicznych K0/K1 brak. R04 pozostaje wstrzymane; D-22 pozostaje `NOT_RUN`.
