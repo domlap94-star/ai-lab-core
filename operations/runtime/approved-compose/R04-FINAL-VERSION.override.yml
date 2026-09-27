@@ -1,0 +1,13 @@
+services:
+  backend:
+    image: sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702
+    pull_policy: never
+    environment:
+      APP_VERSION: "1.0.2"
+      MINIMUM_APP_VERSION: "1.0.0"
+      LATEST_APP_VERSION: "1.0.2"
+      RELEASE_ID: "NEXT-STABIL-R04-c35b6bd64f094777"
+      SOURCE_REVISION: "90c5531a3f330aa2d1068402db0cda3ba0907381"
+      BACKEND_IMAGE_DIGEST: "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702"
+      ENVIRONMENT: "production"
+      DEBUG: "false"
