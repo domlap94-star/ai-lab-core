@@ -416,6 +416,29 @@ if ($Scope -in @("full", "qdrant")) {
     Write-Output "BACKUP_STAGE=qdrant"
     $validator = Join-Path $toolRoot "operations\supervisor\qdrant_snapshot_validator.js"
     if (-not (Test-Path -LiteralPath $validator -PathType Leaf)) { throw "qdrant_validator_missing" }
+    $helperScript = Join-Path $toolRoot "operations\hardening\invoke-qdrant-backup-helper.ps1"
+    if (-not (Test-Path -LiteralPath $helperScript -PathType Leaf)) { throw "qdrant_backup_helper_missing" }
+    $useExternalQdrantHelper = $true
+    if ($useExternalQdrantHelper) {
+        $qdrantArtifactRoot = if ($ManifestFormat -eq "RecoveryPointV2") { Join-Path $artifacts "qdrant" } else { $artifacts }
+        if (-not (Test-Path -LiteralPath $qdrantArtifactRoot)) { New-Item -ItemType Directory -Path $qdrantArtifactRoot | Out-Null }
+        $helperOperationId = if ($null -ne $RunId) { "schedule-$ScheduleId-run-$RunId" } else { $CheckpointId }
+        $helperOutput = @(& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $helperScript -BackupRoot $backupBase -ArtifactRoot $qdrantArtifactRoot -Collections $selectedCollections -OperationId $helperOperationId -ValidatorPath $validator 2>&1)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($helperOutput -join ''))) { throw "qdrant_backup_helper_failed:$($helperOutput -join ' ')" }
+        try { $helperResult = ($helperOutput[-1] | ConvertFrom-Json) } catch { throw "qdrant_backup_helper_result_invalid" }
+        if ($helperResult.status -ne 'PASS' -or $helperResult.staging_volume -ne 'F:' -or $helperResult.helper_removed -ne $true) { throw "qdrant_backup_helper_result_invalid" }
+        foreach ($record in @($helperResult.records)) {
+            $artifactRecord = Get-ArtifactRecord $checkpoint ([string]$record.artifact)
+            $artifactRecords += $artifactRecord
+            $qdrantSnapshotName = [string]$record.snapshot_name
+            $qdrantCollectionRecords += [ordered]@{ collection=[string]$record.collection;artifact_file=[string]$artifactRecord.file;snapshot_name=[string]$record.snapshot_name;snapshot_created_at=$null;points_count=[int64]$record.points_count;indexed_vectors_count=[int64]$record.indexed_vectors_count;segments_count=[int]$record.segments_count;vectors=$record.config.params.vectors;shard_number=$record.config.params.shard_number;replication_factor=$record.config.params.replication_factor;write_consistency_factor=$record.config.params.write_consistency_factor;on_disk_payload=$record.config.params.on_disk_payload;aliases=@($record.aliases);structurally_valid=$true;structural_validation_reason=[string]$record.structural_validation_reason;restore_status='NOT_RUN_BY_POLICY';restore_verified=$false }
+            $componentWindows += [ordered]@{component="qdrant:$($record.collection)";started_at=$null;finished_at=(Get-Date).ToUniversalTime().ToString('o')}
+        }
+        $qdrantSnapshotStructurallyValid = $true
+        $qdrantSnapshotValidationReason = 'valid_external_f_staging'
+        $qdrantRestoreVerified = $false
+        $qdrantRestoreResult = $null
+    } else {
     if ($ManifestFormat -eq "RecoveryPointV2") {
         $qdrantArtifactRoot = Join-Path $artifacts "qdrant"
         New-Item -ItemType Directory -Path $qdrantArtifactRoot | Out-Null
@@ -495,6 +518,7 @@ if ($Scope -in @("full", "qdrant")) {
     } else {
         $qdrantRestoreVerified = $false
         $qdrantRestoreResult = $null
+    }
     }
 }
 

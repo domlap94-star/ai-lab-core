@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('assert');const fs=require('fs');const path=require('path');
+const helper=fs.readFileSync(path.join(__dirname,'..','hardening','invoke-qdrant-backup-helper.ps1'),'utf8');
+const backup=fs.readFileSync(path.join(__dirname,'..','hardening','backup-production.ps1'),'utf8');
+assert.match(helper,/GetPathRoot\(\$backup\).*F:/s);
+assert.match(helper,/Docker @\('stop','-t','60','qdrant'\)/);
+assert.match(helper,/--pull','never'/);
+assert.match(helper,/source=\$volume,target=\/qdrant\/storage/);
+assert.match(helper,/QDRANT__STORAGE__SNAPSHOTS_PATH=\/qdrant\/snapshots/);
+assert.match(helper,/QDRANT__STORAGE__TEMP_PATH=\/qdrant\/snapshots\/temp/);
+assert.ok(helper.indexOf("Docker @('stop','-t','60','qdrant')")<helper.indexOf("Docker @('run','-d'"));
+assert.ok(helper.indexOf("docker.exe rm -f $helper")<helper.indexOf("Docker @('start','qdrant')"));
+assert.match(helper,/qdrant_primary_identity_changed/);
+assert.match(helper,/qdrant_post_state_mismatch/);
+assert.match(helper,/qdrant_staging_residue/);
+assert.match(backup,/invoke-qdrant-backup-helper\.ps1/);
+assert.match(backup,/valid_external_f_staging/);
+console.log('QDRANT_BACKUP_HELPER_CONTRACT=PASS');

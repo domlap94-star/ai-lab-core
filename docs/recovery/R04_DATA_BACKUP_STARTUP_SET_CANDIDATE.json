@@ -50,6 +50,66 @@
       "evidence": "R04_DATA_BACKUP_SOURCE_FOCUSED_PASS_20260926"
     },
     {
+      "role": "analysis_queue",
+      "path": "operations/supervisor/analysis_queue.js",
+      "sha256": "2A8E44F5D8725EB1E0894512D6EE2C098131E83B5B8554AA06130C454C10312E",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "vision_queue",
+      "path": "operations/supervisor/vision_queue.js",
+      "sha256": "C38ABC455D880F8495F7BCE7BEAB18BB18FAC66F4A55F55BDE24E99831855174",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "vision_worker",
+      "path": "operations/vision-worker/vision-job.js",
+      "sha256": "87ABBC1762AB9D7380183418F810A22AFDBB00E78898D19BD256CF1998DDF25F",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "analysis_worker",
+      "path": "operations/vision-worker/analysis-job.js",
+      "sha256": "394CE9A787AF15157657C5A17AF7DAD415E5D7BAA78349C420BF3E13B2C971C",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "vision_worker_package",
+      "path": "operations/vision-worker/package.json",
+      "sha256": "1E986CA873A704F3F225ABF7121C648C922BD146BBEA407336B5442B93874C29",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "vision_worker_lock",
+      "path": "operations/vision-worker/package-lock.json",
+      "sha256": "70F7C4313F363BA969C63E7452F0A27B7BCF41A25B1421400E514B19AD51434D",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "backup_schedule_backend",
+      "path": "backend/app/scripts/run_backup_schedule.py",
+      "sha256": "975207C0F319A728A587F4823CAA77CA6FBFD01C96B8F1880C300FF782718108",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "backup_schedule_runner",
+      "path": "operations/hardening/run-backup-schedule.ps1",
+      "sha256": "08415ACD52789B6D85E71892655592D66741F6496A79A6887BB1A6868EF32AC9",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "backup_production",
+      "path": "operations/hardening/backup-production.ps1",
+      "sha256": "D68DEC23193D647B0AE6A2C6F76B8E3F050AEC6E8203DA7FBC9E8F7529342C97",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
+      "role": "qdrant_backup_helper",
+      "path": "operations/hardening/invoke-qdrant-backup-helper.ps1",
+      "sha256": "39907FB26283D257F153BCB92E4E6754899FE20895FDBB12850451703AC0F644",
+      "evidence": "R04_FINAL_EXECUTION_SOURCE_PASS_20260927"
+    },
+    {
       "role": "startup_launcher",
       "path": "operations/runtime/start-host-services.ps1",
       "sha256": "41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910",
