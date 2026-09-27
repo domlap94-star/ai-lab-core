@@ -1,13 +1,13 @@
 {
   "schema": "NEXT_STABIL_COMPONENT_COMPATIBILITY_V1",
-  "captured_utc": "2026-09-26T21:55:00Z",
-  "release_id": "NEXT-STABIL-MIXED-OBSERVED-20260926",
+  "captured_utc": "2026-09-27T01:30:00Z",
+  "release_id": "NEXT-STABIL-R04-c35b6bd64f094777",
   "status": "FINAL_CONSOLIDATED_K1",
   "components": {
     "backend": {
-      "version": "1.0.0",
+      "version": "1.0.2",
       "identity_kind": "git_sha",
-      "identity": "0ee0ea50943578e6e552aae23ce1688595ddc262",
+      "identity": "90c5531a3f330aa2d1068402db0cda3ba0907381",
       "image_id": "sha256:6342b36fa2cdd2501ea4e0e9fada9a9ffaa4894f0c512f19f822f009e8d63702"
     },
     "api": { "version": "1", "identity_kind": "contract_version", "identity": "1" },
@@ -58,7 +58,8 @@
     }
   },
   "startup": {
-    "approved_manifest_sha256": "53CA6E98F81915D62C7695D8F077FACC95E394D897BD2E9D12000143B6972EC9",
+    "approved_manifest_sha256": "51EC9B4D58F32CD8D72A21A24F3AAEEA14994EEF92E943933788209C2128EAB9",
+    "backend_version_override_sha256": "4F55994D8258090BC92120A46C48E053877971307297C5CF06F4EF4FC29F0D82",
     "launcher_sha256": "41B2F9ACC11F0647F99F1B04DD2DB9E04CD33810EBF22AD43C576A726E44F910",
     "runtime_sha256": "8265D4E48415179503CD892116ABF50E90BA69799DE5685E1550F0066B10B4F3",
     "recorder_sha256": "BC002D6DC2721BBEF84EC789633D473C34D955D1D42CC506161C60FFA3B5A801",
@@ -66,13 +67,13 @@
     "backend_boolean_flags": "9/9_FALSE_UNCHANGED"
   },
   "public_version": {
-    "backend": "1.0.0",
+    "backend": "1.0.2",
     "api": 1,
     "minimum_app": "1.0.0",
-    "latest_app": "1.0.0",
-    "environment": "development",
-    "debug": true,
-    "runtime_configuration": "REVIEW_REQUIRED"
+    "latest_app": "1.0.2",
+    "environment": "production",
+    "debug": false,
+    "runtime_configuration": "SAFE"
   },
   "support_matrix": {
     "web_1.0.2+41_api_1": "PUBLIC_LOGIN_UI_AND_HEALTH_PASS_CLIENT_LIST_DETAIL_BLOCKED_BY_EXPIRED_SESSION",
@@ -81,14 +82,11 @@
   },
   "material_limitations": [
     "LIVE_WEB_BUILD_41_DIFFERS_FROM_STABLE_CLIENT_BUILD_29",
-    "PUBLIC_VERSION_LATEST_1.0.0_DIFFERS_FROM_STABLE_1.0.2",
-    "PUBLIC_VERSION_ENVIRONMENT_DEVELOPMENT_DEBUG_TRUE",
     "WINDOWS_STABLE_INSTALLER_NOT_AUTHENTICODE_SIGNED",
     "ANDROID_INSTALLED_1.0.0_SIGNATURE_MISMATCH_WITH_APPROVED_1.0.2+29_APK",
     "WEB_AUTHENTICATED_CLIENT_LIST_DETAIL_NOT_TESTED_EXPIRED_SESSION",
     "WORKER_CODE_STATE_SPLIT_NOT_DEPLOYED_UAC_CANCELLED",
-    "BACKUP_RUNNER_MODULE_INVOCATION_FIX_TESTED_NOT_DEPLOYED_SECOND_UAC_CANCELLED",
-    "PUBLIC_VERSION_RELEASE_CONFIGURATION_NOT_PRODUCTION_SAFE",
+    "BACKUP_RUNNER_AND_QDRANT_HELPER_TESTED_NOT_DEPLOYED_AFTER_UAC1_ROLLBACK",
     "QDRANT_API_SNAPSHOT_CREATES_FULL_TEMP_INSIDE_D_VHDX"
   ]
 }
