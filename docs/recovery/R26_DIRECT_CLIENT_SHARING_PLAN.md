@@ -17,10 +17,9 @@ Przepływ użytkownika:
    `POST /api/v1/client-access/grants`;
 5. sukces odświeża historię i opcje oraz pokazuje komunikat bez zmiany trasy.
 
-Krok 2 pozostaje `DEFERRED / NOT_AUTHORIZED / NOT_STARTED`. R26 krok 1 nie
-obejmuje filtrowania historii `/shared-clients`, bulk grant/revoke, nowego
-endpointu, zmian backendu, migracji, DB/schema, polityki scope R25, R04 ani
-D-22.
+Krok 2 został później osobno autoryzowany. Jego source/test/build jest
+opublikowany, lecz deployment nie rozpoczął się, ponieważ jedyny UAC anulowano
+przed `CreateProcess`. Nie zmienia to odbioru kroku 1 ani polityki scope R25.
 
 ## 2. Implementacja współdzielona
 
@@ -116,6 +115,74 @@ lokalnych logów biznesowych.
   `182183c618a2545b79eaea97702a8bbc3a1525ac`;
 - właściciel praktycznie potwierdził działanie na liście i w szczegółach,
   anulowanie bez grantu oraz dokładnie jeden właściwy grant po potwierdzeniu;
-- R26 krok 2: `SEPARATE_SCOPE / DEFERRED / NOT_AUTHORIZED / NOT_STARTED`;
+- R26 krok 2: `IN_PROGRESS / CONSOLIDATED_K1 /
+  DEPLOYMENT_NOT_RUN_UAC_CANCELLED`;
 - otwarte techniczne K0/K1 w zakresie kroku 1: `BRAK`;
 - R04 pozostaje wstrzymane; D-22 pozostaje `NOT_RUN`.
+
+## 7. Krok 2 — wykonany zakres source/test/build
+
+Opublikowany source `67b867ee279fe0bf7617c05b7d61fff0b337cab3` zawiera:
+
+- domyślną listę active-only i jawny przełącznik `Pokaż cofnięte`;
+- zaznaczanie wielu aktywnych grantów oraz jeden atomowy
+  `POST /api/v1/client-access/grants/bulk-revoke`;
+- zachowanie historii grantów, wspólny `revoked_at`, konflikt bez częściowego
+  skutku oraz niezmieniony flow kroku 1;
+- addytywną migrację `r26_step2_20260928` z nullable DATE `scheduled_date`,
+  deterministycznym backfillem Europe/Warsaw i historycznymi kolumnami bez
+  usuwania;
+- obowiązkowy date-only picker `Termin wizji *`, bez pola `Rozpoczęto` i bez
+  drugiego źródła prawdy dla nowych operacji;
+- wersję `1.0.2+43`.
+
+Dowody przed deploymentem:
+
+- focused backend migration/date/bulk oraz regresje R25: `PASS`;
+- Python compile: `PASS`;
+- Flutter analyze: `PASS`;
+- focused Flutter: `29/29 PASS`;
+- pełny Flutter: `379/379 PASS`;
+- Web/Windows/Android release build: `PASS`;
+- Web main SHA-256:
+  `F7013E8E5DE072B679703DE07989B34415D4D94BD383C06ACFFBC2B0CAC3D0CB`;
+- Windows installer SHA-256:
+  `562DBE2E41838D4960459958442CE314D1EE5E5299D869F446923666F6841A89`;
+- oczekiwany installed Windows `frontend.exe` SHA-256:
+  `7CBC3CF72C86AD51F8571CEDDB373704B1681DBF6443D1D1E3C9C411051AE020`;
+- Android APK SHA-256:
+  `52D8AD6E259691F52CC80245A884DF322FEB3C02F374BB0CD6A26D98E445AFCF`.
+
+## 8. UAC anulowany — rozliczenie skutków
+
+Operacja `R26-STEP2-20260927T225049Z` nie weszła do skryptu: Windows zwrócił
+`Operacja została anulowana przez użytkownika`, katalog OutputRoot nie powstał,
+a kolejnego monitu ani alternatywnego kanału nie użyto.
+
+Exact readback potwierdził:
+
+- DB nadal `r25_external_scope_20260927`;
+- backend container ID nadal
+  `2e6e9e04aac2728ac84fed38078cb6e5628620525b83c848f850332b6b879e42`;
+- startup manifest nadal
+  `A86582B48A854D963F61327F139A27160057B1004AFB1B394613D0DC28E39AE8`;
+- Web nadal `44A53C0B...A115EE`, stable manifest `F65CC515...35E5`, version
+  override `4F55994D...F0D82` i Windows executable `C0DE8E94...34CD5`;
+- artefakty stable `+43` są nieobecne;
+- wszystkie istniejące kontenery zachowały tożsamości, PostgreSQL jest healthy;
+- Supervisor i aktywny backup pozostają `0`.
+
+Nie utworzono fixture, więc cleanup residue wynosi zero przez brak rozpoczęcia.
+Migracja, deployment Web/backend/Windows/Android oraz synthetic live smoke są
+`NOT_RUN`. Jedyny materialny K1 to `DEPLOYMENT_NOT_RUN_UAC_CANCELLED`.
+
+## 9. Bieżący status
+
+- R25: `ACCEPTED`;
+- R26 krok 1: `ACCEPTED / OWNER_CONFIRMED`;
+- R26 krok 2: `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 /
+  CHANGES_REQUIRED`;
+- source/test/build: `PASS / PUBLIC`;
+- deployment/live smoke: `NOT_RUN`;
+- R04: `IN_PROGRESS / ORGANIZACYJNIE_WSTRZYMANE`;
+- D-22: `NOT_RUN`.

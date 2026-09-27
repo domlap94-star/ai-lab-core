@@ -2,7 +2,7 @@
 
 **Jedna roadmapa wykonawcza · wersja 1.1 · 2026-09-07**
 
-**Status rejestracji: R00–R02, R25 i R26 krok 1 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04 i R05 pozostają IN_PROGRESS. Właściciel decyzją D-24 czasowo wstrzymał dalsze wykonywanie R04 wyłącznie organizacyjnie; jego funkcjonalny stan, wcześniejsze odbiory, cztery K1 i punkt wznowienia `20260927T111500Z-R04-THREE-K1-CLOSURE-ATTEMPT` pozostają niezmienione. Właściciel praktycznie sprawdził kompletny R25 i decyzją D-31 nadał `R25_ACCEPTED` wynikowi `4757c8197200b4a103edd58843b0e442d60ba004`. Następnie praktycznie sprawdził bezpośrednie udostępnianie z listy i szczegółów opublikowane w `182183c618a2545b79eaea97702a8bbc3a1525ac`: anulowanie nie nadaje dostępu, a potwierdzenie nadaje dokładnie jeden grant właściwemu External. Decyzja D-33 nadaje `R26_STEP1_ACCEPTED / OWNER_CONFIRMED`. Krok 2 pozostaje osobnym zakresem `DEFERRED / NOT_AUTHORIZED / NOT_STARTED` i nie jest częścią tego odbioru. Plan R26 znajduje się w `docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md`, a checkpoint odbioru w `docs/recovery/checkpoints/20260927T201823Z-R26-STEP1-OWNER-ACCEPTED.md`. R04 pozostaje wstrzymane, D-22 `NOT_RUN`. Bieżący stan znajduje się wyłącznie w §0.**
+**Status rejestracji: R00–R02, R25 i R26 krok 1 ACCEPTED; R03 pozostaje WAITING_APPROVAL / WAITING_ESCROW_DECISION; R04, R05 i R26 krok 2 pozostają IN_PROGRESS. Właściciel decyzją D-24 czasowo wstrzymał dalsze wykonywanie R04 wyłącznie organizacyjnie; jego funkcjonalny stan i wcześniejsze odbiory pozostają niezmienione. R25 pozostaje `ACCEPTED`, a decyzja D-33 zachowuje `R26_STEP1_ACCEPTED / OWNER_CONFIRMED`. D-34 autoryzowała kompletny krok 2. Source/test/build `1.0.2+43` opublikowano w `67b867ee279fe0bf7617c05b7d61fff0b337cab3`, lecz jedyny UAC został anulowany przed `CreateProcess`; katalog operacji nie powstał, migracja/deployment/live smoke/fixture nie zostały rozpoczęte, a exact readback potwierdził brak mutacji produkcji. Status kroku 2 to `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 / DEPLOYMENT_NOT_RUN_UAC_CANCELLED`; nie jest `READY_FOR_OWNER_REVIEW` ani `ACCEPTED`. Plan R26 znajduje się w `docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md`, a bieżący checkpoint w `docs/recovery/checkpoints/20260927T225049Z-R26-STEP2-UAC-CANCELLED-NO-MUTATION.md`. R04 pozostaje wstrzymane, D-22 `NOT_RUN`. Bieżący stan znajduje się wyłącznie w §0.**
 
 **Aktualizacja USABLE-WARM PARAM-FIX 2026-09-24:** po fail-before potwierdzającym,
 że import bazowej recepty nadpisywał argumenty kontynuacji, przygotowano
@@ -532,7 +532,7 @@ Git status/push nie oznacza statusu funkcjonalnego ani deploymentu.
 | R23 | PLANNED | — | — |
 | R24 | PLANNED | — | Osobne zgody na exact-path cleanup |
 | R25 | ACCEPTED | OWNER_CONFIRMED / BACKEND_WEB_ANDROID_E2E_WINDOWS_PASS / SAC_OFF_OWNER_MANAGED_HOST / EXACT_HASH_ACCEPTANCE | Właściciel praktycznie sprawdził wynik i potwierdził „sprawdzone w praktyce, działa.”; uwagi o nowym przycisku są osobnym R26 i nie otwierają R25 |
-| R26 | ACCEPTED | STEP1_OWNER_CONFIRMED / STEP2_SEPARATE_SCOPE_DEFERRED_NOT_AUTHORIZED | Właściciel praktycznie potwierdził listę, szczegóły, cancel bez mutacji i dokładnie jeden właściwy grant po confirm dla `182183c618a2545b79eaea97702a8bbc3a1525ac`; odbiór nie obejmuje kroku 2 |
+| R26 | IN_PROGRESS | STEP1_OWNER_CONFIRMED / STEP2_SOURCE_TEST_BUILD_PASS / CONSOLIDATED_K1_DEPLOYMENT_NOT_RUN_UAC_CANCELLED | Krok 1 pozostaje odebrany. Krok 2 source `67b867ee...` oraz testy/buildy PASS; UAC anulowany przed startem skryptu, produkcja bez mutacji, migracja/deployment/live smoke NOT_RUN |
 
 `docs/recovery/PACKAGE_REGISTER.csv` i `docs/recovery/PACKAGE_DETAILS.json` są lustrzanym
 indeksem tych samych pakietów. Przy zmianie statusu należy je zsynchronizować
@@ -1935,17 +1935,19 @@ uzgodnionego produktu jako narzędzia pracy właściciela.
 
 **Cel kroku 1:** dodać wspólną akcję `Udostępnij klienta` na karcie klienta i w szczegółach. Lista używa aktualnych `manager-options` oraz historii grantów, wyklucza aktywne granty, dopuszcza cofnięte, a wybór użytkownika tylko otwiera dialog. Dokładnie jeden istniejący POST następuje dopiero po `Udostępnij`.
 
-**Kanoniczny plan:** `docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md`. Implementacja współdzieli repository, providery i `ClientShareAction`; nie zmienia backendu, migracji, DB/schema, R25 scope ani serwerowej autoryzacji.
+**Kanoniczny plan:** `docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md`. Krok 1 współdzieli repository, providery i `ClientShareAction`. Autoryzowany krok 2 dodaje query-level active/history, atomowy bulk revoke oraz addytywną kanoniczną `scheduled_date`, bez zmiany polityki scope R25.
 
 **Warunek kroku 1:** akcja jest dostępna tylko dla wewnętrznych `User/Admin/Administrator`, działa na liście i w szczegółach bez zmiany trasy, anulowanie ma zero mutacji, potwierdzenie ma jeden POST, aktywny grant znika z opcji, revoke pozostaje zgodny, a Web/Windows/Android i syntetyczny live smoke są PASS.
 
 **Bieżący wynik:** source został opublikowany w serii `d34bb805...`, `b1ff82b8...`, `5492009d...`, `ccfd4846...`; focused testy `11/11` i `16/16`, pełny Flutter `374/374` oraz analyze są PASS. Wersja `1.0.2+42` jest wdrożona: Web main `44A53C0B...A115EE`, Windows installer `1F920C49...013E`, installed executable `C0DE8E94...34CD5`, Android APK `10A1193A...E027`. Deployment ma `APPROVED_FOR_START / pending_mutation=false`. Live smoke potwierdził Alpha dostępnego, Beta wykluczonego, cancel bez grantu, dokładnie jeden POST po confirm, wykluczenie obu po sukcesie i dokładnie jednego klienta dla Alpha. Oba granty cofnięto, a dokładne fixture usunięto z residue `users=0 / clients=0 / grants=0`.
 
-**Stan:** krok 1 `R26_STEP1_ACCEPTED / OWNER_CONFIRMED` dla opublikowanego wyniku `182183c618a2545b79eaea97702a8bbc3a1525ac`; krok 2 `SEPARATE_SCOPE / DEFERRED / NOT_AUTHORIZED / NOT_STARTED`. Techniczne K0/K1 kroku 1: `BRAK`.
+**Wynik kroku 2:** source/test/build `1.0.2+43` opublikowano w `67b867ee279fe0bf7617c05b7d61fff0b337cab3`. Backend ma query-level active/history i atomowy bulk revoke; Flutter ma active-only/toggle/multi-select, a wizje jedną obowiązkową datę `scheduled_date` wybieraną z kalendarza. Focused backend, R25 regresje, Flutter analyze, focused Flutter `29/29`, pełny Flutter `379/379` i trzy buildy są PASS. Artefakty: Web `F7013E8E...C3D0CB`, Windows installer `562DBE2E...41A89`, Android APK `52D8AD6E...5AFCF`.
+
+**Stan:** krok 1 `R26_STEP1_ACCEPTED / OWNER_CONFIRMED`. Krok 2 `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 / DEPLOYMENT_NOT_RUN_UAC_CANCELLED`. Jedyny UAC anulowano przed uruchomieniem procesu; nie było output root ani mutacji. Readback zachował DB `r25_external_scope_20260927`, backend ID `2e6e9e04...`, startup/Web/stable/version preimages i Windows `1.0.2+42`. Migracja, deployment, emulator update, live smoke i fixture cleanup są `NOT_RUN` (fixture nie utworzono).
 
 **Odbiór właścicielski:** właściciel praktycznie potwierdził działanie bezpośredniego udostępniania na liście i w szczegółach klienta, brak grantu po anulowaniu oraz dokładnie jeden grant właściwemu External po potwierdzeniu. Odbiór dotyczy wyłącznie kroku 1 i nie autoryzuje ani nie odbiera kroku 2.
 
-**Poza zakresem kroku 1:** filtrowanie `/shared-clients`, ukrywanie cofniętej historii, multi-select, bulk grant/revoke, nowy endpoint, query route i preselection, przebudowa historii, backend/schema, D-22 i wznowienie R04.
+**Materialny K1 kroku 2:** `DEPLOYMENT_NOT_RUN_UAC_CANCELLED`; do technicznego zamknięcia nadal wymagane są kontrolowane wdrożenie opublikowanego source, addytywna migracja, Web/Windows/emulator smoke, syntetyczny live smoke i exact cleanup. Nie ponowiono UAC i nie użyto alternatywnego kanału. D-22 i wznowienie R04 pozostają poza zakresem.
 
 ## 8. Dokładne zasady wycofania plików
 

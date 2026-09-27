@@ -2399,33 +2399,36 @@
     "phase": "B — Poprawność istniejącego systemu",
     "type": "FEATURE / UX / VERIFY",
     "dependencies": ["R25"],
-    "goal": "User, Admin lub Administrator nadaje istniejący grant External bezpośrednio z listy albo szczegółów klienta, bez przejścia do /shared-clients.",
+    "goal": "Krok 1 zachowuje bezpośredni grant External; krok 2 dodaje active-only/history, atomowy bulk revoke i jedną obowiązkową date-only wizji.",
     "scope": [
       "Jeden współdzielony ClientShareAction używany na liście i w szczegółach klienta.",
       "Wspólne repository i providery istniejącego client-access API bez nowego endpointu.",
       "Aktualna, alfabetyczna lista External bez aktywnego grantu; grant cofnięty jest ponownie dostępny.",
       "Wybór otwiera dialog bez mutacji; dopiero potwierdzenie wykonuje dokładnie jeden POST grantu.",
-      "Focused/full Flutter, Web/Windows/Android release, controlled deployment i syntetyczny live smoke."
+      "Focused/full Flutter, Web/Windows/Android release, controlled deployment i syntetyczny live smoke.",
+      "Krok 2: query-level active/history, multi-select, jeden atomowy bulk revoke, addytywna scheduled_date i obowiązkowy date picker."
     ],
     "checks": [
       "Akcja widoczna tylko dla User/Admin/Administrator; External, unknown i brak sesji są fail-closed.",
       "Lista klientów zachowuje wejście w szczegóły, a ikona udostępniania nie propaguje tapnięcia.",
       "Aktywny grant wyklucza użytkownika, cofnięty grant nie wyklucza, a anulowanie ma zero POST.",
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
-      "Krok 2 pozostaje DEFERRED / NOT_AUTHORIZED / NOT_STARTED."
+      "Krok 2 source/test/build 1.0.2+43 przechodzi; deployment i live smoke wymagają uruchomionego, nieanulowanego UAC."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany: lista i szczegóły działają, cancel nie nadaje dostępu, a confirm nadaje dokładnie jeden właściwy grant. Krok 2 jest osobnym zakresem.",
-    "impact": "Frontend Flutter i release 1.0.2+42. Backend, DB/schema, migracje i polityka scope R25 bez zmian. Fixture R26S1 usunięto z residue 0/0/0.",
-    "approval": "Właściciel nadał R26_STEP1_ACCEPTED wynikowi 182183c618a2545b79eaea97702a8bbc3a1525ac po praktycznym sprawdzeniu listy, szczegółów, cancel bez dostępu i dokładnie jednego właściwego grantu po confirm. Krok 2 pozostaje osobnym nieautoryzowanym zakresem.",
-    "rollback": "Przywrócić poprzedni Web/Windows/Android build i współdzielone pliki UI; backend/schema R25 pozostają niezmienione.",
-    "exclude": "Krok 2: filtrowanie /shared-clients, ukrywanie cofniętej historii, multi-select, bulk grant/revoke, nowy endpoint i preselection; backend/schema; R04; D-22.",
-    "status": "ACCEPTED",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_SEPARATE_SCOPE_DEFERRED_NOT_AUTHORIZED",
-    "execution_state": "OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / SOURCE_TESTS_PASS / VERSION_1_0_2_42 / WEB_ANDROID_WINDOWS_DEPLOYED / SYNTHETIC_LIVE_SMOKE_PASS / FIXTURE_CLEANUP_0_0_0 / NO_OPEN_STEP1_K0_K1 / STEP2_NOT_STARTED",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany source 67b867ee, testy i trzy buildy PASS, ale nie został wdrożony po anulowaniu jedynego UAC przed CreateProcess.",
+    "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. Krok 2 przygotowuje backend/schema/Flutter 1.0.2+43, lecz exact readback potwierdził brak mutacji produkcji, DB nadal na R25 i brak fixture.",
+    "approval": "D-34 autoryzowała krok 2 end-to-end i jeden UAC. Anulowanie zostało uszanowane bez retry; krok 2 pozostaje IN_PROGRESS i nie jest READY ani ACCEPTED.",
+    "rollback": "Nie był potrzebny: skrypt nie został uruchomiony, OutputRoot nie powstał, a wszystkie dokładne preimages pozostały zgodne.",
+    "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
+    "status": "IN_PROGRESS",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_SOURCE_TEST_BUILD_PASS / CONSOLIDATED_K1_DEPLOYMENT_NOT_RUN_UAC_CANCELLED",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / STEP2_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / VERSION_1_0_2_43_BUILD_PASS / UAC_CANCELLED_BEFORE_CREATEPROCESS / PRODUCTION_NO_MUTATION / MIGRATION_DEPLOYMENT_LIVE_SMOKE_NOT_RUN / FIXTURE_NOT_CREATED",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
-    "findings": [],
+    "findings": [
+      "K1 DEPLOYMENT_NOT_RUN_UAC_CANCELLED: jedyny UAC anulowano przed CreateProcess; production bez mutacji, migracja/deployment/live smoke NOT_RUN."
+    ],
     "retirement_ids": []
   }
 ]
