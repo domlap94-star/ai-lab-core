@@ -21,7 +21,8 @@
 
 1. `WINDOWS_APPLICATION_CONTROL_BLOCKED`: exact installer `EA69C1FF...3CE9` został zablokowany przez Windows Application Control przed startem procesu zarówno zwykłym wywołaniem, jak i jedynym dopuszczonym `RunAs`. Instalacja nie rozpoczęła się; klient pozostał na exact preimage `5BD959A3...B0865`. Nie użyto obejścia ochrony.
 2. `ANDROID_SIGNATURE_OWNER_DECISION_REQUIRED`: standardowy update exact APK `F24A250B...E47` na jedynym emulatorze zakończył się `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Nie wykonano uninstallu, nie dotknięto fizycznego urządzenia i nie zmieniono danych emulatora.
+3. `FULL_POST_DEPLOY_E2E_NOT_COMPLETE`: focused synthetic PASS pokrywa role, aktywny grant, idempotentny regrant, revoke, zmianę roli, listy klientów/projektów/inspections, manager options i direct client ID 404. Nie wykonano pełnego live authenticated fixture workflow obejmującego wszystkie wymagane zasoby plikowe, mail, task/calendar, timeline, search/count, notification, export i AI; nie użyto poświadczeń właściciela ani danych firmy do pozornego PASS.
 
 ## Następny krok
 
-Jedna decyzja właściciela powinna wskazać zaufany przez Application Control kanał instalacji exact Windows artifactu oraz osobno APK podpisany zgodnym kluczem albo jawnie zatwierdzony uninstall/install wyłącznie emulatora. Bez tej decyzji nie wolno nadać `R25_READY_FOR_OWNER_REVIEW`, ponawiać instalacji, obchodzić ochrony, wznawiać R04 ani rozpoczynać D-22.
+Jedna skonsolidowana decyzja właściciela powinna wskazać zaufany przez Application Control kanał instalacji exact Windows artifactu oraz osobno APK podpisany zgodnym kluczem albo jawnie zatwierdzony uninstall/install wyłącznie emulatora. Po wdrożeniu klientów wymagany pozostaje pełny live authenticated fixture E2E. Bez tego domknięcia nie wolno nadać `R25_READY_FOR_OWNER_REVIEW`, ponawiać instalacji, obchodzić ochrony, wznawiać R04 ani rozpoczynać D-22.

@@ -1924,7 +1924,7 @@ uzgodnionego produktu jako narzędzia pracy właściciela.
 
 **Bieżący wynik:** backend source `16e8fcb5...`, schema `r25_external_scope_20260927`, nowy backend `021c3325...d46f5`, manifest `7014D583...D429D` i Web `A6D708B2...E80A` są wdrożone i zweryfikowane. Syntetyczny A/B grant/revoke/direct-ID test przechodzi, Public `/control*` pozostaje `404`, Supervisor pozostaje zatrzymany i pięć pozostałych kontenerów zachowało ID. Windows pozostał na preimage po formalnej blokadzie Application Control exact instalatora; Android pozostał na preimage po `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Status `R25_IN_PROGRESS / FINAL_CONSOLIDATED_K1`; bez automatycznego retry lub obejścia ochrony.
 
-**Potrzebna decyzja właściciela:** dostarczyć/uruchomić zaufany przez Application Control exact kanał instalacji Windows oraz osobno zdecydować między APK podpisanym zgodnym certyfikatem a destrukcyjnym uninstall/install wyłącznie emulatora. To są dwa materialne K1; nie wznawiają R04 ani D-22.
+**Potrzebne domknięcie:** dostarczyć/uruchomić zaufany przez Application Control exact kanał instalacji Windows, osobno zdecydować między APK podpisanym zgodnym certyfikatem a destrukcyjnym uninstall/install wyłącznie emulatora oraz po wdrożeniu klientów wykonać pełny live authenticated A/B E2E wszystkich wymaganych domen na kontrolowanych fixture. To są trzy materialne K1; nie wznawiają R04 ani D-22.
 
 **Poza zakresem:** automatic assignment, territory/team/group, public links, delegowanie przez External, field-level permissions, grant per zasób, redesign RBAC/multi-tenant, Gmail/Sheets/D-22, dalsze R04, niezwiązane R05–R24, cleanup i R23 audit.
 

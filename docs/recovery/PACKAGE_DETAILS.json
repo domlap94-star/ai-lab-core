@@ -2385,7 +2385,7 @@
     "exclude": "Automatic assignment, territory/team/group, public links, delegowanie przez External, field-level i per-resource grants, redesign RBAC/multi-tenant, Gmail/Sheets, D-22, dalsze R04, niezwiązane R05–R24, cleanup i R23 audit.",
     "status": "IN_PROGRESS",
     "active_stage": "CORE_BACKEND_AND_WEB_DEPLOYED / FINAL_CONSOLIDATED_K1",
-    "execution_state": "BACKEND_SCHEMA_RUNTIME_PASS / WEB_PASS / WINDOWS_APPLICATION_CONTROL_BLOCKED / ANDROID_SIGNATURE_OWNER_DECISION_REQUIRED / NOT_ACCEPTED",
+    "execution_state": "BACKEND_SCHEMA_RUNTIME_PASS / WEB_PASS / POST_DEPLOY_E2E_PARTIAL / WINDOWS_APPLICATION_CONTROL_BLOCKED / ANDROID_SIGNATURE_OWNER_DECISION_REQUIRED / NOT_ACCEPTED",
     "canonical_plan": "docs/recovery/R25_EXTERNAL_USER_CLIENT_SCOPE_PLAN.md",
     "primary_requirements": ["M-006", "M-007", "M-015", "M-016", "M-017", "M-038", "M-039", "M-043", "M-047", "M-064", "M-069", "M-071", "M-072", "M-073"],
     "linked_requirements": ["F-005", "F-009", "F-013", "F-020", "F-022", "F-035"],
