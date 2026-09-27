@@ -50,13 +50,41 @@ $acceptanceGate = Get-Content -LiteralPath $acceptanceGatePath -Raw
 foreach ($requiredToken in @(
     'WINDOWS_NATIVE_PAYLOAD_NOT_NORMALIZED',
     'WINDOWS_NATIVE_PAYLOAD_NOT_INSTALLER_TRUSTED',
+    'SAC_ON_INSTALLER_TRUSTED',
+    'SAC_OFF_OWNER_MANAGED_HOST',
+    'WINDOWS_SAC_NOT_OFF',
+    'WINDOWS_EXPECTED_PAYLOAD_MANIFEST_REQUIRED',
+    'WINDOWS_PAYLOAD_FILE_HASH_MISMATCH',
+    'WINDOWS_UNEXPECTED_INSTALLED_FILE',
+    'WINDOWS_INSTALLED_ROOT_REPARSE_NOT_ALLOWED',
+    'WINDOWS_EXECUTABLE_LOCATION_BROADLY_WRITABLE',
+    'WINDOWS_UNINSTALL_METADATA_MISMATCH',
+    'WINDOWS_SHORTCUT_TARGET_MISMATCH',
+    'WINDOWS_BITDEFENDER_NOT_ACTIVE',
+    'WINDOWS_FIREWALL_NOT_ACTIVE',
+    'WINDOWS_UAC_NOT_ACTIVE',
     '$KERNEL.SMARTLOCKER.ORIGINCLAIM',
     '$KERNEL.PURGE.SMARTLOCKER.VALID',
+    'WINDOWS_OWNER_MANAGED_SECURITY_GATE=PASS',
+    'WINDOWS_EXACT_INSTALLED_ROOT_HASH_GATE=PASS',
     'WINDOWS_ACCEPTANCE_PAYLOAD_GATE=PASS'
 )) {
     if (-not $acceptanceGate.Contains($requiredToken)) {
         throw "Acceptance gate is missing fail-closed token: $requiredToken"
     }
+}
+
+$onBranch = [regex]::Match(
+    $acceptanceGate,
+    'if \(\$AcceptanceMode -eq ''SAC_ON_INSTALLER_TRUSTED''\) \{(?<body>[\s\S]*?)\}\s*else \{'
+)
+if (-not $onBranch.Success -or
+    -not $onBranch.Groups['body'].Value.Contains('Assert-ManagedInstallerEvidence')) {
+    throw 'Historical SAC_ON mode no longer requires Managed Installer evidence.'
+}
+$offBranch = $acceptanceGate.Substring($onBranch.Index + $onBranch.Length)
+if ($offBranch.Contains('Assert-ManagedInstallerEvidence -Path')) {
+    throw 'SAC_OFF mode must not require SmartLocker OriginClaim/Valid evidence.'
 }
 
 $frontendBuildScript = Get-Content -LiteralPath $frontendBuildScriptPath -Raw
