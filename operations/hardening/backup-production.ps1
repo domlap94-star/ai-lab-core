@@ -288,19 +288,24 @@ $artifacts = Join-Path $checkpoint "artifacts"
 $configDir = Join-Path $checkpoint "configuration"
 if (Test-Path -LiteralPath $checkpoint) { throw "backup_checkpoint_collision" }
 
-$selectedCollections = if ($QdrantCollections.Count -gt 0) {
-    @($QdrantCollections | ForEach-Object { Get-SafeQdrantCollectionName ([string]$_) })
-} else {
-    @(Get-SafeQdrantCollectionName $QdrantCollection)
-}
-if (@($selectedCollections | Select-Object -Unique).Count -ne $selectedCollections.Count) {
+[string[]]$selectedCollections = @(
+    if (@($QdrantCollections).Count -gt 0) {
+        foreach ($collection in @($QdrantCollections)) {
+            Get-SafeQdrantCollectionName ([string]$collection)
+        }
+    } else {
+        Get-SafeQdrantCollectionName ([string]$QdrantCollection)
+    }
+)
+[int]$selectedCollectionCount = @($selectedCollections).Count
+if (@($selectedCollections | Select-Object -Unique).Count -ne $selectedCollectionCount) {
     throw "qdrant_collection_duplicate"
 }
 $requiredRecoveryCollections = @("ai_lab_document_chunks", "ai_lab_knowledge_base_chunks")
 if ($ManifestFormat -eq "RecoveryPointV2") {
     if ($Scope -ne "full") { throw "recovery_point_v2_requires_full_scope" }
     if ($QdrantProofMode -ne "CaptureOnly") { throw "recovery_point_v2_capture_must_not_restore" }
-    if ($selectedCollections.Count -ne $requiredRecoveryCollections.Count -or
+    if ($selectedCollectionCount -ne $requiredRecoveryCollections.Count -or
         @($requiredRecoveryCollections | Where-Object { $_ -notin $selectedCollections }).Count -ne 0) {
         throw "recovery_point_v2_required_collections_missing"
     }
@@ -314,7 +319,7 @@ if ($ManifestFormat -eq "RecoveryPointV2") {
         throw "runtime_inventory_contract_invalid"
     }
 } else {
-    if ($selectedCollections.Count -ne 1) { throw "legacy_manifest_requires_one_qdrant_collection" }
+    if ($selectedCollectionCount -ne 1) { throw "legacy_manifest_requires_one_qdrant_collection" }
     $runtimeInventory = $null
 }
 
