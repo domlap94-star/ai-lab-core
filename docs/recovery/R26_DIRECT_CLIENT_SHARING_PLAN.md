@@ -237,3 +237,33 @@ tego helpera. Bieżąca zgoda zezwalała w fazie A na instalację wyłącznie
 Bieżący status: `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 /
 UAC_CANCELLED_NO_MUTATION / QDRANT_HELPER_NOT_INSTALLED`. R26 krok 2 nie jest
 `READY_FOR_OWNER_REVIEW` ani `ACCEPTED`.
+
+## 12. Próba kompletnego toolsetu — exact rollback i formalna blokada resume
+
+Bounded preflight operacji `R26-STEP2-TOOLSET-DEPLOY-20260928T182203Z`
+przeszedł. Validator aktywny `4CDC0D20...A495D` dokładnie odpowiada
+kanonicznemu blobowi publicznego repo; różnica względem roboczego checkoutu
+`DE0F2FCD...01E4FB` wynika wyłącznie z LF/CRLF. Artefakty `+43`, F:\dump,
+runtime, DB, manifest, kontenery, emulator i fixture `0` były zgodne.
+
+Pierwszy UAC został zaakceptowany. Faza A rozpoczęła mutację obu plików, ale
+zagnieżdżony child PS5.1 użyty przez lokalny operator w post-checku zwrócił
+`PS51_PARSE_FAILED` dla runnera. Transakcja zgodnie z kontraktem:
+
+- przywróciła runner `36724` B / `25BD1F12...B4DDE`;
+- usunęła operation-owned helper z `ABSENT_PREIMAGE`;
+- usunęła staging i replace-backup;
+- zapisała `PHASE_A_FAILED_ROLLED_BACK` oraz `pending_mutation=false`;
+- nie uruchomiła backupu ani późniejszych faz.
+
+Przyczynę operatora usunięto lokalnie przez wykonanie parsera i macierzy 7/7
+w tym samym podniesionym PS5.1 zamiast zagnieżdżonego procesu. Poprawiona
+ścieżka przeszła `PASS_IN_PROCESS_PS51_POSTCHECK` i parser operatora. Drugi,
+warunkowy UAC został jednak formalnie odrzucony przed `CreateProcess`, ponieważ
+bramka nie uznała defektu operatora za warunek dodatkowego elevation. Nie
+wykonano retry ani alternatywnego kanału.
+
+Końcowy readback: runner preimage exact, helper absent, staging `0`, oba nowe
+checkpointy absent, DB nadal R25, `scheduled_date` absent, backend/startup bez
+zmian, active backup `0`. Status: `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 /
+PHASE_A_FAILED_ROLLED_BACK / SECOND_UAC_FORMALLY_REJECTED`.
