@@ -287,3 +287,25 @@ pozostają `+42`, a migracja/deployment/live smoke są `NOT_RUN`.
 Zgodnie z limitem single-UAC nie wykonano retry ani alternatywnego elevation.
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D38_PS51_ALIAS_COLLISION_BEFORE_MUTATION`.
+
+## 14. D-39 — toolset wdrożony, backup stream K1
+
+Nowy operator `R26-STEP2-D39-20260928T192821Z` został utwardzony do
+pełnych nazw `NsR26`, przeszedł parser, audit aliasów `10/45/0` i pełny
+ValidateOnly. Zamrożone bajty `49328 B / 81EE917E...3A91` uruchomiono pod
+jedynym UAC D-39.
+
+Faza A zakończyła się PASS i pozostawiła poprawnie zainstalowany runner
+`22B7F64...6900` oraz helper `39907FB...644`; parser post-checku działał
+in-process. Backup RecoveryPointV2 rozpoczął checkpoint
+`F:\dump\20260928T193121Z`, lecz strumieniowanie pierwszego `postgres.dump`
+zakończyło się `CopyTo: Potok został zakończony`. Manifest nie powstał.
+
+Niekompletny plik `490077104` B i cały operation-owned checkpoint usunięto po
+potwierdzeniu active backup `0`. Qdrant nie został zmieniony, helper container
+nie powstał, sześć podstawowych kontenerów zachowało ID. Produkt nie rozpoczął
+mutacji: DB nadal R25 bez `scheduled_date`, backend/startup/Web/Windows/Android
+pozostają `+42`, fixture `0`, pending mutation `false`.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D39_TOOLSET_PASS_BACKUP_POSTGRES_STREAM_FAILED`.

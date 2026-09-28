@@ -2413,21 +2413,21 @@
       "Lista klientów zachowuje wejście w szczegóły, a ikona udostępniania nie propaguje tapnięcia.",
       "Aktywny grant wyklucza użytkownika, cofnięty grant nie wyklucza, a anulowanie ma zero POST.",
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
-      "Krok 2 source/test/build 1.0.2+43 oraz backup runner hotfix PS5.1 przechodzą; deployment i live smoke wymagają nowej autoryzowanej operacji z helperami operatora, które nie kolidują z aliasami PS5.1."
+      "Krok 2 source/test/build 1.0.2+43 oraz wdrożony runner/helper przechodzą; pełny RecoveryPointV2, deployment i live smoke wymagają naprawionej ścieżki strumieniowania PostgreSQL i nowej autoryzowanej operacji."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany product source 67b867ee i hotfix 7dff894b; świeża operacja D-38 zakończyła się przed mutacją na kolizji helpera H z aliasem PS5.1 Get-History.",
-    "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. D-38 nie utworzyła preimages ani checkpointu: runner ma exact preimage, helper jest absent, staging i pending mutation są zerowe; startup/Web/Windows/Android pozostają +42.",
-    "approval": "D-38 autoryzowała jedną świeżą operację single-UAC obejmującą toolset, backup, deployment i smoke. UAC został zaakceptowany i skonsumowany; operator zakończył się przed mutacją, a zgodnie z decyzją nie wykonano retry.",
-    "rollback": "Nie był potrzebny rollback produkcji D-38: journal potwierdza mutation_started=false i pending_mutation=false. Historyczny rollback D-37 pozostaje COMPLETE.",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. D-39 wdrożyła oraz zweryfikowała kompletny backup toolset; RecoveryPointV2 zatrzymał się na strumieniowaniu postgres.dump bez finalnego manifestu.",
+    "impact": "Runner 22B7F64 i helper 39907FB pozostają poprawnie zainstalowane. Niekompletny checkpoint został usunięty; Qdrant bez zmian, produkt nadal R25/+42, fixture/active backup/Supervisor/pending mutation mają zera.",
+    "approval": "D-39 autoryzowała zamrożony operator po alias audit i ValidateOnly oraz jeden UAC. UAC został zaakceptowany i skonsumowany; toolset PASS, backup K1, bez drugiego UAC lub retry.",
+    "rollback": "Toolset pozostaje zgodnie z decyzją po PASS fazy A. Operation-owned niekompletny checkpoint bez manifestu został wyczyszczony; produkt nie rozpoczął mutacji i nie wymagał rollbacku.",
     "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
     "status": "IN_PROGRESS",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_BACKUP_HOTFIX_SOURCE_PUBLIC / FINAL_CONSOLIDATED_K1_D38_PS51_ALIAS_COLLISION_BEFORE_MUTATION",
-    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / BACKUP_HOTFIX_PUBLIC_7DFF894B09FACC9E8763296A2BF7EA5E03117535 / D38_SINGLE_UAC_ACCEPTED_CONSUMED / OPERATOR_FAILED_AT_FIRST_SOURCE_CHECK / MUTATION_STARTED_FALSE / PENDING_MUTATION_FALSE / BACKUP_MIGRATION_DEPLOYMENT_SMOKE_NOT_RUN",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_TOOLSET_DEPLOYED / FINAL_CONSOLIDATED_K1_D39_BACKUP_POSTGRES_STREAM_FAILED",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / BACKUP_TOOLSET_PUBLIC_7DFF894B09FACC9E8763296A2BF7EA5E03117535 / D39_OPERATOR_AUDIT_VALIDATE_PREFLIGHT_PASS / SINGLE_UAC_ACCEPTED_CONSUMED / TOOLSET_INSTALLED_IN_PROCESS_POSTCHECK_PASS / BACKUP_POSTGRES_STREAM_FAILED / INCOMPLETE_CHECKPOINT_CLEANED / PRODUCT_SMOKE_NOT_RUN / PENDING_MUTATION_FALSE",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
     "findings": [
-      "K1 D38_PS51_ALIAS_COLLISION_BEFORE_MUTATION: helper H operatora został przesłonięty przez wbudowany alias PS5.1 Get-History; pierwsza kontrola pliku zakończyła operację przed preimages i mutacją, a single-UAC nie może zostać ponowiony."
+      "K1 D39_BACKUP_POSTGRES_STREAM_FAILED: RecoveryPointV2 zatrzymał się podczas CopyTo strumienia pierwszego postgres.dump; manifest nie powstał, niekompletny checkpoint wyczyszczono, a skonsumowanego single-UAC nie można ponowić."
     ],
     "retirement_ids": []
   }
