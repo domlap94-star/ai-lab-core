@@ -2413,21 +2413,22 @@
       "Lista klientów zachowuje wejście w szczegóły, a ikona udostępniania nie propaguje tapnięcia.",
       "Aktywny grant wyklucza użytkownika, cofnięty grant nie wyklucza, a anulowanie ma zero POST.",
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
-      "Krok 2 source/test/build 1.0.2+43 przechodzi; deployment i live smoke wymagają uruchomionego, nieanulowanego UAC."
+      "Krok 2 source/test/build 1.0.2+43 oraz backup runner hotfix PS5.1 przechodzą; deployment i live smoke wymagają uruchomionego, nieanulowanego UAC oraz kompletnego aktywnego toolsetu backupu."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany source 67b867ee, testy i trzy buildy PASS, ale świeża próba zatrzymała się w backup preflight PS5.1 przed checkpointem i mutacją.",
-    "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. Krok 2 przygotowuje backend/schema/Flutter 1.0.2+43, lecz exact readback potwierdził brak mutacji produkcji, DB nadal na R25 i brak fixture.",
-    "approval": "D-35 autoryzowała świeżą próbę. UAC został zaakceptowany i exact preflight przeszedł, lecz backup runner PS5.1 zatrzymał się przed checkpointem i mutacją; drugi UAC nie był dozwolony.",
-    "rollback": "Rollback produktu nie był potrzebny: mutation_started=false. OutputRoot zachowuje journal/result i preimages, lecz DB/runtime pozostały nietknięte.",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany source 67b867ee, testy i trzy buildy PASS; minimalny backup runner hotfix PS5.1 jest publiczny w 7dff894b, ale jego UAC anulowano przed CreateProcess.",
+    "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. Exact readback po anulowaniu potwierdził stary runner, DB nadal na R25, scheduled_date absent, niezmieniony backend/startup i brak checkpointu/fixture.",
+    "approval": "D-36 autoryzowała hotfix oraz jeden UAC. UAC został anulowany przed CreateProcess i nie był ponawiany; pełny RecoveryPointV2 pozostaje dodatkowo zablokowany brakiem aktywnego Qdrant helpera.",
+    "rollback": "Rollback produktu nie był potrzebny: proces podniesiony nie wystartował, OutputRoot nie powstał i produkcja pozostała na dokładnym preimage.",
     "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
     "status": "IN_PROGRESS",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_SOURCE_TEST_BUILD_PASS / CONSOLIDATED_K1_BACKUP_PREFLIGHT_PS51_SCALAR_COUNT",
-    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / STEP2_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / VERSION_1_0_2_43_BUILD_PASS / UAC_ACCEPTED_PREFLIGHT_PASS / BACKUP_FAILED_BEFORE_CHECKPOINT / MUTATION_FALSE / MIGRATION_DEPLOYMENT_LIVE_SMOKE_NOT_RUN / FIXTURE_NOT_CREATED",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_BACKUP_HOTFIX_SOURCE_PUBLIC / CONSOLIDATED_K1_UAC_CANCELLED_NO_MUTATION_QDRANT_HELPER_NOT_INSTALLED",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / STEP2_PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / BACKUP_HOTFIX_SOURCE_PUBLIC_7DFF894B09FACC9E8763296A2BF7EA5E03117535 / VERSION_1_0_2_43_BUILD_PASS / UAC_CANCELLED_BEFORE_CREATEPROCESS / OUTPUTROOT_ABSENT / PRODUCTION_UNCHANGED / MIGRATION_DEPLOYMENT_LIVE_SMOKE_NOT_RUN / FIXTURE_NOT_CREATED",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
     "findings": [
-      "K1 BACKUP_PREFLIGHT_PS51_SCALAR_COUNT: backup-production.ps1 pod PS5.1 rozwija jedną selectedCollections do String i StrictMode odrzuca .Count; checkpoint i mutacja nie rozpoczęły się."
+      "K1 DEPLOYMENT_NOT_RUN_UAC_CANCELLED: hotfix instalacyjny nie rozpoczął się; produkcyjny runner pozostał na preimage.",
+      "K1 QDRANT_BACKUP_HELPER_NOT_INSTALLED: aktywny root nie zawiera helpera wymaganego przez pełny RecoveryPointV2; bieżąca faza A zezwalała na instalację wyłącznie runnera."
     ],
     "retirement_ids": []
   }

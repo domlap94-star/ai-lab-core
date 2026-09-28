@@ -202,3 +202,38 @@ backup/migracja/deployment/smoke są `NOT_RUN`, a produkcja pozostała dokładni
 na preimage `+42`. Drugi UAC nie był dozwolony, ponieważ deployment nie
 rozpoczął się. Bieżący K1:
 `BACKUP_PREFLIGHT_PS51_SCALAR_COUNT`.
+
+## 11. Minimalny hotfix PS5.1 opublikowany; UAC anulowany bez mutacji
+
+Fail-before na rzeczywistym kodzie runnera odtworzył
+`PropertyNotFoundStrict`. Minimalny fix wymusza jednowymiarowe `string[]` oraz
+używa jawnego `selectedCollectionCount`; kontrakty nazw, duplikatów, LegacyV1,
+RecoveryPointV2, proof mode i destination pozostały bez zmian. Windows
+PowerShell 5.1 przeszedł parser oraz 7-przypadkową macierz. Publiczny source
+hotfixu: `7dff894b09facc9e8763296a2bf7ea5e03117535`.
+
+Binding audit sklasyfikował bieżący startup manifest jako brak aktywnego
+bindingu runnera, historyczne kandydaty jako `HISTORICAL_EVIDENCE`, a recovery
+tool manifest 1.2.0 jako `INDEPENDENT_PINNED_TOOL_VERSION`; żadnego z nich nie
+zmieniono.
+
+Operacja `R26-STEP2-HOTFIX-20260928T163858Z` nie weszła do skryptu. UAC został
+anulowany przed `CreateProcess`, OutputRoot nie powstał i nie użyto retry ani
+alternatywnego kanału. Readback potwierdził:
+
+- produkcyjny runner nadal `36724` B / `25BD1F12B237A603D2C19323C175E3220ECFA2E8B97FAB48B05D3DE3CCEB4DDE`;
+- DB revision `r25_external_scope_20260927`, `scheduled_date=absent`;
+- backend ID `2e6e9e04aac2728ac84fed38078cb6e5628620525b83c848f850332b6b879e42`;
+- startup manifest `A86582B48A854D963F61327F139A27160057B1004AFB1B394613D0DC28E39AE8`;
+- active backup `0`, nowy checkpoint nie istnieje;
+- migracja/deployment/live smoke/fixture nadal `NOT_RUN`.
+
+Bounded preflight wykazał także brak aktywnego
+`C:\ai-lab-core\operations\hardening\invoke-qdrant-backup-helper.ps1`, przy
+obecnym validatorze. Pełny RecoveryPointV2 nie może wejść w etap Qdrant bez
+tego helpera. Bieżąca zgoda zezwalała w fazie A na instalację wyłącznie
+`backup-production.ps1`, więc helpera nie skopiowano.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 /
+UAC_CANCELLED_NO_MUTATION / QDRANT_HELPER_NOT_INSTALLED`. R26 krok 2 nie jest
+`READY_FOR_OWNER_REVIEW` ani `ACCEPTED`.
