@@ -2413,22 +2413,21 @@
       "Lista klientów zachowuje wejście w szczegóły, a ikona udostępniania nie propaguje tapnięcia.",
       "Aktywny grant wyklucza użytkownika, cofnięty grant nie wyklucza, a anulowanie ma zero POST.",
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
-      "Krok 2 source/test/build 1.0.2+43 oraz backup runner hotfix PS5.1 przechodzą; deployment i live smoke wymagają uruchomionego, nieanulowanego UAC oraz kompletnego aktywnego toolsetu backupu."
+      "Krok 2 source/test/build 1.0.2+43 oraz backup runner hotfix PS5.1 przechodzą; deployment i live smoke wymagają nowej autoryzowanej operacji z helperami operatora, które nie kolidują z aliasami PS5.1."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany product source 67b867ee i hotfix 7dff894b; operacja kompletnego toolsetu rozpoczęła fazę A, lecz zakończyła exact rollbackiem po defekcie post-checku.",
-    "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. Runner został przywrócony, helper usunięty, staging i pending mutation są zerowe; DB nadal R25, scheduled_date absent, backend/startup bez zmian i brak checkpointu/fixture.",
-    "approval": "D-37 autoryzowała kompletny toolset i jeden warunkowy dodatkowy UAC. Pierwszy UAC zakończył fazę A rollbackiem; poprawiony in-process post-check przeszedł, ale formalna bramka odrzuciła drugi UAC przed CreateProcess.",
-    "rollback": "Rollback fazy A COMPLETE: exact runner preimage, helper ABSENT_PREIMAGE, staging 0 i pending_mutation=false. Backup ani produkt nie zostały zmienione.",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany product source 67b867ee i hotfix 7dff894b; świeża operacja D-38 zakończyła się przed mutacją na kolizji helpera H z aliasem PS5.1 Get-History.",
+    "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. D-38 nie utworzyła preimages ani checkpointu: runner ma exact preimage, helper jest absent, staging i pending mutation są zerowe; startup/Web/Windows/Android pozostają +42.",
+    "approval": "D-38 autoryzowała jedną świeżą operację single-UAC obejmującą toolset, backup, deployment i smoke. UAC został zaakceptowany i skonsumowany; operator zakończył się przed mutacją, a zgodnie z decyzją nie wykonano retry.",
+    "rollback": "Nie był potrzebny rollback produkcji D-38: journal potwierdza mutation_started=false i pending_mutation=false. Historyczny rollback D-37 pozostaje COMPLETE.",
     "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
     "status": "IN_PROGRESS",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_BACKUP_HOTFIX_SOURCE_PUBLIC / CONSOLIDATED_K1_PHASE_A_FAILED_ROLLED_BACK_SECOND_UAC_FORMALLY_REJECTED",
-    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / BACKUP_HOTFIX_PUBLIC_7DFF894B09FACC9E8763296A2BF7EA5E03117535 / FIRST_UAC_ACCEPTED / TOOLSET_MUTATION_STARTED / POSTCHECK_FAILED / EXACT_ROLLBACK_COMPLETE / SECOND_UAC_REJECTED_BEFORE_CREATEPROCESS / BACKUP_MIGRATION_DEPLOYMENT_SMOKE_NOT_RUN",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_BACKUP_HOTFIX_SOURCE_PUBLIC / FINAL_CONSOLIDATED_K1_D38_PS51_ALIAS_COLLISION_BEFORE_MUTATION",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / BACKUP_HOTFIX_PUBLIC_7DFF894B09FACC9E8763296A2BF7EA5E03117535 / D38_SINGLE_UAC_ACCEPTED_CONSUMED / OPERATOR_FAILED_AT_FIRST_SOURCE_CHECK / MUTATION_STARTED_FALSE / PENDING_MUTATION_FALSE / BACKUP_MIGRATION_DEPLOYMENT_SMOKE_NOT_RUN",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
     "findings": [
-      "K1 TOOLSET_PHASE_A_POSTCHECK_FAILED_ROLLED_BACK: zagnieżdżony PS5.1 post-check zawiódł po rozpoczęciu mutacji; transakcja przywróciła exact preimage i usunęła helper.",
-      "K1 SECOND_UAC_FORMALLY_REJECTED: poprawiona in-process ścieżka przeszła lokalnie, ale wykonanie resume zostało odrzucone przed CreateProcess; bez obejścia."
+      "K1 D38_PS51_ALIAS_COLLISION_BEFORE_MUTATION: helper H operatora został przesłonięty przez wbudowany alias PS5.1 Get-History; pierwsza kontrola pliku zakończyła operację przed preimages i mutacją, a single-UAC nie może zostać ponowiony."
     ],
     "retirement_ids": []
   }

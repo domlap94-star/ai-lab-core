@@ -267,3 +267,23 @@ Końcowy readback: runner preimage exact, helper absent, staging `0`, oba nowe
 checkpointy absent, DB nadal R25, `scheduled_date` absent, backend/startup bez
 zmian, active backup `0`. Status: `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 /
 PHASE_A_FAILED_ROLLED_BACK / SECOND_UAC_FORMALLY_REJECTED`.
+
+## 13. D-38 — świeża operacja zatrzymana przed mutacją
+
+D-38 zatwierdziła dokładnie jeden nowy UAC i nową operację
+`R26-STEP2-D38-20260928T185418Z`. Preflight source/artifacts/runtime przeszedł,
+a lokalny operator dwukrotnie przeszedł parser Windows PowerShell 5.1. UAC
+został zaakceptowany, lecz proces podniesiony zakończył się na pierwszym
+sprawdzeniu pliku przed utworzeniem preimages i przed mutacją.
+
+Operator używał funkcji `H` jako skrótu SHA-256. Windows PowerShell 5.1 ma
+wbudowany alias `h -> Get-History`, który ma pierwszeństwo przed funkcją;
+ścieżka pliku została więc przekazana do parametru `Id`, powodując błąd
+konwersji. Journal zapisuje `mutation_started=false` i
+`pending_mutation=false`. Runner ma exact preimage, helper jest absent,
+checkpoint `F:\dump\20260928T185718Z` nie istnieje, startup/Web/Windows/Android
+pozostają `+42`, a migracja/deployment/live smoke są `NOT_RUN`.
+
+Zgodnie z limitem single-UAC nie wykonano retry ani alternatywnego elevation.
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D38_PS51_ALIAS_COLLISION_BEFORE_MUTATION`.
