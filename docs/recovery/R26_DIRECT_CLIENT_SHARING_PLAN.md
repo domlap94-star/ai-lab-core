@@ -174,7 +174,8 @@ Exact readback potwierdził:
 
 Nie utworzono fixture, więc cleanup residue wynosi zero przez brak rozpoczęcia.
 Migracja, deployment Web/backend/Windows/Android oraz synthetic live smoke są
-`NOT_RUN`. Jedyny materialny K1 to `DEPLOYMENT_NOT_RUN_UAC_CANCELLED`.
+`NOT_RUN`. Był to historyczny K1 `DEPLOYMENT_NOT_RUN_UAC_CANCELLED`,
+zastąpiony bieżącym wynikiem opisanym w sekcji 10.
 
 ## 9. Bieżący status
 
@@ -186,3 +187,18 @@ Migracja, deployment Web/backend/Windows/Android oraz synthetic live smoke są
 - deployment/live smoke: `NOT_RUN`;
 - R04: `IN_PROGRESS / ORGANIZACYJNIE_WSTRZYMANE`;
 - D-22: `NOT_RUN`.
+
+## 10. Świeża próba deploymentu — backup preflight K1
+
+Operacja `R26-STEP2-LIVE-20260928T142708Z` otrzymała UAC i przeszła exact
+preflight, lecz zatrzymała się przed mutacją. Standardowy database backup do
+`F:\dump` nie utworzył checkpointu, ponieważ Windows PowerShell 5.1 rozwinął
+jedną wartość `$selectedCollections` do skalarnego `String`, po czym StrictMode
+odrzucił odczyt `.Count` w `backup-production.ps1`.
+
+Read-only reprodukcja potwierdziła `PropertyNotFoundStrict`; nie jest to wada
+R26 ani buildów `+43`. `mutation_started=false`, `pending_mutation=false`,
+backup/migracja/deployment/smoke są `NOT_RUN`, a produkcja pozostała dokładnie
+na preimage `+42`. Drugi UAC nie był dozwolony, ponieważ deployment nie
+rozpoczął się. Bieżący K1:
+`BACKUP_PREFLIGHT_PS51_SCALAR_COUNT`.

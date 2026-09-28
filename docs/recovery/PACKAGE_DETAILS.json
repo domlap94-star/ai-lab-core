@@ -2415,19 +2415,19 @@
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
       "Krok 2 source/test/build 1.0.2+43 przechodzi; deployment i live smoke wymagają uruchomionego, nieanulowanego UAC."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany source 67b867ee, testy i trzy buildy PASS, ale nie został wdrożony po anulowaniu jedynego UAC przed CreateProcess.",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. Krok 2 ma opublikowany source 67b867ee, testy i trzy buildy PASS, ale świeża próba zatrzymała się w backup preflight PS5.1 przed checkpointem i mutacją.",
     "impact": "Krok 1 pozostaje na produkcji 1.0.2+42. Krok 2 przygotowuje backend/schema/Flutter 1.0.2+43, lecz exact readback potwierdził brak mutacji produkcji, DB nadal na R25 i brak fixture.",
-    "approval": "D-34 autoryzowała krok 2 end-to-end i jeden UAC. Anulowanie zostało uszanowane bez retry; krok 2 pozostaje IN_PROGRESS i nie jest READY ani ACCEPTED.",
-    "rollback": "Nie był potrzebny: skrypt nie został uruchomiony, OutputRoot nie powstał, a wszystkie dokładne preimages pozostały zgodne.",
+    "approval": "D-35 autoryzowała świeżą próbę. UAC został zaakceptowany i exact preflight przeszedł, lecz backup runner PS5.1 zatrzymał się przed checkpointem i mutacją; drugi UAC nie był dozwolony.",
+    "rollback": "Rollback produktu nie był potrzebny: mutation_started=false. OutputRoot zachowuje journal/result i preimages, lecz DB/runtime pozostały nietknięte.",
     "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
     "status": "IN_PROGRESS",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_SOURCE_TEST_BUILD_PASS / CONSOLIDATED_K1_DEPLOYMENT_NOT_RUN_UAC_CANCELLED",
-    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / STEP2_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / VERSION_1_0_2_43_BUILD_PASS / UAC_CANCELLED_BEFORE_CREATEPROCESS / PRODUCTION_NO_MUTATION / MIGRATION_DEPLOYMENT_LIVE_SMOKE_NOT_RUN / FIXTURE_NOT_CREATED",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_SOURCE_TEST_BUILD_PASS / CONSOLIDATED_K1_BACKUP_PREFLIGHT_PS51_SCALAR_COUNT",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / STEP2_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / VERSION_1_0_2_43_BUILD_PASS / UAC_ACCEPTED_PREFLIGHT_PASS / BACKUP_FAILED_BEFORE_CHECKPOINT / MUTATION_FALSE / MIGRATION_DEPLOYMENT_LIVE_SMOKE_NOT_RUN / FIXTURE_NOT_CREATED",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
     "findings": [
-      "K1 DEPLOYMENT_NOT_RUN_UAC_CANCELLED: jedyny UAC anulowano przed CreateProcess; production bez mutacji, migracja/deployment/live smoke NOT_RUN."
+      "K1 BACKUP_PREFLIGHT_PS51_SCALAR_COUNT: backup-production.ps1 pod PS5.1 rozwija jedną selectedCollections do String i StrictMode odrzuca .Count; checkpoint i mutacja nie rozpoczęły się."
     ],
     "retirement_ids": []
   }
