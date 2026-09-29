@@ -12,6 +12,7 @@ param(
     [string]$QdrantProofMode = "LegacyRestoreProof",
     [string]$CheckpointId = "",
     [string]$RuntimeInventoryPath = "",
+    [string]$DiagnosticRoot = $env:NEXT_STABIL_BACKUP_DIAGNOSTIC_ROOT,
     [ValidateSet("full", "database", "documents", "qdrant", "n8n_config")]
     [string]$Scope = "full",
     [Nullable[long]]$RunId = $null,
@@ -35,6 +36,126 @@ function ConvertTo-NativeArgumentString {
         if ($_ -notmatch '[\s"]') { $_ }
         else { '"' + $_.Replace('\', '\').Replace('"', '\"') + '"' }
     }) -join ' ')
+}
+
+function Get-BoundedQdrantDiagnosticText {
+    param([AllowNull()][string]$Text, [int]$MaximumLength = 8192)
+    if ($null -eq $Text) { return "" }
+    if ($Text.Length -le $MaximumLength) { return $Text }
+    return $Text.Substring(0, $MaximumLength)
+}
+
+function Invoke-QdrantHelperProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$HelperScript,
+        [Parameter(Mandatory = $true)][string]$RequestPath,
+        [Parameter(Mandatory = $true)][string]$ResultPath,
+        [int]$TimeoutSeconds = 3600
+    )
+    foreach ($pathValue in @($HelperScript, $RequestPath, $ResultPath)) {
+        if ($pathValue.Contains('"')) { throw "qdrant_helper_path_quote_rejected" }
+    }
+    Remove-Item -LiteralPath $ResultPath -Force -ErrorAction SilentlyContinue
+    $powershell51 = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $powershell51 -PathType Leaf)) { throw "qdrant_helper_powershell51_missing" }
+    $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $HelperScript, '-RequestPath', $RequestPath, '-ResultPath', $ResultPath)
+    $startedAt = [DateTime]::UtcNow
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $powershell51
+    $start.Arguments = ConvertTo-NativeArgumentString $arguments
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    $started = $process.Start()
+    if (-not $started) { throw "qdrant_helper_process_not_started" }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $timedOut = -not $process.WaitForExit(([int64]$TimeoutSeconds * 1000))
+    if ($timedOut) {
+        try { $process.Kill() } catch { }
+        $process.WaitForExit()
+    } else { $process.WaitForExit() }
+    $stdout = Get-BoundedQdrantDiagnosticText ([string]$stdoutTask.Result)
+    $stderr = Get-BoundedQdrantDiagnosticText ([string]$stderrTask.Result)
+    $exitCode = $process.ExitCode
+    $timer.Stop()
+    $resultStatus = "MISSING"
+    $resultStage = "RESULT_READ"
+    $resultCode = "QDRANT_HELPER_RESULT_MISSING"
+    $result = $null
+    if (Test-Path -LiteralPath $ResultPath -PathType Leaf) {
+        try {
+            $result = Get-Content -LiteralPath $ResultPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$result.schema -ne 'NEXT_STABIL_QDRANT_BACKUP_HELPER_RESULT_V1') { throw "schema_mismatch" }
+            $resultStatus = [string]$result.status
+            $resultStage = [string]$result.stage
+            $resultCode = [string]$result.code
+        }
+        catch {
+            $result = $null
+            $resultStatus = "INVALID"
+            $resultStage = "RESULT_READ"
+            $resultCode = "QDRANT_HELPER_RESULT_INVALID"
+        }
+    }
+    if ($timedOut) {
+        $resultStatus = "MISSING"
+        $resultStage = "PROCESS_WAIT"
+        $resultCode = "HELPER_TIMEOUT"
+        $result = $null
+    }
+    return [pscustomobject][ordered]@{
+        schema = 'NEXT_STABIL_QDRANT_HELPER_CAPTURE_V1'
+        started = $started
+        started_at = $startedAt.ToString('o')
+        finished_at = [DateTime]::UtcNow.ToString('o')
+        duration_ms = [int64]$timer.ElapsedMilliseconds
+        timed_out = $timedOut
+        exit_code = $exitCode
+        stdout = $stdout
+        stderr = $stderr
+        result_status = $resultStatus
+        stage = $resultStage
+        code = $resultCode
+        result = $result
+    }
+}
+
+function Write-QdrantHelperEvidence {
+    param([Parameter(Mandatory = $true)]$Capture, [string]$EvidenceRoot = "")
+    if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { return }
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $EvidenceRoot 'qdrant-helper-capture.json'), (($Capture | ConvertTo-Json -Depth 12) + "`n"), (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText((Join-Path $EvidenceRoot 'qdrant-helper-stdout.txt'), ([string]$Capture.stdout), (New-Object Text.UTF8Encoding($false)))
+    [IO.File]::WriteAllText((Join-Path $EvidenceRoot 'qdrant-helper-stderr.txt'), ([string]$Capture.stderr), (New-Object Text.UTF8Encoding($false)))
+    if ($null -ne $Capture.result) {
+        [IO.File]::WriteAllText((Join-Path $EvidenceRoot 'qdrant-helper-result.json'), (($Capture.result | ConvertTo-Json -Depth 12) + "`n"), (New-Object Text.UTF8Encoding($false)))
+    }
+}
+
+function Assert-QdrantHelperProcessPass {
+    param([Parameter(Mandatory = $true)]$Capture, [Parameter(Mandatory = $true)][string[]]$RequiredCollections)
+    $result = $Capture.result
+    $recordCollections = if ($null -eq $result) { @() } else { @($result.records | ForEach-Object { [string]$_.collection }) }
+    $missingCollections = @($RequiredCollections | Where-Object { $_ -notin $recordCollections })
+    $passed = $Capture.started -eq $true -and $Capture.timed_out -eq $false -and $Capture.exit_code -eq 0 -and
+        $Capture.result_status -eq 'PASS' -and $null -ne $result -and
+        $result.helper_removed -eq $true -and $result.primary_restarted -eq $true -and $result.primary_ready -eq $true -and
+        [string]$result.staging_volume -eq 'F:' -and [int]$result.helper_container_residue_count -eq 0 -and
+        [int]$result.staging_residue_count -eq 0 -and $missingCollections.Count -eq 0
+    if (-not $passed) {
+        $primaryReady = if ($null -eq $result) { $false } else { $result.primary_ready }
+        $helperRemoved = if ($null -eq $result) { $false } else { $result.helper_removed }
+        $helperResidue = if ($null -eq $result) { -1 } else { $result.helper_container_residue_count }
+        $stagingResidue = if ($null -eq $result) { -1 } else { $result.staging_residue_count }
+        throw ("qdrant_backup_helper_failed stage={0} code={1} exit={2} timeout={3} primary_ready={4} helper_removed={5} helper_residue={6} staging_residue={7} missing_collections={8} stderr={9}" -f
+            $Capture.stage, $Capture.code, $Capture.exit_code, $Capture.timed_out, $primaryReady,
+            $helperRemoved, $helperResidue, $stagingResidue, ($missingCollections -join ','), $Capture.stderr)
+    }
 }
 
 function Get-PipeTransportDisposition {
@@ -616,10 +737,22 @@ if ($Scope -in @("full", "qdrant")) {
         $qdrantArtifactRoot = if ($ManifestFormat -eq "RecoveryPointV2") { Join-Path $artifacts "qdrant" } else { $artifacts }
         if (-not (Test-Path -LiteralPath $qdrantArtifactRoot)) { New-Item -ItemType Directory -Path $qdrantArtifactRoot | Out-Null }
         $helperOperationId = if ($null -ne $RunId) { "schedule-$ScheduleId-run-$RunId" } else { $CheckpointId }
-        $helperOutput = @(& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $helperScript -BackupRoot $backupBase -ArtifactRoot $qdrantArtifactRoot -Collections $selectedCollections -OperationId $helperOperationId -ValidatorPath $validator 2>&1)
-        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($helperOutput -join ''))) { throw "qdrant_backup_helper_failed:$($helperOutput -join ' ')" }
-        try { $helperResult = ($helperOutput[-1] | ConvertFrom-Json) } catch { throw "qdrant_backup_helper_result_invalid" }
-        if ($helperResult.status -ne 'PASS' -or $helperResult.staging_volume -ne 'F:' -or $helperResult.helper_removed -ne $true) { throw "qdrant_backup_helper_result_invalid" }
+        $helperRequestPath = Join-Path $configDir 'qdrant-helper-request.json'
+        $helperResultPath = Join-Path $configDir 'qdrant-helper-result.json'
+        $helperRequest = [ordered]@{
+            schema = 'NEXT_STABIL_QDRANT_BACKUP_HELPER_REQUEST_V1'
+            operation_id = $helperOperationId
+            backup_root = $backupBase
+            artifact_root = $qdrantArtifactRoot
+            collections = @($selectedCollections)
+            validator_path = $validator
+            helper_port = 16333
+        }
+        [IO.File]::WriteAllText($helperRequestPath, (($helperRequest | ConvertTo-Json -Depth 8) + "`n"), (New-Object Text.UTF8Encoding($false)))
+        $helperCapture = Invoke-QdrantHelperProcess -HelperScript $helperScript -RequestPath $helperRequestPath -ResultPath $helperResultPath
+        Write-QdrantHelperEvidence -Capture $helperCapture -EvidenceRoot $DiagnosticRoot
+        Assert-QdrantHelperProcessPass -Capture $helperCapture -RequiredCollections $selectedCollections
+        $helperResult = $helperCapture.result
         foreach ($record in @($helperResult.records)) {
             $artifactRecord = Get-ArtifactRecord $checkpoint ([string]$record.artifact)
             $artifactRecords += $artifactRecord
