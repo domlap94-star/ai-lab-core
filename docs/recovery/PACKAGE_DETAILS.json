@@ -2413,21 +2413,21 @@
       "Lista klientów zachowuje wejście w szczegóły, a ikona udostępniania nie propaguje tapnięcia.",
       "Aktywny grant wyklucza użytkownika, cofnięty grant nie wyklucza, a anulowanie ma zero POST.",
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
-      "Krok 2 source/test/build 1.0.2+43 oraz diagnostyczny runner/helper przechodzą; bezpośredni Qdrant proof zachowuje strukturalny wynik, lecz pełny RecoveryPointV2, deployment i live smoke wymagają naprawy cytowania Go-template pod PS5.1 i nowej autoryzowanej operacji."
+      "Krok 2 source/test/build 1.0.2+43 oraz publiczny no-template JSON inspect helper source przechodzą; pełny RecoveryPointV2, deployment i live smoke wymagają korekty operatora po fail-before bindingu -join i nowej autoryzowanej operacji."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. D-41 wdrożyła diagnostyczny runner/helper; direct Qdrant proof zachował exact PRE_INVENTORY/template error, a pełny RecoveryPointV2 i produkt pozostały NOT_RUN.",
-    "impact": "Runner 6CFFA1EC i helper 60203C42 pozostają poprawnie zainstalowane. Qdrant nie został zatrzymany, helper/staging/artifact residue mają zero; Qdrant ID/dane bez zmian, produkt nadal R25/+42, fixture/active backup/Supervisor/pending mutation mają zera.",
-    "approval": "D-41 autoryzowała zamrożony operator po alias audit i ValidateOnly oraz jeden UAC. UAC został zaakceptowany i skonsumowany; toolset PASS, direct proof zatrzymany na wykazanym PS5.1 Go-template quote-loss, bez drugiego UAC lub retry.",
-    "rollback": "Toolset pozostaje zgodnie z decyzją po PASS fazy instalacji. Helper zakończył się przed stopem Qdrant, helper containerem i stagingiem; produkt nie rozpoczął mutacji i nie wymagał rollbacku.",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. D-42 opublikowała no-template JSON inspect helper source i testy PASS; accepted operator zatrzymał się w PREFLIGHT przed mutation_started, więc proof, backup i produkt pozostały NOT_RUN.",
+    "impact": "Aktywny runner 6CFFA1EC i helper D-41 60203C42 pozostają bez zmiany; nowy helper 28B84E79 jest publiczny, ale NOT_DEPLOYED. Preimages 0, Qdrant/helper/staging/artifact/runtime bez zmian, produkt nadal R25/+42, fixture/active backup/Supervisor/pending mutation mają zera.",
+    "approval": "D-42 autoryzowała source, operator i UAC. Pierwszy cancel-before-CreateProcess miał zero skutków; po jawnej nowej zgodzie accepted PID 25092 zakończył się fail-before na bindingu -join. Accepted UAC jest skonsumowany, bez kolejnego retry.",
+    "rollback": "Nie rozpoczęto mutacji i nie utworzono preimages; rollback nie był potrzebny. Source fix pozostaje publiczny, a produkcyjny helper i cały runtime zachowują preimage D-41/R25.",
     "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
     "status": "IN_PROGRESS",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_D41_TOOLSET_INSTALLED / FINAL_CONSOLIDATED_K1_D41_QDRANT_GO_TEMPLATE_QUOTE_LOSS_PRE_INVENTORY",
-    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / DIAGNOSTIC_TOOLSET_PUBLIC_735003A56DBA979DF4BD6755B24C89E0EFDE20F1 / D41_OPERATOR_AUDIT_VALIDATE_PREFLIGHT_PASS / SINGLE_UAC_ACCEPTED_CONSUMED / RUNNER_AND_HELPER_INSTALLED / DIRECT_QDRANT_PRE_INVENTORY_TEMPLATE_K1 / QDRANT_UNCHANGED / HELPER_STAGING_ARTIFACT_RESIDUE_ZERO / FULL_BACKUP_NOT_RUN / PRODUCT_SMOKE_NOT_RUN / PENDING_MUTATION_FALSE",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_D42_JSON_INSPECT_SOURCE_PASS_NOT_DEPLOYED / FINAL_CONSOLIDATED_K1_D42_OPERATOR_PREFLIGHT_JOIN_BINDING_BEFORE_MUTATION",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / JSON_INSPECT_HELPER_PUBLIC_10CB95971DCF288D8C0459355400CB144682DB96 / D42_OPERATOR_AUDIT_VALIDATE_BOUNDED_PREFLIGHT_PASS / FIRST_UAC_CANCELLED_BEFORE_CREATEPROCESS_NO_MUTATION / OWNER_REAUTHORIZED_ONE_NEW_ATTEMPT / ACCEPTED_PID_25092_EXIT_1 / OPERATOR_PREFLIGHT_JOIN_BINDING_K1 / MUTATION_STARTED_FALSE / PREIMAGES_ZERO / HELPER_FIX_NOT_DEPLOYED / QDRANT_RUNTIME_PRODUCT_UNCHANGED / PROOF_BACKUP_SMOKE_NOT_RUN / PENDING_MUTATION_FALSE",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
     "findings": [
-      "K1 D41_QDRANT_GO_TEMPLATE_QUOTE_LOSS_PRE_INVENTORY: diagnostyczna granica zachowała stage/code/message, wykazując utratę cudzysłowów literału /qdrant/storage w argumencie Go-template pod Windows PowerShell 5.1; parser Docker zatrzymał się przed stopem Qdrant, helperem i stagingiem, a skonsumowanego single-UAC nie można ponowić."
+      "K1 D42_OPERATOR_PREFLIGHT_JOIN_BINDING_BEFORE_MUTATION: operator zastosował -join przed zamknięciem wywołania NsR26Docker, więc Windows PowerShell 5.1 związał go jako nieistniejący parametr funkcji. Accepted PID zatrzymał się w PREFLIGHT z mutation_started=false; source helpera jest PASS/publiczny, ale NOT_DEPLOYED, a skonsumowanego accepted UAC nie można ponowić."
     ],
     "retirement_ids": []
   }

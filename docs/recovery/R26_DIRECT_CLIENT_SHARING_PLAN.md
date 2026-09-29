@@ -375,3 +375,29 @@ Zgodnie z bramką nie wykonano poprawki tej nowej przyczyny, retry ani drugiego
 UAC w tej operacji. Bieżący status:
 `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D41_QDRANT_GO_TEMPLATE_QUOTE_LOSS_PRE_INVENTORY`.
+
+## 17. D-42 — inspect JSON source PASS, operator preflight K1
+
+Go-template został całkowicie usunięty z produkcyjnego helpera. Source
+`10cb95971dcf288d8c0459355400cb144682db96` używa rozdzielonego capture
+stdout/stderr dla `docker inspect qdrant`, parsuje JSON i jednoznacznie wybiera
+volume pod `/qdrant/storage`. PS5.1 no-template/JSON/mount/state przeszedł
+`100` asercji, transport PostgreSQL `24/24`, selection `7/7`, helper contract,
+scany oraz remote readback przeszły.
+
+Operator `46560` B /
+`4844C7AB57AD94D4F8589C1B797F2784FD847D3DB8A3B48C2589814ED9AF263A`
+przeszedł parser PS5.1, alias audit `18/57/0`, ValidateOnly i bounded preflight.
+Pierwszy UAC anulowano przed `CreateProcess`; po potwierdzeniu braku mutacji
+właściciel jawnie autoryzował jedną nową próbę. PID `25092` został uruchomiony,
+lecz zakończył się w `PREFLIGHT` przed `mutation_started`.
+
+Przyczyną jest binding `-join` jako nazwanego parametru funkcji wrappera
+Docker zamiast operatora zastosowanego do zamkniętego wyniku wywołania.
+Dokładny błąd: `A parameter cannot be found that matches parameter name
+'join'.` Preimages `0`, helper produkcyjny pozostał D-41, Qdrant i cały produkt
+pozostały bez zmian; direct proof, backup, migracja, deployment i smoke są
+`NOT_RUN`.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D42_OPERATOR_PREFLIGHT_JOIN_BINDING_BEFORE_MUTATION`.
