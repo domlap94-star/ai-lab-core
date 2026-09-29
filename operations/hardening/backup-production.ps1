@@ -37,8 +37,47 @@ function ConvertTo-NativeArgumentString {
     }) -join ' ')
 }
 
+function Get-PipeTransportDisposition {
+    param([Parameter(Mandatory = $true)][Exception]$Exception)
+    if ($Exception -isnot [IO.IOException]) {
+        return [ordered]@{ disposition = "FAIL"; hresult_low_word = $null }
+    }
+    $code = [int]($Exception.HResult -band 0xFFFF)
+    return [ordered]@{
+        disposition = if ($code -in @(109, 232)) { "PIPE_EOF_CANDIDATE" } else { "FAIL" }
+        hresult_low_word = $code
+    }
+}
+
+function Write-BinaryTransportEvidence {
+    param([string]$Path, $Record)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    [IO.File]::WriteAllText(
+        $Path,
+        (($Record | ConvertTo-Json -Depth 8) + "`n"),
+        (New-Object Text.UTF8Encoding($false))
+    )
+}
+
 function Invoke-CheckedBinaryCapture {
-    param([string]$FilePath, [string[]]$Arguments, [string]$OutputPath)
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments,
+        [string]$OutputPath,
+        [int]$TimeoutSeconds = 7200,
+        [string]$EvidencePath = ""
+    )
+    $startedAt = [DateTime]::UtcNow
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $timeoutMilliseconds = [int64]$TimeoutSeconds * 1000
+    $bytesWritten = [int64]0
+    $transportException = $null
+    $transport = [ordered]@{ disposition = "NONE"; hresult_low_word = $null }
+    $timedOut = $false
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $FilePath
     $start.Arguments = ConvertTo-NativeArgumentString $Arguments
@@ -51,18 +90,87 @@ function Invoke-CheckedBinaryCapture {
     if (-not $process.Start()) { throw "$FilePath failed to start." }
     $stderrTask = $process.StandardError.ReadToEndAsync()
     $output = [IO.File]::Open($OutputPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-    try { $process.StandardOutput.BaseStream.CopyTo($output) }
-    finally { $output.Dispose() }
-    $process.WaitForExit()
-    $stderr = $stderrTask.Result
-    if ($process.ExitCode -ne 0) {
-        Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
-        throw "$FilePath failed with exit code $($process.ExitCode): $stderr"
+    try {
+        $buffer = New-Object byte[] (1MB)
+        while ($true) {
+            $remaining = [int][Math]::Min([int]::MaxValue, [Math]::Max(1, $timeoutMilliseconds - $timer.ElapsedMilliseconds))
+            $readTask = $process.StandardOutput.BaseStream.ReadAsync($buffer, 0, $buffer.Length)
+            try {
+                if (-not $readTask.Wait($remaining)) {
+                    $timedOut = $true
+                    break
+                }
+                $read = $readTask.Result
+            }
+            catch {
+                $transportException = $_.Exception.GetBaseException()
+                $transport = Get-PipeTransportDisposition $transportException
+                break
+            }
+            if ($read -le 0) { break }
+            $output.Write($buffer, 0, $read)
+            $bytesWritten += [int64]$read
+        }
     }
+    finally {
+        $output.Flush()
+        $output.Dispose()
+    }
+    $remainingForExit = [int][Math]::Min([int]::MaxValue, [Math]::Max(1, $timeoutMilliseconds - $timer.ElapsedMilliseconds))
+    if ($timedOut -or -not $process.WaitForExit($remainingForExit)) {
+        $timedOut = $true
+        try { $process.Kill() } catch { }
+        $process.WaitForExit()
+    } else {
+        $process.WaitForExit()
+    }
+    $stderr = [string]$stderrTask.Result
+    $stderrBounded = if ($stderr.Length -gt 8192) { $stderr.Substring(0, 8192) } else { $stderr }
+    $exitCode = $process.ExitCode
+    $timer.Stop()
+    $evidence = [ordered]@{
+        executable = $FilePath
+        arguments = @($Arguments | ForEach-Object {
+            if ($_ -match '(?i)(password|token|secret|credential)\s*=') { '[REDACTED]' } else { $_ }
+        })
+        started_at = $startedAt.ToString("o")
+        finished_at = [DateTime]::UtcNow.ToString("o")
+        duration_ms = [int64]$timer.ElapsedMilliseconds
+        timed_out = $timedOut
+        exit_code = $exitCode
+        bytes_written = $bytesWritten
+        pipe_disposition = [string]$transport.disposition
+        pipe_hresult_low_word = $transport.hresult_low_word
+        stderr = $stderrBounded
+        output_path = $OutputPath
+    }
+    Write-BinaryTransportEvidence $EvidencePath $evidence
+    $materialStderr = -not [string]::IsNullOrWhiteSpace($stderr) -and $stderr -match '(?i)(error|fatal|failed|panic|exception)'
+    if ($timedOut -or $exitCode -ne 0 -or [string]$transport.disposition -eq "FAIL" -or $materialStderr -or
+        -not (Test-Path -LiteralPath $OutputPath -PathType Leaf) -or (Get-Item -LiteralPath $OutputPath).Length -le 0) {
+        Remove-Item -LiteralPath $OutputPath -Force -ErrorAction SilentlyContinue
+        throw ("binary_capture_failed executable={0} exit={1} timeout={2} pipe={3}/{4} bytes={5} stderr={6}" -f
+            $FilePath, $exitCode, $timedOut, $transport.disposition, $transport.hresult_low_word,
+            $bytesWritten, $stderrBounded)
+    }
+    return [pscustomobject]$evidence
 }
 
 function Invoke-CheckedFileInput {
-    param([string]$FilePath, [string[]]$Arguments, [string]$InputPath)
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments,
+        [string]$InputPath,
+        [int]$TimeoutSeconds = 7200,
+        [string]$EvidencePath = ""
+    )
+    $startedAt = [DateTime]::UtcNow
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $timeoutMilliseconds = [int64]$TimeoutSeconds * 1000
+    $bytesRead = [int64]0
+    $transportException = $null
+    $transport = [ordered]@{ disposition = "NONE"; hresult_low_word = $null }
+    $timedOut = $false
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $FilePath
     $start.Arguments = ConvertTo-NativeArgumentString $Arguments
@@ -77,12 +185,66 @@ function Invoke-CheckedFileInput {
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
     $input = [IO.File]::OpenRead($InputPath)
-    try { $input.CopyTo($process.StandardInput.BaseStream) }
-    finally { $input.Dispose(); $process.StandardInput.Close() }
-    $process.WaitForExit()
+    try {
+        $buffer = New-Object byte[] (1MB)
+        while (($read = $input.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $remaining = [int][Math]::Min([int]::MaxValue, [Math]::Max(1, $timeoutMilliseconds - $timer.ElapsedMilliseconds))
+            $writeTask = $process.StandardInput.BaseStream.WriteAsync($buffer, 0, $read)
+            try {
+                if (-not $writeTask.Wait($remaining)) {
+                    $timedOut = $true
+                    break
+                }
+                $bytesRead += [int64]$read
+            }
+            catch {
+                $transportException = $_.Exception.GetBaseException()
+                $transport = Get-PipeTransportDisposition $transportException
+                break
+            }
+        }
+    }
+    finally {
+        $input.Dispose()
+        try { $process.StandardInput.Close() } catch { }
+    }
+    $remainingForExit = [int][Math]::Min([int]::MaxValue, [Math]::Max(1, $timeoutMilliseconds - $timer.ElapsedMilliseconds))
+    if ($timedOut -or -not $process.WaitForExit($remainingForExit)) {
+        $timedOut = $true
+        try { $process.Kill() } catch { }
+        $process.WaitForExit()
+    } else {
+        $process.WaitForExit()
+    }
     $null = $stdoutTask.Result
-    $stderr = $stderrTask.Result
-    if ($process.ExitCode -ne 0) { throw "$FilePath failed with exit code $($process.ExitCode): $stderr" }
+    $stderr = [string]$stderrTask.Result
+    $stderrBounded = if ($stderr.Length -gt 8192) { $stderr.Substring(0, 8192) } else { $stderr }
+    $exitCode = $process.ExitCode
+    $timer.Stop()
+    $evidence = [ordered]@{
+        executable = $FilePath
+        arguments = @($Arguments | ForEach-Object {
+            if ($_ -match '(?i)(password|token|secret|credential)\s*=') { '[REDACTED]' } else { $_ }
+        })
+        started_at = $startedAt.ToString("o")
+        finished_at = [DateTime]::UtcNow.ToString("o")
+        duration_ms = [int64]$timer.ElapsedMilliseconds
+        timed_out = $timedOut
+        exit_code = $exitCode
+        bytes_read = $bytesRead
+        pipe_disposition = [string]$transport.disposition
+        pipe_hresult_low_word = $transport.hresult_low_word
+        stderr = $stderrBounded
+        input_path = $InputPath
+    }
+    Write-BinaryTransportEvidence $EvidencePath $evidence
+    $materialStderr = -not [string]::IsNullOrWhiteSpace($stderr) -and $stderr -match '(?i)(error|fatal|failed|panic|exception)'
+    if ($timedOut -or $exitCode -ne 0 -or [string]$transport.disposition -eq "FAIL" -or $materialStderr) {
+        throw ("binary_input_failed executable={0} exit={1} timeout={2} pipe={3}/{4} bytes={5} stderr={6}" -f
+            $FilePath, $exitCode, $timedOut, $transport.disposition, $transport.hresult_low_word,
+            $bytesRead, $stderrBounded)
+    }
+    return [pscustomobject]$evidence
 }
 
 function Get-DirectoryBytes {
@@ -380,11 +542,37 @@ if ($Scope -in @("full", "database")) {
     $componentStarted = (Get-Date).ToUniversalTime()
     Write-Output "BACKUP_STAGE=database"
     $dbDump = Join-Path $artifacts "postgres.dump"
-    Invoke-CheckedBinaryCapture "docker.exe" @(
-        "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
-        "--format=custom", "--compress=6", "--no-owner"
-    ) $dbDump
-    Invoke-CheckedFileInput "docker.exe" @("exec", "-i", "postgres", "pg_restore", "--list") $dbDump
+    $dbDumpPartial = $dbDump + ".partial"
+    $captureEvidencePath = Join-Path $configDir "postgres-dump-transport.json"
+    $listEvidencePath = Join-Path $configDir "postgres-list-validation.json"
+    $fullReadEvidencePath = Join-Path $configDir "postgres-full-read-validation.json"
+    try {
+        $captureResult = Invoke-CheckedBinaryCapture "docker.exe" @(
+            "exec", "postgres", "pg_dump", "-U", "ai_lab", "-d", "ai_lab",
+            "--format=custom", "--compress=6", "--no-owner"
+        ) $dbDumpPartial 7200 $captureEvidencePath
+        $listResult = Invoke-CheckedFileInput "docker.exe" @(
+            "exec", "-i", "postgres", "pg_restore", "--list"
+        ) $dbDumpPartial 7200 $listEvidencePath
+        $fullReadResult = Invoke-CheckedFileInput "docker.exe" @(
+            "exec", "-i", "postgres", "pg_restore", "--exit-on-error",
+            "--no-owner", "--no-privileges", "--file=/dev/null"
+        ) $dbDumpPartial 7200 $fullReadEvidencePath
+        if ($captureResult.exit_code -ne 0 -or $listResult.exit_code -ne 0 -or $fullReadResult.exit_code -ne 0) {
+            throw "postgres_archive_validation_failed"
+        }
+        $validatedSha256 = (Get-FileHash -LiteralPath $dbDumpPartial -Algorithm SHA256).Hash.ToLowerInvariant()
+        $captureEvidence = Get-Content -LiteralPath $captureEvidencePath -Raw | ConvertFrom-Json
+        $captureEvidence | Add-Member -MemberType NoteProperty -Name validator_list -Value "PASS"
+        $captureEvidence | Add-Member -MemberType NoteProperty -Name validator_full_read -Value "PASS"
+        $captureEvidence | Add-Member -MemberType NoteProperty -Name validated_sha256 -Value $validatedSha256
+        Write-BinaryTransportEvidence $captureEvidencePath $captureEvidence
+        Move-Item -LiteralPath $dbDumpPartial -Destination $dbDump
+    }
+    catch {
+        Remove-Item -LiteralPath $dbDumpPartial -Force -ErrorAction SilentlyContinue
+        throw
+    }
     $artifactRecords += Get-ArtifactRecord $checkpoint $dbDump
     $componentWindows += [ordered]@{ component = "postgres"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
 }
@@ -532,8 +720,8 @@ if ($Scope -in @("full", "n8n_config")) {
     Write-Output "BACKUP_STAGE=n8n"
     $n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
     $n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
-    Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all") $n8nWorkflows
-    Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all") $n8nCredentials
+    [void](Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all") $n8nWorkflows 7200 (Join-Path $configDir "n8n-workflow-transport.json"))
+    [void](Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all") $n8nCredentials 7200 (Join-Path $configDir "n8n-credentials-transport.json"))
     try {
         $workflowExport = Get-Content -LiteralPath $n8nWorkflows -Raw | ConvertFrom-Json
         $credentialExport = Get-Content -LiteralPath $n8nCredentials -Raw | ConvertFrom-Json
