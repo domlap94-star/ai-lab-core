@@ -346,3 +346,32 @@ mutation `false`. Nie wykonano retry ani drugiego UAC.
 
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D40_POSTGRES_STREAM_PASS_QDRANT_HELPER_FAILED_NO_DIAGNOSTIC`.
+
+## 16. D-41 — diagnostyka helpera PASS, Docker template K1
+
+Minimalna naprawa granicy runner/helper oraz strukturalnego wyniku helpera
+została opublikowana w
+`735003a56dba979df4bd6755b24c89e0efde20f1`. Windows PowerShell 5.1 przeszedł
+parsery, `67` asercji diagnostycznych, `24` asercje transportu PostgreSQL,
+selection `7/7` i helper contract. Zamrożony operator miał `42606` B i SHA-256
+`D429BA36AC3A7B39701CD3FCCBFDCA7D8165D2900F6E5F6924241CD32F5A7036`;
+alias audit, ValidateOnly i bounded preflight przeszły.
+
+Jedyny UAC D-41 zainstalował i zachował runner
+`6CFFA1EC...A542B6` oraz helper `60203C42...37A704`. Bezpośredni proof
+helpera poprawnie zachował strukturalną diagnostykę, lecz zatrzymał się przed
+zatrzymaniem Qdrant, utworzeniem helper containera i stagingiem:
+`stage=PRE_INVENTORY`, `code=template`,
+`template parsing error: template: :1: unexpected "/" in operand`.
+
+Przyczyną jest utrata cudzysłowów literału `/qdrant/storage` w argumencie
+Go-template przekazywanym do `docker inspect` przez natywne wywołanie Windows
+PowerShell 5.1. Główny Qdrant zachował ID, stan running/readiness i kolekcje
+`57/157`; helper/staging/artifact residue, active backup, fixture i Supervisor
+mają zera. DB, backend, startup manifest, Web, Windows i Android pozostają
+R25/+42, a produkt/live smoke są `NOT_RUN`. `pending_mutation=false`.
+
+Zgodnie z bramką nie wykonano poprawki tej nowej przyczyny, retry ani drugiego
+UAC w tej operacji. Bieżący status:
+`R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D41_QDRANT_GO_TEMPLATE_QUOTE_LOSS_PRE_INVENTORY`.
