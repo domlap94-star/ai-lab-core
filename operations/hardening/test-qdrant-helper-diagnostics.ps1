@@ -41,9 +41,45 @@ function New-ResultState {
         helper_name = 'test-helper'; helper_created = $true; helper_removed = $true
         staging_root = 'F:\test'; staging_volume = 'F:'; staging_residue_count = 0
         helper_container_residue_count = 0; collections = @(); records = @()
-        error_type = ''; bounded_stderr = ''; original_error = $null; cleanup_error = ''
+        error_type = ''; bounded_stdout = ''; bounded_stderr = ''; original_error = $null; cleanup_error = ''
         cleanup_stage = $Stage; staging_inventory = @()
+        primary_restart_count_before = 0; primary_restart_count_after = 0
+        primary_image_id = 'sha256:image'; primary_image_reference = 'qdrant/qdrant@sha256:digest'
+        primary_restart_policy = 'unless-stopped'; storage_volume_name = 'qdrant_storage'
     }
+}
+
+function New-InspectDocument {
+    param(
+        [string]$Id = 'primary-id', [bool]$Running = $true, [string]$Status = 'running',
+        [bool]$Restarting = $false, [int64]$RestartCount = 0, [object[]]$Mounts = $null
+    )
+    if ($null -eq $Mounts) {
+        $Mounts = @([ordered]@{ Type = 'volume'; Name = 'qdrant_storage'; Source = '/var/lib/docker/volumes/qdrant_storage/_data'; Destination = '/qdrant/storage' })
+    }
+    return [ordered]@{
+        Id = $Id; Image = 'sha256:image'; Config = [ordered]@{ Image = 'qdrant/qdrant@sha256:digest' }
+        HostConfig = [ordered]@{ RestartPolicy = [ordered]@{ Name = 'unless-stopped' } }
+        State = [ordered]@{ Running = $Running; Status = $Status; Restarting = $Restarting }
+        RestartCount = $RestartCount; Mounts = @($Mounts)
+    }
+}
+
+function New-InspectCapture {
+    param([object[]]$Documents, [int]$ExitCode = 0, [string]$Stdout = '', [string]$Stderr = '')
+    if ([string]::IsNullOrEmpty($Stdout) -and $null -ne $Documents) {
+        $Stdout = ConvertTo-Json -InputObject @($Documents) -Depth 12
+    }
+    return [pscustomobject][ordered]@{
+        arguments = @('inspect', 'qdrant'); exit_code = $ExitCode; stdout = $Stdout; stderr = $Stderr
+    }
+}
+
+function Assert-ThrowsCode {
+    param([scriptblock]$Action, [string]$Code)
+    $message = ''
+    try { & $Action } catch { $message = [string]$_.Exception.Message }
+    Assert-R26D41 ($message -match ('^' + [regex]::Escape($Code))) "throws:$Code actual=$message"
 }
 
 $helperPath = Join-Path $PSScriptRoot 'invoke-qdrant-backup-helper.ps1'
@@ -52,7 +88,9 @@ Import-SelectedFunctions -Path $helperPath -Names @(
     'ConvertTo-NsR26BoundedSafeText', 'Write-NsR26JsonAtomic',
     'Test-NsR26SafeCollectionName', 'Test-NsR26SafeSnapshotName',
     'Read-NsR26HelperRequest', 'Resolve-NsR26CollectionSnapshotPath',
-    'New-NsR26HelperResultDocument'
+    'New-NsR26HelperResultDocument', 'ConvertFrom-NsR26DockerInspectionCapture',
+    'Get-NsR26DockerContainerInspection', 'Get-NsR26QdrantStorageMount',
+    'Assert-NsR26PrimaryStoppedState', 'Assert-NsR26PrimaryRestartedState'
 )
 Import-SelectedFunctions -Path $runnerPath -Names @(
     'ConvertTo-NativeArgumentString', 'Get-BoundedQdrantDiagnosticText',
@@ -60,12 +98,84 @@ Import-SelectedFunctions -Path $runnerPath -Names @(
     'Assert-QdrantHelperProcessPass'
 )
 
-$root = Join-Path $env:LOCALAPPDATA ('Temp\NEXT-STABIL-R26-D41-' + [Guid]::NewGuid().ToString('N'))
+$root = Join-Path $env:LOCALAPPDATA ('Temp\NEXT-STABIL-R26-D42-' + [Guid]::NewGuid().ToString('N'))
 try {
     New-Item -ItemType Directory -Path $root -Force | Out-Null
+    $helperText = Get-Content -LiteralPath $helperPath -Raw -Encoding UTF8
+    Assert-R26D41 (-not $helperText.Contains(([string][char]123 + [char]123))) 'no_template_open_delimiter'
+    Assert-R26D41 (-not $helperText.Contains(([string][char]125 + [char]125))) 'no_template_close_delimiter'
+    Assert-R26D41 ($helperText -notmatch "(?im)docker(?:\.exe)?\s+inspect\s+(?:-f|--format)\b") 'no_docker_inspect_format'
+    Assert-R26D41 ($helperText -notmatch "(?im)docker(?:\.exe)?\s+ps\s+--format\b") 'no_docker_ps_format'
+
+    $inspectDocument = New-InspectDocument
+    $inspectCapture = New-InspectCapture -Documents @($inspectDocument)
+    $inspection = ConvertFrom-NsR26DockerInspectionCapture -Capture $inspectCapture
+    $storageMount = Get-NsR26QdrantStorageMount -Inspection $inspection
+    Assert-R26D41 ($inspection.id -eq 'primary-id') 'inspect_primary_id'
+    Assert-R26D41 ($inspection.image_id -eq 'sha256:image') 'inspect_image_id'
+    Assert-R26D41 ($inspection.image_reference -eq 'qdrant/qdrant@sha256:digest') 'inspect_image_reference'
+    Assert-R26D41 ($inspection.restart_policy -eq 'unless-stopped') 'inspect_restart_policy'
+    Assert-R26D41 ($inspection.running -eq $true -and $inspection.restarting -eq $false) 'inspect_running_state'
+    Assert-R26D41 ($storageMount.Name -eq 'qdrant_storage') 'inspect_storage_volume'
+    Assert-R26D41 ($storageMount.Destination -ceq '/qdrant/storage') 'inspect_storage_destination'
+
+    $script:CapturedInspectName = ''
+    $viaCentralFunction = Get-NsR26DockerContainerInspection -ContainerName 'qdrant' -CaptureInvoker {
+        param($name)
+        $script:CapturedInspectName = $name
+        return New-InspectCapture -Documents @((New-InspectDocument))
+    }
+    Assert-R26D41 ($script:CapturedInspectName -eq 'qdrant') 'central_inspect_container_name'
+    Assert-R26D41 (($viaCentralFunction.inspect_arguments -join '|') -eq 'inspect|qdrant') 'central_inspect_arguments_exact'
+    Assert-R26D41 (($viaCentralFunction.inspect_arguments -join ' ') -notmatch '(\{\{|\}\}|/qdrant/storage|-f|--format)') 'central_inspect_arguments_no_template'
+
+    Assert-ThrowsCode -Code 'QDRANT_STORAGE_MOUNT_MISSING' -Action {
+        Get-NsR26QdrantStorageMount -Inspection (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Mounts @()))))
+    }
+    $twoMounts = @(
+        [ordered]@{ Type = 'volume'; Name = 'one'; Source = '/one'; Destination = '/qdrant/storage' },
+        [ordered]@{ Type = 'volume'; Name = 'two'; Source = '/two'; Destination = '/qdrant/storage' }
+    )
+    Assert-ThrowsCode -Code 'QDRANT_STORAGE_MOUNT_AMBIGUOUS' -Action {
+        Get-NsR26QdrantStorageMount -Inspection (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Mounts $twoMounts))))
+    }
+    Assert-ThrowsCode -Code 'QDRANT_STORAGE_MOUNT_NOT_VOLUME' -Action {
+        $mount = @([ordered]@{ Type = 'bind'; Name = 'wrong'; Source = 'D:\wrong'; Destination = '/qdrant/storage' })
+        Get-NsR26QdrantStorageMount -Inspection (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Mounts $mount))))
+    }
+    Assert-ThrowsCode -Code 'QDRANT_STORAGE_VOLUME_NAME_MISSING' -Action {
+        $mount = @([ordered]@{ Type = 'volume'; Name = ''; Source = '/source'; Destination = '/qdrant/storage' })
+        Get-NsR26QdrantStorageMount -Inspection (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Mounts $mount))))
+    }
+    Assert-ThrowsCode -Code 'QDRANT_STORAGE_SOURCE_EMPTY' -Action {
+        $mount = @([ordered]@{ Type = 'volume'; Name = 'named'; Source = ''; Destination = '/qdrant/storage' })
+        Get-NsR26QdrantStorageMount -Inspection (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Mounts $mount))))
+    }
+    Assert-ThrowsCode -Code 'DOCKER_INSPECT_JSON_INVALID' -Action {
+        ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents $null -Stdout '{invalid')
+    }
+    Assert-ThrowsCode -Code 'DOCKER_INSPECT_OBJECT_MISSING' -Action {
+        ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @())
+    }
+    Assert-ThrowsCode -Code 'DOCKER_INSPECT_OBJECT_AMBIGUOUS' -Action {
+        ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Id 'one'), (New-InspectDocument -Id 'two')))
+    }
+    Assert-ThrowsCode -Code 'DOCKER_INSPECT_EXIT_7' -Action {
+        ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents $null -ExitCode 7 -Stdout '' -Stderr 'synthetic inspect error')
+    }
+
+    $runningInspection = ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument)))
+    $stoppedInspection = ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Running $false -Status 'exited')))
+    $restartedInspection = ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Running $true -Status 'running')))
+    Assert-R26D41 (Assert-NsR26PrimaryStoppedState -Before $runningInspection -After $stoppedInspection) 'state_stopped_pass'
+    Assert-R26D41 (Assert-NsR26PrimaryRestartedState -Before $runningInspection -After $restartedInspection) 'state_restarted_pass'
+    Assert-ThrowsCode -Code 'QDRANT_PRIMARY_IDENTITY_CHANGED' -Action { Assert-NsR26PrimaryRestartedState -Before $runningInspection -After (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Id 'changed')))) }
+    Assert-ThrowsCode -Code 'QDRANT_PRIMARY_NOT_RUNNING' -Action { Assert-NsR26PrimaryRestartedState -Before $runningInspection -After (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -Restarting $true)))) }
+    Assert-ThrowsCode -Code 'QDRANT_PRIMARY_RESTART_COUNT_CHANGED' -Action { Assert-NsR26PrimaryRestartedState -Before $runningInspection -After (ConvertFrom-NsR26DockerInspectionCapture -Capture (New-InspectCapture -Documents @((New-InspectDocument -RestartCount 1)))) }
+
     $requestPath = Join-Path $root 'request.json'
     Write-TestJson $requestPath ([ordered]@{
-        schema = 'NEXT_STABIL_QDRANT_BACKUP_HELPER_REQUEST_V1'; operation_id = 'r26-d41-test'
+        schema = 'NEXT_STABIL_QDRANT_BACKUP_HELPER_REQUEST_V1'; operation_id = 'r26-d42-test'
         backup_root = 'F:\dump'; artifact_root = 'F:\dump\checkpoint\artifacts\qdrant'
         collections = @('ai_lab_document_chunks', 'ai_lab_knowledge_base_chunks')
         validator_path = 'C:\ai-lab-core\operations\supervisor\qdrant_snapshot_validator.js'; helper_port = 16333
@@ -173,7 +283,7 @@ if($mode -eq 'pass'){exit 0};[Console]::Error.Write('synthetic helper failure');
 
     $bounded = Get-BoundedQdrantDiagnosticText ('x' * 9000)
     Assert-R26D41 ($bounded.Length -eq 8192) 'diagnostic_bounded'
-    Write-Output "PASS_QDRANT_HELPER_DIAGNOSTICS_PS51 assertions=$script:Assertions"
+    Write-Output "PASS_QDRANT_HELPER_JSON_INSPECT_PS51 assertions=$script:Assertions"
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

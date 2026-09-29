@@ -9,6 +9,17 @@ const backup = fs.readFileSync(path.join(__dirname, '..', 'hardening', 'backup-p
 assert.match(helper, /NEXT_STABIL_QDRANT_BACKUP_HELPER_REQUEST_V1/);
 assert.match(helper, /NEXT_STABIL_QDRANT_BACKUP_HELPER_RESULT_V1/);
 assert.match(helper, /Resolve-NsR26CollectionSnapshotPath/);
+assert.match(helper, /Get-NsR26DockerContainerInspection/);
+assert.match(helper, /ConvertFrom-NsR26DockerInspectionCapture/);
+assert.match(helper, /Get-NsR26QdrantStorageMount/);
+assert.match(helper, /QDRANT_STORAGE_MOUNT_MISSING/);
+assert.match(helper, /QDRANT_STORAGE_MOUNT_AMBIGUOUS/);
+assert.match(helper, /QDRANT_STORAGE_MOUNT_NOT_VOLUME/);
+assert.match(helper, /QDRANT_STORAGE_VOLUME_NAME_MISSING/);
+assert.doesNotMatch(helper, /\{\{/);
+assert.doesNotMatch(helper, /\}\}/);
+assert.doesNotMatch(helper, /docker(?:\.exe)?\s+inspect\s+(?:-f|--format)\b/i);
+assert.doesNotMatch(helper, /docker(?:\.exe)?\s+ps\s+--format\b/i);
 assert.match(helper, /Join-Path \$collectionRoot \$SnapshotName/);
 assert.match(helper, /SNAPSHOT_REPARSE_REJECTED/);
 assert.match(helper, /'stop', '-t', '60', 'qdrant'/);

@@ -108,6 +108,121 @@ function Invoke-NsR26Docker {
     return $output
 }
 
+function Invoke-NsR26DockerInspectCapture {
+    param([Parameter(Mandatory = $true)][string]$ContainerName)
+    if ($ContainerName -notmatch '^[A-Za-z0-9_.-]+$') { throw 'DOCKER_CONTAINER_NAME_UNSAFE' }
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = 'docker.exe'
+    $start.Arguments = "inspect $ContainerName"
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    if (-not $process.Start()) { throw 'DOCKER_INSPECT_PROCESS_NOT_STARTED' }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $capture = [pscustomobject][ordered]@{
+        arguments = @('inspect', $ContainerName)
+        exit_code = [int]$process.ExitCode
+        stdout = ConvertTo-NsR26BoundedSafeText -Value ([string]$stdoutTask.Result) -MaximumCharacters 1048576
+        stderr = ConvertTo-NsR26BoundedSafeText -Value ([string]$stderrTask.Result) -MaximumCharacters 8192
+    }
+    $script:NsR26LastDockerInspectCapture = $capture
+    return $capture
+}
+
+function ConvertFrom-NsR26DockerInspectionCapture {
+    param([Parameter(Mandatory = $true)]$Capture)
+    if ([int]$Capture.exit_code -ne 0) {
+        throw "DOCKER_INSPECT_EXIT_$([int]$Capture.exit_code):$(ConvertTo-NsR26BoundedSafeText -Value $Capture.stderr -MaximumCharacters 2048)"
+    }
+    try { $documents = @(([string]$Capture.stdout | ConvertFrom-Json)) }
+    catch { throw "DOCKER_INSPECT_JSON_INVALID:$(ConvertTo-NsR26BoundedSafeText -Value $_.Exception.Message -MaximumCharacters 1024)" }
+    if ($documents.Count -eq 0) { throw 'DOCKER_INSPECT_OBJECT_MISSING' }
+    if ($documents.Count -ne 1) { throw 'DOCKER_INSPECT_OBJECT_AMBIGUOUS' }
+    $document = $documents[0]
+    foreach ($property in @('Id', 'Image', 'Config', 'HostConfig', 'State', 'RestartCount', 'Mounts')) {
+        if ($null -eq $document.PSObject.Properties[$property]) { throw "DOCKER_INSPECT_FIELD_MISSING:$property" }
+    }
+    if ($null -eq $document.Config.PSObject.Properties['Image']) { throw 'DOCKER_INSPECT_FIELD_MISSING:Config.Image' }
+    if ($null -eq $document.HostConfig.PSObject.Properties['RestartPolicy'] -or
+        $null -eq $document.HostConfig.RestartPolicy.PSObject.Properties['Name']) {
+        throw 'DOCKER_INSPECT_FIELD_MISSING:HostConfig.RestartPolicy.Name'
+    }
+    foreach ($property in @('Running', 'Status', 'Restarting')) {
+        if ($null -eq $document.State.PSObject.Properties[$property]) { throw "DOCKER_INSPECT_FIELD_MISSING:State.$property" }
+    }
+    return [pscustomobject][ordered]@{
+        id = [string]$document.Id
+        image_id = [string]$document.Image
+        image_reference = [string]$document.Config.Image
+        restart_policy = [string]$document.HostConfig.RestartPolicy.Name
+        running = [bool]$document.State.Running
+        status = [string]$document.State.Status
+        restarting = [bool]$document.State.Restarting
+        restart_count = [int64]$document.RestartCount
+        mounts = @($document.Mounts)
+        inspect_stdout = [string]$Capture.stdout
+        inspect_stderr = [string]$Capture.stderr
+        inspect_arguments = @($Capture.arguments)
+    }
+}
+
+function Get-NsR26DockerContainerInspection {
+    param(
+        [string]$ContainerName = 'qdrant',
+        [AllowNull()][scriptblock]$CaptureInvoker = $null
+    )
+    $capture = if ($null -eq $CaptureInvoker) {
+        Invoke-NsR26DockerInspectCapture -ContainerName $ContainerName
+    } else {
+        & $CaptureInvoker $ContainerName
+    }
+    $script:NsR26LastDockerInspectCapture = $capture
+    return ConvertFrom-NsR26DockerInspectionCapture -Capture $capture
+}
+
+function Get-NsR26QdrantStorageMount {
+    param([Parameter(Mandatory = $true)]$Inspection)
+    $matches = @($Inspection.mounts | Where-Object { [string]$_.Destination -ceq '/qdrant/storage' })
+    if ($matches.Count -eq 0) { throw 'QDRANT_STORAGE_MOUNT_MISSING' }
+    if ($matches.Count -gt 1) { throw 'QDRANT_STORAGE_MOUNT_AMBIGUOUS' }
+    $mount = $matches[0]
+    if ([string]$mount.Type -cne 'volume') { throw 'QDRANT_STORAGE_MOUNT_NOT_VOLUME' }
+    if ([string]::IsNullOrWhiteSpace([string]$mount.Name)) { throw 'QDRANT_STORAGE_VOLUME_NAME_MISSING' }
+    if ($null -ne $mount.PSObject.Properties['Source'] -and [string]::IsNullOrWhiteSpace([string]$mount.Source)) {
+        throw 'QDRANT_STORAGE_SOURCE_EMPTY'
+    }
+    return $mount
+}
+
+function Assert-NsR26PrimaryStoppedState {
+    param([Parameter(Mandatory = $true)]$Before, [Parameter(Mandatory = $true)]$After)
+    if ([string]$After.id -ne [string]$Before.id) { throw 'QDRANT_PRIMARY_IDENTITY_CHANGED' }
+    if ($After.running -ne $false -or $After.restarting -ne $false -or [string]$After.status -ne 'exited') {
+        throw 'QDRANT_PRIMARY_NOT_STOPPED'
+    }
+    return $true
+}
+
+function Assert-NsR26PrimaryRestartedState {
+    param([Parameter(Mandatory = $true)]$Before, [Parameter(Mandatory = $true)]$After)
+    if ([string]$After.id -ne [string]$Before.id) { throw 'QDRANT_PRIMARY_IDENTITY_CHANGED' }
+    if ($After.running -ne $true -or $After.restarting -ne $false -or [string]$After.status -ne 'running') {
+        throw 'QDRANT_PRIMARY_NOT_RUNNING'
+    }
+    if ([int64]$After.restart_count -ne [int64]$Before.restart_count) { throw 'QDRANT_PRIMARY_RESTART_COUNT_CHANGED' }
+    if ([string]$After.image_id -ne [string]$Before.image_id -or
+        [string]$After.image_reference -ne [string]$Before.image_reference -or
+        [string]$After.restart_policy -ne [string]$Before.restart_policy) {
+        throw 'QDRANT_PRIMARY_CONFIGURATION_CHANGED'
+    }
+    return $true
+}
+
 function Invoke-NsR26QdrantApi {
     param([Parameter(Mandatory = $true)][string]$Uri, [string]$Method = 'Get')
     return Invoke-RestMethod -Method $Method -Uri $Uri -TimeoutSec 900
@@ -176,11 +291,18 @@ function New-NsR26HelperResultDocument {
         collections = @($State.collections)
         records = @($State.records)
         error_type = [string]$State.error_type
+        bounded_stdout = ConvertTo-NsR26BoundedSafeText -Value $State.bounded_stdout
         bounded_stderr = ConvertTo-NsR26BoundedSafeText -Value $State.bounded_stderr
         original_error = $State.original_error
         cleanup_error = ConvertTo-NsR26BoundedSafeText -Value $State.cleanup_error
         cleanup_stage = [string]$State.cleanup_stage
         staging_inventory = @($State.staging_inventory)
+        primary_restart_count_before = $State.primary_restart_count_before
+        primary_restart_count_after = $State.primary_restart_count_after
+        primary_image_id = [string]$State.primary_image_id
+        primary_image_reference = [string]$State.primary_image_reference
+        primary_restart_policy = [string]$State.primary_restart_policy
+        storage_volume_name = [string]$State.storage_volume_name
     }
 }
 
@@ -208,26 +330,36 @@ function Invoke-NsR26QdrantHelper {
     $helperName = ''
     $helperCreated = $false
     $primaryStopped = $false
+    $primaryInspection = $null
+    $script:NsR26LastDockerInspectCapture = $null
     $state = @{
         started_at = [DateTime]::UtcNow.ToString('o'); message = ''; primary_container_id = ''
         primary_stopped = $false; primary_restarted = $false; primary_ready = $false
         helper_name = ''; helper_created = $false; helper_removed = $false
         staging_root = ''; staging_volume = ''; staging_residue_count = 0
         helper_container_residue_count = 0; collections = @(); records = @()
-        error_type = ''; bounded_stderr = ''; original_error = $null; cleanup_error = ''
+        error_type = ''; bounded_stdout = ''; bounded_stderr = ''; original_error = $null; cleanup_error = ''
         cleanup_stage = ''; staging_inventory = @()
+        primary_restart_count_before = $null; primary_restart_count_after = $null
+        primary_image_id = ''; primary_image_reference = ''; primary_restart_policy = ''; storage_volume_name = ''
     }
     $cleanupErrors = New-Object Collections.Generic.List[string]
     try {
         $request = Read-NsR26HelperRequest -LiteralPath $HelperRequestPath
         $helperBaseUri = "http://127.0.0.1:$($request.helper_port)"
         $stage = 'PRE_INVENTORY'
-        $primaryId = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{.Id}}', 'qdrant') | Select-Object -Last 1)).Trim()
-        $imageId = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{.Image}}', 'qdrant') | Select-Object -Last 1)).Trim()
-        $imageReference = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{.Config.Image}}', 'qdrant') | Select-Object -Last 1)).Trim()
-        $restartPolicy = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{.HostConfig.RestartPolicy.Name}}', 'qdrant') | Select-Object -Last 1)).Trim()
-        $volume = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{range .Mounts}}{{if eq .Destination "/qdrant/storage"}}{{.Name}}{{end}}{{end}}', 'qdrant') | Select-Object -Last 1)).Trim()
-        if ([string]::IsNullOrWhiteSpace($volume)) { throw 'QDRANT_NAMED_VOLUME_MISSING' }
+        $primaryInspection = Get-NsR26DockerContainerInspection -ContainerName 'qdrant'
+        $storageMount = Get-NsR26QdrantStorageMount -Inspection $primaryInspection
+        $primaryId = [string]$primaryInspection.id
+        $imageId = [string]$primaryInspection.image_id
+        $imageReference = [string]$primaryInspection.image_reference
+        $restartPolicy = [string]$primaryInspection.restart_policy
+        $volume = [string]$storageMount.Name
+        $state.primary_restart_count_before = [int64]$primaryInspection.restart_count
+        $state.primary_image_id = $imageId
+        $state.primary_image_reference = $imageReference
+        $state.primary_restart_policy = $restartPolicy
+        $state.storage_volume_name = $volume
         $before = @(Get-NsR26CollectionInventory -Collections $request.collections -BaseUri $baseUri)
         $stage = 'STAGING_PREPARE'
         $backupRoot = [IO.Path]::GetFullPath($request.backup_root).TrimEnd('\')
@@ -248,8 +380,8 @@ function Invoke-NsR26QdrantHelper {
         [void](Invoke-NsR26Docker -Arguments @('stop', '-t', '60', 'qdrant'))
         $primaryStopped = $true
         $stage = 'CONFIRM_PRIMARY_STOPPED'
-        $running = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{.State.Running}}', 'qdrant') | Select-Object -Last 1)).Trim()
-        if ($running -ne 'false') { throw 'QDRANT_PRIMARY_NOT_STOPPED' }
+        $stoppedInspection = Get-NsR26DockerContainerInspection -ContainerName 'qdrant'
+        [void](Assert-NsR26PrimaryStoppedState -Before $primaryInspection -After $stoppedInspection)
         $stage = 'START_HELPER'
         $mount = "type=bind,src=$stagingRoot,dst=/qdrant/snapshots"
         [void](Invoke-NsR26Docker -Arguments @(
@@ -311,7 +443,11 @@ function Invoke-NsR26QdrantHelper {
         $failureCode = Get-NsR26ErrorCode -ErrorRecord $_
         $state.message = ConvertTo-NsR26BoundedSafeText -Value $_.Exception.Message
         $state.error_type = $_.Exception.GetType().FullName
-        $state.bounded_stderr = $state.message
+        if ($null -ne $script:NsR26LastDockerInspectCapture) {
+            $state.bounded_stdout = ConvertTo-NsR26BoundedSafeText -Value $script:NsR26LastDockerInspectCapture.stdout -MaximumCharacters 8192
+            $state.bounded_stderr = ConvertTo-NsR26BoundedSafeText -Value $script:NsR26LastDockerInspectCapture.stderr -MaximumCharacters 8192
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$state.bounded_stderr)) { $state.bounded_stderr = $state.message }
         $state.original_error = [ordered]@{ stage = $failureStage; code = $failureCode; message = $state.message; error_type = $state.error_type }
         if (-not [string]::IsNullOrWhiteSpace($stagingRoot)) { $state.staging_inventory = @(Get-NsR26StagingInventory -StagingRoot $stagingRoot) }
     }
@@ -343,8 +479,9 @@ function Invoke-NsR26QdrantHelper {
                     } while (($null -eq $primaryReadyResponse -or $primaryReadyResponse.StatusCode -ne 200) -and (Get-Date) -lt $deadline)
                     $state.primary_ready = $null -ne $primaryReadyResponse -and $primaryReadyResponse.StatusCode -eq 200
                     if (-not $state.primary_ready) { throw 'QDRANT_PRIMARY_NOT_READY' }
-                    $afterPrimaryId = ([string](Invoke-NsR26Docker -Arguments @('inspect', '-f', '{{.Id}}', 'qdrant') | Select-Object -Last 1)).Trim()
-                    if ($afterPrimaryId -ne $primaryId) { throw 'QDRANT_PRIMARY_IDENTITY_CHANGED' }
+                    $afterPrimaryInspection = Get-NsR26DockerContainerInspection -ContainerName 'qdrant'
+                    [void](Assert-NsR26PrimaryRestartedState -Before $primaryInspection -After $afterPrimaryInspection)
+                    $state.primary_restart_count_after = [int64]$afterPrimaryInspection.restart_count
                 }
                 catch { $cleanupErrors.Add("WAIT_PRIMARY_READY:$($_.Exception.Message)") }
             }
@@ -371,7 +508,7 @@ function Invoke-NsR26QdrantHelper {
         }
         try {
             if (-not [string]::IsNullOrWhiteSpace($helperName)) {
-                $remaining = @(Invoke-NsR26Docker -Arguments @('ps', '-a', '--filter', "name=^/$helperName$", '--format', '{{.ID}}'))
+                $remaining = @(Invoke-NsR26Docker -Arguments @('container', 'ls', '--all', '--quiet', '--no-trunc', '--filter', "name=^/$helperName$"))
                 $state.helper_container_residue_count = @($remaining | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }).Count
             }
             $state.helper_removed = $state.helper_container_residue_count -eq 0
