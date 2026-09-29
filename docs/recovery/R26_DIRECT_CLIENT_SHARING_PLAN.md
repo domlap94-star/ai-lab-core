@@ -401,3 +401,39 @@ pozostały bez zmian; direct proof, backup, migracja, deployment i smoke są
 
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D42_OPERATOR_PREFLIGHT_JOIN_BINDING_BEFORE_MUTATION`.
+
+## 18. D-43 — operator PASS, helper wdrożony, Qdrant snapshot HTTP 500
+
+Nowy LOCAL_ONLY operator `R26-STEP2-D43-20260929T165100Z` zastąpił wszystkie
+użycia operatora `-join` przez `[string]::Join` i współdzieli jedną funkcję
+rzeczywistego read-only preflightu między `ValidateOnly` i `Execute`. Parser
+Windows PowerShell 5.1, testy `100/24/7`, helper contract, alias audit
+`20/60/0` oraz AST audit
+`command_parameter_join_count=0 / binary_join_operator_count=0` przeszły.
+Rzeczywisty preflight potwierdził dokładnie jeden Qdrant, volume
+`qdrant_storage`, readiness `200`, kolekcje `57/157`, DB R25 bez
+`scheduled_date`, produkt `+42`, artefakty `+43`, fixture i residue `0`.
+Zamrożony operator miał `51575` B i SHA-256
+`4B4DE563CEB7A32B6A791B56DA8019BD4B85F0E2739969D32748EDEC0880E658`.
+
+Jedyny UAC D-43 uruchomił PID `23032`. Faza toolset zainstalowała wyłącznie
+helper `28B84E792C511C7EAC2BEEDAC52E013BD0A1115F239A7E4202BCFA708AAFCD06`;
+runner pozostał exact
+`6CFFA1EC2CE8242EFD541B931B3E68790FD0FD36F3EC9F4871721356D6A542B6`.
+Direct Qdrant proof zatrzymał się na pierwszej kolekcji ze strukturalnym
+`stage=SNAPSHOT_CREATE:ai_lab_document_chunks`, `System.Net.WebException` i
+HTTP 500. Pole `code=Serwer` jest jedynie błędną klasyfikacją pierwszego słowa
+polskiego komunikatu wyjątku. Staging inventory potwierdza, że przed błędem
+powstał snapshot `348404224` B i checksum `64` B.
+
+Cleanup jest kompletny: helper został usunięty, staging residue wynosi `0`,
+podstawowy Qdrant zachował ID
+`daa3b0b86b748aa3a52052dac08bfde499cf19ad61600a1325e09061a5451fae`,
+stan running, readiness `200`, restart `0`, volume, obraz, politykę restartu,
+kolekcje `57/157` i brak aliasów. `pending_mutation=false`. Pełny
+RecoveryPointV2, migracja, deployment i live smoke nie rozpoczęły się; DB,
+backend/startup oraz Web/Windows/Android pozostają R25/+42. Drugiego UAC ani
+retry nie wykonano.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D43_QDRANT_SNAPSHOT_CREATE_HTTP_500_AFTER_ARTIFACT`.

@@ -2413,21 +2413,21 @@
       "Lista klientów zachowuje wejście w szczegóły, a ikona udostępniania nie propaguje tapnięcia.",
       "Aktywny grant wyklucza użytkownika, cofnięty grant nie wyklucza, a anulowanie ma zero POST.",
       "Web/Windows/Android 1.0.2+42 oraz synthetic live cancel/confirm/scope/cleanup przechodzą.",
-      "Krok 2 source/test/build 1.0.2+43 oraz publiczny no-template JSON inspect helper source przechodzą; pełny RecoveryPointV2, deployment i live smoke wymagają korekty operatora po fail-before bindingu -join i nowej autoryzowanej operacji."
+      "Krok 2 source/test/build 1.0.2+43, operator join binding i wdrożony no-template JSON inspect helper przechodzą; pełny RecoveryPointV2, deployment i live smoke wymagają rozliczenia HTTP 500 podczas pierwszego snapshot create."
     ],
-    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. D-42 opublikowała no-template JSON inspect helper source i testy PASS; accepted operator zatrzymał się w PREFLIGHT przed mutation_started, więc proof, backup i produkt pozostały NOT_RUN.",
-    "impact": "Aktywny runner 6CFFA1EC i helper D-41 60203C42 pozostają bez zmiany; nowy helper 28B84E79 jest publiczny, ale NOT_DEPLOYED. Preimages 0, Qdrant/helper/staging/artifact/runtime bez zmian, produkt nadal R25/+42, fixture/active backup/Supervisor/pending mutation mają zera.",
-    "approval": "D-42 autoryzowała source, operator i UAC. Pierwszy cancel-before-CreateProcess miał zero skutków; po jawnej nowej zgodzie accepted PID 25092 zakończył się fail-before na bindingu -join. Accepted UAC jest skonsumowany, bez kolejnego retry.",
-    "rollback": "Nie rozpoczęto mutacji i nie utworzono preimages; rollback nie był potrzebny. Source fix pozostaje publiczny, a produkcyjny helper i cały runtime zachowują preimage D-41/R25.",
+    "done": "Krok 1 jest wdrożony i właścicielsko odebrany. D-43 naprawiła operator-only join binding, przeszła actual preflight i wdrożyła helper 28B84E79; direct proof zatrzymał się na HTTP 500 pierwszego snapshot POST, więc pełny backup i produkt pozostały NOT_RUN.",
+    "impact": "Aktywny runner 6CFFA1EC pozostał bez zmiany, helper 28B84E79 jest wdrożony. Qdrant został przywrócony z tym samym ID/readiness/counts/restart, helper/staging residue 0; produkt nadal R25/+42, fixture/active backup/Supervisor/pending mutation mają zera.",
+    "approval": "D-43 autoryzowała dokładnie jeden świeży UAC dla helper-only install, direct proof, backup i dalszego deploymentu. PID 23032 ujawnił nowy materialny K1; nie wykonano drugiego UAC ani retry.",
+    "rollback": "Helper installation zakończyła PASS i zgodnie z decyzją pozostała wdrożona. Direct proof przywrócił Qdrant oraz usunął operation-owned helper/staging; produkt nie rozpoczął mutacji i zachował runtime R25/+42.",
     "exclude": "R04; D-22; rzeczywiste dane klientów; fizyczny Android; kolejny UAC bez nowej bieżącej zgody.",
     "status": "IN_PROGRESS",
-    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_D42_JSON_INSPECT_SOURCE_PASS_NOT_DEPLOYED / FINAL_CONSOLIDATED_K1_D42_OPERATOR_PREFLIGHT_JOIN_BINDING_BEFORE_MUTATION",
-    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / JSON_INSPECT_HELPER_PUBLIC_10CB95971DCF288D8C0459355400CB144682DB96 / D42_OPERATOR_AUDIT_VALIDATE_BOUNDED_PREFLIGHT_PASS / FIRST_UAC_CANCELLED_BEFORE_CREATEPROCESS_NO_MUTATION / OWNER_REAUTHORIZED_ONE_NEW_ATTEMPT / ACCEPTED_PID_25092_EXIT_1 / OPERATOR_PREFLIGHT_JOIN_BINDING_K1 / MUTATION_STARTED_FALSE / PREIMAGES_ZERO / HELPER_FIX_NOT_DEPLOYED / QDRANT_RUNTIME_PRODUCT_UNCHANGED / PROOF_BACKUP_SMOKE_NOT_RUN / PENDING_MUTATION_FALSE",
+    "active_stage": "STEP1_OWNER_CONFIRMED / STEP2_D43_HELPER_DEPLOYED / FINAL_CONSOLIDATED_K1_D43_QDRANT_SNAPSHOT_CREATE_HTTP_500_AFTER_ARTIFACT",
+    "execution_state": "STEP1_OWNER_ACCEPTED_182183C618A2545B79EAEA97702A8BBC3A1525AC / PRODUCT_SOURCE_PUBLIC_67B867EE279FE0BF7617C05B7D61FFF0B337CAB3 / JSON_INSPECT_HELPER_PUBLIC_10CB95971DCF288D8C0459355400CB144682DB96 / D43_OPERATOR_PS51_100_24_7_ALIAS_20_60_0_AST_JOIN_0_0_VALIDATE_ACTUAL_PREFLIGHT_PASS / OPERATOR_4B4DE563CEB7A32B6A791B56DA8019BD4B85F0E2739969D32748EDEC0880E658 / ACCEPTED_PID_23032_EXIT_1 / HELPER_DEPLOYED_28B84E792C511C7EAC2BEEDAC52E013BD0A1115F239A7E4202BCFA708AAFCD06 / RUNNER_UNCHANGED_6CFFA1EC2CE8242EFD541B931B3E68790FD0FD36F3EC9F4871721356D6A542B6 / DIRECT_QDRANT_SNAPSHOT_CREATE_HTTP_500_AFTER_ARTIFACT / QDRANT_RESTORED_SAME_ID_READY_COUNTS_RESTART / HELPER_STAGING_RESIDUE_ZERO / FULL_BACKUP_PRODUCT_SMOKE_NOT_RUN / PENDING_MUTATION_FALSE",
     "canonical_plan": "docs/recovery/R26_DIRECT_CLIENT_SHARING_PLAN.md",
     "primary_requirements": ["M-006", "M-007"],
     "linked_requirements": ["F-035"],
     "findings": [
-      "K1 D42_OPERATOR_PREFLIGHT_JOIN_BINDING_BEFORE_MUTATION: operator zastosował -join przed zamknięciem wywołania NsR26Docker, więc Windows PowerShell 5.1 związał go jako nieistniejący parametr funkcji. Accepted PID zatrzymał się w PREFLIGHT z mutation_started=false; source helpera jest PASS/publiczny, ale NOT_DEPLOYED, a skonsumowanego accepted UAC nie można ponowić."
+      "K1 D43_QDRANT_SNAPSHOT_CREATE_HTTP_500_AFTER_ARTIFACT: installed helper zatrzymał direct proof na pierwszym snapshot POST z System.Net.WebException HTTP 500, mimo że staging inventory zarejestrował snapshot 348404224 B i checksum 64 B. Cleanup przywrócił Qdrant i usunął residue; dokładna przyczyna odpowiedzi 500 pozostaje nierozstrzygnięta, bez retry i drugiego UAC."
     ],
     "retirement_ids": []
   }
