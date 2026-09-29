@@ -309,3 +309,40 @@ pozostają `+42`, fixture `0`, pending mutation `false`.
 
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D39_TOOLSET_PASS_BACKUP_POSTGRES_STREAM_FAILED`.
+
+## 15. D-40 — transport PostgreSQL PASS, helper Qdrant K1
+
+Minimalny source D-40 został opublikowany w
+`c90bef520ee20a93660f211df3c5eb6cbf2c701f`. Runner zastąpił `CopyTo`
+jawną pętlą binarną z bounded timeoutem, rozliczeniem exit/stderr/HResult i
+semantyką `.partial`; `pg_restore --list` oraz pełne bezprodukcyjne odczytanie
+do `/dev/null` poprzedzają finalizację. Windows PowerShell 5.1 przeszedł parser,
+24 asercje transportu, selection `7/7` i Qdrant helper contract.
+
+Operator `R26-STEP2-D40-20260929T113705Z` miał `48988` B i SHA-256
+`739EE916CA95670DE3F682CAE0D5F639EBCE024A1CE83BCAC1E1F29D66B97A27`.
+Alias audit i ValidateOnly przeszły, podobnie jak bounded preflight. Jedyny UAC
+został zaakceptowany i skonsumowany. Zainstalowano wyłącznie nowy runner
+`228D0B88F1B9514CAB2C5B7C16E967516B23386CDAA6BB5ECB6133FB14E10AB6`;
+helper pozostał exact `39907FB26283D257F153BCB92E4E6754899FE20895FDBB12850451703AC0F644`.
+
+PostgreSQL zakończył się rzeczywistym PASS: `pg_dump exit=0`, stderr pusty,
+`490252061` B, pipe disposition `NONE`, oba procesy `pg_restore` exit `0`, a
+zwalidowany SHA-256 wyniósł
+`111A4B2D0F74441457BEFD26470F6FCD3EBDF13EB1985F18ADD361FB9130A648`.
+RecoveryPointV2 zatrzymał się dopiero w następnym etapie. Child
+`invoke-qdrant-backup-helper.ps1` zwrócił błąd, lecz granica runnera zachowała
+wyłącznie prefiks ścieżki bez wewnętrznego stage/exit/stderr. Nie wolno więc
+przypisać konkretnej przyczyny Qdrant bez nowego dowodu.
+
+Nie powstał finalny `backup-manifest.json`. Operation-owned checkpoint
+`F:\dump\20260929T114005Z` został usunięty, staging jest absent, helper
+container `0`, główny Qdrant zachował ID
+`daa3b0b86b748aa3a52052dac08bfde499cf19ad61600a1325e09061a5451fae`,
+stan running i kolekcje `57/157` punktów bez aliasów. Produkt nie rozpoczął
+mutacji: DB nadal R25 bez `scheduled_date`, backend/startup/Web/Windows/Android
+pozostają `+42`, fixture `0`, active backup `0`, Supervisor `0/0`, pending
+mutation `false`. Nie wykonano retry ani drugiego UAC.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D40_POSTGRES_STREAM_PASS_QDRANT_HELPER_FAILED_NO_DIAGNOSTIC`.
