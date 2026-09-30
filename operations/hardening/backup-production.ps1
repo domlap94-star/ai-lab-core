@@ -285,6 +285,218 @@ function Invoke-CheckedBinaryCapture {
     return [pscustomobject]$evidence
 }
 
+function Invoke-NsR26NativeProcessCapture {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [int]$TimeoutSeconds = 7200
+    )
+    $startedAt = [DateTime]::UtcNow
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $FilePath
+    $start.Arguments = ConvertTo-NativeArgumentString $Arguments
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    $started = $false
+    $timedOut = $false
+    $exitCode = -1
+    $stdout = ''
+    $stderr = ''
+    try {
+        $started = $process.Start()
+        if (-not $started) { throw 'N8N_EXPORT_PROCESS_FAILED' }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $timedOut = -not $process.WaitForExit(([int64]$TimeoutSeconds * 1000))
+        if ($timedOut) {
+            try { $process.Kill() } catch { }
+            $process.WaitForExit()
+        } else { $process.WaitForExit() }
+        $stdout = Get-BoundedQdrantDiagnosticText -Text ([string]$stdoutTask.Result) -MaximumLength 8192
+        $stderr = Get-BoundedQdrantDiagnosticText -Text ([string]$stderrTask.Result) -MaximumLength 8192
+        $exitCode = $process.ExitCode
+    }
+    finally { $timer.Stop() }
+    return [pscustomobject][ordered]@{
+        executable = $FilePath
+        arguments = @($Arguments)
+        started = $started
+        started_at = $startedAt.ToString('o')
+        finished_at = [DateTime]::UtcNow.ToString('o')
+        duration_ms = [int64]$timer.ElapsedMilliseconds
+        timed_out = $timedOut
+        exit_code = $exitCode
+        stdout = $stdout
+        stderr = $stderr
+    }
+}
+
+function Test-NsR26N8nExportDocument {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('workflow','credentials')][string]$ExportType,
+        [Parameter(Mandatory = $true)][string]$Raw
+    )
+    $withoutBom = $Raw.TrimStart([char]0xFEFF)
+    $firstMatch = [regex]::Match($withoutBom, '\S')
+    $first = if ($firstMatch.Success) { [string]$firstMatch.Value } else { '' }
+    if ($first -ne '[') { throw 'N8N_EXPORT_TOP_LEVEL_NOT_ARRAY' }
+    try {
+        Add-Type -AssemblyName System.Web.Extensions
+        $serializer = New-Object Web.Script.Serialization.JavaScriptSerializer
+        $serializer.MaxJsonLength = 134217728
+        $document = $serializer.DeserializeObject($withoutBom)
+    }
+    catch { throw 'N8N_EXPORT_JSON_INVALID' }
+    if ($document -isnot [System.Array]) { throw 'N8N_EXPORT_TOP_LEVEL_NOT_ARRAY' }
+    $items = @($document)
+    if ($items.Count -lt 1) {
+        if ($ExportType -eq 'workflow') { throw 'N8N_WORKFLOW_EXPORT_SCHEMA_INVALID' }
+        throw 'N8N_CREDENTIAL_EXPORT_SCHEMA_INVALID'
+    }
+    $ids = New-Object Collections.Generic.List[string]
+    $seen = @{}
+    foreach ($item in $items) {
+        if ($null -eq $item) {
+            if ($ExportType -eq 'workflow') { throw 'N8N_WORKFLOW_EXPORT_SCHEMA_INVALID' }
+            throw 'N8N_CREDENTIAL_EXPORT_SCHEMA_INVALID'
+        }
+        if ($item -isnot [Collections.IDictionary]) {
+            if ($ExportType -eq 'workflow') { throw 'N8N_WORKFLOW_EXPORT_SCHEMA_INVALID' }
+            throw 'N8N_CREDENTIAL_EXPORT_SCHEMA_INVALID'
+        }
+        if ($ExportType -eq 'workflow') {
+            if (-not $item.ContainsKey('id') -or -not $item.ContainsKey('name') -or -not $item.ContainsKey('nodes') -or -not $item.ContainsKey('connections') -or
+                [string]::IsNullOrWhiteSpace([string]$item['id']) -or $item['nodes'] -isnot [System.Array]) {
+                throw 'N8N_WORKFLOW_EXPORT_SCHEMA_INVALID'
+            }
+        } else {
+            if (-not $item.ContainsKey('id') -or -not $item.ContainsKey('name') -or -not $item.ContainsKey('type') -or -not $item.ContainsKey('data') -or
+                [string]::IsNullOrWhiteSpace([string]$item['id'])) { throw 'N8N_CREDENTIAL_EXPORT_SCHEMA_INVALID' }
+            if ($item['data'] -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$item['data'])) {
+                throw 'N8N_CREDENTIAL_EXPORT_NOT_ENCRYPTED'
+            }
+        }
+        $id = [string]$item['id']
+        if ($seen.ContainsKey($id)) {
+            if ($ExportType -eq 'workflow') { throw 'N8N_WORKFLOW_EXPORT_SCHEMA_INVALID' }
+            throw 'N8N_CREDENTIAL_EXPORT_SCHEMA_INVALID'
+        }
+        $seen[$id] = $true
+        $ids.Add($id)
+    }
+    $sortedIds = @($ids | Sort-Object)
+    return [pscustomobject][ordered]@{
+        export_type = $ExportType
+        item_count = $items.Count
+        id_list_sha256 = Get-TextSha256 ([string]::Join("`n", [string[]]$sortedIds))
+        credential_data_encrypted = if ($ExportType -eq 'credentials') { $true } else { $null }
+        first_non_whitespace = $first
+    }
+}
+
+function Invoke-NsR26N8nExportToArtifact {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('workflow','credentials')][string]$ExportType,
+        [Parameter(Mandatory = $true)][string]$HostPartialPath,
+        [Parameter(Mandatory = $true)][string]$HostFinalPath,
+        [Parameter(Mandatory = $true)][string]$ContainerTemporaryPath,
+        [Parameter(Mandatory = $true)][string]$DiagnosticPath,
+        [int]$TimeoutSeconds = 7200,
+        [int64]$MaximumBytes = 128MB,
+        [string]$DockerExecutable = 'docker.exe',
+        [string[]]$DockerPrefixArguments = @()
+    )
+    if ($ContainerTemporaryPath -notmatch '^/tmp/next-stabil-[A-Za-z0-9_.-]+\.json$') { throw 'N8N_CONTAINER_TEMP_PATH_INVALID' }
+    if ($HostPartialPath -ne ($HostFinalPath + '.partial')) { throw 'N8N_HOST_PARTIAL_PATH_INVALID' }
+    if ((Test-Path -LiteralPath $HostPartialPath) -or (Test-Path -LiteralPath $HostFinalPath)) { throw 'N8N_EXPORT_ARTIFACT_COLLISION' }
+    $commandCapture = $null
+    $copyCapture = $null
+    $failureCode = ''
+    $parserExceptionType = ''
+    $first = ''
+    $observedBytes = [int64]0
+    $cleanup = [ordered]@{ remove_exit = $null; absence_exit = $null; temp_absent = $false }
+    $validated = $null
+    $tempOwned = $false
+    try {
+        $precheck = Invoke-NsR26NativeProcessCapture -FilePath $DockerExecutable -Arguments @($DockerPrefixArguments + @('exec','n8n','test','!','-e',$ContainerTemporaryPath)) -TimeoutSeconds 30
+        if ($precheck.timed_out -or $precheck.exit_code -ne 0) { throw 'N8N_CONTAINER_TEMP_COLLISION' }
+        $tempOwned = $true
+        $exportCommand = "export:$ExportType"
+        $exportArguments = @($DockerPrefixArguments + @('exec','n8n','n8n',$exportCommand,'--all',("--output={0}" -f $ContainerTemporaryPath)))
+        if (@($exportArguments | Where-Object { [string]$_ -eq '--decrypted' }).Count -ne 0) { throw 'N8N_CREDENTIAL_EXPORT_NOT_ENCRYPTED' }
+        $commandCapture = Invoke-NsR26NativeProcessCapture -FilePath $DockerExecutable -Arguments $exportArguments -TimeoutSeconds $TimeoutSeconds
+        if ($commandCapture.timed_out) { throw 'N8N_EXPORT_TIMEOUT' }
+        if (-not $commandCapture.started -or $commandCapture.exit_code -ne 0 -or
+            ([string]$commandCapture.stderr -match '(?i)(fatal|panic|exception|failed|error)')) { throw 'N8N_EXPORT_PROCESS_FAILED' }
+        $copyCapture = Invoke-NsR26NativeProcessCapture -FilePath $DockerExecutable -Arguments @($DockerPrefixArguments + @('cp',("n8n:{0}" -f $ContainerTemporaryPath),$HostPartialPath)) -TimeoutSeconds 300
+        if ($copyCapture.timed_out -or $copyCapture.exit_code -ne 0 -or -not (Test-Path -LiteralPath $HostPartialPath -PathType Leaf)) {
+            throw 'N8N_EXPORT_FILE_MISSING'
+        }
+        $observedBytes = [int64](Get-Item -LiteralPath $HostPartialPath).Length
+        if ($observedBytes -le 0) { throw 'N8N_EXPORT_FILE_EMPTY' }
+        if ($observedBytes -gt $MaximumBytes) { throw 'N8N_EXPORT_FILE_TOO_LARGE' }
+        $raw = [IO.File]::ReadAllText($HostPartialPath, (New-Object Text.UTF8Encoding($false)))
+        $match = [regex]::Match($raw.TrimStart([char]0xFEFF), '\S')
+        $first = if ($match.Success) { [string]$match.Value } else { '' }
+        try { $validated = Test-NsR26N8nExportDocument -ExportType $ExportType -Raw $raw }
+        catch { $parserExceptionType = $_.Exception.GetType().FullName; throw }
+        $hash = (Get-FileHash -LiteralPath $HostPartialPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        Move-Item -LiteralPath $HostPartialPath -Destination $HostFinalPath
+        return [pscustomobject][ordered]@{
+            export_type = $ExportType
+            command_exit = [int]$commandCapture.exit_code
+            count = [int]$validated.item_count
+            bytes = $observedBytes
+            sha256 = $hash
+            id_list_sha256 = [string]$validated.id_list_sha256
+            credential_data_encrypted = $validated.credential_data_encrypted
+            container_temporary_path = $ContainerTemporaryPath
+        }
+    }
+    catch {
+        $failureCode = if ([string]$_.Exception.Message -match '^N8N_[A-Z0-9_]+$') { [string]$_.Exception.Message } else { 'N8N_EXPORT_PROCESS_FAILED' }
+        Remove-Item -LiteralPath $HostPartialPath -Force -ErrorAction SilentlyContinue
+        throw $failureCode
+    }
+    finally {
+        if ($tempOwned) {
+            $removeCapture = Invoke-NsR26NativeProcessCapture -FilePath $DockerExecutable -Arguments @($DockerPrefixArguments + @('exec','n8n','rm','-f','--',$ContainerTemporaryPath)) -TimeoutSeconds 30
+            $absenceCapture = Invoke-NsR26NativeProcessCapture -FilePath $DockerExecutable -Arguments @($DockerPrefixArguments + @('exec','n8n','test','!','-e',$ContainerTemporaryPath)) -TimeoutSeconds 30
+            $cleanup.remove_exit = [int]$removeCapture.exit_code
+            $cleanup.absence_exit = [int]$absenceCapture.exit_code
+            $cleanup.temp_absent = -not $absenceCapture.timed_out -and $absenceCapture.exit_code -eq 0
+        }
+        $diagnostic = [ordered]@{
+            schema = 'NEXT_STABIL_N8N_EXPORT_EVIDENCE_V1'
+            export_type = $ExportType
+            stage = if ([string]::IsNullOrWhiteSpace($failureCode)) { 'COMPLETE' } else { 'FAILED' }
+            code = if ([string]::IsNullOrWhiteSpace($failureCode)) { 'OK' } else { $failureCode }
+            command = $commandCapture
+            copy = $copyCapture
+            bytes = $observedBytes
+            first_non_whitespace = $first
+            json_parser_exception_type = $parserExceptionType
+            cleanup = $cleanup
+            count = if ($null -eq $validated) { $null } else { [int]$validated.item_count }
+            sha256 = if (Test-Path -LiteralPath $HostFinalPath -PathType Leaf) { (Get-FileHash -LiteralPath $HostFinalPath -Algorithm SHA256).Hash.ToLowerInvariant() } else { $null }
+            id_list_sha256 = if ($null -eq $validated) { $null } else { [string]$validated.id_list_sha256 }
+            credential_data_encrypted = if ($null -eq $validated) { $null } else { $validated.credential_data_encrypted }
+        }
+        Write-BinaryTransportEvidence -Path $DiagnosticPath -Record $diagnostic
+        if ($tempOwned -and -not $cleanup.temp_absent) {
+            Remove-Item -LiteralPath $HostPartialPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $HostFinalPath -Force -ErrorAction SilentlyContinue
+            throw 'N8N_CONTAINER_TEMP_RESIDUE'
+        }
+    }
+}
+
 function Invoke-CheckedFileInput {
     param(
         [string]$FilePath,
@@ -864,13 +1076,17 @@ if ($Scope -in @("full", "n8n_config")) {
     Write-Output "BACKUP_STAGE=n8n"
     $n8nWorkflows = Join-Path $artifacts "n8n-workflows.json"
     $n8nCredentials = Join-Path $artifacts "n8n-credentials.encrypted.json"
-    [void](Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:workflow", "--all") $n8nWorkflows 7200 (Join-Path $configDir "n8n-workflow-transport.json"))
-    [void](Invoke-CheckedBinaryCapture "docker.exe" @("exec", "n8n", "n8n", "export:credentials", "--all") $n8nCredentials 7200 (Join-Path $configDir "n8n-credentials-transport.json"))
-    try {
-        $workflowExport = Get-Content -LiteralPath $n8nWorkflows -Raw | ConvertFrom-Json
-        $credentialExport = Get-Content -LiteralPath $n8nCredentials -Raw | ConvertFrom-Json
-    } catch { throw "n8n_export_json_invalid" }
-    if ($null -eq $workflowExport -or $null -eq $credentialExport) { throw "n8n_export_json_invalid" }
+    $safeN8nId = $stamp -replace '[^A-Za-z0-9_.-]', '-'
+    $workflowContainerTemp = "/tmp/next-stabil-$safeN8nId-workflows.json"
+    $credentialContainerTemp = "/tmp/next-stabil-$safeN8nId-credentials.json"
+    $n8nWorkflowEvidence = Invoke-NsR26N8nExportToArtifact -ExportType workflow `
+        -HostPartialPath ($n8nWorkflows + '.partial') -HostFinalPath $n8nWorkflows `
+        -ContainerTemporaryPath $workflowContainerTemp -DiagnosticPath (Join-Path $configDir 'n8n-workflow-export.json')
+    $n8nCredentialEvidence = Invoke-NsR26N8nExportToArtifact -ExportType credentials `
+        -HostPartialPath ($n8nCredentials + '.partial') -HostFinalPath $n8nCredentials `
+        -ContainerTemporaryPath $credentialContainerTemp -DiagnosticPath (Join-Path $configDir 'n8n-credential-export.json')
+    if ($n8nWorkflowEvidence.count -lt 1 -or $n8nCredentialEvidence.count -lt 1 -or
+        $n8nCredentialEvidence.credential_data_encrypted -ne $true) { throw 'N8N_EXPORT_POSTCONDITION_FAILED' }
     $artifactRecords += Get-ArtifactRecord $checkpoint $n8nWorkflows
     $artifactRecords += Get-ArtifactRecord $checkpoint $n8nCredentials
     $componentWindows += [ordered]@{ component = "n8n_exports"; started_at = $componentStarted.ToString("o"); finished_at = (Get-Date).ToUniversalTime().ToString("o") }
