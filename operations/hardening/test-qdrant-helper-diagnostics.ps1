@@ -42,6 +42,7 @@ function New-ResultState {
         staging_root = 'F:\test'; staging_volume = 'F:'; staging_residue_count = 0
         helper_container_residue_count = 0; collections = @(); records = @()
         error_type = ''; bounded_stdout = ''; bounded_stderr = ''; original_error = $null; cleanup_error = ''
+        http_captures = @(); helper_logs_stdout = ''; helper_logs_stderr = ''; helper_container_state = $null
         cleanup_stage = $Stage; staging_inventory = @()
         primary_restart_count_before = 0; primary_restart_count_after = 0
         primary_image_id = 'sha256:image'; primary_image_reference = 'qdrant/qdrant@sha256:digest'
@@ -250,7 +251,8 @@ if($mode -eq 'missing'){[Console]::Error.Write('missing result');exit 8}
 if($mode -eq 'invalid'){[IO.File]::WriteAllText($ResultPath,'{invalid');exit 7}
 $status=if($mode -eq 'pass'){'PASS'}else{'FAIL'}
 $code=if($mode -eq 'pass'){'OK'}else{'SYNTHETIC_FAILURE'}
-$result=[ordered]@{schema='NEXT_STABIL_QDRANT_BACKUP_HELPER_RESULT_V1';status=$status;stage=if($mode -eq 'pass'){'COMPLETE'}else{'WAIT_HELPER_READY'};code=$code;helper_removed=$true;primary_restarted=$true;primary_ready=($mode -eq 'pass');staging_volume='F:';helper_container_residue_count=0;staging_residue_count=0;records=@(@{collection='ai_lab_document_chunks'},@{collection='ai_lab_knowledge_base_chunks'})}
+$hash='a'*64
+$result=[ordered]@{schema='NEXT_STABIL_QDRANT_BACKUP_HELPER_RESULT_V1';status=$status;stage=if($mode -eq 'pass'){'COMPLETE'}else{'WAIT_HELPER_READY'};code=$code;helper_removed=$true;primary_restarted=$true;primary_ready=($mode -eq 'pass');staging_volume='F:';helper_container_residue_count=0;staging_residue_count=0;records=@(@{collection='ai_lab_document_chunks';snapshot_artifact='F:\one.snapshot';checksum_artifact='F:\one.snapshot.checksum';snapshot_sha256=$hash;qdrant_checksum=$hash;checksum_file_sha256=$hash;structurally_valid=$true;helper_ready_after=$true},@{collection='ai_lab_knowledge_base_chunks';snapshot_artifact='F:\two.snapshot';checksum_artifact='F:\two.snapshot.checksum';snapshot_sha256=$hash;qdrant_checksum=$hash;checksum_file_sha256=$hash;structurally_valid=$true;helper_ready_after=$true})}
 [IO.File]::WriteAllText($ResultPath,(ConvertTo-Json $result -Depth 8),(New-Object Text.UTF8Encoding($false)))
 if($mode -eq 'pass'){exit 0};[Console]::Error.Write('synthetic helper failure');exit 6
 '@, (New-Object Text.UTF8Encoding($false)))

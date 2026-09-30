@@ -61,6 +61,7 @@ function Read-NsR26HelperRequest {
     return [pscustomobject][ordered]@{
         backup_root = [string]$request.backup_root
         artifact_root = [string]$request.artifact_root
+        evidence_root = if ($null -eq $request.PSObject.Properties['evidence_root']) { '' } else { [string]$request.evidence_root }
         collections = @($collections | ForEach-Object { [string]$_ })
         operation_id = [string]$request.operation_id
         validator_path = [string]$request.validator_path
@@ -228,12 +229,310 @@ function Invoke-NsR26QdrantApi {
     return Invoke-RestMethod -Method $Method -Uri $Uri -TimeoutSec 900
 }
 
+function ConvertTo-NsR26SafeHeaderMap {
+    param([AllowNull()]$Headers)
+    $result = [ordered]@{}
+    if ($null -eq $Headers) { return $result }
+    foreach ($name in @($Headers.AllKeys | Sort-Object)) {
+        if ([string]::IsNullOrWhiteSpace([string]$name)) { continue }
+        if ([string]$name -match '(?i)^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token)$') {
+            $result[[string]$name] = 'REDACTED'
+        } else {
+            $result[[string]$name] = ConvertTo-NsR26BoundedSafeText -Value ([string]$Headers[$name]) -MaximumCharacters 2048
+        }
+    }
+    return $result
+}
+
+function Invoke-NsR26QdrantHttpCapture {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [ValidateSet('Get', 'Post')][string]$Method = 'Get',
+        [int]$TimeoutSeconds = 900,
+        [int]$MaximumBodyCharacters = 65536,
+        [AllowNull()][scriptblock]$TransportInvoker = $null
+    )
+    $startedAt = [DateTime]::UtcNow
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $response = $null
+    $exceptionType = ''
+    $networkError = $false
+    $body = ''
+    $bodyTruncated = $false
+    try {
+        if ($null -ne $TransportInvoker) {
+            $synthetic = & $TransportInvoker $Uri $Method $TimeoutSeconds
+            if ($synthetic.network_error -eq $true) {
+                return [pscustomobject][ordered]@{
+                    started = $true; method = $Method.ToUpperInvariant(); uri = $Uri
+                    started_at = $startedAt.ToString('o'); finished_at = [DateTime]::UtcNow.ToString('o')
+                    duration_ms = [int64]$timer.ElapsedMilliseconds; transport_success = $false
+                    status_code = $null; reason_phrase = ''; response_body = ConvertTo-NsR26BoundedSafeText -Value $synthetic.response_body -MaximumCharacters $MaximumBodyCharacters
+                    response_body_truncated = $false; response_content_type = ''; response_headers = [ordered]@{}
+                    exception_type = [string]$synthetic.exception_type; network_error = $true
+                }
+            }
+            $body = [string]$synthetic.response_body
+            if ($body.Length -gt $MaximumBodyCharacters) { $body = $body.Substring(0, $MaximumBodyCharacters); $bodyTruncated = $true }
+            return [pscustomobject][ordered]@{
+                started = $true; method = $Method.ToUpperInvariant(); uri = $Uri
+                started_at = $startedAt.ToString('o'); finished_at = [DateTime]::UtcNow.ToString('o')
+                duration_ms = [int64]$timer.ElapsedMilliseconds; transport_success = $true
+                status_code = [int]$synthetic.status_code; reason_phrase = ConvertTo-NsR26BoundedSafeText -Value $synthetic.reason_phrase -MaximumCharacters 512
+                response_body = ConvertTo-NsR26BoundedSafeText -Value $body -MaximumCharacters $MaximumBodyCharacters
+                response_body_truncated = $bodyTruncated; response_content_type = [string]$synthetic.response_content_type
+                response_headers = if ($null -eq $synthetic.response_headers) { [ordered]@{} } else { $synthetic.response_headers }
+                exception_type = [string]$synthetic.exception_type; network_error = $false
+            }
+        }
+
+        $request = [Net.HttpWebRequest]::Create($Uri)
+        $request.Method = $Method.ToUpperInvariant()
+        $request.Timeout = $TimeoutSeconds * 1000
+        $request.ReadWriteTimeout = $TimeoutSeconds * 1000
+        $request.AllowAutoRedirect = $false
+        $request.UserAgent = 'NEXT-Stabil-R26-Qdrant-Backup/1'
+        if ($Method -eq 'Post') { $request.ContentLength = 0 }
+        try { $response = [Net.HttpWebResponse]$request.GetResponse() }
+        catch [Net.WebException] {
+            $exceptionType = $_.Exception.GetType().FullName
+            if ($null -eq $_.Exception.Response) {
+                $networkError = $true
+                $body = ConvertTo-NsR26BoundedSafeText -Value $_.Exception.Message -MaximumCharacters $MaximumBodyCharacters
+            } else {
+                $response = [Net.HttpWebResponse]$_.Exception.Response
+            }
+        }
+        if ($networkError) {
+            return [pscustomobject][ordered]@{
+                started = $true; method = $Method.ToUpperInvariant(); uri = $Uri
+                started_at = $startedAt.ToString('o'); finished_at = [DateTime]::UtcNow.ToString('o')
+                duration_ms = [int64]$timer.ElapsedMilliseconds; transport_success = $false
+                status_code = $null; reason_phrase = ''; response_body = $body; response_body_truncated = $false
+                response_content_type = ''; response_headers = [ordered]@{}; exception_type = $exceptionType; network_error = $true
+            }
+        }
+        $reader = New-Object IO.StreamReader($response.GetResponseStream())
+        try {
+            $characters = New-Object char[] ($MaximumBodyCharacters + 1)
+            $count = $reader.ReadBlock($characters, 0, $characters.Length)
+            $bodyTruncated = $count -gt $MaximumBodyCharacters
+            $length = [Math]::Min($count, $MaximumBodyCharacters)
+            $body = New-Object string ($characters, 0, $length)
+        } finally { $reader.Dispose() }
+        return [pscustomobject][ordered]@{
+            started = $true; method = $Method.ToUpperInvariant(); uri = $Uri
+            started_at = $startedAt.ToString('o'); finished_at = [DateTime]::UtcNow.ToString('o')
+            duration_ms = [int64]$timer.ElapsedMilliseconds; transport_success = $true
+            status_code = [int]$response.StatusCode; reason_phrase = ConvertTo-NsR26BoundedSafeText -Value $response.StatusDescription -MaximumCharacters 512
+            response_body = ConvertTo-NsR26BoundedSafeText -Value $body -MaximumCharacters $MaximumBodyCharacters
+            response_body_truncated = $bodyTruncated; response_content_type = [string]$response.ContentType
+            response_headers = ConvertTo-NsR26SafeHeaderMap -Headers $response.Headers
+            exception_type = $exceptionType; network_error = $false
+        }
+    }
+    catch {
+        return [pscustomobject][ordered]@{
+            started = $true; method = $Method.ToUpperInvariant(); uri = $Uri
+            started_at = $startedAt.ToString('o'); finished_at = [DateTime]::UtcNow.ToString('o')
+            duration_ms = [int64]$timer.ElapsedMilliseconds; transport_success = $false
+            status_code = $null; reason_phrase = ''; response_body = ConvertTo-NsR26BoundedSafeText -Value $_.Exception.Message -MaximumCharacters $MaximumBodyCharacters
+            response_body_truncated = $false; response_content_type = ''; response_headers = [ordered]@{}
+            exception_type = $_.Exception.GetType().FullName; network_error = $true
+        }
+    }
+    finally {
+        if ($null -ne $response) { $response.Dispose() }
+        $timer.Stop()
+    }
+}
+
+function Get-NsR26SnapshotFileInventory {
+    param([Parameter(Mandatory = $true)][string]$StagingRoot, [Parameter(Mandatory = $true)][string]$Collection)
+    [void](Test-NsR26SafeCollectionName -Name $Collection)
+    $staging = [IO.Path]::GetFullPath($StagingRoot).TrimEnd('\')
+    $collectionRoot = [IO.Path]::GetFullPath((Join-Path $staging $Collection)).TrimEnd('\')
+    if (-not $collectionRoot.StartsWith($staging + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'SNAPSHOT_PATH_ESCAPE' }
+    if (-not (Test-Path -LiteralPath $collectionRoot -PathType Container)) { return @() }
+    if (((Get-Item -LiteralPath $collectionRoot -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "SNAPSHOT_REPARSE_REJECTED:$collectionRoot" }
+    return @(Get-ChildItem -LiteralPath $collectionRoot -Force -File | Where-Object {
+        $_.Name -like '*.snapshot' -or $_.Name -like '*.snapshot.checksum' -or $_.Name -like '*.tmp'
+    } | Sort-Object Name | ForEach-Object {
+        [pscustomobject][ordered]@{
+            name = $_.Name; full_path = $_.FullName; bytes = [int64]$_.Length
+            last_write_utc = $_.LastWriteTimeUtc.ToString('o')
+            reparse = [bool](($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)
+            kind = if ($_.Name -like '*.snapshot.checksum') { 'checksum' } elseif ($_.Name -like '*.snapshot') { 'snapshot' } else { 'tmp' }
+        }
+    })
+}
+
+function Wait-NsR26SnapshotStable {
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [int]$RequiredReadCount = 3,
+        [int]$IntervalMilliseconds = 1000,
+        [AllowNull()][scriptblock]$SleepInvoker = $null
+    )
+    $observations = @()
+    for ($index = 0; $index -lt $RequiredReadCount; $index++) {
+        if (-not (Test-Path -LiteralPath $LiteralPath -PathType Leaf)) { throw 'QDRANT_HTTP500_NO_ARTIFACT' }
+        $item = Get-Item -LiteralPath $LiteralPath -Force
+        $observations += @([pscustomobject][ordered]@{ bytes = [int64]$item.Length; last_write_utc = $item.LastWriteTimeUtc.ToString('o') })
+        if ($index -lt ($RequiredReadCount - 1)) {
+            if ($null -ne $SleepInvoker) { & $SleepInvoker $IntervalMilliseconds } else { Start-Sleep -Milliseconds $IntervalMilliseconds }
+        }
+    }
+    if (@($observations | Select-Object -ExpandProperty bytes -Unique).Count -ne 1 -or
+        @($observations | Select-Object -ExpandProperty last_write_utc -Unique).Count -ne 1) {
+        throw 'QDRANT_SNAPSHOT_ARTIFACT_UNSTABLE'
+    }
+    return $observations
+}
+
+function Invoke-NsR26SnapshotValidator {
+    param([Parameter(Mandatory = $true)][string]$ValidatorPath, [Parameter(Mandatory = $true)][string]$SnapshotPath, [AllowNull()][scriptblock]$ValidatorInvoker = $null)
+    if ($null -eq $ValidatorInvoker) {
+        $output = @(& node.exe $ValidatorPath $SnapshotPath 2>&1)
+        $exitCode = $LASTEXITCODE
+    } else {
+        $capture = & $ValidatorInvoker $ValidatorPath $SnapshotPath
+        $output = @($capture.output)
+        $exitCode = [int]$capture.exit_code
+    }
+    if ($exitCode -ne 0 -or $output.Count -eq 0) { throw 'QDRANT_SNAPSHOT_INVALID' }
+    try { $document = ([string]::Join('', [string[]]$output)) | ConvertFrom-Json }
+    catch { throw 'QDRANT_SNAPSHOT_VALIDATOR_JSON' }
+    if ($document.valid -ne $true) { throw 'QDRANT_SNAPSHOT_INVALID' }
+    return [pscustomobject][ordered]@{ exit_code = $exitCode; valid = $true; result = $document; bounded_json = ConvertTo-NsR26BoundedSafeText -Value ([string]::Join('', [string[]]$output)) -MaximumCharacters 16384 }
+}
+
+function Complete-NsR26SnapshotArtifact {
+    param(
+        [Parameter(Mandatory = $true)][string]$StagingRoot,
+        [Parameter(Mandatory = $true)][string]$ArtifactRoot,
+        [Parameter(Mandatory = $true)][string]$Collection,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$PreInventory,
+        [Parameter(Mandatory = $true)]$HttpCapture,
+        [Parameter(Mandatory = $true)][string]$ValidatorPath,
+        [Parameter(Mandatory = $true)]$HelperHealth,
+        [AllowNull()]$ApiListCapture = $null,
+        [AllowNull()][scriptblock]$ValidatorInvoker = $null,
+        [int]$StabilityIntervalMilliseconds = 1000,
+        [AllowNull()][scriptblock]$SleepInvoker = $null
+    )
+    if ($HttpCapture.transport_success -ne $true -or $HttpCapture.network_error -eq $true) { throw 'QDRANT_HTTP_NO_RESPONSE' }
+    $status = [int]$HttpCapture.status_code
+    $postInventory = @(Get-NsR26SnapshotFileInventory -StagingRoot $StagingRoot -Collection $Collection)
+    $preNames = @($PreInventory | ForEach-Object { [string]$_.name })
+    $newSnapshots = @($postInventory | Where-Object { $_.kind -eq 'snapshot' -and $_.name -notin $preNames })
+    $snapshotName = ''
+    $outcome = ''
+    if ($status -ge 200 -and $status -lt 300) {
+        try { $body = ([string]$HttpCapture.response_body) | ConvertFrom-Json } catch { throw 'QDRANT_SNAPSHOT_RESPONSE_JSON_INVALID' }
+        if ([string]$body.status -ne 'ok' -or [string]::IsNullOrWhiteSpace([string]$body.result.name)) { throw 'QDRANT_SNAPSHOT_CREATE_FAILED' }
+        $snapshotName = [string]$body.result.name
+        $outcome = 'HTTP_2XX_NORMAL'
+    } elseif ($status -eq 500) {
+        if ($newSnapshots.Count -eq 0) { throw 'QDRANT_HTTP500_NO_ARTIFACT' }
+        if ($newSnapshots.Count -ne 1) { throw 'QDRANT_SNAPSHOT_ARTIFACT_AMBIGUOUS' }
+        $snapshotName = [string]$newSnapshots[0].name
+        $outcome = 'ARTIFACT_RECONCILED_AFTER_HTTP_500'
+    } else {
+        throw "QDRANT_HTTP_$status"
+    }
+    [void](Test-NsR26SafeSnapshotName -Name $snapshotName)
+    $snapshotPath = Resolve-NsR26CollectionSnapshotPath -StagingRoot $StagingRoot -Collection $Collection -SnapshotName $snapshotName
+    $checksumName = $snapshotName + '.checksum'
+    $checksumPath = Join-Path (Split-Path -Parent $snapshotPath) $checksumName
+    if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) { throw $(if ($status -eq 500) { 'QDRANT_HTTP500_CHECKSUM_MISSING' } else { 'QDRANT_CHECKSUM_MISSING' }) }
+    $checksumItem = Get-Item -LiteralPath $checksumPath -Force
+    if (($checksumItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'QDRANT_CHECKSUM_REPARSE_REJECTED' }
+    if (@($postInventory | Where-Object { $_.kind -eq 'tmp' }).Count -ne 0) { throw $(if ($status -eq 500) { 'QDRANT_HTTP500_ARTIFACT_NOT_FINALIZED' } else { 'QDRANT_ARTIFACT_NOT_FINALIZED' }) }
+    $stability = @(Wait-NsR26SnapshotStable -LiteralPath $snapshotPath -IntervalMilliseconds $StabilityIntervalMilliseconds -SleepInvoker $SleepInvoker)
+    $qdrantChecksum = ([string](Get-Content -LiteralPath $checksumPath -Raw -Encoding UTF8)).Trim().ToLowerInvariant()
+    if ($qdrantChecksum -notmatch '^[a-f0-9]{64}$') { throw 'QDRANT_CHECKSUM_INVALID' }
+    $localHash = (Get-FileHash -LiteralPath $snapshotPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($localHash -ne $qdrantChecksum) { throw 'QDRANT_CHECKSUM_MISMATCH' }
+    $validator = Invoke-NsR26SnapshotValidator -ValidatorPath $ValidatorPath -SnapshotPath $snapshotPath -ValidatorInvoker $ValidatorInvoker
+    if ($HelperHealth.running -ne $true -or $HelperHealth.oom_killed -eq $true -or [int]$HelperHealth.ready_status -ne 200) { throw 'QDRANT_HELPER_NOT_HEALTHY_AFTER_SNAPSHOT' }
+    $combinedLogs = [string]$HelperHealth.stdout + "`n" + [string]$HelperHealth.stderr
+    if ($combinedLogs -match '(?im)\b(panic|fatal|segmentation fault|core dumped)\b') { throw 'QDRANT_HELPER_FATAL_LOG' }
+    if (-not (Test-Path -LiteralPath $ArtifactRoot -PathType Container)) { [void](New-Item -ItemType Directory -Path $ArtifactRoot -Force) }
+    $snapshotDestination = Join-Path $ArtifactRoot "$Collection.snapshot"
+    $checksumDestination = Join-Path $ArtifactRoot "$Collection.snapshot.checksum"
+    if ((Test-Path -LiteralPath $snapshotDestination) -or (Test-Path -LiteralPath $checksumDestination)) { throw "QDRANT_ARTIFACT_COLLISION:$Collection" }
+    Move-Item -LiteralPath $snapshotPath -Destination $snapshotDestination
+    Move-Item -LiteralPath $checksumPath -Destination $checksumDestination
+    return [pscustomobject][ordered]@{
+        collection = $Collection; snapshot_artifact = $snapshotDestination; checksum_artifact = $checksumDestination
+        artifact = $snapshotDestination; bytes = [int64](Get-Item -LiteralPath $snapshotDestination).Length
+        sha256 = $localHash; snapshot_sha256 = $localHash; qdrant_checksum = $qdrantChecksum
+        checksum_file_sha256 = (Get-FileHash -LiteralPath $checksumDestination -Algorithm SHA256).Hash.ToLowerInvariant()
+        snapshot_name = $snapshotName; creation_http_status = $status; creation_outcome = $outcome
+        response_body = ConvertTo-NsR26BoundedSafeText -Value $HttpCapture.response_body -MaximumCharacters 65536
+        response_headers = $HttpCapture.response_headers; duration_ms = [int64]$HttpCapture.duration_ms
+        structurally_valid = $true; validator_result = $validator; helper_ready_after = $true
+        file_stability = $stability; api_list_diagnostic = $ApiListCapture
+    }
+}
+
+function Get-NsR26HelperContainerDiagnostics {
+    param(
+        [Parameter(Mandatory = $true)][string]$HelperName,
+        [Parameter(Mandatory = $true)][string]$HelperBaseUri,
+        [Parameter(Mandatory = $true)][string]$HelperStartedAt,
+        [AllowNull()][string]$EvidenceRoot = ''
+    )
+    if ($HelperName -notmatch '^[A-Za-z0-9_.-]+$') { throw 'DOCKER_CONTAINER_NAME_UNSAFE' }
+    $inspectCapture = Invoke-NsR26DockerInspectCapture -ContainerName $HelperName
+    if ([int]$inspectCapture.exit_code -ne 0) { throw 'QDRANT_HELPER_INSPECT_FAILED' }
+    try { $documents = @(([string]$inspectCapture.stdout | ConvertFrom-Json)) } catch { throw 'QDRANT_HELPER_INSPECT_JSON_INVALID' }
+    if ($documents.Count -ne 1 -or $null -eq $documents[0].State) { throw 'QDRANT_HELPER_INSPECT_OBJECT_INVALID' }
+    $document = $documents[0]
+
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = 'docker.exe'
+    $start.Arguments = "logs --timestamps --since $HelperStartedAt --tail 1000 $HelperName"
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    if (-not $process.Start()) { throw 'QDRANT_HELPER_LOG_PROCESS_NOT_STARTED' }
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $stdout = ConvertTo-NsR26BoundedSafeText -Value ([string]$stdoutTask.Result) -MaximumCharacters 65536
+    $stderr = ConvertTo-NsR26BoundedSafeText -Value ([string]$stderrTask.Result) -MaximumCharacters 65536
+    if ($process.ExitCode -ne 0) { throw "QDRANT_HELPER_LOGS_EXIT_$($process.ExitCode)" }
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceRoot)) {
+        if (-not (Test-Path -LiteralPath $EvidenceRoot -PathType Container)) { [void](New-Item -ItemType Directory -Path $EvidenceRoot -Force) }
+        $logPath = Join-Path $EvidenceRoot 'qdrant-helper-container-logs.txt'
+        $text = "STDOUT`r`n$stdout`r`nSTDERR`r`n$stderr`r`n"
+        [IO.File]::WriteAllText($logPath, $text, (New-Object Text.UTF8Encoding($false)))
+    }
+    $readyCapture = Invoke-NsR26QdrantHttpCapture -Uri "$HelperBaseUri/readyz" -Method Get -TimeoutSeconds 10
+    return [pscustomobject][ordered]@{
+        running = [bool]$document.State.Running; oom_killed = [bool]$document.State.OOMKilled
+        exit_code = [int]$document.State.ExitCode; error = ConvertTo-NsR26BoundedSafeText -Value $document.State.Error -MaximumCharacters 2048
+        started_at = [string]$document.State.StartedAt; finished_at = [string]$document.State.FinishedAt
+        ready_status = if ($null -eq $readyCapture.status_code) { 0 } else { [int]$readyCapture.status_code }
+        stdout = $stdout; stderr = $stderr; ready_capture = $readyCapture
+    }
+}
+
 function Get-NsR26CollectionInventory {
     param([Parameter(Mandatory = $true)][string[]]$Collections, [Parameter(Mandatory = $true)][string]$BaseUri)
     $records = @()
     foreach ($collection in $Collections) {
-        $info = Invoke-NsR26QdrantApi -Uri "$BaseUri/collections/$collection"
-        $aliases = Invoke-NsR26QdrantApi -Uri "$BaseUri/collections/$collection/aliases"
+        $infoCapture = Invoke-NsR26QdrantHttpCapture -Uri "$BaseUri/collections/$collection" -Method Get -TimeoutSeconds 30
+        $aliasesCapture = Invoke-NsR26QdrantHttpCapture -Uri "$BaseUri/collections/$collection/aliases" -Method Get -TimeoutSeconds 30
+        if ($infoCapture.transport_success -ne $true -or [int]$infoCapture.status_code -ne 200) { throw "QDRANT_INVENTORY_HTTP_FAILED:$collection" }
+        if ($aliasesCapture.transport_success -ne $true -or [int]$aliasesCapture.status_code -ne 200) { throw "QDRANT_ALIAS_HTTP_FAILED:$collection" }
+        try { $info = ([string]$infoCapture.response_body) | ConvertFrom-Json } catch { throw "QDRANT_INVENTORY_JSON_FAILED:$collection" }
+        try { $aliases = ([string]$aliasesCapture.response_body) | ConvertFrom-Json } catch { throw "QDRANT_ALIAS_JSON_FAILED:$collection" }
         if ($info.status -ne 'ok' -or $aliases.status -ne 'ok') { throw "QDRANT_INVENTORY_FAILED:$collection" }
         $records += @([ordered]@{
             collection = $collection
@@ -242,6 +541,7 @@ function Get-NsR26CollectionInventory {
             segments_count = [int]$info.result.segments_count
             config = $info.result.config
             aliases = @($aliases.result.aliases | ForEach-Object { [string]$_.alias_name } | Sort-Object)
+            http = [ordered]@{ info = $infoCapture; aliases = $aliasesCapture }
         })
     }
     return $records
@@ -294,6 +594,12 @@ function New-NsR26HelperResultDocument {
         bounded_stdout = ConvertTo-NsR26BoundedSafeText -Value $State.bounded_stdout
         bounded_stderr = ConvertTo-NsR26BoundedSafeText -Value $State.bounded_stderr
         original_error = $State.original_error
+        http_captures = @($State.http_captures)
+        helper_container_logs = [ordered]@{
+            stdout = ConvertTo-NsR26BoundedSafeText -Value $State.helper_logs_stdout -MaximumCharacters 65536
+            stderr = ConvertTo-NsR26BoundedSafeText -Value $State.helper_logs_stderr -MaximumCharacters 65536
+        }
+        helper_container_state = $State.helper_container_state
         cleanup_error = ConvertTo-NsR26BoundedSafeText -Value $State.cleanup_error
         cleanup_stage = [string]$State.cleanup_stage
         staging_inventory = @($State.staging_inventory)
@@ -329,6 +635,7 @@ function Invoke-NsR26QdrantHelper {
     $records = @()
     $helperName = ''
     $helperCreated = $false
+    $helperStartedAt = ''
     $primaryStopped = $false
     $primaryInspection = $null
     $script:NsR26LastDockerInspectCapture = $null
@@ -339,6 +646,7 @@ function Invoke-NsR26QdrantHelper {
         staging_root = ''; staging_volume = ''; staging_residue_count = 0
         helper_container_residue_count = 0; collections = @(); records = @()
         error_type = ''; bounded_stdout = ''; bounded_stderr = ''; original_error = $null; cleanup_error = ''
+        http_captures = @(); helper_logs_stdout = ''; helper_logs_stderr = ''; helper_container_state = $null
         cleanup_stage = ''; staging_inventory = @()
         primary_restart_count_before = $null; primary_restart_count_after = $null
         primary_image_id = ''; primary_image_reference = ''; primary_restart_policy = ''; storage_volume_name = ''
@@ -384,6 +692,7 @@ function Invoke-NsR26QdrantHelper {
         [void](Assert-NsR26PrimaryStoppedState -Before $primaryInspection -After $stoppedInspection)
         $stage = 'START_HELPER'
         $mount = "type=bind,src=$stagingRoot,dst=/qdrant/snapshots"
+        $helperStartedAt = [DateTime]::UtcNow.ToString('o')
         [void](Invoke-NsR26Docker -Arguments @(
             'run', '-d', '--name', $helperName, '--pull', 'never', '--restart', 'no',
             '-p', "127.0.0.1:$($request.helper_port):6333",
@@ -402,33 +711,28 @@ function Invoke-NsR26QdrantHelper {
         if ($null -eq $ready -or $ready.StatusCode -ne 200) { throw 'QDRANT_HELPER_NOT_READY' }
         foreach ($collection in $request.collections) {
             $baseline = @($before | Where-Object { $_.collection -eq $collection })[0]
+            $preInventory = @(Get-NsR26SnapshotFileInventory -StagingRoot $stagingRoot -Collection $collection)
             $stage = "SNAPSHOT_CREATE:$collection"
-            $response = Invoke-NsR26QdrantApi -Uri "$helperBaseUri/collections/$collection/snapshots" -Method 'Post'
-            if ($response.status -ne 'ok' -or [string]::IsNullOrWhiteSpace([string]$response.result.name)) {
-                throw "QDRANT_SNAPSHOT_CREATE_FAILED:$collection"
-            }
-            $snapshotName = [string]$response.result.name
-            $stage = "SNAPSHOT_LOCATE:$collection"
-            $sourceSnapshotPath = Resolve-NsR26CollectionSnapshotPath -StagingRoot $stagingRoot -Collection $collection -SnapshotName $snapshotName
-            $stage = "SNAPSHOT_VALIDATE:$collection"
-            $validationOutput = @(& node.exe $request.validator_path $sourceSnapshotPath 2>&1)
-            $validationExitCode = $LASTEXITCODE
-            if ($validationExitCode -ne 0 -or $validationOutput.Count -eq 0) { throw "QDRANT_SNAPSHOT_INVALID:$collection" }
-            try { $validation = ($validationOutput -join '') | ConvertFrom-Json } catch { throw "QDRANT_SNAPSHOT_VALIDATOR_JSON:$collection" }
-            if ($validation.valid -ne $true) { throw "QDRANT_SNAPSHOT_INVALID:$collection" }
-            $stage = "SNAPSHOT_MOVE:$collection"
-            $destination = Join-Path $request.artifact_root "$collection.snapshot"
-            if (Test-Path -LiteralPath $destination) { throw "QDRANT_ARTIFACT_COLLISION:$collection" }
-            Move-Item -LiteralPath $sourceSnapshotPath -Destination $destination
-            $item = Get-Item -LiteralPath $destination
-            $records += @([ordered]@{
-                collection = $collection; artifact = $destination; bytes = [int64]$item.Length
-                sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
-                snapshot_name = $snapshotName; points_count = $baseline.points_count
-                indexed_vectors_count = $baseline.indexed_vectors_count; segments_count = $baseline.segments_count
-                config = $baseline.config; aliases = $baseline.aliases; structurally_valid = $true
-                structural_validation_reason = [string]$validation.reason
-            })
+            $httpCapture = Invoke-NsR26QdrantHttpCapture -Uri "$helperBaseUri/collections/$collection/snapshots?wait=true" -Method Post -TimeoutSeconds 900
+            $state.http_captures += @($httpCapture)
+            $stage = "SNAPSHOT_DIAGNOSTICS:$collection"
+            $helperDiagnostics = Get-NsR26HelperContainerDiagnostics -HelperName $helperName -HelperBaseUri $helperBaseUri -HelperStartedAt $helperStartedAt -EvidenceRoot $request.evidence_root
+            $state.helper_logs_stdout = [string]$helperDiagnostics.stdout
+            $state.helper_logs_stderr = [string]$helperDiagnostics.stderr
+            $state.helper_container_state = $helperDiagnostics
+            $apiListCapture = Invoke-NsR26QdrantHttpCapture -Uri "$helperBaseUri/collections/$collection/snapshots" -Method Get -TimeoutSeconds 30
+            $state.http_captures += @($apiListCapture)
+            $stage = "SNAPSHOT_RECONCILE:$collection"
+            $artifactRecord = Complete-NsR26SnapshotArtifact -StagingRoot $stagingRoot -ArtifactRoot $request.artifact_root `
+                -Collection $collection -PreInventory $preInventory -HttpCapture $httpCapture -ValidatorPath $request.validator_path `
+                -HelperHealth $helperDiagnostics -ApiListCapture $apiListCapture
+            $artifactRecord | Add-Member -NotePropertyName points_count -NotePropertyValue $baseline.points_count
+            $artifactRecord | Add-Member -NotePropertyName indexed_vectors_count -NotePropertyValue $baseline.indexed_vectors_count
+            $artifactRecord | Add-Member -NotePropertyName segments_count -NotePropertyValue $baseline.segments_count
+            $artifactRecord | Add-Member -NotePropertyName config -NotePropertyValue $baseline.config
+            $artifactRecord | Add-Member -NotePropertyName aliases -NotePropertyValue $baseline.aliases
+            $artifactRecord | Add-Member -NotePropertyName structural_validation_reason -NotePropertyValue ([string]$artifactRecord.validator_result.result.reason)
+            $records += @($artifactRecord)
         }
         $success = $true
         $state.message = 'QDRANT_HELPER_WORK_COMPLETE'
@@ -453,6 +757,13 @@ function Invoke-NsR26QdrantHelper {
     }
     finally {
         if ($helperCreated -or -not [string]::IsNullOrWhiteSpace($helperName)) {
+            $state.cleanup_stage = 'CAPTURE_HELPER_DIAGNOSTICS'
+            try {
+                $finalDiagnostics = Get-NsR26HelperContainerDiagnostics -HelperName $helperName -HelperBaseUri $helperBaseUri -HelperStartedAt $helperStartedAt -EvidenceRoot $(if ($null -eq $request) { '' } else { $request.evidence_root })
+                $state.helper_logs_stdout = [string]$finalDiagnostics.stdout
+                $state.helper_logs_stderr = [string]$finalDiagnostics.stderr
+                $state.helper_container_state = $finalDiagnostics
+            } catch { $cleanupErrors.Add("CAPTURE_HELPER_DIAGNOSTICS:$($_.Exception.Message)") }
             $state.cleanup_stage = 'STOP_HELPER'
             try {
                 $stopOutput = @(& docker.exe stop -t 30 $helperName 2>&1)

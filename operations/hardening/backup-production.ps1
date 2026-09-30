@@ -142,19 +142,27 @@ function Assert-QdrantHelperProcessPass {
     $result = $Capture.result
     $recordCollections = if ($null -eq $result) { @() } else { @($result.records | ForEach-Object { [string]$_.collection }) }
     $missingCollections = @($RequiredCollections | Where-Object { $_ -notin $recordCollections })
+    $invalidRecords = @(if ($null -eq $result) { 'missing_result' } else { @($result.records | Where-Object {
+        [string]::IsNullOrWhiteSpace([string]$_.snapshot_artifact) -or
+        [string]::IsNullOrWhiteSpace([string]$_.checksum_artifact) -or
+        [string]$_.snapshot_sha256 -notmatch '^[a-f0-9]{64}$' -or
+        [string]$_.qdrant_checksum -notmatch '^[a-f0-9]{64}$' -or
+        [string]$_.checksum_file_sha256 -notmatch '^[a-f0-9]{64}$' -or
+        $_.structurally_valid -ne $true -or $_.helper_ready_after -ne $true
+    }) })
     $passed = $Capture.started -eq $true -and $Capture.timed_out -eq $false -and $Capture.exit_code -eq 0 -and
         $Capture.result_status -eq 'PASS' -and $null -ne $result -and
         $result.helper_removed -eq $true -and $result.primary_restarted -eq $true -and $result.primary_ready -eq $true -and
         [string]$result.staging_volume -eq 'F:' -and [int]$result.helper_container_residue_count -eq 0 -and
-        [int]$result.staging_residue_count -eq 0 -and $missingCollections.Count -eq 0
+        [int]$result.staging_residue_count -eq 0 -and $missingCollections.Count -eq 0 -and $invalidRecords.Count -eq 0
     if (-not $passed) {
         $primaryReady = if ($null -eq $result) { $false } else { $result.primary_ready }
         $helperRemoved = if ($null -eq $result) { $false } else { $result.helper_removed }
         $helperResidue = if ($null -eq $result) { -1 } else { $result.helper_container_residue_count }
         $stagingResidue = if ($null -eq $result) { -1 } else { $result.staging_residue_count }
-        throw ("qdrant_backup_helper_failed stage={0} code={1} exit={2} timeout={3} primary_ready={4} helper_removed={5} helper_residue={6} staging_residue={7} missing_collections={8} stderr={9}" -f
+        throw ("qdrant_backup_helper_failed stage={0} code={1} exit={2} timeout={3} primary_ready={4} helper_removed={5} helper_residue={6} staging_residue={7} missing_collections={8} invalid_records={9} stderr={10}" -f
             $Capture.stage, $Capture.code, $Capture.exit_code, $Capture.timed_out, $primaryReady,
-            $helperRemoved, $helperResidue, $stagingResidue, ($missingCollections -join ','), $Capture.stderr)
+            $helperRemoved, $helperResidue, $stagingResidue, ($missingCollections -join ','), $invalidRecords.Count, $Capture.stderr)
     }
 }
 
@@ -747,6 +755,7 @@ if ($Scope -in @("full", "qdrant")) {
             collections = @($selectedCollections)
             validator_path = $validator
             helper_port = 16333
+            evidence_root = $DiagnosticRoot
         }
         [IO.File]::WriteAllText($helperRequestPath, (($helperRequest | ConvertTo-Json -Depth 8) + "`n"), (New-Object Text.UTF8Encoding($false)))
         $helperCapture = Invoke-QdrantHelperProcess -HelperScript $helperScript -RequestPath $helperRequestPath -ResultPath $helperResultPath
@@ -754,10 +763,12 @@ if ($Scope -in @("full", "qdrant")) {
         Assert-QdrantHelperProcessPass -Capture $helperCapture -RequiredCollections $selectedCollections
         $helperResult = $helperCapture.result
         foreach ($record in @($helperResult.records)) {
-            $artifactRecord = Get-ArtifactRecord $checkpoint ([string]$record.artifact)
+            $artifactRecord = Get-ArtifactRecord $checkpoint ([string]$record.snapshot_artifact)
+            $checksumArtifactRecord = Get-ArtifactRecord $checkpoint ([string]$record.checksum_artifact)
             $artifactRecords += $artifactRecord
+            $artifactRecords += $checksumArtifactRecord
             $qdrantSnapshotName = [string]$record.snapshot_name
-            $qdrantCollectionRecords += [ordered]@{ collection=[string]$record.collection;artifact_file=[string]$artifactRecord.file;snapshot_name=[string]$record.snapshot_name;snapshot_created_at=$null;points_count=[int64]$record.points_count;indexed_vectors_count=[int64]$record.indexed_vectors_count;segments_count=[int]$record.segments_count;vectors=$record.config.params.vectors;shard_number=$record.config.params.shard_number;replication_factor=$record.config.params.replication_factor;write_consistency_factor=$record.config.params.write_consistency_factor;on_disk_payload=$record.config.params.on_disk_payload;aliases=@($record.aliases);structurally_valid=$true;structural_validation_reason=[string]$record.structural_validation_reason;restore_status='NOT_RUN_BY_POLICY';restore_verified=$false }
+            $qdrantCollectionRecords += [ordered]@{ collection=[string]$record.collection;artifact_file=[string]$artifactRecord.file;checksum_artifact_file=[string]$checksumArtifactRecord.file;snapshot_name=[string]$record.snapshot_name;snapshot_created_at=$null;creation_http_status=[int]$record.creation_http_status;creation_outcome=[string]$record.creation_outcome;snapshot_sha256=[string]$record.snapshot_sha256;qdrant_checksum=[string]$record.qdrant_checksum;checksum_file_sha256=[string]$record.checksum_file_sha256;points_count=[int64]$record.points_count;indexed_vectors_count=[int64]$record.indexed_vectors_count;segments_count=[int]$record.segments_count;vectors=$record.config.params.vectors;shard_number=$record.config.params.shard_number;replication_factor=$record.config.params.replication_factor;write_consistency_factor=$record.config.params.write_consistency_factor;on_disk_payload=$record.config.params.on_disk_payload;aliases=@($record.aliases);structurally_valid=$true;structural_validation_reason=[string]$record.structural_validation_reason;restore_status='NOT_RUN_BY_POLICY';restore_verified=$false }
             $componentWindows += [ordered]@{component="qdrant:$($record.collection)";started_at=$null;finished_at=(Get-Date).ToUniversalTime().ToString('o')}
         }
         $qdrantSnapshotStructurallyValid = $true
@@ -1002,7 +1013,8 @@ $manifestPath = Join-Path $checkpoint "backup-manifest.json"
 Write-Output "BACKUP_STAGE=verifying"
 $requiredArtifacts = if ($ManifestFormat -eq "RecoveryPointV2") {
     @("postgres.dump", "document-storage.tar.gz", "release-stable.tar.gz", "n8n-workflows.json", "n8n-credentials.encrypted.json", "configuration.tar.gz", "runtime-inventory.json") +
-        @($requiredRecoveryCollections | ForEach-Object { "$_.snapshot" })
+        @($requiredRecoveryCollections | ForEach-Object { "$_.snapshot" }) +
+        @($requiredRecoveryCollections | ForEach-Object { "$_.snapshot.checksum" })
 } else { @() }
 if ($ManifestFormat -eq "RecoveryPointV2") {
     $artifactNames = @($artifactRecords | ForEach-Object { Split-Path -Leaf ([string]$_.file) })
