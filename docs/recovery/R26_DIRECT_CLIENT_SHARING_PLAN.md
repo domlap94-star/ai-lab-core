@@ -437,3 +437,28 @@ retry nie wykonano.
 
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D43_QDRANT_SNAPSHOT_CREATE_HTTP_500_AFTER_ARTIFACT`.
+
+## 19. D-44 — Qdrant reconciliation PASS, pełny backup zatrzymany na n8n
+
+Source `38ea6da7e9f1f691fe756f0f6159eead23d41ad6` dodał strukturalny
+HTTP capture, ścisłą rekonsyliację ważnego snapshotu po HTTP 500 oraz checksum
+artifact w backup manifest. Testy PS5.1 `56/100/24/7`, helper contract,
+parser, alias/AST audit i actual read-only preflight przeszły. LOCAL_ONLY
+operator `74ADE322...D59E41` użył jednego zaakceptowanego UAC i zainstalował
+runner `C1F7B3D8...05C40` oraz helper `5E0EED95...1EDF6` z exact preimages.
+
+Direct proof przeszedł dla `ai_lab_document_chunks` i
+`ai_lab_knowledge_base_chunks`: oba HTTP 500 zachowano jako błędy API, a po
+pełnej walidacji dokładnie jeden snapshot i checksum każdej kolekcji otrzymały
+`ARTIFACT_RECONCILED_AFTER_HTTP_500`. Drugi dozwolony cykl Qdrant w pełnym
+RecoveryPointV2 również przeszedł, z zachowaniem primary ID, readiness,
+restart count, counts/aliases oraz residue `0`.
+
+Pełny backup zatrzymał się później na `n8n_export_json_invalid`. Finalny
+manifest nie powstał, niekompletny checkpoint został usunięty, a migracja i
+produkt nie rozpoczęły mutacji. Toolset pozostaje wdrożony zgodnie z D-44;
+DB/startup/Web/Windows/Android pozostają R25/+42, `pending_mutation=false`.
+Nie wykonano drugiego UAC ani retry.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D44_RECOVERYPOINTV2_N8N_EXPORT_JSON_INVALID_NO_ARTIFACT`.
