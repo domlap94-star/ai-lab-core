@@ -18,8 +18,10 @@ Przepływ użytkownika:
 5. sukces odświeża historię i opcje oraz pokazuje komunikat bez zmiany trasy.
 
 Krok 2 został później osobno autoryzowany. Jego source/test/build jest
-opublikowany, lecz deployment nie rozpoczął się, ponieważ jedyny UAC anulowano
-przed `CreateProcess`. Nie zmienia to odbioru kroku 1 ani polityki scope R25.
+opublikowany. D-45 ukończyła n8n-only proof i pełny RecoveryPointV2 oraz
+wykonała addytywną migrację, lecz produkt pozostał częściowo wdrożony po
+błędnym potraktowaniu informacyjnego stderr Alembic jako wyjątku operatora.
+Nie zmienia to odbioru kroku 1 ani polityki scope R25.
 
 ## 2. Implementacja współdzielona
 
@@ -115,8 +117,8 @@ lokalnych logów biznesowych.
   `182183c618a2545b79eaea97702a8bbc3a1525ac`;
 - właściciel praktycznie potwierdził działanie na liście i w szczegółach,
   anulowanie bez grantu oraz dokładnie jeden właściwy grant po potwierdzeniu;
-- R26 krok 2: `IN_PROGRESS / CONSOLIDATED_K1 /
-  DEPLOYMENT_NOT_RUN_UAC_CANCELLED`;
+- R26 krok 2: `IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+  D45_BACKUP_PASS_MIGRATION_APPLIED_PRODUCT_DEPLOYMENT_PARTIAL_ALEMBIC_STDERR`;
 - otwarte techniczne K0/K1 w zakresie kroku 1: `BRAK`;
 - R04 pozostaje wstrzymane; D-22 pozostaje `NOT_RUN`.
 
@@ -175,16 +177,16 @@ Exact readback potwierdził:
 Nie utworzono fixture, więc cleanup residue wynosi zero przez brak rozpoczęcia.
 Migracja, deployment Web/backend/Windows/Android oraz synthetic live smoke są
 `NOT_RUN`. Był to historyczny K1 `DEPLOYMENT_NOT_RUN_UAC_CANCELLED`,
-zastąpiony bieżącym wynikiem opisanym w sekcji 10.
+zastąpiony bieżącym wynikiem opisanym w sekcji 20.
 
 ## 9. Bieżący status
 
 - R25: `ACCEPTED`;
 - R26 krok 1: `ACCEPTED / OWNER_CONFIRMED`;
-- R26 krok 2: `R26_STEP2_IN_PROGRESS / CONSOLIDATED_K1 /
-  CHANGES_REQUIRED`;
+- R26 krok 2: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+  D45_BACKUP_PASS_MIGRATION_APPLIED_PRODUCT_DEPLOYMENT_PARTIAL_ALEMBIC_STDERR`;
 - source/test/build: `PASS / PUBLIC`;
-- deployment/live smoke: `NOT_RUN`;
+- backup: `PASS`; deployment: `PARTIAL`; live smoke: `NOT_RUN`;
 - R04: `IN_PROGRESS / ORGANIZACYJNIE_WSTRZYMANE`;
 - D-22: `NOT_RUN`.
 
@@ -462,3 +464,62 @@ Nie wykonano drugiego UAC ani retry.
 
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D44_RECOVERYPOINTV2_N8N_EXPORT_JSON_INVALID_NO_ARTIFACT`.
+
+## 20. D-45 — n8n i RecoveryPointV2 PASS, deployment produktu częściowy
+
+Minimalny runner source `02502854d93a4cd773febb27a995f2f52ce65ceb`
+przestawił n8n 2.31.6 z niepoprawnego stdout-as-JSON na kanoniczne
+`--output=/tmp/next-stabil-...json`, binarnie bezpieczny `docker cp` do hostowego
+`.partial`, walidację schematu i atomową promocję. Credentials nie używały
+`--decrypted`. PS5.1 przeszedł `72` asercje n8n oraz regresje `56/100/24/7`
+i helper contract.
+
+LOCAL_ONLY operator `R26-STEP2-D45-20260930T162000Z` miał `58896` B i SHA-256
+`62F5A1C7C8AE9B4EC607217CEC655D7D4AEF2C65F401B2F7FCA8C3649A4DDC92`.
+Alias/AST audit, `D45_EXACT_OPERATOR_VALIDATE_ONLY_PASS` i actual preflight
+przeszły. Jeden UAC zainstalował wyłącznie runner
+`866AA9B7E18AB20022405C3D7D9318F04EDFB566AD1ED15A66F6D0F45C2E9406`;
+helper pozostał exact
+`5E0EED95B096DFD3889782B6478167FD18BC9E4D60D36DB0BBD65B9B7851EDF6`.
+
+N8n-only proof `F:\dump\20260930T162100Z` przeszedł, zachował małe evidence,
+a następnie checkpoint został dokładnie usunięty. Workflow i credentials miały
+command exit `0`, counts `4/4`, rozmiary `106047/4612` B oraz SHA-256
+`66e92464...ef716` / `0f8b9362...77d27`; credentials potwierdzono jako
+encrypted string data. Container temp i active-data residue są `0`, a n8n
+zachował ID, restart `0`, wersję `2.31.6` i readiness `200`.
+
+Pełny RecoveryPointV2 pozostał jako zweryfikowany checkpoint
+`F:\dump\20260930T162200Z`. Manifest ma SHA-256
+`7DF3D0DD1BDB3D508A48DC670468882FFC7CB8D729D886EBCC29E1DD25F394BA`,
+statusy `COMPLETE`, `11/11` zgodnych artefaktów i zero partial/tmp. PostgreSQL
+ma dump `490291084` B, exit `0`, pusty stderr, list/full-read PASS. Qdrant ma
+ten sam primary ID, readiness `200`, restart `0`, kolekcje `57/157`, helper i
+staging residue `0`; oba snapshoty/checksumy są strukturalnie poprawne. N8n
+artefakty i ich hashe zgadzają się z proofem.
+
+Po backupie operator skopiował 16 dokładnych plików backendu i uruchomił
+addytywną migrację. Alembic faktycznie osiągnął `r26_step2_20260928`, a kolumna
+`scheduled_date` istnieje. Windows PowerShell z `$ErrorActionPreference=Stop`
+przerwał jednak operator na pierwszym informacyjnym wierszu stderr
+`INFO [alembic.runtime.migration] Context impl PostgresqlImpl.` przed
+rozliczeniem exit code. Zgodnie z D-45 nie wykonano drugiego UAC ani retry.
+
+Bounded readback potwierdził bezpieczny, ale częściowy stan:
+
+- 16/16 hostowych plików backendu odpowiada product source;
+- migracja jest zastosowana, active backup i fixture wynoszą `0`;
+- backend container ID pozostał
+  `2e6e9e04aac2728ac84fed38078cb6e5628620525b83c848f850332b6b879e42`;
+- backend odpowiada `/health=200`, publiczne `/control=404`;
+- startup manifest, stable manifest, Web, Windows i Android pozostają na +42;
+- startup manifest jest czytelny i `APPROVED_FOR_START`, lecz walidacja ma
+  siedem `FILE_HASH_MISMATCH` dla już podmienionych plików backendu;
+- live smoke R26S2 nie został uruchomiony;
+- Qdrant/n8n są gotowe, Supervisor `0/0`, operation residue `0`;
+- `pending_mutation=true`, ponieważ finalny backend/startup/Web/Windows/Android
+  deployment nie został dokończony.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D45_BACKUP_PASS_MIGRATION_APPLIED_PRODUCT_DEPLOYMENT_PARTIAL_ALEMBIC_STDERR`.
+Krok 2 nie jest `READY_FOR_OWNER_REVIEW` ani `ACCEPTED`.
