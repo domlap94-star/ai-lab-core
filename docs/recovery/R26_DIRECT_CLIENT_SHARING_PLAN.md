@@ -523,3 +523,29 @@ Bounded readback potwierdził bezpieczny, ale częściowy stan:
 Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
 D45_BACKUP_PASS_MIGRATION_APPLIED_PRODUCT_DEPLOYMENT_PARTIAL_ALEMBIC_STDERR`.
 Krok 2 nie jest `READY_FOR_OWNER_REVIEW` ani `ACCEPTED`.
+
+## 21. D-46 — backend i manifest PASS, Web access denied
+
+Forward-only operator `R26-STEP2-D46-20261001T193854Z` nie powtórzył backupu,
+n8n proofu, dumpu, snapshotów, migracji, buildów ani instalacji 16 plików.
+Windows PowerShell 5.1 ValidateOnly potwierdził zachowany checkpoint 11/11,
+DB `r26_step2_20260928`, pliki 16/16, dokładnie siedem wejściowych mismatchy,
+runtime i residue. Operator `45734` B / `6FC72444...4AB4B38` przeszedł parser,
+alias/AST i pięć testów centralnego native-process capture.
+
+Jeden UAC wykonał backend-only replacement. Nowy backend
+`eae23207c36e7e9eeb623869bb68387b6d48c5be7deea3fcbb7761f246e5f44c`
+zachował pinned image, topologię i dziewięć flag false; pięć innych IDs nie
+zmieniło się. Live `/version` ma source `67b867...`, schema
+`r26_step2_20260928`, release R26 i `SAFE`. Startup manifest
+`0B2AD50C...A71BD` jest `APPROVED_FOR_START` i waliduje się bez błędów.
+
+Pierwsza czynność Web — kopia katalogowego preimage — zakończyła się odmową
+dostępu do `C:\ai-lab-core\frontend\build\web`. Stable/Web/Windows/Android
+pozostały exact +42; smoke i fixture nie rozpoczęły się, active backup i
+Supervisor są `0`, `pending_mutation=true`. Zdrowego backendu ani manifestu
+nie cofnięto. Drugiego UAC i retry nie wykonano.
+
+Bieżący status: `R26_STEP2_IN_PROGRESS / FINAL_CONSOLIDATED_K1 /
+D46_BACKEND_AND_MANIFEST_PASS_WEB_PATH_ACCESS_DENIED`. Krok 2 nie jest
+`READY_FOR_OWNER_REVIEW` ani `ACCEPTED`.
